@@ -10,8 +10,10 @@
  * @version 4.0
  */
 
-import type { CardSource } from "../types/cardSource";
+import { CardSource as CardSourceValues, type CardSource } from "../types/cardSource";
 import { type GameBoxscoreDetail } from "./mlbAPI";
+import { fetchCardData } from "./card_db/cardDatabase";
+import { cardKey } from "../domain/players";
 
 // =============================================================================
 // MARK: - CONFIGURATION & CONSTANTS
@@ -192,6 +194,32 @@ export async function fetchCardsByIds(cardIds: string[], source: string): Promis
 
     const { cards } = await res.json() as { cards: Record<string, ShowdownBotCardAPIResponse['card']> };
     return Object.fromEntries(Object.entries(cards).map(([id, card]) => [id, { card }]));
+}
+
+/**
+ * Archived (database-only) cards for a set of MLB player ids in one season, keyed by `cardKey` —
+ * no live stats pull, unlike `buildCardsFromIds`. Looks up each player's row in the card
+ * database, then fetches all their full nested cards in one batch. Two-way players return both a
+ * hitter and a pitcher record, so each lands under its own role-suffixed key.
+ */
+export async function fetchArchivedCardMap(
+    mlbIds: string[], year: number | string, showdownSet: string, source: string,
+): Promise<Record<string, ShowdownBotCardAPIResponse>> {
+    if (mlbIds.length === 0) return {};
+    const records = await fetchCardData(CardSourceValues.BOT, {
+        mlb_id: mlbIds,
+        year: String(year),
+        showdown_set: showdownSet,
+        limit: mlbIds.length * 2,
+    });
+    const responses = await fetchCardsByIds(records.map((record) => record.card_id), source);
+    const map: Record<string, ShowdownBotCardAPIResponse> = {};
+    for (const record of records) {
+        const response = responses[record.card_id];
+        if (!response?.card || record.mlb_id == null) continue;
+        map[cardKey(Number(record.mlb_id), record.is_pitcher ? "P" : "H")] = response;
+    }
+    return map;
 }
 
 export async function buildCards(requestedCards: Record<string, any>[]): Promise<ShowdownBotMultiCardAPIResponse> {

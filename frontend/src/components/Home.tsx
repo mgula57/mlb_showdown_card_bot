@@ -19,6 +19,7 @@ import { fromScheduledGame } from '../domain/adapters/fromMlbApi';
 import type { GameState } from '../domain/game';
 import { TeamChip } from './shared/TeamChip';
 import { markNavItemSeen, useNavItemIsNew } from '../hooks/useSeenNavItems';
+import HomeGameReel from './home/HomeGameReel';
 
 // Modal
 import { Modal } from './shared/Modal';
@@ -318,8 +319,8 @@ export default function Home() {
             `}>
 
             {/* Hero Section */}
-            <div className="max-w-7xl mx-auto py-2">
-                <div className="flex flex-col items-start gap-4">
+            <div className="max-w-7xl mx-auto py-2 grid lg:grid-cols-2 gap-6 lg:gap-8 items-center">
+                <div className="flex flex-col items-start gap-4 min-w-0">
                     <div className="flex flex-col items-start gap-3 max-w-2xl">
                         <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
                             <span className={`hidden sm:inline-flex items-center gap-2 px-4 py-1 rounded-full text-sm font-semibold ${isDark ? 'bg-white/10' : 'bg-gray-100'}`}>
@@ -341,7 +342,7 @@ export default function Home() {
 
                     {/* Quick Nav */}
                     <div className="w-full pt-1">
-                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 max-w-3xl">
+                        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-2 xl:grid-cols-4 gap-3 max-w-3xl">
                             {([
                                 { label: 'Card Builder',  desc: 'Build and customize your own cards', Icon: CardBuildIcon,   to: '/customs', iconColor: 'text-red-500' },
                                 { label: 'Card Explorer', desc: 'Browse our library of 100K+ cards', Icon: FaCompass,  to: '/cards',   iconColor: 'text-blue-500' },
@@ -353,6 +354,9 @@ export default function Home() {
                         </div>
                     </div>
                 </div>
+
+                {/* Game reel — replays a scoring half-inning from a real game with Showdown dice */}
+                <HomeGameReel onCardSelect={setSelectedModalCard} />
             </div>
 
             {/* Game Ticker */}

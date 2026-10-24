@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
-import { FaWandMagicSparkles, FaSpinner, FaTriangleExclamation, FaStar, FaLayerGroup, FaChevronDown, FaFloppyDisk, FaCheck, FaSliders, FaRotateLeft } from 'react-icons/fa6';
-import type { ReleaseEdition, AlgorithmConfig, AlgorithmPlayerTypeDistribution, AlgorithmPreviewResult, AlgorithmSelectionWeights, WotcSetProfile } from '../../api/releases';
+import { FaWandMagicSparkles, FaSpinner, FaTriangleExclamation, FaStar, FaLayerGroup, FaChevronDown, FaFloppyDisk, FaCheck, FaSliders, FaRotateLeft, FaCodeBranch } from 'react-icons/fa6';
+import type { ReleaseEdition, AlgorithmConfig, AlgorithmPlayerTypeDistribution, AlgorithmPreviewResult, AlgorithmSelectionWeights, AlgorithmTeamMinimums, AlgorithmTeamWeighting, AlgorithmOtherEditionsRule, WotcSetProfile } from '../../api/releases';
 import { fetchWotcSetProfiles, previewAlgorithm, updateEdition } from '../../api/releases';
 import { showdownSets } from '../shared/SiteSettingsContext';
 import FormInput from '../customs/FormInput';
 import FormEnabler from '../customs/FormEnabler';
+import FormDropdown from '../customs/FormDropdown';
 import MultiSelect from '../shared/MultiSelect';
 import PercentageSlider from '../shared/PercentageSlider';
 import InlineWarning from '../shared/InlineWarning';
@@ -40,8 +41,27 @@ const DEFAULT_SELECTION_WEIGHTS: AlgorithmSelectionWeights = {
 const WEIGHT_ROWS: { key: keyof AlgorithmSelectionWeights; label: string; hint: string; requiresPositionTargets?: boolean }[] = [
     { key: 'quality', label: 'Quality', hint: 'WAR (plus award boost)' },
     { key: 'volume', label: 'Volume', hint: 'PA for hitters, IP for pitchers' },
-    { key: 'team_balance', label: 'Teams', hint: 'even card count per team' },
+    { key: 'team_balance', label: 'Teams', hint: "each team's share of the set" },
     { key: 'points_fit', label: 'PTS Fit', hint: "each position's average points", requiresPositionTargets: true },
+];
+
+const DEFAULT_TEAM_MINIMUMS: AlgorithmTeamMinimums = { hitters: 0, starters: 0, relievers: 0 };
+
+const TEAM_MINIMUM_FIELDS: { key: keyof AlgorithmTeamMinimums; label: string }[] = [
+    { key: 'hitters', label: 'Hitters' },
+    { key: 'starters', label: 'Starters' },
+    { key: 'relievers', label: 'Relievers' },
+];
+
+const TEAM_WEIGHTING_OPTIONS: { value: AlgorithmTeamWeighting; label: string }[] = [
+    { value: 'EVEN', label: 'Even' },
+    { value: 'STRENGTH', label: 'By Team Strength' },
+];
+
+const OTHER_EDITIONS_OPTIONS: { value: AlgorithmOtherEditionsRule; label: string }[] = [
+    { value: 'ALLOW', label: 'Allow' },
+    { value: 'NEW_TEAM_ONLY', label: 'Only on a New Team' },
+    { value: 'EXCLUDE', label: 'Leave Out' },
 ];
 
 const DISTRIBUTION_ROWS: { key: keyof AlgorithmPlayerTypeDistribution; label: string; fillClassName: string }[] = [
@@ -122,6 +142,7 @@ function SettingsLabel({ children }: { children: React.ReactNode }) {
 
 const CUSTOM_TEMPLATE_ID = 'custom';
 const ALL_STARS_TEMPLATE_ID = 'all-stars';
+const EXPANSION_TEMPLATE_ID = 'expansion';
 
 /** Everything a template resets: who's eligible, what the set is made of and how players are
  * picked. Years, sets, size (unless the template sets them) and card options stay the user's own. */
@@ -136,6 +157,10 @@ const SELECTION_DEFAULTS = {
     point_buckets: [],
     selection_weights: DEFAULT_SELECTION_WEIGHTS,
     position_targets: [],
+    unique_players: true,
+    team_weighting: 'EVEN',
+    team_minimums: DEFAULT_TEAM_MINIMUMS,
+    other_editions_rule: 'ALLOW',
 } satisfies Partial<AlgorithmConfig>;
 
 function defaultAlgorithmConfig(defaultShowdownSet?: string | null): AlgorithmConfig {
@@ -190,12 +215,30 @@ const ALL_STARS_TEMPLATE: AlgorithmTemplate = {
     lockedFields: ['player_type_distribution'],
 };
 
+/** A follow-up to a base edition, like WOTC's Trading Deadline and Pennant Run: mostly players new to the
+ * release, plus players traded since their card in another edition. Lower minimums let rookies and call-ups in. */
+const EXPANSION_TEMPLATE: AlgorithmTemplate = {
+    id: EXPANSION_TEMPLATE_ID,
+    name: 'Expansion',
+    description: "A Trading Deadline or Pennant Run style follow-up to another edition: new players plus anyone on a new team since their card there. Lower minimums let in rookies and call-ups. Set Years to the newer season.",
+    icon: <FaCodeBranch />,
+    preset: {
+        ...SELECTION_DEFAULTS,
+        set_size: 150,
+        min_games_hitters: 25,
+        min_ip_starters: 25,
+        min_ip_relievers: 15,
+        other_editions_rule: 'NEW_TEAM_ONLY',
+        selection_weights: { ...DEFAULT_SELECTION_WEIGHTS, volume: 0.25 },
+    },
+};
+
 /** Mirrors an original WOTC base set: card count, cards per position, average points per position and low point buckets. */
 function wotcBaseSetTemplate(profile: WotcSetProfile): AlgorithmTemplate {
     return {
         id: `wotc-${profile.showdown_set}`,
         name: `${profile.showdown_set} Base`,
-        description: `Matches WOTC's ${profile.showdown_set} Base Set: ${profile.set_size} cards with the same mix of positions, average points at each position and share of low point cards. Change the set size to scale it.`,
+        description: `Matches WOTC's ${profile.showdown_set} Base Set: ${profile.set_size} cards with the same mix of positions, average points at each position, share of low point cards and ${profile.team_weighting === 'EVEN' ? 'an even count per team' : 'more cards for stronger teams'}. Change the set size to scale it.`,
         icon: <FaLayerGroup />,
         preset: {
             ...SELECTION_DEFAULTS,
@@ -204,6 +247,7 @@ function wotcBaseSetTemplate(profile: WotcSetProfile): AlgorithmTemplate {
             player_type_distribution: distributionFromPositionTargets(profile.position_targets),
             point_buckets: profile.point_buckets ?? [],
             position_targets: profile.position_targets,
+            team_weighting: profile.team_weighting ?? 'EVEN',
         },
     };
 }
@@ -239,6 +283,10 @@ function parseAlgorithmSettings(attributes: Record<string, unknown>, defaultShow
         selection_weights: {
             ...defaults.selection_weights!,
             ...(raw.selection_weights || {}),
+        },
+        team_minimums: {
+            ...DEFAULT_TEAM_MINIMUMS,
+            ...(raw.team_minimums || {}),
         },
         // Editions saved before multi-bucket support stored a single 10-max bucket
         point_buckets: raw.point_buckets
@@ -284,7 +332,7 @@ export function AlgorithmBuilder({ releaseId, edition, token, defaultShowdownSet
         fetchWotcSetProfiles().then(setWotcProfiles).catch(() => setWotcProfiles([]));
     }, []);
     const wotcTemplates = useMemo(() => (wotcProfiles ?? []).map(wotcBaseSetTemplate), [wotcProfiles]);
-    const templates = useMemo(() => [CUSTOM_TEMPLATE, ...wotcTemplates, ALL_STARS_TEMPLATE], [wotcTemplates]);
+    const templates = useMemo(() => [CUSTOM_TEMPLATE, ...wotcTemplates, EXPANSION_TEMPLATE, ALL_STARS_TEMPLATE], [wotcTemplates]);
 
     // Null while a saved WOTC template's profile is still loading
     const activeTemplate = templates.find(t => t.id === config.template_id) ?? null;
@@ -305,6 +353,12 @@ export function AlgorithmBuilder({ releaseId, edition, token, defaultShowdownSet
     const isDistributionValid = distributionTotalPercent === 100;
     const distributionLocked = isFieldLocked('player_type_distribution');
 
+    const teamMinimums = config.team_minimums ?? DEFAULT_TEAM_MINIMUMS;
+    const teamMinimumsTotal = teamMinimums.hitters + teamMinimums.starters + teamMinimums.relievers;
+    const teamWeighting = config.team_weighting ?? 'EVEN';
+    const otherEditionsRule = config.other_editions_rule ?? 'ALLOW';
+    const uniquePlayers = config.unique_players ?? true;
+
     const pointBuckets = config.point_buckets ?? [];
     const arePointBucketsValid = validatePointBuckets(pointBuckets) === null;
 
@@ -321,9 +375,17 @@ export function AlgorithmBuilder({ releaseId, edition, token, defaultShowdownSet
     // Shown in each section's header while it's collapsed
     const summaries = {
         basics: `${config.set_size} cards · ${config.years.trim() || 'no years'} · ${config.showdown_sets.join(', ') || 'no sets'}`,
-        eligibility: isAllStarSet
-            ? 'All-Stars only'
-            : `${config.min_games_hitters ?? 60} G · ${config.min_ip_starters ?? 75} IP SP · ${config.min_ip_relievers ?? 30} IP RP`,
+        eligibility: [
+            isAllStarSet
+                ? 'All-Stars only'
+                : `${config.min_games_hitters ?? 60} G · ${config.min_ip_starters ?? 75} IP SP · ${config.min_ip_relievers ?? 30} IP RP`,
+            ...(uniquePlayers ? [] : ['Repeats allowed']),
+            ...(otherEditionsRule === 'ALLOW' ? [] : [otherEditionsRule === 'EXCLUDE' ? 'New players only' : 'New or traded players']),
+        ].join(' · '),
+        teams: [
+            TEAM_WEIGHTING_OPTIONS.find(o => o.value === teamWeighting)?.label,
+            teamMinimumsTotal > 0 ? `Min ${teamMinimums.hitters}/${teamMinimums.starters}/${teamMinimums.relievers} per team` : 'No minimums',
+        ].join(' · '),
         makeup: [
             hasPositionTargets
                 ? `${positionTargets.length} positions`
@@ -343,6 +405,10 @@ export function AlgorithmBuilder({ releaseId, edition, token, defaultShowdownSet
     function updateDistribution(patch: Partial<AlgorithmPlayerTypeDistribution>) {
         if (distributionLocked) return;
         setConfig(prev => ({ ...prev, player_type_distribution: { ...distribution, ...patch } }));
+    }
+
+    function updateTeamMinimums(patch: Partial<AlgorithmTeamMinimums>) {
+        setConfig(prev => ({ ...prev, team_minimums: { ...teamMinimums, ...patch } }));
     }
 
     function updateWeights(patch: Partial<AlgorithmSelectionWeights>) {
@@ -399,6 +465,7 @@ export function AlgorithmBuilder({ releaseId, edition, token, defaultShowdownSet
                         : wotcTemplates.map(template => (
                             <TemplateChip key={template.id} template={template} isActive={config.template_id === template.id} onSelect={() => config.template_id !== template.id && applyTemplate(template)} />
                         ))}
+                    <TemplateChip template={EXPANSION_TEMPLATE} isActive={config.template_id === EXPANSION_TEMPLATE_ID} onSelect={() => config.template_id !== EXPANSION_TEMPLATE_ID && applyTemplate(EXPANSION_TEMPLATE)} />
                     <TemplateChip template={ALL_STARS_TEMPLATE} isActive={config.template_id === ALL_STARS_TEMPLATE_ID} onSelect={() => config.template_id !== ALL_STARS_TEMPLATE_ID && applyTemplate(ALL_STARS_TEMPLATE)} />
                 </div>
                 {activeTemplate && (
@@ -481,6 +548,24 @@ export function AlgorithmBuilder({ releaseId, edition, token, defaultShowdownSet
                         </p>
                     </>
                 )}
+                <FormEnabler
+                    label="One Card per Player"
+                    className="self-start"
+                    isEnabled={uniquePlayers}
+                    onChange={() => setConfig(prev => ({ ...prev, unique_players: !uniquePlayers }))}
+                />
+                <p className="text-[11px] text-(--text-tertiary) -mt-1">
+                    Keeps only a player's best version when the years or sets would give them more than one card.
+                </p>
+                <FormDropdown
+                    label="Players in Other Editions"
+                    options={OTHER_EDITIONS_OPTIONS}
+                    selectedOption={otherEditionsRule}
+                    onChange={value => setConfig(prev => ({ ...prev, other_editions_rule: (value as AlgorithmOtherEditionsRule) || 'ALLOW' }))}
+                />
+                <p className="text-[11px] text-(--text-tertiary) -mt-1">
+                    For expansion editions: leave out players already carded elsewhere in this release, or only bring them back on a new team (like WOTC's Trading Deadline).
+                </p>
             </SettingsGroup>
 
             <SettingsGroup id="makeup" title="What's in the Set?" summary={summaries.makeup}>
@@ -524,6 +609,33 @@ export function AlgorithmBuilder({ releaseId, edition, token, defaultShowdownSet
                     buckets={pointBuckets}
                     onChange={buckets => setConfig(prev => ({ ...prev, point_buckets: buckets }))}
                 />
+            </SettingsGroup>
+
+            <SettingsGroup id="teams" title="Teams" summary={summaries.teams} defaultOpen={false}>
+                <FormDropdown
+                    label="Cards per Team"
+                    options={TEAM_WEIGHTING_OPTIONS}
+                    selectedOption={teamWeighting}
+                    onChange={value => setConfig(prev => ({ ...prev, team_weighting: (value as AlgorithmTeamWeighting) || 'EVEN' }))}
+                />
+                <p className="text-[11px] text-(--text-tertiary) -mt-1">
+                    Even gives every team about the same count (WOTC 2000-01: 15-17 each). By Team Strength gives stronger teams more cards (WOTC 2002-05: 5-16 each).
+                </p>
+                <SettingsLabel>Minimum per Team</SettingsLabel>
+                <div className="grid grid-cols-3 gap-2">
+                    {TEAM_MINIMUM_FIELDS.map(field => (
+                        <FormInput
+                            key={field.key}
+                            label={field.label}
+                            type="number"
+                            value={teamMinimums[field.key]}
+                            onChange={value => updateTeamMinimums({ [field.key]: Math.max(0, parseInt(value || '0', 10) || 0) })}
+                        />
+                    ))}
+                </div>
+                <p className="text-[11px] text-(--text-tertiary)">
+                    Every team gets at least this many cards of each type, so each one can field a club. Lowered automatically when the set doesn't have room.
+                </p>
             </SettingsGroup>
 
             <SettingsGroup id="priority" title="Who Gets Picked First?" summary={summaries.priority} defaultOpen={false}>

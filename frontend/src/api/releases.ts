@@ -109,13 +109,26 @@ export type AlgorithmPointBucket = {
     percentage: number;
 };
 
+/** How each team's share of the set is decided: `EVEN` (WOTC 2000/2001) or more cards for stronger teams (WOTC 2002-2005). */
+export type AlgorithmTeamWeighting = 'EVEN' | 'STRENGTH';
+
+/** Cards every team gets of each player type, so each team can field a club. */
+export type AlgorithmTeamMinimums = {
+    hitters: number;
+    starters: number;
+    relievers: number;
+};
+
+/** Players who already have a card in another edition of the release: allowed, left out, or only allowed on a new team. */
+export type AlgorithmOtherEditionsRule = 'ALLOW' | 'EXCLUDE' | 'NEW_TEAM_ONLY';
+
 /** Relative importance (0-1) of each factor when the algorithm picks the next card. */
 export type AlgorithmSelectionWeights = {
     /** WAR plus All-Star/award bonuses. */
     quality: number;
     /** Playing time: PA for hitters, IP for pitchers. */
     volume: number;
-    /** Keep each team near an even share of the set. */
+    /** Keep each team near its target share of the set (see `AlgorithmTeamWeighting`). */
     team_balance: number;
     /** Steer each position toward its target average points (only applies with position targets). */
     points_fit: number;
@@ -149,6 +162,11 @@ export type AlgorithmConfig = {
     position_targets?: AlgorithmPositionTarget[];
     /** 2000/2001 only: uncap speed (instead of 10/15/20) and recalculate each card's points. */
     variable_speed?: boolean;
+    /** At most one card per player, even across multiple years or showdown sets. */
+    unique_players?: boolean;
+    team_weighting?: AlgorithmTeamWeighting;
+    team_minimums?: AlgorithmTeamMinimums;
+    other_editions_rule?: AlgorithmOtherEditionsRule;
     /** Frontend-only: the Algorithm tab template these settings started from. Saved with the edition; ignored by the backend. */
     template_id?: string;
 };
@@ -422,6 +440,8 @@ export type WotcSetProfile = {
     position_targets: AlgorithmPositionTarget[];
     /** Low point buckets that bring the set's 10-100 pt card counts closer to WOTC's. */
     point_buckets: AlgorithmPointBucket[];
+    /** `EVEN` for 2000/2001 (15-17 cards per team), `STRENGTH` from 2002 (5-16 per team). */
+    team_weighting: AlgorithmTeamWeighting;
 };
 
 let _wotcSetProfilesRequest: Promise<WotcSetProfile[]> | null = null;

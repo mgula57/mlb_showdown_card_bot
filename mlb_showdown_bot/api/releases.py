@@ -7,6 +7,7 @@ from ..core.card.images import ImageLibrary
 from ..core.database.postgres_db import PostgresDB
 from ..core.set_builder.image_match_classifier import ImageMatchCard, ImageMatchClassifier
 from ..core.set_builder.release_images import EditionImagePlan, EditionImageRenderer, ReleaseImageJobCancelled, ReleaseImageStorage
+from ..core.set_builder.selection import OtherEditionsRule
 from ..core.set_builder.showdown_bot_set import AlgorithmPreviewRequest
 from ..core.set_builder.wotc_set_profile import WotcSetProfile
 from .image_libraries import UserImageLibraries
@@ -229,7 +230,11 @@ def preview_algorithm(release_id: str, edition_id: str):
 
         try:
             algorithm_request = AlgorithmPreviewRequest(**payload)
-            showdown_set = algorithm_request.to_showdown_bot_set()
+            other_edition_players = (
+                db.get_other_edition_players(release_id, edition_id, g.user_id)
+                if algorithm_request.other_editions_rule != OtherEditionsRule.ALLOW else None
+            )
+            showdown_set = algorithm_request.to_showdown_bot_set(other_edition_players)
         except ValidationError as exc:
             db.close_connection()
             return jsonify({'error': str(exc)}), 400

@@ -6997,6 +6997,33 @@ class PostgresDB:
                 return None
             return self._serialize_edition_row(dict(row))
 
+    def get_other_edition_players(self, release_id: str, edition_id: str, user_id: str) -> Dict[str, List[str]]:
+        """Players carded in the owner's other editions of a release, keyed by bref_id (w/ type override)
+        with the team ids they appear under. Used to build expansion editions around the base set."""
+        if not self.connection:
+            return {}
+        query = """
+            SELECT rc.card_snapshot->>'bref_id' AS bref_id,
+                   rc.card_snapshot->>'player_type_override' AS player_type_override,
+                   rc.card_snapshot->>'team_id' AS team_id
+            FROM internal.release_cards rc
+            JOIN internal.release_editions e ON e.id = rc.edition_id
+            JOIN internal.releases r ON r.id = e.release_id
+            WHERE e.release_id = %s AND e.id <> %s AND r.created_by = %s
+        """
+        with self.connection.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute(query, (release_id, edition_id, user_id))
+            rows = cur.fetchall()
+        players: Dict[str, List[str]] = {}
+        for row in rows:
+            if not row['bref_id']:
+                continue
+            key = f"{row['bref_id']}-{row['player_type_override']}" if row['player_type_override'] else row['bref_id']
+            players.setdefault(key, [])
+            if row['team_id'] and row['team_id'] not in players[key]:
+                players[key].append(row['team_id'])
+        return players
+
     def create_edition(self, release_id: str, user_id: str, payload: dict) -> str | None:
         """Insert a new edition (with initial cards) under a release owned by user_id.
         Returns the generated edition id, or None if the release isn't owned by user_id."""

@@ -1,4 +1,5 @@
 from bisect import bisect_left, bisect_right
+from enum import Enum
 from typing import Callable, Dict, List, Optional
 
 from pydantic import BaseModel, Field, field_validator
@@ -126,6 +127,38 @@ class SelectionWeights(BaseModel):
     points_fit: float = Field(1.0, ge=0, le=1, description="Steer each position toward its target average points (position targets only)")
 
 
+class TeamWeighting(str, Enum):
+    """How each team's share of the set is decided"""
+    EVEN = 'EVEN'  # Every team gets the same share (WOTC 2000/2001: 15-17 cards per team)
+    STRENGTH = 'STRENGTH'  # Stronger teams get more cards (WOTC 2002-2005: 5-16 cards per team)
+
+
+class OtherEditionsRule(str, Enum):
+    """What to do with players who already have a card in another edition of the release"""
+    ALLOW = 'ALLOW'  # No restriction (a base set, or a re-rated update series)
+    EXCLUDE = 'EXCLUDE'  # Only players new to the release
+    NEW_TEAM_ONLY = 'NEW_TEAM_ONLY'  # New players, plus repeats now on a different team (WOTC Trading Deadline)
+
+    def blocks(self, team_id: Optional[str], existing_team_ids: Optional[List[str]]) -> bool:
+        if existing_team_ids is None or self == OtherEditionsRule.ALLOW:
+            return False
+        return self == OtherEditionsRule.EXCLUDE or team_id in existing_team_ids
+
+
+class TeamMinimums(BaseModel):
+    """Cards every team gets of each player type before the rest of the set fills, so each team can field a club"""
+    hitters: int = Field(0, ge=0, le=15)
+    starters: int = Field(0, ge=0, le=6)
+    relievers: int = Field(0, ge=0, le=10)
+
+    def by_subtype(self) -> Dict[str, int]:
+        return {'POSITION_PLAYER': self.hitters, 'STARTING_PITCHER': self.starters, 'RELIEF_PITCHER': self.relievers}
+
+    @property
+    def total(self) -> int:
+        return self.hitters + self.starters + self.relievers
+
+
 # =============================================================================
 # MARK: - SLOT GROUPS
 # =============================================================================
@@ -147,6 +180,11 @@ class SlotGroup:
     @property
     def remaining(self) -> int:
         return max(0, self.target - len(self.members))
+
+    @property
+    def player_subtype(self) -> str:
+        """Groups are keyed by a player subtype or a position slot"""
+        return self.key if self.key in PLAYER_SUBTYPES else SlotPosition.player_subtype(self.key)
 
     @property
     def actual_avg_points(self) -> Optional[float]:
@@ -176,16 +214,51 @@ class WeightedPlayerSelector:
 
     # Team balance is clipped so one runaway team can't dominate every other factor
     MAX_TEAM_PENALTY = 2.0
+    # Share of a team's target that follows its strength under `TeamWeighting.STRENGTH` (the rest is an even
+    # share), which keeps the spread near WOTC's 2002-2005 range instead of giving a juggernaut 3x a rebuilder
+    STRENGTH_BLEND = 0.5
 
-    def __init__(self, player_pool: List[ShowdownBotSetPlayer], set_size: int, weights: SelectionWeights):
+    def __init__(self, player_pool: List[ShowdownBotSetPlayer], set_size: int, weights: SelectionWeights,
+                 team_weighting: TeamWeighting = TeamWeighting.EVEN, unique_players: bool = True):
         """`player_pool` must already carry its `priority_score` (see `score_player_pool`)"""
         self.player_pool = player_pool
         self.weights = weights
-        teams = {p.team_id for p in player_pool if p.team_id}
-        self.team_target = set_size / max(1, len(teams))
+        self.unique_players = unique_players
+        self.team_targets = self._team_targets(player_pool, set_size, team_weighting)
         self.team_counts: Dict[str, int] = {}
+        self.team_subtype_counts: Dict[tuple, int] = {}
         self.selected_ids: set = set()
+        self.selected_keys: set = set()
         self.selected: List[ShowdownBotSetPlayer] = []
+
+    @classmethod
+    def _team_targets(cls, player_pool: List[ExploreDataRecord], set_size: int, team_weighting: TeamWeighting) -> Dict[str, float]:
+        """Cards each team should end up with. Strength is the team's share of positive WAR in the pool."""
+        teams = sorted({p.team_id for p in player_pool if p.team_id})
+        even = set_size / max(1, len(teams))
+        team_war = {team: 0.0 for team in teams}
+        for player in player_pool:
+            if player.team_id:
+                team_war[player.team_id] += max(player.war or 0.0, 0.0)
+        total_war = sum(team_war.values())
+        if team_weighting == TeamWeighting.EVEN or total_war <= 0:
+            return {team: even for team in teams}
+        return {
+            team: (1 - cls.STRENGTH_BLEND) * even + cls.STRENGTH_BLEND * set_size * team_war[team] / total_war
+            for team in teams
+        }
+
+    def player_key(self, player: ExploreDataRecord) -> str:
+        """Identity used to keep one card per player (two-way type overrides count as separate players)"""
+        if self.unique_players and player.bref_id:
+            return player.bref_id_w_type_override
+        return player.id
+
+    def is_available(self, player: ExploreDataRecord) -> bool:
+        return player.id not in self.selected_ids and self.player_key(player) not in self.selected_keys
+
+    def team_subtype_count(self, team_id: str, player_subtype: str) -> int:
+        return self.team_subtype_counts.get((team_id, player_subtype), 0)
 
     # -------------------------------------------------------------------------
     # SCORING
@@ -232,10 +305,11 @@ class WeightedPlayerSelector:
         return scored
 
     def _team_balance(self, team_id: str) -> float:
-        """Positive while a team is under an even share, 0 at it, negative once over it. Scaled by the
+        """Positive while a team is under its target share, 0 at it, negative once over it. Scaled by the
         square root of the share (roughly one standard deviation for a random draw), so a 2-card swing
         matters about as much in a 100-card set as a 4-card swing in a 450-card set."""
-        balance = (self.team_target - self.team_counts.get(team_id, 0)) / max(1.0, self.team_target) ** 0.5
+        target = self.team_targets.get(team_id, 0.0)
+        balance = (target - self.team_counts.get(team_id, 0)) / max(1.0, target) ** 0.5
         return max(-self.MAX_TEAM_PENALTY, balance)
 
     def score(self, player: ShowdownBotSetPlayer, group: SlotGroup) -> float:
@@ -251,15 +325,18 @@ class WeightedPlayerSelector:
 
     def add(self, player: ShowdownBotSetPlayer, group: Optional[SlotGroup] = None) -> None:
         self.selected_ids.add(player.id)
+        self.selected_keys.add(self.player_key(player))
         self.selected.append(player)
         self.team_counts[player.team_id] = self.team_counts.get(player.team_id, 0) + 1
+        subtype_key = (player.team_id, player.player_subtype)
+        self.team_subtype_counts[subtype_key] = self.team_subtype_counts.get(subtype_key, 0) + 1
         if group is not None:
             group.members.append(player)
 
     def fill(self, groups: List[SlotGroup]) -> None:
         """Greedily fill every group's remaining slots from unselected players it accepts"""
         candidates = {
-            group.key: [p for p in self.player_pool if p.id not in self.selected_ids and group.accepts(p)]
+            group.key: [p for p in self.player_pool if self.is_available(p) and group.accepts(p)]
             for group in groups
         }
         while True:
@@ -268,7 +345,7 @@ class WeightedPlayerSelector:
                 if group.remaining == 0:
                     continue
                 for player in candidates[group.key]:
-                    if player.id in self.selected_ids:
+                    if not self.is_available(player):
                         continue
                     score = self.score(player, group)
                     if best is None or score > best[0]:
@@ -277,3 +354,31 @@ class WeightedPlayerSelector:
                 return
             _, player, group = best
             self.add(player, group)
+
+    def fill_team_minimums(self, groups: List[SlotGroup], minimums: TeamMinimums) -> List[str]:
+        """Give every team its minimum cards of each player type before the main fill, taking each team's
+        highest priority cards that still fit an open slot. Returns a warning per team that falls short."""
+        shortfalls: List[str] = []
+        teams = sorted(self.team_targets)
+        for player_subtype, minimum in minimums.by_subtype().items():
+            if minimum == 0:
+                continue
+            for team in teams:
+                candidates = sorted(
+                    (p for p in self.player_pool if p.team_id == team and p.player_subtype == player_subtype),
+                    key=lambda p: p.priority_score, reverse=True
+                )
+                for player in candidates:
+                    if self.team_subtype_count(team, player_subtype) >= minimum:
+                        break
+                    if not self.is_available(player):
+                        continue
+                    # A full position slot borrows an open slot of the same type, so late teams still get their minimum
+                    group = next((g for g in groups if g.remaining and g.accepts(player)), None) \
+                        or next((g for g in groups if g.remaining and g.player_subtype == player_subtype), None)
+                    if group is not None:
+                        self.add(player, group)
+                count = self.team_subtype_count(team, player_subtype)
+                if count < minimum:
+                    shortfalls.append(f"{team} has {count} of {minimum} {player_subtype.replace('_', ' ').lower()}s")
+        return shortfalls

@@ -24,7 +24,8 @@ from ..card.images import DEFAULT_RENDER_FILE_FORMAT
 from ..card.stats.stats_period import TeamSelection
 from ..card.utils.shared_functions import convert_year_string_to_list
 from .selection import (
-    PLAYER_SUBTYPES, PositionTarget, SelectionWeights, ShowdownBotSetPlayer, SlotGroup, SlotPosition, WeightedPlayerSelector
+    PLAYER_SUBTYPES, OtherEditionsRule, PositionTarget, SelectionWeights, ShowdownBotSetPlayer, SlotGroup, SlotPosition,
+    TeamMinimums, TeamWeighting, WeightedPlayerSelector
 )
 
 # ANSI color codes
@@ -132,6 +133,16 @@ class ShowdownBotSet(BaseModel):
     position_targets: List[PositionTarget] = Field(
         default_factory=list,
         description="Share of the set (and average points) per position, e.g. from a WOTC base set. Replaces player_type_distribution when set."
+    )
+
+    # Players and teams
+    unique_players: bool = Field(True, description="At most one card per player, even across multiple years or showdown sets")
+    team_weighting: TeamWeighting = Field(TeamWeighting.EVEN, description="Even share per team, or more cards for stronger teams")
+    team_minimums: TeamMinimums = Field(default_factory=TeamMinimums, description="Cards every team gets of each player type")
+    other_editions_rule: OtherEditionsRule = Field(OtherEditionsRule.ALLOW, description="How to treat players already in another edition of the release")
+    other_edition_players: Dict[str, List[str]] = Field(
+        default_factory=dict,
+        description="Players already in another edition of the release: bref_id (w/ type override) -> their team ids there"
     )
 
     # Point bucket allocation (e.g. 15% of 10-50 pt cards, 10% of 60-100 pt cards)
@@ -318,13 +329,13 @@ class ShowdownBotSet(BaseModel):
         
         # 3. Score players and fill the set by weighted selection
         player_pool = WeightedPlayerSelector.score_player_pool(player_pool, self.selection_weights, self._calculate_quality_score)
-        selector = WeightedPlayerSelector(player_pool, self.set_size, self.selection_weights)
+        selector = WeightedPlayerSelector(player_pool, self.set_size, self.selection_weights, self.team_weighting, self.unique_players)
         final_players = self._select_players(selector)
         
         # 4. Swap cards to hit point bucket targets across the whole set
-        final_players = self._enforce_point_buckets(final_players, player_pool)
+        final_players = self._enforce_point_buckets(final_players, player_pool, selector)
 
-        self._print_set_summary(final_players, selector.team_target, show_team_breakdown, player_pool)
+        self._print_set_summary(final_players, selector.team_targets, show_team_breakdown, player_pool)
 
         final_players = self._sort_and_number_players(final_players)
         
@@ -600,7 +611,10 @@ class ShowdownBotSet(BaseModel):
 
         # All-Star Game mode includes the entire roster, regardless of games/IP thresholds
         if self.all_stars_only:
-            return [p for p in all_players if p.bref_id_w_type_override not in (self.manually_excluded_ids or [])]
+            return [
+                p for p in all_players
+                if p.bref_id_w_type_override not in (self.manually_excluded_ids or []) and not self._is_in_other_edition(p)
+            ]
 
         qualified_players = []
         
@@ -612,7 +626,7 @@ class ShowdownBotSet(BaseModel):
                 qualified_players.append(player)
                 continue
             
-            if player.bref_id_w_type_override in (self.manually_excluded_ids or []):
+            if player.bref_id_w_type_override in (self.manually_excluded_ids or []) or self._is_in_other_edition(player):
                 continue
 
             if self.all_stars_only and not player.has_award('AS'):
@@ -631,6 +645,10 @@ class ShowdownBotSet(BaseModel):
                     qualified_players.append(player)
         
         return qualified_players
+
+    def _is_in_other_edition(self, player: ExploreDataRecord) -> bool:
+        """Whether `other_editions_rule` keeps this player out because of their card in another edition"""
+        return self.other_editions_rule.blocks(player.team_id, self.other_edition_players.get(player.bref_id_w_type_override))
 
     def _calculate_quality_thresholds(self, player_pool: List[ExploreDataRecord]):
         """Calculate WAR thresholds for quality tiers"""
@@ -680,6 +698,7 @@ class ShowdownBotSet(BaseModel):
             if player.bref_id_w_type_override in manually_included_ids:
                 selector.add(player, next((g for g in groups if g.remaining and g.accepts(player)), None))
         
+        self._fill_team_minimums(selector, groups)
         selector.fill(groups)
         
         if self.position_targets:
@@ -696,6 +715,27 @@ class ShowdownBotSet(BaseModel):
         selector.fill([SlotGroup('ANY', self.set_size - len(selector.selected), accepts=lambda p: True)])
         return selector.selected
     
+    def _fill_team_minimums(self, selector: WeightedPlayerSelector, groups: List[SlotGroup]) -> None:
+        """Seat each team's minimum cards first. A minimum that needs more cards of a type than the set has
+        slots for is lowered to what fits (e.g. 1 SP per team in a set with 20 SP slots and 30 teams -> 0)."""
+        if self.team_minimums.total == 0:
+            return
+        team_count = len(selector.team_targets)
+        minimums = self.team_minimums.model_copy()
+        fields = {'POSITION_PLAYER': 'hitters', 'STARTING_PITCHER': 'starters', 'RELIEF_PITCHER': 'relievers'}
+        for player_subtype, minimum in self.team_minimums.by_subtype().items():
+            slots = sum(g.target for g in groups if g.player_subtype == player_subtype)
+            if minimum * team_count > slots:
+                lowered = slots // max(1, team_count)
+                setattr(minimums, fields[player_subtype], lowered)
+                type_label = player_subtype.replace('_', ' ').lower()
+                self._warn(f"Team minimum of {minimum} {type_label}s needs {minimum * team_count} cards but the set has {slots} {type_label} slots, so it was lowered to {lowered}")
+        self.team_minimums = minimums  # Point bucket swaps protect the minimums that were actually applied
+        shortfalls = selector.fill_team_minimums(groups, minimums)
+        if shortfalls:
+            listed = ', '.join(shortfalls[:5]) + (f" and {len(shortfalls) - 5} more" if len(shortfalls) > 5 else '')
+            self._warn(f"{len(shortfalls)} team minimum{'s' if len(shortfalls) != 1 else ''} not met (not enough eligible players): {listed}")
+
     @staticmethod
     def _player_type_group(player_subtype: str, target: int) -> SlotGroup:
         return SlotGroup(player_subtype, target, accepts=lambda p: p.player_subtype == player_subtype)
@@ -735,14 +775,16 @@ class ShowdownBotSet(BaseModel):
         
         return score
     
-    def _enforce_point_buckets(self, selected_players: List[ShowdownBotSetPlayer], player_pool: List[ShowdownBotSetPlayer]) -> List[ShowdownBotSetPlayer]:
+    def _enforce_point_buckets(self, selected_players: List[ShowdownBotSetPlayer], player_pool: List[ShowdownBotSetPlayer],
+                               selector: WeightedPlayerSelector) -> List[ShowdownBotSetPlayer]:
         """Swap cards so each player type hits every point bucket's target share of that type.
         
         Weighted selection doesn't look at point ranges, so buckets are enforced here against the
         whole set. For each type and each bucket below target, the highest priority unselected card in the
         bucket replaces the lowest priority card of the same type that is either outside every bucket or in a
         bucket already above its target. Swaps prefer removing a card from the incoming player's team to keep
-        team balance, and never remove manually included players. Set size and type counts are unchanged.
+        team balance, never drop a team below its minimum, never remove manually included players and never add a
+        second card of a selected player. Set size and type counts are unchanged.
         """
         if not self.point_buckets:
             return selected_players
@@ -750,6 +792,8 @@ class ShowdownBotSet(BaseModel):
         manually_included_ids = set(self.manually_included_ids or [])
         selected_ids = set(p.id for p in selected_players)
         unselected_players = [p for p in player_pool if p.id not in selected_ids]
+        selected_keys = set(selector.player_key(p) for p in selected_players)
+        team_minimums = self.team_minimums.by_subtype()
         
         for player_subtype in ('POSITION_PLAYER', 'STARTING_PITCHER', 'RELIEF_PITCHER'):
             type_players = [p for p in selected_players if p.player_subtype == player_subtype]
@@ -763,8 +807,10 @@ class ShowdownBotSet(BaseModel):
             def bucket_count(index: int) -> int:
                 return len([p for p in type_players if bucket_index(p) == index])
             
-            def is_removable(player: ShowdownBotSetPlayer) -> bool:
+            def is_removable(player: ShowdownBotSetPlayer, incoming: ShowdownBotSetPlayer) -> bool:
                 if player.bref_id_w_type_override in manually_included_ids:
+                    return False
+                if player.team_id != incoming.team_id and len([p for p in type_players if p.team_id == player.team_id]) <= team_minimums[player_subtype]:
                     return False
                 index = bucket_index(player)
                 return index is None or bucket_count(index) > targets[index]
@@ -779,12 +825,16 @@ class ShowdownBotSet(BaseModel):
                 for incoming in (c for c in candidates if bucket.contains(c)):
                     if bucket_count(index) >= targets[index]:
                         break
-                    removable = [p for p in type_players if is_removable(p)]
+                    if selector.player_key(incoming) in selected_keys:
+                        continue
+                    removable = [p for p in type_players if is_removable(p, incoming)]
                     if not removable:
-                        break
+                        continue
                     outgoing = min(removable, key=lambda p: (p.team_id != incoming.team_id, p.priority_score))
                     type_players.remove(outgoing)
                     type_players.append(incoming)
+                    selected_keys.discard(selector.player_key(outgoing))
+                    selected_keys.add(selector.player_key(incoming))
                 
                 final_count = bucket_count(index)
                 print(f"{player_subtype} {bucket.label}: {starting_count} -> {final_count} (target {targets[index]}, {bucket.percentage:.0%})")
@@ -798,7 +848,7 @@ class ShowdownBotSet(BaseModel):
     def _print_set_summary(
         self,
         selected_players: List[ShowdownBotSetPlayer],
-        team_target: float,
+        team_targets: Dict[str, float],
         show_team_breakdown: Optional[str] = None,
         player_pool: Optional[List[ShowdownBotSetPlayer]] = None
     ):
@@ -828,7 +878,7 @@ class ShowdownBotSet(BaseModel):
         
         team_dist_table = PrettyTable(field_names=["Team", "Count", "Target"])
         for team in sorted(team_counts.keys()):
-            team_dist_table.add_row([team, team_counts[team], f"{team_target:.1f}"])
+            team_dist_table.add_row([team, team_counts[team], f"{team_targets.get(team, 0.0):.1f}"])
         print(f"\nTeam Distribution:")
         print(team_dist_table)
 
@@ -1009,8 +1059,14 @@ class AlgorithmPreviewRequest(BaseModel):
 
     variable_speed: bool = Field(False, description="Uncap speed on 2000/2001 cards (instead of 10/15/20) and recalculate points")
 
-    def to_showdown_bot_set(self) -> ShowdownBotSet:
-        """Validate and construct the `ShowdownBotSet` this request describes."""
+    unique_players: bool = True
+    team_weighting: TeamWeighting = TeamWeighting.EVEN
+    team_minimums: TeamMinimums = Field(default_factory=TeamMinimums)
+    other_editions_rule: OtherEditionsRule = OtherEditionsRule.ALLOW
+
+    def to_showdown_bot_set(self, other_edition_players: Optional[Dict[str, List[str]]] = None) -> ShowdownBotSet:
+        """Validate and construct the `ShowdownBotSet` this request describes. `other_edition_players` comes
+        from the release's other editions (looked up server side, never from the request)."""
         if not self.position_targets:
             self.player_type_distribution.validate_total()
         return ShowdownBotSet(
@@ -1029,4 +1085,9 @@ class AlgorithmPreviewRequest(BaseModel):
             position_targets=self.position_targets,
             manually_included_ids=self.manually_included_ids,
             manually_excluded_ids=self.manually_excluded_ids,
+            unique_players=self.unique_players,
+            team_weighting=self.team_weighting,
+            team_minimums=self.team_minimums,
+            other_editions_rule=self.other_editions_rule,
+            other_edition_players=other_edition_players or {},
         )
