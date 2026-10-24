@@ -1238,7 +1238,7 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
                                                         </span>
                                                     </div>
                                                 )}
-                                                <div className={showFullCards ? 'grid grid-cols-[repeat(auto-fill,minmax(min(300px,100%),1fr))] gap-6' : 'grid grid-cols-[repeat(auto-fit,minmax(min(200px,100%),1fr))] gap-4'}>
+                                                <div className={showFullCards ? 'grid grid-cols-[repeat(auto-fill,minmax(min(300px,100%),1fr))] gap-6' : 'grid grid-cols-2 sm:grid-cols-[repeat(auto-fit,minmax(min(200px,100%),1fr))] gap-4'}>
                                                     {group.cards.map(card => {
                                                         const cardProps = {
                                                             card: card.card_snapshot,
