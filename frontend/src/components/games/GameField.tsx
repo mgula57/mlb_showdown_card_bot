@@ -555,7 +555,7 @@ export default function GameField({ game, cardMap, onCardSelect, expanded = fals
             <div className={`relative px-1 transition-[padding] duration-300 ease-out ${expanded ? "pt-28 pb-12" : "pt-0 pb-0"}`}>
                 <div className="relative aspect-703/369 w-full overflow-visible">
                     <div className="absolute inset-0 overflow-hidden rounded-lg">
-                        <img src="/images/teams/Field No BG.png" alt="" style={ART_STYLE} className="pointer-events-none select-none" />
+                        <img src="/images/teams/Field No BG No IF.png" alt="" style={ART_STYLE} className="pointer-events-none select-none" />
                     </div>
 
                     {/* Defense — the battery is always mounted; the rest of the alignment stays
