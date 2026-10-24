@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { FaWandMagicSparkles, FaSpinner, FaTriangleExclamation, FaStar, FaLayerGroup, FaChevronDown, FaFloppyDisk, FaCheck, FaSliders, FaRotateLeft, FaCodeBranch } from 'react-icons/fa6';
+import { FaWandMagicSparkles, FaSpinner, FaTriangleExclamation, FaStar, FaLayerGroup, FaChevronDown, FaFloppyDisk, FaCheck, FaSliders, FaRotateLeft, FaCodeBranch, FaXmark } from 'react-icons/fa6';
 import type { ReleaseEdition, AlgorithmConfig, AlgorithmPlayerTypeDistribution, AlgorithmPreviewResult, AlgorithmSelectionWeights, AlgorithmTeamMinimums, AlgorithmTeamWeighting, AlgorithmOtherEditionsRule, WotcSetProfile } from '../../api/releases';
 import { fetchWotcSetProfiles, previewAlgorithm, updateEdition } from '../../api/releases';
 import { showdownSets } from '../shared/SiteSettingsContext';
@@ -14,12 +14,17 @@ import PointBucketsEditor from './PointBucketsEditor';
 import { validatePointBuckets } from './pointBuckets';
 import PositionTargetsTable from './PositionTargetsTable';
 import { distributionFromPositionTargets } from './positionTargets';
+import type { ManualPick, ManualPicks } from './manualPicks';
+import { manualPickLabel, withoutManualPick } from './manualPicks';
 
 type AlgorithmBuilderProps = {
     releaseId: string;
     edition: ReleaseEdition;
     token?: string;
     defaultShowdownSet?: string | null;
+    /** Owned by EditionBuilder: removing a card from the pool excludes the player, adding one manually includes them. */
+    manualPicks: ManualPicks;
+    onManualPicksChange: (picks: ManualPicks) => void;
     onPreviewResult: (result: AlgorithmPreviewResult) => void;
     onEditionUpdated: (edition: ReleaseEdition) => void;
 };
@@ -296,6 +301,34 @@ function parseAlgorithmSettings(attributes: Record<string, unknown>, defaultShow
     };
 }
 
+/** Names of manually included or excluded players, each removable. */
+function ManualPickList({ label, picks, emptyText, onRemove }: { label: string; picks: ManualPick[]; emptyText: string; onRemove: (id: string) => void }) {
+    return (
+        <div className="flex flex-col gap-1.5">
+            <SettingsLabel>{label} <span className="font-semibold text-(--text-tertiary)">{picks.length}</span></SettingsLabel>
+            {picks.length === 0 ? (
+                <p className="text-[11px] text-(--text-tertiary)">{emptyText}</p>
+            ) : (
+                <div className="flex flex-wrap gap-1.5">
+                    {picks.map(pick => (
+                        <span key={pick.id} className="inline-flex items-center gap-1 rounded-full border border-(--divider) py-0.5 pl-2.5 pr-1 text-[12px] font-semibold text-(--text-secondary)">
+                            {manualPickLabel(pick)}
+                            <button
+                                type="button"
+                                onClick={() => onRemove(pick.id)}
+                                aria-label={`Remove ${manualPickLabel(pick)}`}
+                                className="flex items-center justify-center w-4 h-4 rounded-full text-(--text-tertiary) hover:bg-red-500/90 hover:text-white transition-colors cursor-pointer"
+                            >
+                                <FaXmark className="text-[10px]" />
+                            </button>
+                        </span>
+                    ))}
+                </div>
+            )}
+        </div>
+    );
+}
+
 function TemplateChip({ template, isActive, onSelect }: { template: AlgorithmTemplate; isActive: boolean; onSelect: () => void }) {
     return (
         <button
@@ -314,7 +347,7 @@ function TemplateChip({ template, isActive, onSelect }: { template: AlgorithmTem
     );
 }
 
-export function AlgorithmBuilder({ releaseId, edition, token, defaultShowdownSet, onPreviewResult, onEditionUpdated }: AlgorithmBuilderProps) {
+export function AlgorithmBuilder({ releaseId, edition, token, defaultShowdownSet, manualPicks, onManualPicksChange, onPreviewResult, onEditionUpdated }: AlgorithmBuilderProps) {
     const [config, setConfig] = useState<AlgorithmConfig>(() => parseAlgorithmSettings(edition.attributes, defaultShowdownSet));
     // Last config persisted to the edition — the Save button is enabled only while `config` differs from it
     const [savedConfig, setSavedConfig] = useState<AlgorithmConfig>(config);
@@ -382,6 +415,9 @@ export function AlgorithmBuilder({ releaseId, edition, token, defaultShowdownSet
             ...(uniquePlayers ? [] : ['Repeats allowed']),
             ...(otherEditionsRule === 'ALLOW' ? [] : [otherEditionsRule === 'EXCLUDE' ? 'New players only' : 'New or traded players']),
         ].join(' · '),
+        manualPicks: manualPicks.included.length + manualPicks.excluded.length > 0
+            ? `${manualPicks.included.length} included · ${manualPicks.excluded.length} excluded`
+            : 'None',
         teams: [
             TEAM_WEIGHTING_OPTIONS.find(o => o.value === teamWeighting)?.label,
             teamMinimumsTotal > 0 ? `Min ${teamMinimums.hitters}/${teamMinimums.starters}/${teamMinimums.relievers} per team` : 'No minimums',
@@ -441,7 +477,11 @@ export function AlgorithmBuilder({ releaseId, edition, token, defaultShowdownSet
         setStatus('running');
         setError(null);
         try {
-            const result = await previewAlgorithm(releaseId, edition.id, config, token, { rerun_cards: isAdmin && rerunCards });
+            const result = await previewAlgorithm(releaseId, edition.id, config, token, {
+                rerun_cards: isAdmin && rerunCards,
+                manually_included_ids: manualPicks.included.map(p => p.id),
+                manually_excluded_ids: manualPicks.excluded.map(p => p.id),
+            });
             onPreviewResult(result);
             setStatus('idle');
         } catch (err: any) {
@@ -565,6 +605,24 @@ export function AlgorithmBuilder({ releaseId, edition, token, defaultShowdownSet
                 />
                 <p className="text-[11px] text-(--text-tertiary) -mt-1">
                     For expansion editions: leave out players already carded elsewhere in this release, or only bring them back on a new team (like WOTC's Trading Deadline).
+                </p>
+            </SettingsGroup>
+
+            <SettingsGroup id="manual-picks" title="Manual Picks" summary={summaries.manualPicks} defaultOpen={false}>
+                <ManualPickList
+                    label="Always Include"
+                    picks={manualPicks.included}
+                    emptyText="Players you add from Manual search show up here."
+                    onRemove={id => onManualPicksChange(withoutManualPick(manualPicks, id, 'included'))}
+                />
+                <ManualPickList
+                    label="Always Exclude"
+                    picks={manualPicks.excluded}
+                    emptyText="Remove a card from the pool (the X beside it) to keep that player's season out of future runs."
+                    onRemove={id => onManualPicksChange(withoutManualPick(manualPicks, id, 'excluded'))}
+                />
+                <p className="text-[11px] text-(--text-tertiary)">
+                    Picks are per season, across every showdown set. Included seasons skip the games and innings minimums, but still need to be in the chosen years.
                 </p>
             </SettingsGroup>
 

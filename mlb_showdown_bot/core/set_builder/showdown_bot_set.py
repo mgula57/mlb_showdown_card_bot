@@ -154,11 +154,11 @@ class ShowdownBotSet(BaseModel):
     # Specific player IDs to include
     manually_included_ids: Optional[List[str]] = Field(
         None,
-        description="Specific player IDs to always include in the set"
+        description="Specific players to always include in the set: a player ID (every year) or a player-year record ID (ex: '2023-judgeaa01')"
     )
     manually_excluded_ids: Optional[List[str]] = Field(
         None,
-        description="Specific player IDs to always exclude from the set"
+        description="Specific players to always exclude from the set: a player ID (every year) or a player-year record ID (ex: '2023-judgeaa01')"
     )
     year_overrides: Optional[Dict[str, str]] = Field(
         None,
@@ -613,7 +613,7 @@ class ShowdownBotSet(BaseModel):
         if self.all_stars_only:
             return [
                 p for p in all_players
-                if p.bref_id_w_type_override not in (self.manually_excluded_ids or []) and not self._is_in_other_edition(p)
+                if not self._is_manually_excluded(p) and not self._is_in_other_edition(p)
             ]
 
         qualified_players = []
@@ -622,11 +622,11 @@ class ShowdownBotSet(BaseModel):
             
             player_type = player.player_subtype  # Uses the property from ExploreDataRecord
 
-            if player.bref_id_w_type_override in (self.manually_included_ids or []):
+            if self._is_manually_included(player):
                 qualified_players.append(player)
                 continue
             
-            if player.bref_id_w_type_override in (self.manually_excluded_ids or []) or self._is_in_other_edition(player):
+            if self._is_manually_excluded(player) or self._is_in_other_edition(player):
                 continue
 
             if self.all_stars_only and not player.has_award('AS'):
@@ -645,6 +645,17 @@ class ShowdownBotSet(BaseModel):
                     qualified_players.append(player)
         
         return qualified_players
+
+    @staticmethod
+    def _is_named_in(player: ExploreDataRecord, ids: Optional[List[str]]) -> bool:
+        """Whether `ids` names this player (every year) or this player-year record"""
+        return bool(ids) and (player.bref_id_w_type_override in ids or player.id in ids)
+
+    def _is_manually_included(self, player: ExploreDataRecord) -> bool:
+        return self._is_named_in(player, self.manually_included_ids)
+
+    def _is_manually_excluded(self, player: ExploreDataRecord) -> bool:
+        return self._is_named_in(player, self.manually_excluded_ids)
 
     def _is_in_other_edition(self, player: ExploreDataRecord) -> bool:
         """Whether `other_editions_rule` keeps this player out because of their card in another edition"""
@@ -677,8 +688,6 @@ class ShowdownBotSet(BaseModel):
         3. Leftover slots by player type
         4. Anything still open, from any player type
         """
-        manually_included_ids = set(self.manually_included_ids or [])
-        
         if self.position_targets:
             counts = PositionTarget.allocate_counts({t.position: t.percentage for t in self.position_targets}, self.set_size)
             groups = [
@@ -695,7 +704,7 @@ class ShowdownBotSet(BaseModel):
             groups = [self._player_type_group(subtype, counts[subtype]) for subtype in PLAYER_SUBTYPES]
         
         for player in selector.player_pool:
-            if player.bref_id_w_type_override in manually_included_ids:
+            if self._is_manually_included(player):
                 selector.add(player, next((g for g in groups if g.remaining and g.accepts(player)), None))
         
         self._fill_team_minimums(selector, groups)
@@ -789,7 +798,6 @@ class ShowdownBotSet(BaseModel):
         if not self.point_buckets:
             return selected_players
         
-        manually_included_ids = set(self.manually_included_ids or [])
         selected_ids = set(p.id for p in selected_players)
         unselected_players = [p for p in player_pool if p.id not in selected_ids]
         selected_keys = set(selector.player_key(p) for p in selected_players)
@@ -808,7 +816,7 @@ class ShowdownBotSet(BaseModel):
                 return len([p for p in type_players if bucket_index(p) == index])
             
             def is_removable(player: ShowdownBotSetPlayer, incoming: ShowdownBotSetPlayer) -> bool:
-                if player.bref_id_w_type_override in manually_included_ids:
+                if self._is_manually_included(player):
                     return False
                 if player.team_id != incoming.team_id and len([p for p in type_players if p.team_id == player.team_id]) <= team_minimums[player_subtype]:
                     return False

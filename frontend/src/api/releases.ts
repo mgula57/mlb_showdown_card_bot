@@ -321,6 +321,10 @@ export type AlgorithmPreviewOptions = {
     /** Admin-only: rebuild each selected card through the current card algorithm instead of
      * returning the archived version. Rejected with a 403 for non-admins. */
     rerun_cards?: boolean;
+    /** Players (bref_id w/ type override) always put in the set, regardless of the eligibility minimums. */
+    manually_included_ids?: string[];
+    /** Players (bref_id w/ type override) always left out of the set. */
+    manually_excluded_ids?: string[];
 };
 
 export async function previewAlgorithm(releaseId: string, editionId: string, config: AlgorithmConfig, token: string, options: AlgorithmPreviewOptions = {}): Promise<AlgorithmPreviewResult> {

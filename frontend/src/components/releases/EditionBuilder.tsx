@@ -22,6 +22,7 @@ import { ReleaseCardTagChips, ReleaseCardTagsEditor } from './ReleaseCardTags';
 import { ReleaseCardPreviewRankBadge, ReleaseCardPreviewRankPicker } from './ReleaseCardPreviewRank';
 import { useMediaQuery } from '../../hooks/useMediaQuery';
 import { useLiveImageMatches } from './useLiveImageMatches';
+import { parseManualPicks, manualPickFor, withManualPick, type ManualPicks } from './manualPicks';
 import { relativeTime } from '../../functions/formatters';
 import { parseEditionStyle, editionStyleSummary, releaseCardStyle, releaseCardOverridesFor } from './editionStyle';
 import type { CardStyleSettings } from '../customs/cardStyle';
@@ -243,6 +244,7 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
     const [error, setError] = useState<string | null>(null);
     const [previewResult, setPreviewResult] = useState<AlgorithmPreviewResult | null>(null);
     const [numbering, setNumbering] = useState<NumberingSettings>(() => parseNumberingSettings(edition.attributes));
+    const [manualPicks, setManualPicks] = useState<ManualPicks>(() => parseManualPicks(edition.attributes));
     const [editingNumbers, setEditingNumbers] = useState<Record<string, string>>({});
     const [showNumberingSettings, setShowNumberingSettings] = useState(false);
     const [showStyleModal, setShowStyleModal] = useState(false);
@@ -347,11 +349,14 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
         [cards]
     );
 
-    /** Saves the edition's card list (optimistically). Resolves false if the save failed. */
-    async function persist(nextCards: ReleaseCard[]): Promise<boolean> {
+    /** Saves the edition's card list (optimistically), plus the Algorithm's manual picks when they
+     * changed with it. Resolves false if the save failed. */
+    async function persist(nextCards: ReleaseCard[], nextManualPicks?: ManualPicks): Promise<boolean> {
         if (!token) return false;
         const previous = cards;
+        const previousManualPicks = manualPicks;
         setCards(nextCards);
+        if (nextManualPicks) setManualPicks(nextManualPicks);
         setSaving(true);
         setError(null);
         try {
@@ -365,12 +370,14 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
                     preview_rank: c.preview_rank,
                     card_overrides: c.card_overrides,
                 })),
+                ...(nextManualPicks ? { attributes: { manual_picks: nextManualPicks } } : {}),
             }, token);
             setCards(updated.cards);
             onEditionUpdated(updated);
             return true;
         } catch (err: any) {
             setCards(previous);
+            setManualPicks(previousManualPicks);
             setError(err.message ?? 'Failed to save changes.');
             return false;
         } finally {
@@ -483,6 +490,25 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
         setPreviewResult(null);
     }
 
+    /** `manualPicks` with the card's player-year moved into `list`. */
+    function manualPicksWith(record: CardDatabaseRecord, list: keyof ManualPicks): ManualPicks {
+        return withManualPick(manualPicks, manualPickFor(record), list);
+    }
+
+    /** Saves the Algorithm's manual picks on their own (e.g. edited from the Algorithm tab). */
+    async function persistManualPicks(next: ManualPicks) {
+        const previous = manualPicks;
+        setManualPicks(next);
+        if (!token) return;
+        try {
+            const updated = await updateEdition(releaseId, edition.id, { attributes: { manual_picks: next } }, token);
+            onEditionUpdated(updated);
+        } catch (err: any) {
+            setManualPicks(previous);
+            setError(err.message ?? 'Failed to save manual picks.');
+        }
+    }
+
     function handleAddCard(record: CardDatabaseRecord) {
         const nextNumber = numbering.mode === 'manual'
             ? (cards.length > 0 ? Math.max(0, ...cards.map(c => c.card_number ?? 0)) + 1 : 1)
@@ -497,11 +523,23 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
             preview_rank: null,
             card_overrides: null,
         };
-        persist(applyNumberingIfNeeded([...cards, newCard]));
+        persist(applyNumberingIfNeeded([...cards, newCard]), manualPicksWith(record, 'included'));
     }
 
-    function handleRemoveCard(cardId: string) {
-        persist(applyNumberingIfNeeded(cards.filter(c => c.id !== cardId)));
+    /** Removing a card also excludes that player-year from future Algorithm runs. In a preview, it just
+     * drops the card from the (unsaved) preview. */
+    function handleRemoveCard(card: ReleaseCard) {
+        const nextManualPicks = manualPicksWith(card.card_snapshot, 'excluded');
+        if (activePreview) {
+            setPreviewResult(prev => {
+                if (!prev) return prev;
+                const players = prev.players.filter(p => p.id !== card.source_card_id);
+                return { ...prev, players, summary: { ...prev.summary, actual_count: players.length } };
+            });
+            persistManualPicks(nextManualPicks);
+            return;
+        }
+        persist(applyNumberingIfNeeded(cards.filter(c => c.id !== card.id)), nextManualPicks);
     }
 
     // Saves replace every card row (new ids), so the open detail card is matched by its source card.
@@ -809,6 +847,8 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
                                     edition={edition}
                                     token={token}
                                     defaultShowdownSet={defaultShowdownSet}
+                                    manualPicks={manualPicks}
+                                    onManualPicksChange={persistManualPicks}
                                     onPreviewResult={handlePreviewResult}
                                     onEditionUpdated={onEditionUpdated}
                                 />
@@ -1207,11 +1247,11 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
                                                                         {formatCardNumber(card.card_number, displayCards.length, numbering.zeroPad, numbering.prefix)}
                                                                     </span>
                                                                 )}
-                                                                {!readOnly && !activePreview && (
+                                                                {!readOnly && (
                                                                     <button
                                                                         type="button"
-                                                                        onClick={() => handleRemoveCard(card.id)}
-                                                                        title="Remove"
+                                                                        onClick={() => handleRemoveCard(card)}
+                                                                        title="Remove and exclude from Algorithm runs"
                                                                         aria-label="Remove"
                                                                         data-remove-button
                                                                         className="flex items-center justify-center w-5 h-5 rounded-full text-(--text-tertiary) hover:bg-red-500/90 hover:text-white transition-colors shrink-0 cursor-pointer"
