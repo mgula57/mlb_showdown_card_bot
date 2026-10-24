@@ -12,6 +12,7 @@ import type { CardItemActionButton } from './CardItemCompact';
 import { formatYear } from "../../functions/formatters";
 import CardIcon from "./card_elements/CardIcon";
 import PointsEstimateComparison from "./card_elements/PointsEstimateComparison";
+import ChartVersionBadge from "./card_elements/ChartVersionBadge";
 
 /**
  * Props for the CardItem component
@@ -66,6 +67,8 @@ type CardItemProps = {
 
     // Chart
     cardChartRanges?: Record<string, string>;
+    /** 2+ flags an alternate chart (not the most accurate one) */
+    cardChartVersion?: number;
 
     // Misc
     cardIsErrata?: boolean;
@@ -129,7 +132,7 @@ export const CardItem = ({
     cardPrimaryColor, cardSecondaryColor, cardEdition,
     cardSet, cardExpansion, cardSetNumber,
     cardIcons, cardAwardList, cardStatHighlightsList,
-    cardChartRanges, cardLeague, cardSource, cardStatus,
+    cardChartRanges, cardChartVersion, cardLeague, cardSource, cardStatus,
     onClick, className, isSelected, actionButton, hasAdvantage, chartHighlight
 }: CardItemProps) => {
 
@@ -262,6 +265,8 @@ export const CardItem = ({
                                     ER
                                 </div>
                             )}
+
+                            <ChartVersionBadge chartVersion={cardChartVersion} />
 
                             {cardNotes && (
                                 <FaBook className="inline-block w-3 h-3 text-secondary shrink-0" title={cardNotes} />
@@ -522,6 +527,7 @@ export const CardItemFromCard = ({ card, onClick, className, isSelected, hideYea
             cardAwardList={card?.image.award_summary_list || []}
             cardStatHighlightsList={card?.image.stat_highlights_list || []}
             cardChartRanges={card?.chart.ranges || {}}
+            cardChartVersion={card?.chart_version}
             cardSource={sourceOverride || (card?.is_wotc ? 'WOTC' : 'BOT')}
             onClick={onClick}
             className={className}
@@ -603,6 +609,7 @@ export const CardItemFromCardDatabaseRecord = ({ card, onClick, className, isSel
             cardStatHighlightsList={statHighlightsOverride ?? (card?.stat_highlights_list || [])}
             cardLeague={card?.league || undefined}
             cardChartRanges={card?.chart_ranges || {}}
+            cardChartVersion={card?.card_data?.chart_version}
             cardPtsMultiplier={cardPtsMultiplier}
             cardStatus={card?.status || undefined}
             onClick={onClick}

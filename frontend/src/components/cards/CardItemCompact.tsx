@@ -9,6 +9,7 @@ import { imageForSet } from '../shared/SiteSettingsContext';
 import { defenseAtPosition } from "../shared/DefenseUtils";
 import CardIcon from "./card_elements/CardIcon";
 import AdvantageBadge from "./card_elements/AdvantageBadge";
+import ChartVersionBadge from "./card_elements/ChartVersionBadge";
 import { getFirstName, getLastName, getFirstInitial } from "../../functions/names"
 
 // =============================================================================
@@ -238,6 +239,7 @@ export const CardItemCompact = ({
                             )}
                             <span className="hidden @[120px]:block">S</span>
                         </div>
+                        <ChartVersionBadge chartVersion={card?.chart_version} className="hidden @[110px]:flex text-[8px] px-0.5 rounded" />
                     </div>
                 )}
                 {!hideDetails && (
@@ -386,6 +388,7 @@ export const CardItemCompactFromCard = ({ card, className, fieldPosition,  hideD
                 hr_range: card?.chart.ranges.HR || null,
                 source: card?.is_wotc ? 'WOTC' : 'BOT',
                 isEmpty: card == null || card === undefined,
+                chart_version: card?.chart_version,
             }}
             className={className}
             isSelected={isSelected}
@@ -451,6 +454,7 @@ export const CardItemCompactFromCardDatabaseRecord = ({ card, className, isSelec
                 icons_list: card?.icons_list || [],
                 source: card?.source || 'BOT',
                 isEmpty: card == null || card === undefined,
+                chart_version: card?.card_data?.chart_version,
             }}
             className={className}
             isSelected={isSelected}

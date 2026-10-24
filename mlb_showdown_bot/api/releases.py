@@ -6,6 +6,7 @@ from pydantic import ValidationError
 from ..core.card.images import ImageLibrary
 from ..core.database.postgres_db import PostgresDB
 from ..core.set_builder.image_match_classifier import ImageMatchCard, ImageMatchClassifier
+from ..core.set_builder.release_card_rebuilder import ReleaseCardRebuilder, ReleaseCardRebuildError
 from ..core.set_builder.release_images import EditionImagePlan, EditionImageRenderer, ReleaseImageJobCancelled, ReleaseImageStorage
 from ..core.set_builder.selection import OtherEditionsRule
 from ..core.set_builder.showdown_bot_set import AlgorithmPreviewRequest
@@ -250,6 +251,39 @@ def preview_algorithm(release_id: str, edition_id: str):
                 'warnings': showdown_set.warnings,
             },
         }), 200
+    except Exception as exc:
+        traceback.print_exc()
+        return jsonify({'error': str(exc)}), 500
+
+
+@releases_bp.route('/releases/<release_id>/editions/<edition_id>/cards/rebuild', methods=['POST'])
+@require_auth
+def rebuild_edition_card(release_id: str, edition_id: str):
+    """The snapshot of one of the edition's cards at another `chart_version`. Does not persist —
+    the frontend saves the returned snapshot via the PUT /editions/<edition_id> `cards` mechanism."""
+    try:
+        payload = request.get_json(silent=True) or {}
+        source_card_id = payload.get('source_card_id')
+        try:
+            chart_version = int(payload.get('chart_version'))
+        except (TypeError, ValueError):
+            return jsonify({'error': 'chart_version must be a number'}), 400
+
+        with PostgresDB() as db:
+            edition = _owned_edition(db, release_id, edition_id, g.user_id)
+            if edition is None:
+                return jsonify({'error': 'Edition not found or not owned by user'}), 404
+            card = next((c for c in edition.get('cards') or [] if c.get('source_card_id') == source_card_id), None)
+            if card is None:
+                return jsonify({'error': 'Card not found in this edition'}), 404
+            try:
+                snapshot = ReleaseCardRebuilder(db).snapshot_at_chart_version(
+                    card.get('card_snapshot') or {}, card.get('source_card_type'), chart_version,
+                )
+            except ReleaseCardRebuildError as exc:
+                return jsonify({'error': str(exc)}), 400
+
+        return jsonify({'card_snapshot': snapshot}), 200
     except Exception as exc:
         traceback.print_exc()
         return jsonify({'error': str(exc)}), 500

@@ -59,7 +59,7 @@ import CardBuildIcon from './CardBuildIcon';
 import ImageLibraryOrderHint from './ImageLibraryOrderHint';
 import Set2026Notice from './Set2026Notice';
 import { SetStyleFields, ImageStyleFields, NewBadge } from './CardStyleFields';
-import { setStyleSummary, imageStyleSummary } from './cardStyle';
+import { setStyleSummary, imageStyleSummary, chartVersionOptions } from './cardStyle';
 import { formSectionSummary } from './FormSectionSummary';
 import { formInputsFromCard, type CustomizeCardRouteState } from './customizeCard';
 
@@ -313,14 +313,6 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
         { 'value': 'AUTO', 'label': 'Auto', 'symbol': '⚙️' },
         { 'value': 'LINK', 'label': 'Link', 'symbol': '🔗' },
         { 'value': 'UPLOAD', 'label': 'Upload', 'symbol': '📤' },
-    ]
-
-    const chartVersionOptions: SelectOption[] = [
-        { 'value': '1', 'label': 'Version 1' },
-        { 'value': '2', 'label': 'Version 2' },
-        { 'value': '3', 'label': 'Version 3' },
-        { 'value': '4', 'label': 'Version 4' },
-        { 'value': '5', 'label': 'Version 5' },
     ]
 
     const eraOptions: SelectOption[] = [

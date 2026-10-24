@@ -93,6 +93,14 @@ export const nicknameIndexOptions: SelectOption[] = [
     { "label": "Nickname 3", "value": "3" },
 ];
 
+export const chartVersionOptions: SelectOption[] = [
+    { 'value': '1', 'label': 'Version 1' },
+    { 'value': '2', 'label': 'Version 2' },
+    { 'value': '3', 'label': 'Version 3' },
+    { 'value': '4', 'label': 'Version 4' },
+    { 'value': '5', 'label': 'Version 5' },
+];
+
 export const outerGlowOptions: SelectOption[] = [
     { "label": "Glow 1x", "value": "1" },
     { "label": "Glow 2x", "value": "2" },

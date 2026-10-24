@@ -545,6 +545,8 @@ export type ShowdownBotCardCompact = {
     icons_list?: string[] | null;
     source: CardSource;
     isEmpty?: boolean;
+    /** 2+ flags an alternate chart (not the most accurate one) */
+    chart_version?: number | null;
 }
 // =============================================================================
 // MARK: - CARD IMAGE & VISUAL TYPES

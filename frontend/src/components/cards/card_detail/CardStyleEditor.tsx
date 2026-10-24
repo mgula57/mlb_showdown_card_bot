@@ -1,14 +1,22 @@
 /**
- * @fileoverview CardStyleEditor - Inline Card Style (Set + Image) editor for a single card, shown
- * inside CardDetail. Edits auto-save after a pause; the caller owns persistence and re-renders the
- * card by passing CardDetail updated `styleOverrides`.
+ * @fileoverview CardStyleEditor - Inline Card Style (Set + Image, optionally Chart) editor for a
+ * single card, shown inside CardDetail. Style edits auto-save after a pause; the caller owns
+ * persistence and re-renders the card by passing CardDetail updated `styleOverrides`. A chart
+ * version change rebuilds the card right away; the caller passes CardDetail the rebuilt card.
  */
 
 import { useEffect, useRef, useState } from 'react';
+import { FaTable } from 'react-icons/fa';
 import { FaCheck, FaPalette, FaRotateLeft, FaSpinner, FaXmark } from 'react-icons/fa6';
 import { CardStyleSections } from '../../customs/CardStyleFields';
+import FormDropdown from '../../customs/FormDropdown';
+import FormSection from '../../customs/FormSection';
+import { formSectionSummary } from '../../customs/FormSectionSummary';
 import { useMediaQuery } from '../../../hooks/useMediaQuery';
-import { isCardStyleDifferent, type CardStyleSettings } from '../../customs/cardStyle';
+import { chartVersionOptions, isCardStyleDifferent, type CardStyleSettings } from '../../customs/cardStyle';
+import type { SelectOption } from '../../shared/CustomSelect';
+import type { ShowdownBotCard } from '../../../api/showdownBotCard';
+import { rankChartsByVersion } from './chartVersions';
 
 /** Enables in-place style editing on CardDetail (see its `styleEditor` prop) */
 export type CardStyleEditorConfig = {
@@ -22,16 +30,44 @@ export type CardStyleEditorConfig = {
     onSave: (style: CardStyleSettings) => Promise<void> | void;
     /** Revert button tooltip, e.g. "Revert to the edition style" */
     revertTitle?: string;
+    /** Adds a Chart section for switching the card's chart version (Bot cards only). Leave out
+     * where the card itself can't change. */
+    chart?: {
+        /** Rebuilds the card at `chartVersion` and persists it — called as soon as the version
+         * changes. Throw to show an error. */
+        onChange: (chartVersion: number) => Promise<void>;
+    };
 };
 
 /** How long edits must pause before they're saved — each save re-renders the card image */
 const SAVE_DELAY_MS = 800;
 
 type CardStyleEditorProps = CardStyleEditorConfig & {
+    /** The card as shown, for its chart version and the versions it has */
+    card?: ShowdownBotCard | null;
     onClose: () => void;
 };
 
-export function CardStyleEditor({ style: initialStyle, defaults, onSave, revertTitle = 'Revert to the default style', onClose }: CardStyleEditorProps) {
+/** The card's chart versions, each with its command/outs and accuracy. Cards without stored
+ * accuracies (older archives) list every version. */
+function chartVersionOptionsFor(card: ShowdownBotCard): SelectOption[] {
+    const pickedChart = card.command_out_selection ? `${card.command_out_selection.command}-${card.command_out_selection.outs}` : null;
+    const ranked = rankChartsByVersion(
+        Object.entries(card.command_out_accuracies ?? {}).map(([chart, accuracy]) => ({ chart, accuracy })),
+        pickedChart,
+    );
+    if (ranked.length === 0) return chartVersionOptions;
+    return chartVersionOptions.slice(0, ranked.length).map((option, index) => ({
+        ...option,
+        trailing: (
+            <span className="ml-auto pl-3 text-[11px] tabular-nums text-(--text-tertiary)">
+                {ranked[index].chart} · {(ranked[index].accuracy * 100).toFixed(1)}%
+            </span>
+        ),
+    }));
+}
+
+export function CardStyleEditor({ style: initialStyle, defaults, onSave, revertTitle = 'Revert to the default style', chart, card, onClose }: CardStyleEditorProps) {
     const [style, setStyle] = useState<CardStyleSettings>(initialStyle);
     // On phones the editor sits above the card — start collapsed so the card still peeks out below
     const isDesktop = useMediaQuery('(min-width: 768px)');
@@ -40,6 +76,33 @@ export function CardStyleEditor({ style: initialStyle, defaults, onSave, revertT
     const [error, setError] = useState<string | null>(null);
 
     const updateStyle = (patch: Partial<CardStyleSettings>) => setStyle(prev => ({ ...prev, ...patch }));
+
+    // Chart version: rebuilds immediately (it changes the card, not just its image). The picked
+    // version shows until the rebuilt card arrives.
+    const [isRebuilding, setIsRebuilding] = useState(false);
+    const [pendingChartVersion, setPendingChartVersion] = useState<number | null>(null);
+    const cardChartVersion = card?.chart_version || 1;
+    const chartVersion = pendingChartVersion ?? cardChartVersion;
+    useEffect(() => {
+        if (!isRebuilding && pendingChartVersion === cardChartVersion) setPendingChartVersion(null);
+    }, [isRebuilding, pendingChartVersion, cardChartVersion]);
+    const showChart = !!chart && !!card && !card.is_wotc;
+
+    async function handleChartVersionChange(value: string) {
+        const version = Number(value);
+        if (!chart || version === chartVersion) return;
+        setPendingChartVersion(version);
+        setIsRebuilding(true);
+        setError(null);
+        try {
+            await chart.onChange(version);
+        } catch (err) {
+            setPendingChartVersion(null);
+            setError(err instanceof Error ? err.message : 'Failed to rebuild card.');
+        } finally {
+            setIsRebuilding(false);
+        }
+    }
 
     // Auto-save once edits pause, one save at a time (an edit made mid-save goes out after it).
     // Starts from the card's own style, so opening the editor (or toggling a field back) saves nothing.
@@ -81,7 +144,9 @@ export function CardStyleEditor({ style: initialStyle, defaults, onSave, revertT
                 <FaPalette className="text-[12px] opacity-60" />
                 <div className="text-[12px] font-semibold opacity-60 uppercase tracking-widest">Card Style</div>
                 <span className="flex items-center gap-1 text-[11px] text-(--text-tertiary)">
-                    {saving ? (
+                    {isRebuilding ? (
+                        <><FaSpinner className="animate-spin text-[10px]" /> Rebuilding card</>
+                    ) : saving ? (
                         <><FaSpinner className="animate-spin text-[10px]" /> Saving</>
                     ) : hasSaved && !isUnsaved && !error ? (
                         <><FaCheck className="text-[10px]" /> Saved</>
@@ -116,6 +181,28 @@ export function CardStyleEditor({ style: initialStyle, defaults, onSave, revertT
                     </div>
                 )}
                 <CardStyleSections values={style} onChange={updateStyle} defaults={defaults} isOpenByDefault={isDesktop} />
+                {showChart && card && (
+                    <FormSection
+                        title='Chart'
+                        icon={<FaTable />}
+                        isOpenByDefault={isDesktop}
+                        childrenWhenClosed={chartVersion !== 1
+                            ? formSectionSummary([{ ...(chartVersionOptions.find(opt => opt.value === String(chartVersion)) || { value: String(chartVersion) }), label: 'Chart Version' }])
+                            : undefined}
+                    >
+                        <FormDropdown
+                            label="Chart Version"
+                            className='col-span-full'
+                            options={chartVersionOptionsFor(card)}
+                            selectedOption={String(chartVersion)}
+                            onChange={handleChartVersionChange}
+                            disabled={isRebuilding}
+                        />
+                        <p className="col-span-full text-[11px] text-(--text-tertiary)">
+                            Changes the card's command, outs and points. Versions past 1 re-run the card with the current formulas.
+                        </p>
+                    </FormSection>
+                )}
             </div>
         </div>
     );

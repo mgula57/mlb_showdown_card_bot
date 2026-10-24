@@ -1,7 +1,7 @@
 import { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import * as Tabs from '@radix-ui/react-tabs';
 import type { ReleaseEdition, ReleaseCard, AlgorithmPreviewResult, AlgorithmPreviewPlayer } from '../../api/releases';
-import { updateEdition } from '../../api/releases';
+import { updateEdition, rebuildEditionCard } from '../../api/releases';
 import { SummaryCharts } from './SummaryCharts';
 import { AlgorithmBuilder } from './AlgorithmBuilder';
 import ShowdownCardSearch from '../cards/ShowdownCardSearch';
@@ -236,6 +236,9 @@ function loadSavedBuildPanelWidth(): number | null {
 
 export function EditionBuilder({ releaseId, releaseName, edition, readOnly, token, defaultShowdownSet, onEditionUpdated }: EditionBuilderProps) {
     const [cards, setCards] = useState<ReleaseCard[]>(edition.cards);
+    // Latest cards, for saves that land after an await (e.g. a chart rebuild)
+    const cardsRef = useRef(cards);
+    cardsRef.current = cards;
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [previewResult, setPreviewResult] = useState<AlgorithmPreviewResult | null>(null);
@@ -532,9 +535,21 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
                 const saved = await persist(cards.map(c => c.source_card_id === sourceCardId ? { ...c, card_overrides } : c));
                 if (!saved) throw new Error('Failed to save card style.');
             },
+            // A new chart version replaces the card's snapshot (command, outs, points...), so it
+            // re-numbers under live auto numbering
+            chart: detailCard.source_card_type === CardSource.BOT && sourceCardId && token ? {
+                onChange: async (chartVersion) => {
+                    const card_snapshot = await rebuildEditionCard(releaseId, edition.id, sourceCardId, chartVersion, token);
+                    const nextCards = applyNumberingIfNeeded(cardsRef.current.map(c => c.source_card_id === sourceCardId ? { ...c, card_snapshot } : c));
+                    const saved = await persist(nextCards);
+                    if (!saved) throw new Error('Failed to save the rebuilt card.');
+                    const rebuiltCard = nextCards.find(c => c.source_card_id === sourceCardId);
+                    setDetailCard(prev => prev?.source_card_id === sourceCardId && rebuiltCard ? rebuiltCard : prev);
+                },
+            } : undefined,
         };
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [detailCard, readOnly, activePreview, detailCardStyle, editionStyle, cards]);
+    }, [detailCard, readOnly, activePreview, detailCardStyle, editionStyle, cards, numbering, token]);
 
     function handleDetailCardTagsChange(tags: string[]) {
         if (!detailCard) return;

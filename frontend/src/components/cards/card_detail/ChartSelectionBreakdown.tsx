@@ -1,6 +1,7 @@
 import { type ChartAccuracyCategoryBreakdown, type CommandOutSelection } from '../../../api/showdownBotCard';
 import { formatSlashlineValue } from '../../../functions/formatters';
 import CardCommand from '../card_elements/CardCommand';
+import { rankChartsByVersion } from './chartVersions';
 
 const PLACEHOLDER_CHART_ACCURACY: Record<string, Record<string, ChartAccuracyCategoryBreakdown>> = {
     '10-5': { OVERALL: { stat: 'OVERALL', accuracy: 0.9421, actual: 0.840, comparison: 0.851, is_pitcher: false, notes: '' } },
@@ -24,6 +25,7 @@ function KpiTile({ label, value, blurred }: { label: string; value: string | num
 }
 
 type ChartRow = ChartAccuracyCategoryBreakdown & { chart: string; rank: number; accuracyRank: number };
+
 
 const MAX_RANKED_ROWS = 5;
 const PICKED_COLOR = 'rgb(96,165,250)';
@@ -107,10 +109,7 @@ export function ChartSelectionBreakdown({ chartAccuracyData, commandOutAccuracie
 
     // A CURATED COMBO IS PROMOTED TO VERSION 1, PUSHING THE REST DOWN (MATCHES BACKEND CHART VERSION ORDER)
     const pickedChart = selection ? `${selection.command}-${selection.outs}` : null;
-    const allRanked: ChartRow[] = [
-        ...byAccuracy.filter(row => row.chart === pickedChart),
-        ...byAccuracy.filter(row => row.chart !== pickedChart),
-    ].map((row, index) => ({ ...row, rank: index + 1 }));
+    const allRanked: ChartRow[] = rankChartsByVersion(byAccuracy, pickedChart);
 
     const selectedVersion = (selectedChart && allRanked.find(row => row.chart === selectedChart))
         || allRanked.find(row => row.rank === (selectedChartVersion ?? 1))

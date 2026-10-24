@@ -339,6 +339,25 @@ export async function previewAlgorithm(releaseId: string, editionId: string, con
     return res.json();
 }
 
+/** The snapshot of one of the edition's Bot cards rebuilt at another chart version (1 restores the
+ * archived card). Doesn't persist — save the returned snapshot through `updateEdition`. */
+export async function rebuildEditionCard(releaseId: string, editionId: string, sourceCardId: string, chartVersion: number, token: string): Promise<CardDatabaseRecord> {
+    const res = await fetch(`${API_BASE}/releases/${releaseId}/editions/${editionId}/cards/rebuild`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ source_card_id: sourceCardId, chart_version: chartVersion }),
+    });
+    if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || `Failed to rebuild card: ${res.status}`);
+    }
+    const data = await res.json();
+    return data.card_snapshot;
+}
+
 // =============================================================================
 // MARK: - API CALLS: EDITION IMAGES
 // =============================================================================

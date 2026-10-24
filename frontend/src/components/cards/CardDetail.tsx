@@ -195,6 +195,8 @@ export const CardDetail = memo(function CardDetail({ showdownBotCardData: showdo
     // overrides re-render (and regenerate the image) without refetching.
     const appliedStyleOverridesRef = useRef<CardStyleOverrides | undefined>(undefined);
     const fetchedCardRef = useRef<ShowdownBotCardAPIResponse | null>(null);
+    // Whether the shown card came from `showdownBotCardData` (vs fetched by `cardId`)
+    const isShowingPropDataRef = useRef(false);
     // While a restyled card's new image generates, keep showing the image it's replacing
     const restyleFromImagePathRef = useRef<string | null>(null);
     // Only the latest image request may land — restyles can fire while an earlier one is in flight
@@ -247,20 +249,22 @@ export const CardDetail = memo(function CardDetail({ showdownBotCardData: showdo
             // default set (e.g. a background search refresh after the browser tab regains focus)
             // must not be treated as a "new" card and clobber a set the user manually switched to
             // — only a genuinely different player/year should do that.
-            const isSameCard =
+            const isSamePlayer =
                 context !== 'custom' &&
                 (
                     (internalCardData?.card?.bref_id || internalCardData?.card?.mlb_id) === (showdownBotCardData?.card?.bref_id || showdownBotCardData?.card?.mlb_id) &&
                     internalCardData?.card?.year === showdownBotCardData?.card?.year &&
                     (enableSetSwitcher || internalCardData?.card?.set === showdownBotCardData?.card?.set)
                 );
+            // A rebuilt chart (e.g. a new chart version) is the same player but a different card
+            const isSameCard = isSamePlayer && (internalCardData?.card?.chart_version ?? 1) === (showdownBotCardData?.card?.chart_version ?? 1);
             console.log("CardDetail: Checking for prop data update, isSameCard =", isSameCard);
             // isSameCard is true on mount (internal state starts from the prop). Styled cards never
             // carry a matching image, so new overrides (incl. the first) count as a new card.
             const styleOverridesChanged = styleOverrides !== appliedStyleOverridesRef.current;
             appliedStyleOverridesRef.current = styleOverrides;
             if (!isSameCard || styleOverridesChanged) {
-                restyleFromImagePathRef.current = isSameCard
+                restyleFromImagePathRef.current = isSamePlayer
                     ? (imagePathFor(internalCardData?.card) ?? restyleFromImagePathRef.current)
                     : null;
                 setInternalCardData(showdownBotCardData);
@@ -276,15 +280,21 @@ export const CardDetail = memo(function CardDetail({ showdownBotCardData: showdo
 
             // Fetch ranges whenever the card changes or on initial mount (isSameCard is true
             // on first render because useState initializes internalCardData from the prop)
-            if (!isSameCard || seasonStatRanges === null) {
+            if (!isSamePlayer || seasonStatRanges === null) {
                 fetchRanges(showdownBotCardData.card);
             }
 
             handledCardIdPropRef.current = cardId;
+            isShowingPropDataRef.current = true;
             return;
         }
 
-        // Case 2: No data but cardId provided - fetch it from DB
+        // Case 2: No data but cardId provided - fetch it from DB. If the prop data was just dropped
+        // (e.g. a rebuilt card restored to its archived version), the card it showed is gone too.
+        if (isShowingPropDataRef.current) {
+            isShowingPropDataRef.current = false;
+            handledCardIdPropRef.current = undefined;
+        }
         const styleOverridesChanged = styleOverrides !== appliedStyleOverridesRef.current;
         appliedStyleOverridesRef.current = styleOverrides;
         if (cardId && cardId === handledCardIdPropRef.current && styleOverridesChanged && fetchedCardRef.current) {
@@ -726,7 +736,7 @@ export const CardDetail = memo(function CardDetail({ showdownBotCardData: showdo
                 {showStyleEditor && styleEditor && (
                     <div key="style-editor" className="relative">
                         <div className="flex flex-col @xl:absolute @xl:inset-0">
-                            <CardStyleEditor {...styleEditor} onClose={() => setIsStyleEditorOpen(false)} />
+                            <CardStyleEditor {...styleEditor} card={activeCardData?.card} onClose={() => setIsStyleEditorOpen(false)} />
                         </div>
                     </div>
                 )}
