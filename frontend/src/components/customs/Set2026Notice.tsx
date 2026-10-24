@@ -10,8 +10,10 @@ type PhaseStatus = 'complete' | 'current';
 const PHASES: { marker: string; label: string; title: string; detail: string; status: PhaseStatus }[] = [
     { marker: '1', label: 'Phase 1', title: 'Initial adjustments', detail: 'First pass on 2026 charts', status: 'complete' },
     { marker: '2', label: 'Phase 2', title: 'Sim balancing', detail: 'Simulations + WOTC set comparisons', status: 'complete' },
-    { marker: '10/23', label: 'Phase 3', title: 'Final QA', detail: 'Weights locked in. Curated V1s chosen. Extended by a week.', status: 'current' },
+    { marker: '3', label: 'Phase 3', title: 'Final QA', detail: 'Weights locked in. Curated V1s chosen.', status: 'complete' },
 ];
+
+const RELEASE_NOTES_URL = 'https://github.com/mgula57/mlb_showdown_card_bot/releases/tag/v4.43';
 
 const PhaseStep: React.FC<{ phase: typeof PHASES[number]; isLast: boolean }> = ({ phase, isLast }) => {
     const isComplete = phase.status === 'complete';
@@ -19,13 +21,13 @@ const PhaseStep: React.FC<{ phase: typeof PHASES[number]; isLast: boolean }> = (
         <li className="relative flex-1 flex flex-col items-center text-center">
             {/* Connector to the next phase */}
             {!isLast && (
-                <span className={`absolute top-3 left-1/2 w-full h-0.5 ${isComplete ? 'bg-(--warning)' : 'bg-(--warning)/30'}`} />
+                <span className={`absolute top-3 left-1/2 w-full h-0.5 ${isComplete ? 'bg-(--success)' : 'bg-(--warning)/30'}`} />
             )}
             <span
                 className={`
                     relative z-10 flex items-center justify-center h-6 min-w-6 px-1 rounded-full text-[10px] font-black
                     ${isComplete
-                        ? 'bg-(--warning) text-yellow-950'
+                        ? 'bg-(--success) text-white'
                         : 'bg-secondary text-(--warning) border-2 border-dotted border-(--warning)'}
                 `}
             >
@@ -39,7 +41,7 @@ const PhaseStep: React.FC<{ phase: typeof PHASES[number]; isLast: boolean }> = (
                     </div>
                 }
             </span>
-            <span className={`mt-1.5 text-[11px] font-bold ${isComplete ? 'text-(--warning)' : 'text-primary'}`}>
+            <span className={`mt-1.5 text-[11px] font-bold ${isComplete ? 'text-(--success)' : 'text-primary'}`}>
                 {phase.label}
             </span>
             <span className="text-[10px] font-semibold text-secondary leading-tight">{phase.title}</span>
@@ -50,7 +52,7 @@ const PhaseStep: React.FC<{ phase: typeof PHASES[number]; isLast: boolean }> = (
 
 /** Dismissible notice on the Custom Card Builder covering 2026 set balancing progress and new features. */
 export const Set2026Notice: React.FC<{ onDismiss: () => void }> = ({ onDismiss }) => (
-    <div className="relative rounded-xl border-2 border-(--warning)/40 bg-background-secondary px-3 py-2.5 text-xs leading-snug shadow-md">
+    <div className="relative rounded-xl border-2 border-(--success)/40 bg-background-secondary px-3 py-2.5 text-xs leading-snug shadow-md">
         <button
             onClick={onDismiss}
             aria-label="Dismiss"
@@ -61,7 +63,10 @@ export const Set2026Notice: React.FC<{ onDismiss: () => void }> = ({ onDismiss }
 
         <p className="pr-6 font-bold text-primary">2026 Set Adjustments</p>
         <p className="mt-0.5 pr-6 text-secondary">
-            Phase 2 is complete. Onto Phase 3.
+            All phases are complete! Curations and adjustments are finalized for 2026 cards.{' '}
+            <a href={RELEASE_NOTES_URL} target="_blank" rel="noopener noreferrer" className="text-tertiary underline cursor-pointer hover:opacity-80">
+                Read the v4.43 release notes
+            </a>
         </p>
 
         <ol className="flex mt-3">
@@ -70,9 +75,9 @@ export const Set2026Notice: React.FC<{ onDismiss: () => void }> = ({ onDismiss }
             ))}
         </ol>
 
-        <div className="mt-3 pt-2.5 border-t border-(--warning)/20">
+        <div className="mt-3 pt-2.5 border-t border-(--success)/20">
             <p className="flex items-center gap-1.5 font-bold text-primary">
-                <FaGoogleDrive className="text-(--warning)" />
+                <FaGoogleDrive className="text-(--success)" />
                 Google Drive Image Libraries
                 <NewBadge />
             </p>
