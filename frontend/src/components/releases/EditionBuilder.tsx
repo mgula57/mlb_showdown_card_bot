@@ -37,7 +37,7 @@ import {
 import { PoolFilterPanel } from './PoolFilterPanel';
 import { TeamSearchInput } from '../team_builder/TeamSearchInput';
 import { FaGripVertical } from 'react-icons/fa';
-import { FaPlus, FaXmark, FaSpinner, FaWandMagicSparkles, FaMagnifyingGlass, FaArrowsRotate, FaGear, FaArrowUp, FaArrowDown, FaTriangleExclamation, FaTableCellsLarge, FaList, FaAnglesLeft, FaAnglesRight, FaListCheck, FaChartColumn, FaPalette, FaFilter } from 'react-icons/fa6';
+import { FaPlus, FaXmark, FaSpinner, FaWandMagicSparkles, FaCircleCheck, FaMagnifyingGlass, FaArrowsRotate, FaGear, FaArrowUp, FaArrowDown, FaTriangleExclamation, FaTableCellsLarge, FaList, FaAnglesLeft, FaAnglesRight, FaListCheck, FaChartColumn, FaPalette, FaFilter } from 'react-icons/fa6';
 
 /** Narrowest the Player Pool panel can get; it takes whatever the Build Method panel leaves. */
 const MIN_POOL_PANEL_WIDTH = 280;
@@ -210,6 +210,19 @@ const POOL_PAGE_SIZE = 40;
 const POOL_FULL_CARDS_STORAGE_KEY = 'releaseBuilder.poolFullCards';
 /** Per-viewer preference for hiding the Build Method panel. */
 const BUILD_PANEL_HIDDEN_STORAGE_KEY = 'releaseBuilder.buildPanelHidden';
+/** Labels the right panel as an unsaved Algorithm preview or the edition's saved pool. */
+function PoolStatusBadge({ isPreview }: { isPreview: boolean }) {
+    return isPreview ? (
+        <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide leading-none px-1.5 py-1 rounded-full border border-(--preview-accent)/35 bg-(--preview-accent)/12 text-(--preview-accent)">
+            <FaWandMagicSparkles className="text-[9px]" /> Preview · Unsaved
+        </span>
+    ) : (
+        <span className="inline-flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wide leading-none text-(--text-tertiary)">
+            <FaCircleCheck className="text-[9px]" /> Saved
+        </span>
+    );
+}
+
 /** Per-viewer Build Method panel width, saved once they drag the divider. */
 const BUILD_PANEL_WIDTH_STORAGE_KEY = 'releaseBuilder.buildPanelWidth';
 
@@ -734,7 +747,9 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
     const poolTabTriggers = (
         <>
             <Tabs.Trigger value="cards" className={TAB_TRIGGER_CLASS}>
-                <FaListCheck className="text-[10px] mr-1.5" /> {readOnly ? 'List' : 'Selected'} <span className="ml-1.5 text-[10px] text-(--text-tertiary) bg-(--background-secondary) py-0.5 px-1 rounded-md">{displayCards.length}</span>
+                {activePreview ? <FaWandMagicSparkles className="text-[10px] mr-1.5 text-(--preview-accent)" /> : <FaListCheck className="text-[10px] mr-1.5" />}
+                {readOnly ? 'List' : activePreview ? 'Preview' : 'Selected'}
+                <span className={`ml-1.5 text-[10px] py-0.5 px-1 rounded-md ${activePreview ? 'bg-(--preview-accent)/12 text-(--preview-accent)' : 'text-(--text-tertiary) bg-(--background-secondary)'}`}>{displayCards.length}</span>
             </Tabs.Trigger>
             <Tabs.Trigger value="summary" className={TAB_TRIGGER_CLASS}>
                 <FaChartColumn className="text-[10px] mr-1.5" /> Summary
@@ -909,8 +924,9 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
                 {/* Selected Cards / Summary — takes whatever width the Build panel leaves. */}
                 <div className={`flex-1 min-w-0 flex-col min-h-0 ${activePoolTab === 'build' ? 'hidden md:flex' : 'flex'}`}>
                     {!readOnly && (
-                        <div className="hidden md:block px-3 pt-2 shrink-0">
+                        <div className="hidden md:flex items-center gap-2 px-3 pt-2 shrink-0">
                             <span className="text-[10px] font-bold text-(--text-tertiary) uppercase tracking-wide">Player Pool</span>
+                            <PoolStatusBadge isPreview={!!activePreview} />
                         </div>
                     )}
                     <div className="flex flex-col flex-1 min-h-0">
@@ -927,10 +943,15 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
 
                         <Tabs.Content value="cards" className="flex-1 min-h-0 flex flex-col focus:outline-none">
                             {activePreview && (
-                                <div className="flex flex-col gap-2 px-3 py-2 border-b border-(--divider) shrink-0">
-                                    <div className="flex items-center gap-1.5 text-[12px] font-semibold text-(--text-secondary)">
-                                        <FaWandMagicSparkles className="text-(--secondary)" />
-                                        Previewing {activePreview.summary.actual_count} player{activePreview.summary.actual_count === 1 ? '' : 's'} — not yet saved
+                                <div className="flex flex-col gap-2 px-3 py-2.5 border-b border-(--preview-accent)/30 bg-(--preview-accent)/10 shrink-0">
+                                    <div className="flex flex-col gap-0.5">
+                                        <div className="flex items-center gap-1.5 text-[13px] font-bold text-(--preview-accent)">
+                                            <FaWandMagicSparkles />
+                                            Algorithm Preview — {activePreview.summary.actual_count} player{activePreview.summary.actual_count === 1 ? '' : 's'}
+                                        </div>
+                                        <span className="text-[11px] text-(--text-secondary)">
+                                            Not saved yet. Your saved pool has {cards.length} card{cards.length === 1 ? '' : 's'} — fill or replace it below, or discard this preview.
+                                        </span>
                                     </div>
                                     {activePreview.summary.warnings.length > 0 && (
                                         <div className="flex flex-col gap-1">
@@ -1207,7 +1228,7 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
                             )}
 
                             {/* Card Grid */}
-                            <div className="flex-1 min-h-0 overflow-y-auto p-3">
+                            <div className={`flex-1 min-h-0 overflow-y-auto p-3 ${activePreview ? 'bg-(--preview-accent)/4' : ''}`}>
                                 {displayCards.length > 0 && filteredCards.length === 0 ? (
                                     <div className="flex flex-col items-center gap-2 py-8">
                                         <p className="text-[13px] text-(--text-tertiary)">No cards match these filters.</p>

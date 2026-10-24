@@ -19,6 +19,9 @@
     --showdown-blue: #1a3b5f;
     --showdown-red: #9a362f;
     --showdown-gray: #6e6e73;
+
+    /* Unsaved / algorithm-preview state (e.g. Release Builder preview pools) */
+    --preview-accent: #6d28d9;
     
     --background-primary: #f5f3f0;
     --background-secondary: #fdfcfa;
@@ -74,6 +77,8 @@
     --showdown-blue: #4682e6;
     --showdown-red: #d04e47;
     --showdown-gray: #a0a0a5;
+
+    --preview-accent: #c4b5fd;
 
     --background-primary: #1c1a18;
     --background-secondary: #25221f;
