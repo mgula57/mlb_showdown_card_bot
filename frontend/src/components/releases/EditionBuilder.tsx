@@ -575,13 +575,17 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
         // eslint-disable-next-line react-hooks/exhaustive-deps
         [editionStyle, detailCardOverridesKey]
     );
-    const detailStyleOverrides = useMemo<CardStyleOverrides | undefined>(() => {
-        if (!detailCard) return undefined;
-        const setNumber = numbering.mode === 'none' || detailCard.card_number === null
+    /** The set number as it prints on the card, or null when the edition isn't numbered. */
+    function printedSetNumber(card: ReleaseCard): string | null {
+        return numbering.mode === 'none' || card.card_number === null
             ? null
-            : formatCardNumber(detailCard.card_number, displayCards.length, numbering.zeroPad, numbering.prefix);
-        return { style: detailCardStyle, setNumber };
-    }, [detailCard, detailCardStyle, numbering, displayCards.length]);
+            : formatCardNumber(card.card_number, displayCards.length, numbering.zeroPad, numbering.prefix);
+    }
+    const detailStyleOverrides = useMemo<CardStyleOverrides | undefined>(
+        () => detailCard ? { style: detailCardStyle, setNumber: printedSetNumber(detailCard) } : undefined,
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+        [detailCard, detailCardStyle, numbering, displayCards.length]
+    );
 
     // Per-card style edits, saved as overrides on top of the edition style. Not while browsing or
     // viewing an unsaved algorithm preview (same as tags).
@@ -1240,6 +1244,11 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
                                                             card: card.card_snapshot,
                                                             onClick: () => setDetailCard(card),
                                                         };
+                                                        // Full cards show the edition style and set number they'll print with
+                                                        const styleOverrides: CardStyleOverrides = {
+                                                            style: releaseCardStyle(editionStyle, card.card_overrides),
+                                                            setNumber: printedSetNumber(card),
+                                                        };
                                                         return (
                                                         <div key={card.id} className="group/row flex items-center gap-1.5">
                                                             {/* Set number with the remove button stacked beneath it, to save horizontal space. */}
@@ -1279,7 +1288,7 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
                                                             {/* Hovering the remove button outlines the card it removes. */}
                                                             <div className={`relative flex-1 min-w-0 transition-shadow group-has-[[data-remove-button]:hover]/row:ring-2 group-has-[[data-remove-button]:hover]/row:ring-red-500/80 ${showFullCards ? 'rounded-xl max-w-100' : 'rounded-lg'}`}>
                                                                 {showFullCards
-                                                                    ? <CardItemFromCardDatabaseRecord {...cardProps} />
+                                                                    ? <CardItemFromCardDatabaseRecord {...cardProps} styleOverrides={styleOverrides} />
                                                                     : <CardItemCompactFromCardDatabaseRecord {...cardProps} />}
                                                                 {(card.tags.length > 0 || card.preview_rank) && (
                                                                     // Overlaid on the bottom edge (like the top-edge badges) so tags don't change row height

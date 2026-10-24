@@ -13,6 +13,7 @@ import { formatYear } from "../../functions/formatters";
 import CardIcon from "./card_elements/CardIcon";
 import PointsEstimateComparison from "./card_elements/PointsEstimateComparison";
 import ChartVersionBadge from "./card_elements/ChartVersionBadge";
+import type { CardStyleOverrides } from "./cardStyleOverrides";
 
 /**
  * Props for the CardItem component
@@ -33,7 +34,8 @@ type CardItemProps = {
     // Set
     cardSet?: string;
     cardExpansion?: string;
-    cardSetNumber?: number;
+    /** Numbers are zero-padded to 3 digits; strings (e.g. a Release edition's "AS007") show as-is. */
+    cardSetNumber?: number | string;
 
     // Points
     cardPoints?: number;
@@ -432,7 +434,7 @@ export const CardItem = ({
                             <FaWandMagicSparkles className="inline-block w-3 h-3" title="Custom Card" />
                         )}
                         {cardSetNumber && (
-                            <span className="font-mono font-medium text-secondary">{String(cardSetNumber).padStart(3, '0')}</span>
+                            <span className="font-mono font-medium text-secondary">{typeof cardSetNumber === 'number' ? String(cardSetNumber).padStart(3, '0') : cardSetNumber}</span>
                         )}
                         {cardExpansion && ['TD', 'PR'].includes(cardExpansion) && (
                             <img 
@@ -568,16 +570,25 @@ type CardItemFromCardDatabaseRecordProps = {
      * sim result screens, since a card's real awards have nothing to do with what it did in a
      * simulated season and showing them alongside `statHighlightsOverride` would be misleading. */
     awardListOverride?: string[];
+    /** Shows the card as it will print with this styling (e.g. a Release edition's edition/expansion
+     * and set number) instead of its own — same overrides CardDetail takes. */
+    styleOverrides?: CardStyleOverrides;
 };
 
-export const CardItemFromCardDatabaseRecord = ({ card, onClick, className, isSelected, hideYear, ptsChangeField = 'points_change', actionButton, cardPtsMultiplier, statHighlightsOverride, awardListOverride }: CardItemFromCardDatabaseRecordProps) => {
+export const CardItemFromCardDatabaseRecord = ({ card, onClick, className, isSelected, hideYear, ptsChangeField = 'points_change', actionButton, cardPtsMultiplier, statHighlightsOverride, awardListOverride, styleOverrides }: CardItemFromCardDatabaseRecordProps) => {
     const primaryColor = (['NYM', 'SDP'].includes(card?.wbc_team || card?.team || '') 
                             ? card?.color_secondary
                             : card?.color_primary) || 'rgb(0, 0, 0)';
     const secondaryColor = (['NYM', 'SDP'].includes(card?.wbc_team || card?.team || '') 
                             ? card?.color_primary 
                             : card?.color_secondary) || 'rgb(0, 0, 0)';
-    
+    const edition = styleOverrides?.style?.edition ?? card?.edition;
+    const expansion = styleOverrides?.style?.expansion ?? card?.expansion;
+    // `setNumber: null` clears the card's own number
+    const setNumber = styleOverrides && 'setNumber' in styleOverrides
+        ? styleOverrides.setNumber ?? undefined
+        : (card?.set_number ? parseInt(card.set_number) : undefined);
+
     return (
         <CardItem
             cardId={card?.card_id}
@@ -601,10 +612,10 @@ export const CardItemFromCardDatabaseRecord = ({ card, onClick, className, isSel
             cardNotes={card?.notes || undefined}
             cardPrimaryColor={primaryColor}
             cardSecondaryColor={secondaryColor}
-            cardEdition={card?.edition || undefined}
+            cardEdition={edition || undefined}
             cardSet={card?.showdown_set}
-            cardExpansion={card?.expansion || undefined}
-            cardSetNumber={card?.set_number ? parseInt(card?.set_number) : undefined}
+            cardExpansion={expansion || undefined}
+            cardSetNumber={setNumber}
             cardIcons={card?.icons_list || []}
             cardAwardList={awardListOverride ?? (card?.awards_list || [])}
             cardStatHighlightsList={statHighlightsOverride ?? (card?.stat_highlights_list || [])}
