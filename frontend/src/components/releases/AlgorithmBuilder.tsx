@@ -16,6 +16,10 @@ import PositionTargetsTable from './PositionTargetsTable';
 import { distributionFromPositionTargets } from './positionTargets';
 import type { ManualPick, ManualPicks } from './manualPicks';
 import { manualPickLabel, withoutManualPick } from './manualPicks';
+import {
+    DEFAULT_PLAYER_TYPE_DISTRIBUTION, DEFAULT_SELECTION_WEIGHTS, DEFAULT_TEAM_MINIMUMS, SELECTION_DEFAULTS,
+    CUSTOM_TEMPLATE_ID, ALL_STARS_TEMPLATE_ID, EXPANSION_TEMPLATE_ID, parseAlgorithmSettings,
+} from './algorithmSettings';
 
 type AlgorithmBuilderProps = {
     releaseId: string;
@@ -29,28 +33,12 @@ type AlgorithmBuilderProps = {
     onEditionUpdated: (edition: ReleaseEdition) => void;
 };
 
-const DEFAULT_PLAYER_TYPE_DISTRIBUTION: AlgorithmPlayerTypeDistribution = {
-    hitters_percentage: 0.65,
-    starters_percentage: 0.20,
-    relievers_percentage: 0.15,
-};
-
-/** Mirrors `SelectionWeights` defaults on the backend. */
-const DEFAULT_SELECTION_WEIGHTS: AlgorithmSelectionWeights = {
-    quality: 1,
-    volume: 0.5,
-    team_balance: 0.75,
-    points_fit: 1,
-};
-
 const WEIGHT_ROWS: { key: keyof AlgorithmSelectionWeights; label: string; hint: string; requiresPositionTargets?: boolean }[] = [
     { key: 'quality', label: 'Quality', hint: 'WAR (plus award boost)' },
     { key: 'volume', label: 'Volume', hint: 'PA for hitters, IP for pitchers' },
     { key: 'team_balance', label: 'Teams', hint: "each team's share of the set" },
     { key: 'points_fit', label: 'PTS Fit', hint: "each position's average points", requiresPositionTargets: true },
 ];
-
-const DEFAULT_TEAM_MINIMUMS: AlgorithmTeamMinimums = { hitters: 0, starters: 0, relievers: 0 };
 
 const TEAM_MINIMUM_FIELDS: { key: keyof AlgorithmTeamMinimums; label: string }[] = [
     { key: 'hitters', label: 'Hitters' },
@@ -145,40 +133,6 @@ function SettingsLabel({ children }: { children: React.ReactNode }) {
 // MARK: - TEMPLATES
 // =============================================================================
 
-const CUSTOM_TEMPLATE_ID = 'custom';
-const ALL_STARS_TEMPLATE_ID = 'all-stars';
-const EXPANSION_TEMPLATE_ID = 'expansion';
-
-/** Everything a template resets: who's eligible, what the set is made of and how players are
- * picked. Years, sets, size (unless the template sets them) and card options stay the user's own. */
-const SELECTION_DEFAULTS = {
-    min_games_hitters: 60,
-    min_ip_starters: 75,
-    min_ip_relievers: 30,
-    player_type_distribution: DEFAULT_PLAYER_TYPE_DISTRIBUTION,
-    include_all_stars: true,
-    include_award_winners: true,
-    all_stars_only: false,
-    point_buckets: [],
-    selection_weights: DEFAULT_SELECTION_WEIGHTS,
-    position_targets: [],
-    unique_players: true,
-    team_weighting: 'EVEN',
-    team_minimums: DEFAULT_TEAM_MINIMUMS,
-    other_editions_rule: 'ALLOW',
-} satisfies Partial<AlgorithmConfig>;
-
-function defaultAlgorithmConfig(defaultShowdownSet?: string | null): AlgorithmConfig {
-    return {
-        set_size: 100,
-        years: String(new Date().getFullYear()),
-        showdown_sets: defaultShowdownSet ? [defaultShowdownSet] : [],
-        ...SELECTION_DEFAULTS,
-        variable_speed: false,
-        template_id: CUSTOM_TEMPLATE_ID,
-    };
-}
-
 /** Fields a template locks to its own preset value — greyed out in the form while it's active. */
 type LockableField = 'player_type_distribution';
 
@@ -261,44 +215,6 @@ function wotcBaseSetTemplate(profile: WotcSetProfile): AlgorithmTemplate {
 function templateChanges(template: AlgorithmTemplate, config: AlgorithmConfig): (keyof AlgorithmConfig)[] {
     return (Object.keys(template.preset) as (keyof AlgorithmConfig)[])
         .filter(key => key !== 'set_size' && !isDeepEqual(template.preset[key], config[key]));
-}
-
-/** Single low-point bucket fields that older editions saved before `point_buckets` existed. */
-type LegacyLowPointSettings = {
-    ideal_low_point_percentage?: number | null;
-    low_point_max_points?: number;
-};
-
-/** Mirrors `parseNumberingSettings` in EditionBuilder.tsx — reads the last-used algorithm config
- * back out of the edition's free-form `attributes` blob. */
-function parseAlgorithmSettings(attributes: Record<string, unknown>, defaultShowdownSet?: string | null): AlgorithmConfig {
-    const defaults = defaultAlgorithmConfig(defaultShowdownSet);
-    const raw = attributes.algorithm as (Partial<AlgorithmConfig> & LegacyLowPointSettings) | undefined;
-    if (!raw || typeof raw !== 'object') return defaults;
-    const { ideal_low_point_percentage, low_point_max_points, ...rest } = raw;
-    return {
-        ...defaults,
-        ...rest,
-        // Editions saved before templates were persisted: all-star mode can only come from the All-Stars template
-        template_id: raw.template_id ?? (raw.all_stars_only ? ALL_STARS_TEMPLATE_ID : CUSTOM_TEMPLATE_ID),
-        player_type_distribution: {
-            ...defaults.player_type_distribution!,
-            ...(raw.player_type_distribution || {}),
-        },
-        selection_weights: {
-            ...defaults.selection_weights!,
-            ...(raw.selection_weights || {}),
-        },
-        team_minimums: {
-            ...DEFAULT_TEAM_MINIMUMS,
-            ...(raw.team_minimums || {}),
-        },
-        // Editions saved before multi-bucket support stored a single 10-max bucket
-        point_buckets: raw.point_buckets
-            ?? (ideal_low_point_percentage != null
-                ? [{ min_points: 10, max_points: low_point_max_points ?? 50, percentage: ideal_low_point_percentage }]
-                : []),
-    };
 }
 
 /** Names of manually included or excluded players, each removable. */

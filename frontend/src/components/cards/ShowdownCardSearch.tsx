@@ -72,6 +72,11 @@ type ShowdownCardSearchProps = {
      */
     defaultFilters?: Partial<FilterSelections>;
     /**
+     * Optional flexible year string ("2023", "2000-2004", "2006+2014") seeded as year filters
+     * alongside `defaultFilters` — see `yearFiltersFromString`.
+     */
+    defaultYears?: string;
+    /**
      * Keys from `defaultFilters` the user cannot clear: their controls in the filter
      * modal are disabled and their chip in the "Selected Filters" row shows a lock icon
      * instead of an ✕. Keys not listed here seed as normal, removable chips.
@@ -217,6 +222,8 @@ export interface FilterSelections {
     min_year?: number;
     /** Maximum season year */
     max_year?: number;
+    /** Specific season years, for non-consecutive seasons that min/max can't express (e.g. "2006+2014") */
+    year?: string[];
 
     // Organizational hierarchy filters
     /** Organizations (e.g., ["MLB", "NGL"]) */
@@ -301,6 +308,22 @@ const getDefaultFilterSelections = (source: CardSource): FilterSelections => {
         default:
             return baseDefaults;
     }
+};
+
+/**
+ * Converts a flexible year string (mirrors `convert_year_string_to_list` on the backend) into
+ * year filters: a single year or range becomes min/max (so it shows in the Year range control),
+ * a "+" list of seasons becomes `year`. Blank, "CAREER" or unparseable input adds no filter.
+ */
+const yearFiltersFromString = (years: string | undefined): Partial<FilterSelections> => {
+    const value = (years ?? '').trim();
+    const toYear = (part: string) => /^\d{4}$/.test(part.trim()) ? parseInt(part, 10) : null;
+    if (value.includes('+')) {
+        const list = value.split('+').map(toYear);
+        return list.every(y => y !== null) ? { year: list.map(String) } : {};
+    }
+    const [start, end = start] = value.split('-').map(toYear);
+    return start && end ? { min_year: start, max_year: end } : {};
 };
 
 /**
@@ -726,7 +749,7 @@ const DEFAULT_QUICK_FILTERS: Record<CardSource, { id: string; name: string; filt
  * @param disableLocalStorage - Optionally disable storing and loading from local storage
  * @param verticalOffset - Vertical offset of the content that lives above
  */
-export default function ShowdownCardSearch({ className, verticalOffset='22', source = CardSource.BOT, defaultFilters = {}, lockedFilters, disableLocalStorage = false, compact = false, actionButton, excludeIds, resetTrigger, enableSetSwitcher = false, enableSetOverride = false, toolbarSlot }: ShowdownCardSearchProps) {
+export default function ShowdownCardSearch({ className, verticalOffset='22', source = CardSource.BOT, defaultFilters: defaultFiltersProp, defaultYears, lockedFilters, disableLocalStorage = false, compact = false, actionButton, excludeIds, resetTrigger, enableSetSwitcher = false, enableSetOverride = false, toolbarSlot }: ShowdownCardSearchProps) {
     // =============================================================================
     // CORE STATE MANAGEMENT
     // =============================================================================
@@ -777,6 +800,10 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
     const [debouncedSearchText, setDebouncedSearchText] = useState('');
 
     // Filters
+    const defaultFilters = useMemo<Partial<FilterSelections>>(
+        () => ({ ...yearFiltersFromString(defaultYears), ...defaultFiltersProp }),
+        [defaultFiltersProp, defaultYears]
+    );
     const defaultFiltersForSource = { ...getDefaultFilterSelections(source), ...defaultFilters };
     // Every provided default filter is seeded and re-applied whenever `defaultFilters` changes.
     const seededDefaultFilters = useMemo(
@@ -1354,6 +1381,8 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
 
         // Shown by the edition picker in the search bar instead of as a chip
         if (key === 'release_edition_id') return undefined;
+
+        if (key === 'year') return `Years: ${value.join(', ')}`;
 
         if (key === 'showdown_set') {
             const finalValue = Array.isArray(value) ? value.map(s => s.toUpperCase()).join(', ') : value.toUpperCase();

@@ -4,6 +4,7 @@ import type { ReleaseEdition, ReleaseCard, AlgorithmPreviewResult, AlgorithmPrev
 import { updateEdition, rebuildEditionCard } from '../../api/releases';
 import { SummaryCharts } from './SummaryCharts';
 import { AlgorithmBuilder } from './AlgorithmBuilder';
+import { parseAlgorithmSettings } from './algorithmSettings';
 import ShowdownCardSearch from '../cards/ShowdownCardSearch';
 import { CardSource } from '../../types/cardSource';
 import type { CardDatabaseRecord } from '../../api/card_db/cardDatabase';
@@ -14,6 +15,7 @@ import { Modal } from '../shared/Modal';
 import CompactSelect from '../shared/CompactSelect';
 import { ShowdownSetLogos } from '../shared/ShowdownSetLogos';
 import type { ShowdownBotCardAPIResponse } from '../../api/showdownBotCard';
+import type { FilterSelections } from '../cards/ShowdownCardSearch';
 import FormEnabler from '../customs/FormEnabler';
 import { formSectionSummary } from '../customs/FormSectionSummary';
 import { EditionStyleModal } from './EditionStyleModal';
@@ -343,6 +345,19 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
         handle.addEventListener('pointerup', onPointerUp);
         handle.addEventListener('pointercancel', onPointerUp);
     };
+
+    // Manual search starts from the saved Algorithm settings' seasons, so manual adds (which become
+    // inclusions) are cards the Algorithm can use. Games/IP minimums aren't applied: skipping them is
+    // what an inclusion is for.
+    const algorithmSettings = useMemo(() => parseAlgorithmSettings(edition.attributes, defaultShowdownSet), [edition.attributes, defaultShowdownSet]);
+    // Keyed on content: every save returns a new edition, and new defaults would re-seed (and undo
+    // the user clearing) the search's filters.
+    const algorithmShowdownSetsKey = algorithmSettings.showdown_sets.join(',');
+    const algorithmAllStarsOnly = algorithmSettings.all_stars_only ?? false;
+    const manualSearchDefaults = useMemo<Partial<FilterSelections>>(() => ({
+        showdown_set: algorithmShowdownSetsKey ? algorithmShowdownSetsKey.split(',') : undefined,
+        awards: algorithmAllStarsOnly ? ['AS'] : undefined,
+    }), [algorithmShowdownSetsKey, algorithmAllStarsOnly]);
 
     const excludeIds = useMemo(
         () => cards.map(c => c.source_card_id).filter((id): id is string => !!id),
@@ -858,7 +873,8 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
                                     source={CardSource.BOT}
                                     compact={true}
                                     excludeIds={excludeIds}
-                                    defaultFilters={defaultShowdownSet ? { showdown_set: [defaultShowdownSet] } : undefined}
+                                    defaultFilters={manualSearchDefaults}
+                                    defaultYears={algorithmSettings.years}
                                     actionButton={{
                                         icon: <FaPlus />,
                                         label: 'Add',
