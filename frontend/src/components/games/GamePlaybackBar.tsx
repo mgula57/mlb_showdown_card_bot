@@ -7,6 +7,7 @@ import { FaBackwardFast, FaBackwardStep, FaForwardFast, FaForwardStep, FaPause, 
 
 import type { GamePlaybackControls, GamePlaybackState, PlaybackSpeed } from "../../hooks/useGamePlayback";
 import IconButton from "../shared/IconButton";
+import { buttonClass } from "../shared/buttonStyles";
 
 const SPEEDS: PlaybackSpeed[] = [0.5, 1, 2, 4];
 
@@ -93,7 +94,7 @@ export default function GamePlaybackBar({
                 <button
                     type="button"
                     onClick={cycleSpeed}
-                    className="cursor-pointer rounded-control border border-(--divider) px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-(--secondary) hover:text-(--primary) transition-colors shrink-0"
+                    className={buttonClass('secondary', 'sm', 'tabular-nums')}
                     aria-label={`Playback speed: ${state.speed}x`}
                 >
                     {state.speed}×

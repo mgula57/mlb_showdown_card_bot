@@ -7,6 +7,7 @@ import type { ChallengeTemplateInput } from '../../../../api/adminChallenges';
 
 import { InlineError } from '../../../shared/InlineError';
 import { FIELD_LABEL_CLASS } from '../../../shared/fieldStyles';
+import { buttonClass } from '../../../shared/buttonStyles';
 const GOAL_OPTIONS: { label: string; value: ChallengeGoalType }[] = [
     { label: 'Make the playoffs', value: 'made_playoffs' },
     { label: 'Win the division', value: 'win_division' },
@@ -229,7 +230,7 @@ export function ChallengeTemplateForm({ initial, submitLabel, busy, error, onSub
                     type="button"
                     onClick={submit}
                     disabled={busy || !!clientError}
-                    className="px-3 py-1.5 text-[13px] font-bold text-(--background-primary) bg-(--secondary) rounded-control hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+                    className={buttonClass('primary', 'sm')}
                 >
                     {busy ? 'Saving…' : submitLabel}
                 </button>

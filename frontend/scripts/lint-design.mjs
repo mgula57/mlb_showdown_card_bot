@@ -71,6 +71,29 @@ const RULES = [
         message: 'Hand-styled field label. Use FIELD_LABEL_CLASS from shared/fieldStyles (the card-stat caps).',
     },
     {
+        id: 'plain-caps-label',
+        pattern: /["'`](?=[^"'`]*\buppercase\b)(?=[^"'`]*\btracking-(?:wide|wider|widest)\b)(?=[^"'`]*\bfont-(?:semibold|bold|extrabold|black)\b)/,
+        // 7-9px caps are card-stat micro labels inside plates and chart visuals, below the field-label size.
+        unless: /<th\b|font-display|\btext-\[[789]px\]/,
+        message: 'Hand-styled caps label. Use FIELD_LABEL_CLASS (a label over a field or group; CAPS_LABEL_CLASS when it needs its own color), <Eyebrow> (above a title) or <Plate> (a status or stat).',
+    },
+    {
+        id: 'heavy-weight',
+        pattern: /\bfont-(?:extrabold|black)\b/,
+        unless: /font-display/,
+        message: 'Heavy body weight. Titles use <Heading>; standalone numbers (scores, totals) use font-display-upright with tabular-nums.',
+    },
+    {
+        id: 'custom-tab',
+        pattern: /data-\[state=active\]:bg-|data-\[state=active\]:font-bold/,
+        message: 'Hand-built tab. Use tabListClass / radixTabTriggerClass from shared/tabStyles, or <Tabs>.',
+    },
+    {
+        id: 'custom-button',
+        pattern: /["'`](?=[^"'`]*\bbg-\(--(?:showdown-blue|showdown-red|secondary)\)(?![\w/-]))(?=[^"'`]*\btext-(?:white|\(--background-primary\))(?![\w/-]))(?=[^"'`]*\b(?:cursor-pointer|hover:))/,
+        message: 'Hand-built filled button. Use buttonClass("primary" | "danger") from shared/buttonStyles.',
+    },
+    {
         id: 'custom-toggle',
         pattern: /role="switch"|type="checkbox"/,
         message: 'Hand-built toggle. Use FormEnabler (the checklist box) so every boolean looks the same.',
@@ -99,7 +122,8 @@ const optedOut = (lines, i) => lines[i]?.includes('design-ok') || lines[i - 1]?.
     || (/className=\{?`\s*$/.test(lines[i - 1] ?? '') && lines[i - 2]?.includes('design-ok'));
 
 function sh(cmd) {
-    return execSync(cmd, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
+    // The branch diff against master can run to many MB; the default 1MB buffer kills the process.
+    return execSync(cmd, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], maxBuffer: 256 * 1024 * 1024 }).trim();
 }
 
 function mergeBase() {

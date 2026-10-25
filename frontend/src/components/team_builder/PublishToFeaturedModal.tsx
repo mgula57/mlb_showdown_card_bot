@@ -8,6 +8,7 @@ import {
 import { FaSpinner } from 'react-icons/fa6';
 
 import { fieldClass, FIELD_LABEL_CLASS } from '../shared/fieldStyles';
+import { buttonClass } from '../shared/buttonStyles';
 type PublishToFeaturedModalProps = {
     token: string;
     /** The team being published (the admin's working copy — left untouched, deep-copied server-side). */
@@ -102,11 +103,11 @@ export function PublishToFeaturedModal({ token, team, onClose, onPublished }: Pu
             footer={
                 <div className="flex justify-end gap-2">
                     <button type="button" onClick={onClose}
-                        className="px-3 py-2 rounded-control text-[13px] font-semibold text-(--text-secondary) hover:bg-(--divider) cursor-pointer">
+                        className={buttonClass('ghost', 'sm')}>
                         Cancel
                     </button>
                     <button type="button" onClick={handlePublish} disabled={busy || collections === null}
-                        className="px-3 py-2 rounded-control text-[13px] font-bold text-(--background-primary) bg-(--secondary) hover:opacity-90 disabled:opacity-50 cursor-pointer flex items-center gap-1.5">
+                        className={buttonClass('primary', 'sm')}>
                         {busy && <FaSpinner className="animate-spin" />} Publish
                     </button>
                 </div>

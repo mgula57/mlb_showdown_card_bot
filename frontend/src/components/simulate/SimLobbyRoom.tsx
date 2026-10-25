@@ -9,6 +9,7 @@ import { fetchUserTeams, type TeamSummary } from '../../api/userTeams';
 
 import { InlineError } from '../shared/InlineError';
 import { Heading } from '../shared/Heading';
+import { buttonClass } from '../shared/buttonStyles';
 // Matches the cadence the plan settled on for lobby state - fast enough to feel live, no new
 // infrastructure (no websockets/Realtime) needed.
 const POLL_INTERVAL_MS = 2000;
@@ -241,7 +242,7 @@ export function SimLobbyRoom({ lobbyId, initialState, token, userId, onRunning, 
                         type="button"
                         onClick={handleClaim}
                         disabled={claiming || !(claimClub || myMember)}
-                        className="self-start flex items-center gap-1.5 px-3 py-2 rounded-control bg-(--secondary) text-[12px] font-bold text-(--background-primary) hover:opacity-90 transition-opacity cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                        className={buttonClass('primary', 'sm', 'self-start')}
                     >
                         {claiming ? <FaSpinner className="animate-spin text-[10px]" /> : <FaCheck className="text-[10px]" />}
                         {myMember ? 'Update Claim' : 'Claim Club'}
@@ -270,7 +271,7 @@ export function SimLobbyRoom({ lobbyId, initialState, token, userId, onRunning, 
                         type="button"
                         onClick={handleStart}
                         disabled={starting || (state?.members.length ?? 0) === 0}
-                        className="ml-auto flex items-center gap-1.5 px-4 py-2.5 rounded-control bg-(--secondary) text-[13px] font-bold text-(--background-primary) hover:opacity-90 transition-opacity cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                        className={buttonClass('primary', 'md', 'ml-auto')}
                     >
                         {starting ? <FaSpinner className="animate-spin text-[11px]" /> : <FaPlay className="text-[11px]" />}
                         Start Simulation

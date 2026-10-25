@@ -9,6 +9,7 @@
 import type { TeamBoxscore } from "../../domain/game";
 import { resolveCardKey } from "../../domain/players";
 import type { ShowdownBotCardAPIResponse } from "../../api/showdownBotCard";
+import { CAPS_LABEL_CLASS } from "../shared/fieldStyles";
 
 type CardMap = Record<string, ShowdownBotCardAPIResponse>;
 
@@ -48,7 +49,7 @@ export default function SimBoxScoreTable({
     cardMap: CardMap;
     onCardSelect?: (card: ShowdownBotCardAPIResponse) => void;
 }) {
-    const headerClass = "py-1 px-1 text-right text-[10px] font-bold uppercase tracking-wide text-(--secondary)";
+    const headerClass = `py-1 px-1 text-right ${CAPS_LABEL_CLASS} text-(--text-tertiary)`;
     const cellClass = "py-1.5 px-1 text-right text-xs tabular-nums text-(--primary)";
 
     return (

@@ -4,6 +4,9 @@
  */
 
 import { FaStar } from 'react-icons/fa6';
+import { Plate } from '../shared/Plate';
+import { choiceClass } from '../shared/choiceStyles';
+import { FIELD_LABEL_CLASS } from '../shared/fieldStyles';
 
 /** Mirrors the backend's `_RELEASE_CARD_MAX_PREVIEW_RANK` (and the tile's fan size). */
 export const MAX_PREVIEW_RANK = 3;
@@ -11,13 +14,10 @@ const RANKS = Array.from({ length: MAX_PREVIEW_RANK }, (_, i) => i + 1);
 
 export function ReleaseCardPreviewRankBadge({ rank }: { rank: number }) {
     return (
-        <span
-            title={`Release preview #${rank}`}
-            className="inline-flex items-center gap-0.5 rounded-card bg-(--secondary) text-(--background-primary) text-[9px] font-black py-0.5 px-1.5 ring-1 ring-black/20"
-        >
+        <Plate variant="navy" size="sm" title={`Release preview #${rank}`} className="gap-0.5 ring-1 ring-black/20">
             <FaStar className="text-[8px]" />
             {rank}
-        </span>
+        </Plate>
     );
 }
 
@@ -40,8 +40,8 @@ export function ReleaseCardPreviewRankPicker({ rank, readOnly, onChange }: Relea
 
     return (
         <div className="flex flex-wrap items-center gap-2">
-            <span className="text-[10px] font-bold text-(--text-tertiary) uppercase tracking-wide">Release Preview</span>
-            <div className="flex items-center rounded-card border border-(--divider) overflow-hidden">
+            <span className={FIELD_LABEL_CLASS}>Release Preview</span>
+            <div className="flex flex-wrap items-center gap-1">
                 {options.map(opt => {
                     const selected = opt.value === rank;
                     return (
@@ -50,8 +50,7 @@ export function ReleaseCardPreviewRankPicker({ rank, readOnly, onChange }: Relea
                             type="button"
                             onClick={() => onChange(opt.value)}
                             aria-pressed={selected}
-                            className={`min-h-8 px-2.5 text-[11px] font-bold uppercase tracking-wide transition-colors cursor-pointer
-                                ${selected ? 'bg-(--secondary) text-(--background-primary)' : 'text-(--text-tertiary) hover:text-(--text-primary)'}`}
+                            className={choiceClass(selected, 'sm', 'tabular-nums')}
                         >
                             {opt.label}
                         </button>

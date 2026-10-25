@@ -58,7 +58,7 @@ function StatChip({ label, children, className = "", style }: { label: string; c
     return (
         <span className={`relative flex flex-col items-center gap-0.5 rounded-card bg-(--background-primary)/60 px-1.5 py-1 ${className}`} style={style}>
             <span className="text-[7px] font-bold uppercase leading-none tracking-wider text-(--tertiary)">{label}</span>
-            <span className="text-xs font-black leading-none tabular-nums text-(--text-primary)">{children}</span>
+            <span className="text-xs font-bold leading-none tabular-nums text-(--text-primary)">{children}</span>
         </span>
     );
 }
@@ -111,7 +111,7 @@ function RunnerRollRow({ attempt, index, beatId, phase, speed, cardMap, onCardSe
                 <span className="text-[9px] font-bold uppercase leading-none tracking-wider text-(--text-secondary)">{titleFor(attempt)}</span>
                 <span
                     className={`
-                        rounded px-1.5 py-0.5 text-[9px] font-black uppercase leading-none tracking-wider text-white
+                        rounded-plate px-1.5 py-0.5 text-[9px] font-bold uppercase leading-none tracking-wider text-white
                         ${attempt.isSafe ? "bg-(--green)" : "bg-(--red)"}
                         ${isRevealed ? animate("result-pop") : "invisible"}
                     `}
@@ -127,7 +127,7 @@ function RunnerRollRow({ attempt, index, beatId, phase, speed, cardMap, onCardSe
                         <StatChip label={DEFENSE_LABELS[attempt.kind]} className={isFolded ? animate("roll-fold-left") || "opacity-45" : ""}>
                             {attempt.defense}
                         </StatChip>
-                        <span className={`text-xs font-black leading-none text-(--tertiary) ${isFolded ? "opacity-45" : ""}`}>+</span>
+                        <span className={`text-xs font-bold leading-none text-(--tertiary) ${isFolded ? "opacity-45" : ""}`}>+</span>
                     </>
                 )}
                 <span className={isFolded ? animate("roll-fold-right") || "opacity-45" : ""}>
@@ -136,7 +136,7 @@ function RunnerRollRow({ attempt, index, beatId, phase, speed, cardMap, onCardSe
 
                 {hasOdds && (
                     <>
-                        <span className={`text-xs font-black leading-none text-(--tertiary) ${isFolded ? "" : "invisible"}`}>=</span>
+                        <span className={`text-xs font-bold leading-none text-(--tertiary) ${isFolded ? "" : "invisible"}`}>=</span>
                         {/* Holds the total's width while the die is in the air, so nothing shifts when it lands. */}
                         {isFolded ? (
                             <RollTotal from={attempt.defense!} to={total} isStatic={isStatic} speed={speed} verdictClass={totalVerdict} accent={isRevealed && !attempt.isSafe ? accent : undefined} />
@@ -149,7 +149,7 @@ function RunnerRollRow({ attempt, index, beatId, phase, speed, cardMap, onCardSe
                 {/* "vs" until the reveal, then the comparator that decided it: out when total > speed. */}
                 <span
                     key={isRevealed ? "cmp" : "vs"}
-                    className={`min-w-4 text-center leading-none ${isRevealed && hasOdds ? `text-sm font-black ${animate("result-pop")}` : "text-[9px] font-bold uppercase tracking-wider text-(--tertiary)"}`}
+                    className={`min-w-4 text-center leading-none ${isRevealed && hasOdds ? `text-sm font-bold ${animate("result-pop")}` : "text-[9px] font-bold uppercase tracking-wider text-(--tertiary)"}`}
                     style={isRevealed && hasOdds ? { color: accent } : undefined}
                 >
                     {isRevealed && hasOdds ? (attempt.isSafe ? "≤" : ">") : "vs"}

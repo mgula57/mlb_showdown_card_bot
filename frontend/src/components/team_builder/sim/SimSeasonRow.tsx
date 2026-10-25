@@ -2,6 +2,7 @@ import { FaTrophy, FaLock } from 'react-icons/fa6';
 import type { SimSeasonListItem } from '../../../api/sim';
 import { relativeTime } from '../../../functions/formatters';
 import { imageForSet } from '../../shared/SiteSettingsContext';
+import { CAPS_LABEL_CLASS } from '../../shared/fieldStyles';
 
 /** A labelled rule between the runs that cleared a challenge and the ones that didn't. Shared by
  *  every place a challenge's entries get split into those two buckets. */
@@ -9,7 +10,7 @@ export function OutcomeDivider({ label, tone }: { label: string; tone: 'success'
     const color = tone === 'success' ? 'text-(--success)' : 'text-(--text-tertiary)';
     return (
         <div className="flex items-center gap-2 pt-1">
-            <span className={`text-[10px] font-bold uppercase tracking-wide shrink-0 ${color}`}>{label}</span>
+            <span className={`shrink-0 ${color} ${CAPS_LABEL_CLASS}`}>{label}</span>
             <span className="h-px flex-1 bg-(--divider)" />
         </div>
     );
@@ -60,7 +61,7 @@ export function SimSeasonRow({ entry, onOpen, rank, attempts, showTime, disabled
             }`}
         >
             {rank !== undefined && (
-                <span className={`w-6 shrink-0 text-[13px] font-black tabular-nums ${medalClass(rank)}`}>{rank}</span>
+                <span className={`w-6 shrink-0 text-[13px] font-bold tabular-nums ${medalClass(rank)}`}>{rank}</span>
             )}
 
             <span className="w-1.5 h-7 rounded-full shrink-0" style={{ backgroundColor: entry.primary_color ?? 'var(--divider)' }} />
@@ -94,7 +95,7 @@ export function SimSeasonRow({ entry, onOpen, rank, attempts, showTime, disabled
             </span>
 
             <span className="text-right shrink-0">
-                <span className="block text-[14px] font-black text-(--text-primary) tabular-nums">
+                <span className="block font-display-upright text-[17px] leading-none text-(--text-primary) tabular-nums">
                     {entry.wins}<span className="text-(--text-tertiary)">–</span>{entry.losses}
                 </span>
                 <span className="block text-[11px] text-(--text-tertiary) tabular-nums">

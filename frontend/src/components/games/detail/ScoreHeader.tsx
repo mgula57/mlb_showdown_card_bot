@@ -9,6 +9,7 @@ import ReactCountryFlag from "react-country-flag";
 import type { GameView } from "../../../domain/game";
 import { getReadableTextColor } from "../../../functions/colors";
 import { BasesDiamond } from "../BasesDiamond";
+import { GameStatePlate } from "../GameStatePlate";
 
 type ScoreHeaderProps = {
     game: GameView;
@@ -65,10 +66,10 @@ export default function ScoreHeader({ game, className = "", compact = false, cen
                     )}
                     <div className={`flex items-center ${compact ? "gap-2" : "gap-2.5"}`}>
                         <div
-                            className={`flex items-center justify-center rounded-card font-bold leading-none shrink-0 ${badgeSize}`}
+                            className={`flex items-center justify-center rounded-card font-display-upright uppercase leading-none shrink-0 ${badgeSize}`}
                             style={{ backgroundColor: awayBadgeBg, color: awayBadgeText }}
                         >{away.team.abbreviation}</div>
-                        <span className={`${scoreSize} font-bold leading-none text-(--primary)`}>{awayRuns}</span>
+                        <span className={`${scoreSize} font-display-upright leading-none tabular-nums text-(--text-primary)`}>{awayRuns}</span>
                     </div>
                     <div className={`${nameSize} hidden sm:block font-semibold text-(--primary) leading-snug`}>{away.team.name}</div>
                     {!compact && awayRecord && (
@@ -78,18 +79,12 @@ export default function ScoreHeader({ game, className = "", compact = false, cen
 
                 {/* Center: game state, count and bases — the situational info, not the score */}
                 <div className={`flex flex-col items-center ${compact ? "gap-1.5" : "gap-2"}`}>
-                    {isInProgress && inningStr ? (
-                        <div className={`inline-flex items-center gap-1.5 rounded-full bg-(--background-primary) border border-(--divider) ${
-                            compact ? "px-2 py-0.5 text-[10px]" : "px-2.5 py-1 text-[11px]"
-                        }`}>
-                            <span className="live-pulse w-1.75 h-1.75 rounded-full bg-(--live) shrink-0" />
-                            <span className="font-semibold tracking-[0.5px] text-(--live)">LIVE</span>
-                            <span className="text-(--secondary) mx-0.5">·</span>
-                            <span className="text-(--secondary)">{inningStr}</span>
-                        </div>
-                    ) : (
-                        <div className={`font-semibold text-(--secondary) uppercase tracking-wide ${compact ? "text-[10px]" : "text-xs"}`}>{game.detailedState}</div>
-                    )}
+                    <GameStatePlate
+                        state={game.state}
+                        detailedState={game.detailedState}
+                        liveDetail={inningStr || undefined}
+                        size={compact ? 'sm' : 'md'}
+                    />
 
                     {!isInProgress && centerAction}
 
@@ -115,9 +110,9 @@ export default function ScoreHeader({ game, className = "", compact = false, cen
                         </div>
                     )}
                     <div className={`flex items-center ${compact ? "gap-2" : "gap-2.5"}`}>
-                        <span className={`${scoreSize} font-bold leading-none text-(--primary)`}>{homeRuns}</span>
+                        <span className={`${scoreSize} font-display-upright leading-none tabular-nums text-(--text-primary)`}>{homeRuns}</span>
                         <div
-                            className={`flex items-center justify-center rounded-card font-bold leading-none shrink-0 ${badgeSize}`}
+                            className={`flex items-center justify-center rounded-card font-display-upright uppercase leading-none shrink-0 ${badgeSize}`}
                             style={{ backgroundColor: homeBadgeBg, color: homeBadgeText }}
                         >{home.team.abbreviation}</div>
                     </div>

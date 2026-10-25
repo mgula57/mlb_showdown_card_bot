@@ -102,7 +102,7 @@ type ShowdownCardSearchProps = {
         /** Label for the button in the card detail sidebar/modal, where there's room to spell out
          * the action (e.g. "Add to Edition"). Defaults to CardDetail's "Draft". */
         detailLabel?: string;
-        bgColorClass?: string;
+        emphasis?: CardItemActionButton['emphasis'];
         onClick: (card: CardDatabaseRecord) => void;
         /** Greys out the button and blocks clicks everywhere it's rendered (grid, sidebar, modal) — e.g. while a previous pick is still saving. */
         disabled?: boolean;
@@ -1620,7 +1620,7 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
                         {/* Iterate through showdownCards and display each card */}
                         {displayedCards?.map((cardRecord, index) => {
                             const resolvedAction: CardItemActionButton | undefined = actionButton
-                                ? { icon: actionButton.icon, label: actionButton.label, bgColorClass: actionButton.bgColorClass, disabled: actionButton.disabled, onClick: () => actionButton.onClick(cardRecord) }
+                                ? { icon: actionButton.icon, label: actionButton.label, emphasis: actionButton.emphasis, disabled: actionButton.disabled, onClick: () => actionButton.onClick(cardRecord) }
                                 : undefined;
                             return (
                                 <div

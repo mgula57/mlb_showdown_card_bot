@@ -13,6 +13,7 @@ import { FaSpinner, FaChevronRight } from 'react-icons/fa6';
 import { TeamSearchInput } from './TeamSearchInput';
 
 import { InlineError } from '../shared/InlineError';
+import { headingClass } from '../shared/headingStyles';
 // League team-colors for the All-Star tiles / detail header.
 export const ASG_COLORS: Record<string, { primary: string; secondary: string }> = {
     AL: { primary: 'rgb(200,16,46)', secondary: 'rgb(255,255,255)' },
@@ -348,7 +349,7 @@ export function HistoricalTeams({ horizontalPadding, hideSearch = false, externa
                     ) : (
                         <div className={horizontalPadding ?? ''}>
                             <div className="flex items-center justify-between mb-3">
-                                <div className="text-[12px] font-semibold text-(--text-secondary) uppercase tracking-wide">
+                                <div className={headingClass('panel')}>
                                     {searchResults.length} result{searchResults.length === 1 ? '' : 's'}
                                 </div>
                                 <CustomSelect

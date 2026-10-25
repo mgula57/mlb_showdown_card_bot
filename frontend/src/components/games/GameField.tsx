@@ -355,7 +355,7 @@ function useRunnerMovement(
 const FLASH_SHELL = `
     absolute left-1/2 top-[6%] z-30 -translate-x-1/2
     pointer-events-none select-none whitespace-nowrap
-    rounded-control border font-black uppercase tracking-wide shadow-overlay
+    rounded-control border font-display uppercase shadow-overlay
     transition-[opacity,transform] duration-300 ease-out
 `;
 
@@ -545,7 +545,7 @@ function LastPlaySummary({ play }: { play: PlayEntry }) {
     return (
         <div className="w-full rounded-card border border-(--divider) bg-(--background-secondary)/30 px-2 py-1 text-right text-[10px] leading-snug text-(--primary)">
             <p className="line-clamp-3">
-                {play.event && <span className="font-extrabold text-(--primary)">{play.event}</span>}
+                {play.event && <span className="font-bold text-(--primary)">{play.event}</span>}
                 {description && description !== play.event && <span className="ml-0.5">{description}</span>}
             </p>
         </div>

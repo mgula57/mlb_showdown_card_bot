@@ -1,6 +1,6 @@
-import { useEffect, useRef, useState, type CSSProperties } from "react";
+import { useEffect, useRef, useState } from "react";
 
-import { bannerTokens, getReadableTextColor } from "../../functions/colors";
+import { bannerTokens } from "../../functions/colors";
 import { ordinal } from "../../functions/formatters";
 import { Modal } from "../shared/Modal";
 import type { ShowdownBotCardAPIResponse } from "../../api/showdownBotCard";
@@ -33,6 +33,8 @@ import GameInfo from "./detail/GameInfo";
 import TopBarButton from "./detail/TopBarButton";
 import { FaTerminal, FaRing, FaTable, FaList } from "react-icons/fa";
 import { FaClockRotateLeft, FaListUl, FaStar } from "react-icons/fa6";
+import { buttonVariantClass } from '../shared/buttonStyles';
+import { tabListClass, radixTabTriggerClass } from '../shared/tabStyles';
 
 type MobileTab = 'field' | 'playbyplay' | 'boxscore';
 // The `md`–`lg` two-column view keeps the field pinned on the left and tabs only between the two
@@ -47,7 +49,8 @@ const MOBILE_TABS: TabItem<MobileTab>[] = [
 
 const MID_TABS = MOBILE_TABS.filter((tab): tab is TabItem<MidTab> => tab.id !== 'field');
 
-const OUTLINE_BUTTON_CLASS = "rounded-control border border-(--divider) px-2.5 py-1.5 text-(--secondary) hover:text-(--primary)";
+const OUTLINE_BUTTON_CLASS = `rounded-control px-2.5 py-1.5 ${buttonVariantClass('secondary')}`;
+const PRIMARY_BUTTON_CLASS = `rounded-control px-3 py-1.5 ${buttonVariantClass('primary')}`;
 
 type GameDetailProps = {
     gamePk: number;
@@ -253,19 +256,11 @@ export default function GameDetail({ gamePk, sportId, season, showdownSet, isAct
                 they collapse into tabs; at/above it, both Tabs.Content panels are forced visible
                 (via forceMount + the @[820px] override below) and sit in a 2-column grid instead. */
             <Tabs.Root defaultValue="away">
-                <Tabs.List className="@[820px]:hidden flex gap-1 rounded-card bg-(--background-tertiary) p-1 mb-3">
-                    <Tabs.Trigger
-                        value="away"
-                        style={{ '--tab-bg': away.team.primary_color ?? '#374151', '--tab-text': getReadableTextColor(away.team.primary_color ?? '#374151', '#ffffff') } as CSSProperties}
-                        className="flex-1 px-4 py-2 text-sm font-semibold rounded-control text-(--secondary) data-[state=active]:bg-(--tab-bg) data-[state=active]:text-(--tab-text) cursor-pointer transition-colors"
-                    >
+                <Tabs.List className={tabListClass(true, '@[820px]:hidden mb-3')}>
+                    <Tabs.Trigger value="away" className={radixTabTriggerClass('md', true)}>
                         {away.team.abbreviation}
                     </Tabs.Trigger>
-                    <Tabs.Trigger
-                        value="home"
-                        style={{ '--tab-bg': home.team.primary_color ?? '#374151', '--tab-text': getReadableTextColor(home.team.primary_color ?? '#374151', '#ffffff') } as CSSProperties}
-                        className="flex-1 px-4 py-2 text-sm font-semibold rounded-control text-(--secondary) data-[state=active]:bg-(--tab-bg) data-[state=active]:text-(--tab-text) cursor-pointer transition-colors"
-                    >
+                    <Tabs.Trigger value="home" className={radixTabTriggerClass('md', true)}>
                         {home.team.abbreviation}
                     </Tabs.Trigger>
                 </Tabs.List>
@@ -492,7 +487,7 @@ export default function GameDetail({ gamePk, sportId, season, showdownSet, isAct
                                         label="Simulate"
                                         icon={<FaTerminal />}
                                         onClick={() => { setSimError(null); setShowSimSetup(true); }}
-                                        className="rounded-control bg-(--showdown-blue) shadow-raised active:translate-y-px active:shadow-none px-3 py-1.5 text-white hover:brightness-110"
+                                        className={PRIMARY_BUTTON_CLASS}
                                     />
                                 )}
                             </div>

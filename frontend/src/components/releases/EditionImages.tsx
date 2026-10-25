@@ -10,6 +10,8 @@ import { buildZipEntries, editionZipFileName, useEditionZipDownload, type ZipDow
 import { FaArrowUpRightFromSquare, FaCheck, FaDownload, FaImage, FaSpinner, FaTriangleExclamation, FaWandMagicSparkles, FaXmark } from 'react-icons/fa6';
 
 import { InlineError } from '../shared/InlineError';
+import { buttonClass } from '../shared/buttonStyles';
+import { Plate } from '../shared/Plate';
 /** How often to refresh statuses while a render job runs (each card takes a few seconds). */
 const POLL_INTERVAL_MS = 2500;
 /** Skeleton tiles shown while statuses load. */
@@ -162,7 +164,7 @@ export function EditionImages({ releaseId, releaseName, edition, readOnly, token
                                     type="button"
                                     onClick={() => handleRender()}
                                     disabled={requesting || !token}
-                                    className="flex items-center gap-1.5 min-h-9 px-3.5 py-2 rounded-control text-[13px] font-bold bg-(--secondary) text-(--background-primary) disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                                    className={buttonClass('primary', 'sm', 'min-h-9')}
                                 >
                                     {requesting ? <FaSpinner className="animate-spin text-[12px]" /> : <FaWandMagicSparkles className="text-[12px]" />}
                                     Render {needsRenderCount} Card{needsRenderCount === 1 ? '' : 's'}
@@ -365,9 +367,9 @@ function ZipDownloadStatus({ state, onCancel, onDismiss }: { state: ZipDownloadS
 
 function StatusBadge({ status }: { status: ReleaseCardImageStatus }) {
     return (
-        <span className={`text-[9px] font-black uppercase rounded px-1.5 py-0.5 leading-none ${STATUS_META[status].badgeClass}`}>
+        <Plate variant="custom" size="sm" className={STATUS_META[status].badgeClass}>
             {STATUS_META[status].label}
-        </span>
+        </Plate>
     );
 }
 
@@ -479,7 +481,7 @@ function ReleaseImageDetailModal({ image, snapshot, canRender, isRendering, onRe
                         <button
                             type="button"
                             onClick={onRender}
-                            className="flex items-center gap-1.5 min-h-9 px-3.5 py-2 rounded-control text-[13px] font-bold bg-(--secondary) text-(--background-primary) cursor-pointer"
+                            className={buttonClass('primary', 'sm', 'min-h-9')}
                         >
                             <FaWandMagicSparkles className="text-[12px]" /> Render This Card
                         </button>

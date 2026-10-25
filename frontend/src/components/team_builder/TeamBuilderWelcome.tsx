@@ -103,7 +103,7 @@ export function TeamBuilderWelcome({ px, onCreate, onGoToTab, onOpenTeam, signed
                         <button
                             type="button"
                             onClick={signedOut ? () => setShowLogin(true) : onCreate}
-                            className={buttonClass('primary', 'md', 'self-start px-5! py-3! text-[14px]! font-black')}
+                            className={buttonClass('primary', 'md', 'self-start px-5! py-3! text-[14px]!')}
                         >
                             {signedOut ? <FaArrowRightToBracket className="text-[12px]" /> : <FaPlus className="text-[12px]" />}
                             {signedOut ? 'Sign in to get started' : 'Create your first team'}

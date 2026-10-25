@@ -33,3 +33,13 @@ export function radixTabTriggerClass(size: TabSize = 'md', fullWidth = false): s
         'data-[state=active]:border-(--showdown-red) data-[state=active]:text-(--text-primary) ' +
         'data-[state=inactive]:border-transparent data-[state=inactive]:text-(--text-tertiary) data-[state=inactive]:hover:text-(--text-primary)';
 }
+
+// design-ok-start: the vertical tab primitive the custom-tab rule points to
+/** A Radix trigger in a vertical nav list (the Seasons sidebar): the same red bar, on the left
+ *  edge, over a quiet fill, in the body face since rows carry icons and badges. */
+export function radixVerticalTabTriggerClass(): string {
+    return 'flex items-center gap-x-2 px-3 py-2.5 text-sm rounded-r-control border-l-[3px] transition-colors cursor-pointer ' +
+        'data-[state=active]:border-(--showdown-red) data-[state=active]:bg-(--background-tertiary) data-[state=active]:text-(--text-primary) data-[state=active]:font-semibold ' +
+        'data-[state=inactive]:border-transparent data-[state=inactive]:text-(--text-tertiary) data-[state=inactive]:font-medium data-[state=inactive]:hover:text-(--text-primary) data-[state=inactive]:hover:bg-(--background-tertiary)/60';
+}
+// design-ok-end

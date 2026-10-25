@@ -13,6 +13,7 @@ import {
 } from '../../api/sim';
 
 import { Heading } from '../shared/Heading';
+import { buttonClass } from '../shared/buttonStyles';
 /** Exact text of the backend's global-capacity 429 (`sim.py`'s `_sim_slots` semaphore) — every
  *  worker process only runs so many sims at once, shared across all users, so this isn't a real
  *  error so much as a "someone else is using it, try again shortly" — shown as a lighter warning
@@ -455,7 +456,7 @@ export function SeasonSimSetupForm(props: Props) {
                         type="button"
                         onClick={handleSubmit}
                         disabled={starting || loadingClubs || year === null}
-                        className="flex items-center gap-1.5 px-4 py-2.5 rounded-control bg-(--showdown-blue) shadow-raised active:translate-y-px active:shadow-none text-[13px] font-bold text-white hover:brightness-110 transition cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                        className={buttonClass('primary', 'md')}
                     >
                         {starting ? <FaSpinner className="animate-spin text-[11px]" /> : isLobby ? <FaUserGroup className="text-[11px]" /> : <FaPlay className="text-[11px]" />}
                         {isLobby ? 'Create Lobby' : 'Simulate Season'}

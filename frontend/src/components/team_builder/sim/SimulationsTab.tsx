@@ -12,6 +12,7 @@ import { FaArrowDown } from 'react-icons/fa';
 import { FaBook, FaClockRotateLeft, FaGear, FaTrophy, FaQuestion } from 'react-icons/fa6';
 
 import { Heading } from '../../shared/Heading';
+import { headingClass } from '../../shared/headingStyles';
 type BrowseView = 'leaderboard' | 'mine';
 
 const BROWSE_TABS: TabItem<BrowseView>[] = [
@@ -59,7 +60,7 @@ function NavTile({ icon, title, trailingIcon, onClick }: { icon: ReactNode; titl
             <span className="flex items-center justify-center w-8 h-8 sm:w-9 sm:h-9 rounded-control bg-(--background-primary) text-(--secondary) text-[13px] sm:text-[15px] shrink-0">
                 {icon}
             </span>
-            <span className="text-[10px] sm:text-[14px] font-black text-(--text-primary) leading-tight">{title}</span>
+            <span className={`${headingClass('panel')} text-[11px]! sm:text-[15px]! leading-tight!`}>{title}</span>
             {trailingIcon ?? <FaArrowDown className="text-[10px] sm:text-[12px] text-(--text-tertiary) group-hover:text-(--text-secondary) group-hover:translate-y-0.5 transition-all shrink-0" />}
         </button>
     );

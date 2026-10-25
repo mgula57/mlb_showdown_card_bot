@@ -223,7 +223,7 @@ export const DriveLibrarySetupModal: React.FC<DriveLibrarySetupModalProps> = ({ 
                         <div className="rounded-card border border-form-element p-3 space-y-2 text-sm text-secondary">
                             <div className="justify-between flex">
                                 <p className="font-semibold">Naming format</p>
-                                <span className="font-extrabold text-(--warning)">**IMPORTANT**</span>
+                                <span className="font-bold text-(--warning)">**IMPORTANT**</span>
                             </div>
                             <p><Code>{'{TYPE}-{YEAR}-{NAME}-({PLAYER ID})-({TEAM}).png'}</Code></p>
                             <ul className="space-y-1 text-xs">

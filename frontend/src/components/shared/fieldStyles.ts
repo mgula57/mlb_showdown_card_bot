@@ -17,6 +17,10 @@ const SIZE_CLASSES: Record<FieldSize, string> = {
  *  tertiary ink, like the ON-BASE / SPEED labels on the card front. Body face, never display. */
 export const FIELD_LABEL_CLASS = 'block text-[11px] font-semibold uppercase tracking-[0.08em] leading-4 text-(--text-tertiary)';
 
+/** The field label's type without its color or `block`, for group labels that carry a status
+ *  color (green "Overperformers") or sit inline in a row. */
+export const CAPS_LABEL_CLASS = 'text-[11px] font-semibold uppercase tracking-[0.08em] leading-4';
+
 /** Border, surface and states only, for wrappers that size themselves (e.g. an input row). */
 export const FIELD_FRAME_CLASS =
     'rounded-control border border-(--divider) bg-(--background-secondary) text-(--text-primary) ' +

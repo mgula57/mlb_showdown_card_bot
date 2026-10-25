@@ -12,6 +12,9 @@ import { challengeSuccessRate } from './challengeStats';
 
 import { Heading } from '../../shared/Heading';
 import { Eyebrow } from '../../shared/Eyebrow';
+import { buttonClass } from '../../shared/buttonStyles';
+import { Plate } from '../../shared/Plate';
+import { CAPS_LABEL_CLASS } from '../../shared/fieldStyles';
 type Props = {
     challenge: ChallengeInstance;
     token?: string;
@@ -31,7 +34,7 @@ function StatTile({ icon, label, value, fullWidth }: { icon: ReactNode; label: s
         <div className={`flex items-start gap-2.5 rounded-card bg-(--background-tertiary) px-3 py-3 ${fullWidth ? 'col-span-2' : ''}`}>
             <span className="text-(--text-tertiary) text-[13px] mt-0.5 shrink-0">{icon}</span>
             <span className="min-w-0">
-                <span className="block text-[10px] font-bold uppercase tracking-wide text-(--text-tertiary)">{label}</span>
+                <span className={`block ${CAPS_LABEL_CLASS} text-(--text-tertiary)`}>{label}</span>
                 <span className="block text-[13px] font-bold text-(--text-primary) truncate">{value}</span>
             </span>
         </div>
@@ -109,12 +112,14 @@ export function ChallengeCard({ challenge, token, onNewTeam, onUseExistingTeam, 
                 <div className="w-full">
                     <div className="flex justify-between items-start " >
                         <div className='space-y-1 flex flex-col' >
-                            <span
-                                className="inline-flex self-start items-center gap-1 text-[10px] font-bold uppercase tracking-wide px-2 py-1 rounded-plate"
+                            <Plate
+                                variant="custom"
+                                size="sm"
+                                className="self-start"
                                 style={{ color: `var(${category.cssVar})`, backgroundColor: `color-mix(in srgb, var(${category.cssVar}) 15%, transparent)` }}
                             >
                                 {category.icon} {category.label}
-                            </span>
+                            </Plate>
                             <div className="flex gap-y-1 gap-x-2 items-center flex-wrap">
                                 
                                 <Heading level="panel">{challenge.title}</Heading>
@@ -175,14 +180,14 @@ export function ChallengeCard({ challenge, token, onNewTeam, onUseExistingTeam, 
                         <button
                             type="button"
                             onClick={() => onNewTeam(challenge)}
-                            className="flex items-center justify-center gap-1.5 rounded-control px-2.5 py-2.5 text-[11px] font-bold bg-(--secondary) text-(--background-primary) hover:opacity-90 cursor-pointer transition-opacity"
+                            className={buttonClass('primary', 'sm')}
                         >
                             <FaPlus className="text-[10px]" /> New Team
                         </button>
                         <button
                             type="button"
                             onClick={toggleExisting}
-                            className="flex items-center justify-center gap-1.5 rounded-control px-2.5 py-2.5 text-[11px] font-bold border border-(--divider) text-(--text-secondary) hover:text-(--text-primary) hover:border-(--text-tertiary) cursor-pointer transition-colors"
+                            className={buttonClass('secondary', 'sm')}
                         >
                             <FaListUl className="text-[10px]" /> Existing
                             {showExisting ? <FaChevronUp className="text-[9px]" /> : <FaChevronDown className="text-[9px]" />}

@@ -7,6 +7,7 @@ import { TeamSearchInput } from './TeamSearchInput';
 import { matchesTeamQuery } from './teamSearch';
 
 import { InlineError } from '../shared/InlineError';
+import { headingClass } from '../shared/headingStyles';
 // Set ordering for the "by set" shelves — newest curated sets first.
 type SortKey = 'recent' | 'points' | 'name' | 'roster' | 'popular';
 
@@ -123,7 +124,7 @@ export function CommunityTeams({ onOpen, horizontalPadding, hideSearch = false, 
                 ) : (
                     <div className={px}>
                         <div className="flex items-center justify-between mb-3">
-                            <div className="text-[12px] font-semibold text-(--text-secondary) uppercase tracking-wide">
+                            <div className={headingClass('panel')}>
                                 {results.length} result{results.length === 1 ? '' : 's'}
                             </div>
                             <CustomSelect

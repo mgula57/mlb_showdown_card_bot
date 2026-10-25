@@ -14,6 +14,7 @@ import { EraTeams } from './EraTeams';
 import CustomSelect, { type SelectOption } from '../shared/CustomSelect';
 
 import { Heading } from '../shared/Heading';
+import { headingClass } from '../shared/headingStyles';
 type BrowseType = 'all' | 'featured' | 'community' | 'historical' | 'era';
 
 const TYPE_OPTIONS: SelectOption[] = [
@@ -357,7 +358,7 @@ export function BrowseTeams({ onOpenTeam, horizontalPadding, currentUserId, myTe
                     <p className="text-[13px] text-(--text-tertiary) py-8 text-center">No teams match “{q}”.</p>
                 ) : (
                     <div className={px}>
-                        <div className="text-[12px] font-semibold text-(--text-secondary) uppercase tracking-wide mb-3">
+                        <div className={`mb-3 ${headingClass('panel')}`}>
                             {searchModeResults.length} result{searchModeResults.length === 1 ? '' : 's'}
                         </div>
                         <div className="flex flex-wrap gap-3">

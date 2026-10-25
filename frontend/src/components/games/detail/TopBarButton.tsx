@@ -4,6 +4,7 @@
  * truncates with an ellipsis instead, so the bar keeps a single row on narrow screens.
  */
 import type { ReactNode } from "react";
+import { CornerCount } from "../../shared/CornerCount";
 
 type TopBarButtonProps = {
     label: string;
@@ -34,11 +35,7 @@ export default function TopBarButton({ label, shortLabel, onClick, icon, badge, 
             ) : (
                 <span className="truncate">{label}</span>
             )}
-            {!!badge && (
-                <span className="absolute -top-1.5 -right-1.5 min-w-4 h-4 px-1 rounded-full bg-(--primary) text-(--background-primary) text-[9px] font-black leading-4 text-center tabular-nums pointer-events-none">
-                    {badge > 99 ? "99+" : badge}
-                </span>
-            )}
+            <CornerCount count={badge ?? 0} />
         </button>
     );
 }

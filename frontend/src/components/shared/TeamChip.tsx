@@ -26,8 +26,8 @@ type TeamChipProps = {
 };
 
 const SIZE_CLASSES: Record<TeamChipSize, { badge: string; flag: string; record: string }> = {
-    sm: { badge: "font-black text-[11px]", flag: "1em", record: "text-[10px]" },
-    md: { badge: "font-black", flag: "1.25em", record: "text-[11px]" },
+    sm: { badge: "font-display-upright uppercase text-[12px]", flag: "1em", record: "text-[10px]" },
+    md: { badge: "font-display-upright uppercase", flag: "1.25em", record: "text-[11px]" },
 };
 
 export function TeamChip({ team, record, size = "md", isStarred, onToggleStar, className = "" }: TeamChipProps) {

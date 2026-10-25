@@ -5,6 +5,7 @@ import { CardItemFromCard } from '../CardItem';
 import { buildChartRangesFromValues } from '../card_elements/CardChart';
 import { FaMinus } from 'react-icons/fa';
 import { FaMagnifyingGlass } from 'react-icons/fa6';
+import { CAPS_LABEL_CLASS } from '../../shared/fieldStyles';
 
 const OUTCOME_ORDER = ['PU', 'SO', 'GB', 'FB', 'BB', '1B', '1B+', '2B', '3B', 'HR'];
 const TOTAL = 20;
@@ -117,7 +118,7 @@ function calcPitcherStats(results: { key: string; prob: number }[]) {
 function StatCell({ label, value }: { label: string; value: string | number }) {
     return (
         <div className="flex flex-col items-center gap-0.5">
-            <span className="text-sm font-black tabular-nums leading-none">{value}</span>
+            <span className="text-sm font-bold tabular-nums leading-none">{value}</span>
             <span className="text-[9px] font-semibold uppercase tracking-wide opacity-40">{label}</span>
         </div>
     );
@@ -278,7 +279,7 @@ export default function OutcomeProbability({ chart, primaryColor, secondaryColor
             {opponentMode === 'slider' ? (
                 <>
                     <div className="flex items-center gap-3">
-                        <span className="text-[10px] font-semibold uppercase tracking-wide opacity-50 shrink-0 w-24">{opponentLabel}</span>
+                        <span className={`opacity-50 shrink-0 w-24 ${CAPS_LABEL_CLASS}`}>{opponentLabel}</span>
                         <input
                             type="range"
                             min={opponentCommandMin}
@@ -288,7 +289,7 @@ export default function OutcomeProbability({ chart, primaryColor, secondaryColor
                             onChange={e => setOpponentCommand(Number(e.target.value))}
                             className="flex-1 accent-current"
                         />
-                        <span className="text-sm font-black w-5 text-right tabular-nums opacity-80">{opponentCommand}</span>
+                        <span className="text-sm font-bold w-5 text-right tabular-nums opacity-80">{opponentCommand}</span>
                     </div>
 
                     <div className="flex items-center gap-2">
@@ -347,7 +348,7 @@ export default function OutcomeProbability({ chart, primaryColor, secondaryColor
                         >
                             {showLabel && (
                                 <div className="flex flex-col items-center leading-none gap-0.5">
-                                    <span className="text-[10px] font-black text-white drop-shadow">{key}</span>
+                                    <span className="text-[10px] font-bold text-white drop-shadow">{key}</span>
                                     <span className="text-[9px] font-semibold text-white/80 drop-shadow tabular-nums">
                                         {(prob * 100).toFixed(1)}%
                                     </span>

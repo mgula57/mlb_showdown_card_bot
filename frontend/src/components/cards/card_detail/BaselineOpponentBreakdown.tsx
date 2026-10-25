@@ -1,6 +1,7 @@
 import { type ShowdownBotCardChart } from '../../../api/showdownBotCard';
 import { getContrastTextColor } from '../../../functions/colors';
 import { CardChart, buildChartRangesFromValues } from '../card_elements/CardChart';
+import { CAPS_LABEL_CLASS } from '../../shared/fieldStyles';
 
 const OUTS = new Set(['PU', 'SO', 'GB', 'FB']);
 const TOTAL = 20;
@@ -27,7 +28,7 @@ function KpiTile({ label, value, blurred }: { label: string; value: number; blur
             <span className={`text-2xl font-display-upright leading-none tabular-nums ${blurred ? 'blur-xs' : ''}`}>
                 {value.toFixed(2)}
             </span>
-            <span className="text-[10px] font-semibold uppercase tracking-widest opacity-50">{label}</span>
+            <span className={`opacity-50 ${CAPS_LABEL_CLASS}`}>{label}</span>
         </div>
     );
 }
@@ -36,7 +37,7 @@ function Bar({ label, value, color, blurred }: { label: string; value: number; c
     const pct = Math.min((value / TOTAL) * 100, 100);
     return (
         <div className="flex items-center gap-2.5">
-            <span className="text-[11px] font-black w-7 text-right uppercase shrink-0 opacity-60">{label}</span>
+            <span className="text-[11px] font-bold w-7 text-right uppercase shrink-0 opacity-60">{label}</span>
             <div className="relative flex-1 h-3.5 rounded-full overflow-hidden" style={{ background: 'color-mix(in srgb, var(--form-element) 30%, transparent)' }}>
                 <div
                     className="absolute inset-y-0 left-0 rounded-full transition-all duration-500"

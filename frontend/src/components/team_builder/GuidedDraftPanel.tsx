@@ -14,7 +14,9 @@ import type { ShowdownBotCardAPIResponse } from '../../api/showdownBotCard';
 import { ProgressRing } from './ProgressRing';
 
 import { Heading } from '../shared/Heading';
-import { FIELD_LABEL_CLASS } from '../shared/fieldStyles';
+import { FIELD_LABEL_CLASS, CAPS_LABEL_CLASS } from '../shared/fieldStyles';
+import { buttonClass } from '../shared/buttonStyles';
+import { headingClass } from '../shared/headingStyles';
 type BucketProgress = { filled: number; target: number };
 
 type Props = {
@@ -106,9 +108,9 @@ export function GuidedDraftPanel(props: Props) {
                 <div className="flex flex-col gap-1.5 px-3 pt-2 pb-2 border-b border-(--divider) shrink-0">
                     <div className="flex items-center gap-2 min-w-0">
                         <FaCompass className="text-(--showdown-red) text-[12px] shrink-0" />
-                        <span className="text-[11px] font-black tabular-nums text-(--text-tertiary) shrink-0">{roundIndex}/{rosterSize}</span>
+                        <span className="text-[11px] font-bold tabular-nums text-(--text-tertiary) shrink-0">{roundIndex}/{rosterSize}</span>
                         {round
-                            ? <span className="text-[13px] font-black uppercase text-(--text-primary) truncate">{round.round.label}</span>
+                            ? <span className={`${headingClass('panel')} truncate`}>{round.round.label}</span>
                             : <span className="h-4 w-28 rounded bg-(--background-quaternary) animate-pulse" />}
                         <span className="ml-auto flex items-center gap-1.5 shrink-0 text-[10px] font-bold text-(--text-secondary)">
                             {target}
@@ -123,12 +125,12 @@ export function GuidedDraftPanel(props: Props) {
                 <div className="flex flex-col gap-2.5 px-4 py-3 border-b border-(--divider) shrink-0">
                     <div className="flex items-end justify-between gap-3">
                         <div className="min-w-0">
-                            <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-wide text-(--text-tertiary)">
+                            <div className={`flex items-center gap-2 ${CAPS_LABEL_CLASS} text-(--text-tertiary)`}>
                                 <span>Round <span className="tabular-nums text-(--text-primary)">{roundIndex}</span> of <span className="tabular-nums">{rosterSize}</span></span>
                                 {round && <PhasePill phase={round.round.phase} />}
                             </div>
                             {round ? (
-                                <Heading level="section" as="div" className="truncate">{round.round.label}</Heading>
+                                <Heading level="section" as="div" fit>{round.round.label}</Heading>
                             ) : (
                                 <div className="h-6 w-40 mt-1 rounded bg-(--background-quaternary) animate-pulse" />
                             )}
@@ -278,13 +280,13 @@ function GuidedOptionCard({ option, currentPts, budget, benchPtsMultiplier, onPi
                 type="button"
                 onClick={() => onPick(option)}
                 disabled={disabled}
-                className="flex items-center justify-between gap-2 px-3 h-9 rounded-control shadow-raised text-[12px] font-bold text-white bg-(--showdown-red) hover:brightness-110 active:translate-y-px active:shadow-none disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition"
+                className={buttonClass('primary', 'sm', 'justify-between! h-9')}
             >
                 <span className="flex items-center gap-1.5">
                     <FaPlus className="text-[10px]" /> Draft
                     <FaArrowRight className="text-[9px] opacity-70" /> {option.roster_position}
                 </span>
-                <span className={`tabular-nums text-[11px] font-semibold ${overBudget ? 'font-black underline underline-offset-2' : 'opacity-80'}`}>
+                <span className={`tabular-nums text-[11px] font-semibold ${overBudget ? 'font-bold underline underline-offset-2' : 'opacity-80'}`}>
                     {currentPts} → {projected} PTS
                 </span>
             </button>
@@ -415,7 +417,7 @@ function GuidedTargetPrompt({ onSetTarget }: { onSetTarget: (target: number) => 
                 type="button"
                 onClick={() => onSetTarget(target)}
                 disabled={target < 100}
-                className="flex items-center justify-center gap-1.5 rounded-control py-2 text-[13px] font-bold text-white bg-(--showdown-red) hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-opacity"
+                className={buttonClass('primary', 'md')}
             >
                 Start Guided Draft <FaArrowRight className="text-[11px]" />
             </button>

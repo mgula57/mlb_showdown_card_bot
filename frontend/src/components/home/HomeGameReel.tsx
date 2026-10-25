@@ -250,7 +250,7 @@ function ReelSegmentPlayer({ segment, isActive, autoplay, onDone, onCardSelect }
                     {([view.away, view.home] as const).map((side) => (
                         <div key={side.team.abbreviation ?? side.team.name} className="flex items-center gap-1.5">
                             <TeamChip team={side.team} size="sm" />
-                            <span className="text-sm font-black tabular-nums">{side.score ?? 0}</span>
+                            <span className="font-display-upright text-[17px] leading-none tabular-nums">{side.score ?? 0}</span>
                         </div>
                     ))}
                     {situation && (

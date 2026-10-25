@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { FaStar } from "react-icons/fa6";
 import { FaTerminal } from "react-icons/fa";
 
@@ -8,6 +9,10 @@ import { type ShowdownBotCardCompact } from "../../api/showdownBotCard";
 import { type CardDatabaseRecord } from "../../api/card_db/cardDatabase";
 import { CardItemCompact, CardItemCompactFromCardDatabaseRecord } from "../cards/CardItemCompact";
 import { BasesDiamond } from "./BasesDiamond";
+import { GameStatePlate } from "./GameStatePlate";
+import { Plate } from "../shared/Plate";
+import { buttonClass } from "../shared/buttonStyles";
+import { FIELD_LABEL_CLASS } from "../shared/fieldStyles";
 
 type GameItemProps = {
     game: GameView;
@@ -60,9 +65,6 @@ export default function GameItem({ game, isStarred, showMatchupDetails, playerId
     const isPostponed = game.state === 'POSTPONED';
     const isInProgress = game.state === 'LIVE';
     const hasStarted = !isNotStarted;
-
-    const awayRecord = game.away.record;
-    const homeRecord = game.home.record;
 
     const batterName = game.situation?.batter?.name;
     const livePitcherName = game.situation?.pitcher?.name;
@@ -129,15 +131,6 @@ export default function GameItem({ game, isStarred, showMatchupDetails, playerId
     const winningPitcherCardFallback = createPlaceholderCard('winner', winningPitcherName, winnerTeamAbbr, 'Winning Pitcher');
     const losingPitcherCardFallback = createPlaceholderCard('loser', losingPitcherName, loserTeamAbbr, 'Losing Pitcher');
 
-    const stateBadgeLabel = game.detailedState;
-    const stateBadgeClasses = game.detailedState === 'Final'
-        ? 'border-(--success)/40 bg-(--success)/10 text-(--success)'
-        : game.detailedState === 'Postponed'
-            ? 'border-(--red)/40 bg-(--red)/10 text-(--red)'
-            : isInProgress
-                ? 'border-(--live)/50 bg-(--live)/5 text-(--live)'
-                : 'border-(--divider) bg-(--background-primary) text-(--text-secondary)';
-
     const gamePk = typeof game.id === 'number' ? game.id : Number(game.id);
 
     return (
@@ -149,14 +142,11 @@ export default function GameItem({ game, isStarred, showMatchupDetails, playerId
             onKeyDown={onSelect ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelect(gamePk); } } : undefined}
         >
             {game.seriesLabel && game.seriesLabel !== "Regular Season" && (
-                <div className="bg-(--background-primary) text-(--text-primary) rounded-card px-3 py-1 text-center text-sm font-bold flex items-center justify-center gap-1.5">
-                    <span>{game.seriesLabel}</span>
-                </div>
-                )
-            }
+                <Plate variant="navy" size="sm" className="mb-1.5">{game.seriesLabel}</Plate>
+            )}
 
-            <div className="py-1 flex items-center justify-between gap-2">
-                <div className="flex items-center space-x-1 text-sm font-extrabold text-(--text-primary)">
+            <div className="pb-2 flex items-center justify-between gap-2">
+                <div className="flex items-center gap-1 text-[13px] font-semibold uppercase tabular-nums text-(--text-secondary)">
                     {isFinal && (
                         <span>{formatGameDate(game.date)}</span>
                     )}
@@ -168,11 +158,7 @@ export default function GameItem({ game, isStarred, showMatchupDetails, playerId
                     )}
                     {isStarred && <FaStar className="text-(--gold) h-3 w-3 shrink-0" />}
                 </div>
-                <div className="flex items-center gap-1.5 shrink-0">
-                    <span className={`rounded-plate border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${stateBadgeClasses}`}>
-                        {stateBadgeLabel}
-                    </span>
-                </div>
+                <GameStatePlate state={game.state} detailedState={game.detailedState} />
             </div>
 
             <div className="border-t border-(--divider)" />
@@ -181,19 +167,14 @@ export default function GameItem({ game, isStarred, showMatchupDetails, playerId
 
                 {/* Teams and Scores */}
                 <div className="w-full space-y-2 py-2">
-                    <div className="flex items-center justify-between gap-3">
-                        <TeamChip team={game.away.team} record={awayRecord} />
-                        {hasStarted && game.away.score != null && (
-                            <span className="font-black text-(--text-primary)">{game.away.score}</span>
-                        )}
-                    </div>
-
-                    <div className="flex items-center justify-between gap-3">
-                        <TeamChip team={game.home.team} record={homeRecord} />
-                        {hasStarted && game.home.score != null && (
-                            <span className="font-black text-(--text-primary)">{game.home.score}</span>
-                        )}
-                    </div>
+                    {[game.away, game.home].map(side => (
+                        <div key={side.team.abbreviation} className="flex items-center justify-between gap-3">
+                            <TeamChip team={side.team} record={side.record} />
+                            {hasStarted && side.score != null && (
+                                <span className="font-display-upright text-[22px] leading-none tabular-nums text-(--text-primary)">{side.score}</span>
+                            )}
+                        </div>
+                    ))}
                 </div>
 
                 {/* Sim this - shown in place of the score for games that haven't started */}
@@ -201,10 +182,10 @@ export default function GameItem({ game, isStarred, showMatchupDetails, playerId
                     <button
                         type="button"
                         onClick={(e) => { e.stopPropagation(); onSimSelect(gamePk); }}
-                        className="flex flex-col items-center justify-center gap-0.5 rounded-control bg-(--showdown-blue) shadow-raised px-2.5 py-1.5 text-[9px] font-bold uppercase tracking-wide text-white cursor-pointer hover:brightness-110 active:translate-y-px transition shrink-0"
+                        className={buttonClass('primary', 'sm')}
                     >
                         <FaTerminal className="h-3 w-3" />
-                        Sim It!
+                        Sim It
                     </button>
                 )}
 
@@ -214,78 +195,62 @@ export default function GameItem({ game, isStarred, showMatchupDetails, playerId
             </div>
 
             {isNotStarted && !isPostponed && showMatchupDetails && (
-                <>
-                    <div className="border-t border-(--divider) my-1" />
-                    <div className="flex justify-between items-center">
-                        <div className="flex gap-1 items-center">
-                            <span className="text-[12px] font-bold text-(--quaternary)">Away Probable</span>
-                        </div>
-                        <div className="flex gap-1 items-center">
-                            <span className="text-[12px] font-bold text-(--quaternary)">Home Probable</span>
-                        </div>
-                    </div>
-                    <div className="pt-1 flex gap-2 items-center">
-                        {awayProbableCardRecord
-                            ? <CardItemCompactFromCardDatabaseRecord card={awayProbableCardRecord} hideDetails />
-                            : <CardItemCompact card={awayProbableCardFallback} isLoading={isLoadingCards && game.away.probablePitcher?.id != null} hideDetails />}
-                        <span className="text-[12px]">vs</span>
-                        {homeProbableCardRecord
-                            ? <CardItemCompactFromCardDatabaseRecord card={homeProbableCardRecord} hideDetails />
-                            : <CardItemCompact card={homeProbableCardFallback} isLoading={isLoadingCards && game.home.probablePitcher?.id != null} hideDetails />}
-                    </div>
-                </>
+                <MatchupRow
+                    labels={['Away Probable', 'Home Probable']}
+                    separator="vs"
+                    left={awayProbableCardRecord
+                        ? <CardItemCompactFromCardDatabaseRecord card={awayProbableCardRecord} hideDetails />
+                        : <CardItemCompact card={awayProbableCardFallback} isLoading={isLoadingCards && game.away.probablePitcher?.id != null} hideDetails />}
+                    right={homeProbableCardRecord
+                        ? <CardItemCompactFromCardDatabaseRecord card={homeProbableCardRecord} hideDetails />
+                        : <CardItemCompact card={homeProbableCardFallback} isLoading={isLoadingCards && game.home.probablePitcher?.id != null} hideDetails />}
+                />
             )}
 
             {isInProgress && showMatchupDetails && (
-                <>
-                    <div className="border-t border-(--divider) my-1" />
-                    <div className="flex justify-between items-center">
-                        <div className="flex gap-1 items-center">
-                            <span className="text-[12px] font-bold text-(--quaternary)">At Bat</span>
-                        </div>
-                        <div className="flex gap-1 items-center">
-                            <span className="text-[12px] font-bold text-(--quaternary)">Pitching</span>
-                        </div>
-                    </div>
-                    <div className="pt-1 flex gap-2">
-                        {liveAtBatCardRecord
-                            ? <CardItemCompactFromCardDatabaseRecord card={liveAtBatCardRecord} hideDetails />
-                            : <CardItemCompact card={liveAtBatCardFallback} isLoading={isLoadingCards && game.situation?.batter?.id != null} hideDetails />}
-                        {livePitchingCardRecord
-                            ? <CardItemCompactFromCardDatabaseRecord card={livePitchingCardRecord} hideDetails />
-                            : <CardItemCompact card={livePitchingCardFallback} isLoading={isLoadingCards && game.situation?.pitcher?.id != null} hideDetails />}
-                    </div>
-                </>
+                <MatchupRow
+                    labels={['At Bat', 'Pitching']}
+                    left={liveAtBatCardRecord
+                        ? <CardItemCompactFromCardDatabaseRecord card={liveAtBatCardRecord} hideDetails />
+                        : <CardItemCompact card={liveAtBatCardFallback} isLoading={isLoadingCards && game.situation?.batter?.id != null} hideDetails />}
+                    right={livePitchingCardRecord
+                        ? <CardItemCompactFromCardDatabaseRecord card={livePitchingCardRecord} hideDetails />
+                        : <CardItemCompact card={livePitchingCardFallback} isLoading={isLoadingCards && game.situation?.pitcher?.id != null} hideDetails />}
+                />
             )}
 
             {isFinal && showMatchupDetails && (
-                <>
-                    <div className="border-t border-(--divider) my-1" />
-                    <div className="flex justify-between items-center">
-                        <div className="flex gap-1 items-center">
-                            <span className="text-[12px] font-bold text-(--quaternary)">Winning Pitcher</span>
-                        </div>
-                        <div className="flex gap-1 items-center">
-                            <span className="text-[12px] font-bold text-(--quaternary)">Losing Pitcher</span>
-                        </div>
-                    </div>
-                    <div className="pt-1 flex gap-2">
-                        {winningPitcherCardRecord
-                            ? <CardItemCompactFromCardDatabaseRecord card={winningPitcherCardRecord} hideDetails />
-                            : <CardItemCompact card={winningPitcherCardFallback} isLoading={isLoadingCards && game.decisions?.winner?.id != null} hideDetails />}
-                        {losingPitcherCardRecord
-                            ? <CardItemCompactFromCardDatabaseRecord card={losingPitcherCardRecord} hideDetails />
-                            : <CardItemCompact card={losingPitcherCardFallback} isLoading={isLoadingCards && game.decisions?.loser?.id != null} hideDetails />}
-                    </div>
-                </>
+                <MatchupRow
+                    labels={['Winning Pitcher', 'Losing Pitcher']}
+                    left={winningPitcherCardRecord
+                        ? <CardItemCompactFromCardDatabaseRecord card={winningPitcherCardRecord} hideDetails />
+                        : <CardItemCompact card={winningPitcherCardFallback} isLoading={isLoadingCards && game.decisions?.winner?.id != null} hideDetails />}
+                    right={losingPitcherCardRecord
+                        ? <CardItemCompactFromCardDatabaseRecord card={losingPitcherCardRecord} hideDetails />
+                        : <CardItemCompact card={losingPitcherCardFallback} isLoading={isLoadingCards && game.decisions?.loser?.id != null} hideDetails />}
+                />
             )}
 
-            {playerLinescoreSummary && (
-                <>
-                    {playerLinescoreSummary}
-                </>
-            )}
+            {playerLinescoreSummary}
 
         </div>
+    );
+}
+
+/** Two labeled compact cards side by side under the score: probables, the live at-bat, or the decisions. */
+function MatchupRow({ labels, left, right, separator }: { labels: [string, string]; left: ReactNode; right: ReactNode; separator?: string }) {
+    return (
+        <>
+            <div className="border-t border-(--divider) my-1" />
+            <div className="flex justify-between items-center">
+                <span className={FIELD_LABEL_CLASS}>{labels[0]}</span>
+                <span className={FIELD_LABEL_CLASS}>{labels[1]}</span>
+            </div>
+            <div className="pt-1 flex gap-2 items-center">
+                {left}
+                {separator && <span className="text-[12px] text-(--text-tertiary)">{separator}</span>}
+                {right}
+            </div>
+        </>
     );
 }

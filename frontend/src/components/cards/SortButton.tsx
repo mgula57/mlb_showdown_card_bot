@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import type { SelectOption } from '../shared/CustomSelect';
 
-import { FIELD_FRAME_CLASS } from '../shared/fieldStyles';
+import { FIELD_FRAME_CLASS, CAPS_LABEL_CLASS } from '../shared/fieldStyles';
 type SortOptionGroup = {
     label: string;
     options: SelectOption[];
@@ -134,7 +134,7 @@ const SortButton: React.FC<SortButtonProps> = ({
                 >
                     {sortOptionGroups.map(group => (
                         <div key={group.label}>
-                            <div className="px-3 pt-3 pb-1 text-xs font-semibold text-tertiary uppercase tracking-wider select-none">
+                            <div className={`px-3 pt-3 pb-1 select-none ${CAPS_LABEL_CLASS} text-(--text-tertiary)`}>
                                 {group.label}
                             </div>
                             {group.options.map(option => (

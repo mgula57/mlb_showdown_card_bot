@@ -12,6 +12,9 @@ import {
     type SimGameTeamSetup,
     type StartGameSimPayload,
 } from '../../api/simGame';
+import { buttonClass } from '../shared/buttonStyles';
+import { CAPS_LABEL_CLASS } from '../shared/fieldStyles';
+import { headingClass } from '../shared/headingStyles';
 
 function errorMessage(err: unknown): string {
     return err instanceof Error ? err.message : String(err);
@@ -78,7 +81,7 @@ function TeamPanel({
             </div>
 
             <div className="space-y-1">
-                <div className="text-xs font-bold uppercase tracking-wide text-(--secondary)">Starting Pitcher</div>
+                <div className={headingClass('panel')}>Starting Pitcher</div>
                 <div className="text-xs font-semibold text-(--primary)">
                     {starter ? `${starter.name} · ${starter.points} pts${starter.ip ? ` · ${starter.ip} IP` : ''}` : '—'}
                 </div>
@@ -86,7 +89,7 @@ function TeamPanel({
 
             {team.lineup.length > 0 ? (
                 <div className="space-y-1.5">
-                    <div className="text-xs font-bold uppercase tracking-wide text-(--secondary)">Lineup</div>
+                    <div className={headingClass('panel')}>Lineup</div>
                     {team.lineup.map((slot) => {
                         const option = optionsById.get(slot.player_id);
                         return (
@@ -203,7 +206,7 @@ export default function GameSimSetupModal({ gamePk, showdownSet, onCancel, onSta
                             type="button"
                             onClick={handleStart}
                             disabled={!setup || starting || setup.is_final}
-                            className="flex cursor-pointer items-center gap-1.5 rounded-control bg-(--showdown-blue) shadow-raised active:translate-y-px active:shadow-none px-3 py-2 text-[12px] font-bold text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
+                            className={buttonClass('primary', 'sm')}
                         >
                             {starting ? <FaSpinner className="animate-spin text-[10px]" /> : <FaTerminal className="text-[15px]" />}
                             {starting ? 'Simulating…' : setup?.is_takeover ? 'Take Over' : 'Simulate'}
@@ -215,7 +218,7 @@ export default function GameSimSetupModal({ gamePk, showdownSet, onCancel, onSta
             <div className="p-4 space-y-4">
                 {canOfferTakeover && (
                     <div className="flex items-center gap-2">
-                        <span className="text-xs font-bold uppercase tracking-wide text-(--secondary)">Start from</span>
+                        <span className={`${CAPS_LABEL_CLASS} text-(--text-tertiary)`}>Start from</span>
                         <div className="inline-flex rounded-control border border-(--divider) bg-(--background-secondary) p-0.5">
                             <button
                                 type="button"
@@ -252,7 +255,7 @@ export default function GameSimSetupModal({ gamePk, showdownSet, onCancel, onSta
                     <div className={loading ? 'space-y-4 opacity-50' : 'space-y-4'}>
                         {canOfferTakeover && (
                             <div className="rounded-card border border-(--divider) bg-(--background-secondary) p-3">
-                                <div className="text-xs font-bold uppercase tracking-wide text-(--secondary)">
+                                <div className={headingClass('panel')}>
                                     {setup.is_takeover ? 'Taking over from' : 'Starting from'}
                                 </div>
                                 <div className="text-sm font-semibold text-(--primary)">

@@ -219,8 +219,8 @@ export function Modal({ children, onClose, title, subtitle, footer, size = 'lg',
                 {/* Conditional header with title, optional subtitle, and close button */}
                 {title ? (
                     <div className="flex items-start justify-between gap-3 p-3 border-b border-form-element shrink-0">
-                        <div className="min-w-0">
-                            <Heading level="section" className="truncate">
+                        <div className="flex-1 min-w-0">
+                            <Heading level="section" fit>
                                 {title}
                             </Heading>
                             {subtitle && (

@@ -43,6 +43,7 @@ import { fetchChallengeInstance, type ChallengeInstance } from '../../api/sim';
 
 import { InlineError } from '../shared/InlineError';
 import { Heading } from '../shared/Heading';
+import { buttonClass } from '../shared/buttonStyles';
 // A team can be addressed by URL four ways: a saved UUID, a historical MLB team, an All-Star
 // team, or an Era Roster (all-time or all-decade).
 type TeamRef =
@@ -773,7 +774,7 @@ export default function TeamBuilder() {
                         type="button"
                         onClick={handleNewTeam}
                         disabled={creatingTeam}
-                        className={`flex items-center gap-1 ${px} py-3 text-sm rounded-card bg-(--secondary) font-bold text-(--background-primary) hover:opacity-90 transition-opacity cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed`}
+                        className={buttonClass('primary', 'md', `${px} py-3!`)}
                     >
                         {creatingTeam ? <FaSpinner className="animate-spin" /> : <FaPlus />}
                         New

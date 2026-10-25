@@ -19,6 +19,8 @@ import { ChallengeTemplateForm } from './ChallengeTemplateForm';
 
 import { InlineError } from '../../../shared/InlineError';
 import { Heading } from '../../../shared/Heading';
+import { buttonClass } from '../../../shared/buttonStyles';
+import { CAPS_LABEL_CLASS } from '../../../shared/fieldStyles';
 type Props = {
     token: string;
     onBack: () => void;
@@ -187,7 +189,7 @@ export function AdminChallengesView({ token, onBack }: Props) {
                     <button
                         type="button"
                         onClick={() => { setFormError(null); setEditing('new'); }}
-                        className="flex items-center gap-1.5 rounded-control px-2.5 py-1.5 text-[12px] font-bold bg-(--secondary) text-(--background-primary) hover:opacity-90 cursor-pointer"
+                        className={buttonClass('primary', 'sm')}
                     >
                         <FaPlus className="text-[10px]" /> New template
                     </button>
@@ -252,7 +254,7 @@ export function AdminChallengesView({ token, onBack }: Props) {
                         const meta = challengeCategoryMeta(category);
                         return (
                             <div key={category} className="flex flex-col gap-1.5">
-                                <div className="flex items-center gap-1.5 px-1 text-[11px] font-bold uppercase tracking-wide" style={{ color: `var(${meta.cssVar})` }}>
+                                <div className={`flex items-center gap-1.5 px-1 ${CAPS_LABEL_CLASS}`} style={{ color: `var(${meta.cssVar})` }}>
                                     {meta.icon} {meta.label} <span className="text-(--text-tertiary) font-normal normal-case">({group.length})</span>
                                 </div>
                                 <div className="flex flex-col divide-y divide-(--divider) rounded-card border border-(--divider)">

@@ -40,6 +40,14 @@ import { FaGripVertical } from 'react-icons/fa';
 import { FaPlus, FaXmark, FaSpinner, FaWandMagicSparkles, FaCircleCheck, FaMagnifyingGlass, FaArrowsRotate, FaGear, FaArrowUp, FaArrowDown, FaTriangleExclamation, FaTableCellsLarge, FaList, FaAnglesLeft, FaAnglesRight, FaListCheck, FaChartColumn, FaPalette, FaFilter } from 'react-icons/fa6';
 
 import { InlineError } from '../shared/InlineError';
+import { Plate } from '../shared/Plate';
+import { CornerCount } from '../shared/CornerCount';
+import { Heading } from '../shared/Heading';
+import { headingClass } from '../shared/headingStyles';
+import { buttonClass } from '../shared/buttonStyles';
+import { choiceClass } from '../shared/choiceStyles';
+import { FIELD_LABEL_CLASS, fieldClass } from '../shared/fieldStyles';
+import { radixTabTriggerClass, tabListClass } from '../shared/tabStyles';
 /** Narrowest the Player Pool panel can get; it takes whatever the Build Method panel leaves. */
 const MIN_POOL_PANEL_WIDTH = 280;
 /** Narrowest the Build Method panel can be dragged to. */
@@ -57,10 +65,9 @@ type EditionBuilderProps = {
     onEditionUpdated: (edition: ReleaseEdition) => void;
 };
 
-const TAB_TRIGGER_CLASS =
-    'relative flex items-center px-4 py-2 text-sm rounded-control transition-colors ' +
-    'data-[state=active]:bg-(--background-quaternary) data-[state=active]:font-bold ' +
-    'data-[state=inactive]:text-(--text-tertiary) data-[state=inactive]:font-medium data-[state=inactive]:hover:bg-(--divider)';
+const TAB_TRIGGER_CLASS = radixTabTriggerClass('sm');
+/** The panels' tab strips: inset to line up with their content, never shrinking out of the column. */
+const TAB_LIST_CLASS = tabListClass(true, 'px-3 shrink-0');
 
 // =============================================================================
 // MARK: - NUMBERING
@@ -214,13 +221,13 @@ const BUILD_PANEL_HIDDEN_STORAGE_KEY = 'releaseBuilder.buildPanelHidden';
 /** Labels the right panel as an unsaved Algorithm preview or the edition's saved pool. */
 function PoolStatusBadge({ isPreview }: { isPreview: boolean }) {
     return isPreview ? (
-        <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide leading-none px-1.5 py-1 rounded-plate border border-(--preview-accent)/35 bg-(--preview-accent)/12 text-(--preview-accent)">
+        <Plate variant="custom" size="sm" className="bg-(--preview-accent)/12 text-(--preview-accent)">
             <FaWandMagicSparkles className="text-[9px]" /> Preview · Unsaved
-        </span>
+        </Plate>
     ) : (
-        <span className="inline-flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wide leading-none text-(--text-tertiary)">
+        <Plate variant="outline" size="sm">
             <FaCircleCheck className="text-[9px]" /> Saved
-        </span>
+        </Plate>
     );
 }
 
@@ -748,12 +755,12 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
     const poolTabTriggers = (
         <>
             <Tabs.Trigger value="cards" className={TAB_TRIGGER_CLASS}>
-                {activePreview ? <FaWandMagicSparkles className="text-[10px] mr-1.5 text-(--preview-accent)" /> : <FaListCheck className="text-[10px] mr-1.5" />}
+                {activePreview ? <FaWandMagicSparkles className="text-[10px] text-(--preview-accent)" /> : <FaListCheck className="text-[10px]" />}
                 {readOnly ? 'List' : activePreview ? 'Preview' : 'Selected'}
-                <span className={`ml-1.5 text-[10px] py-0.5 px-1 rounded-card ${activePreview ? 'bg-(--preview-accent)/12 text-(--preview-accent)' : 'text-(--text-tertiary) bg-(--background-secondary)'}`}>{displayCards.length}</span>
+                <Plate variant={activePreview ? 'custom' : 'ink'} size="sm" className={activePreview ? 'bg-(--preview-accent)/12 text-(--preview-accent)' : ''}>{displayCards.length}</Plate>
             </Tabs.Trigger>
             <Tabs.Trigger value="summary" className={TAB_TRIGGER_CLASS}>
-                <FaChartColumn className="text-[10px] mr-1.5" /> Summary
+                <FaChartColumn className="text-[10px]" /> Summary
             </Tabs.Trigger>
         </>
     );
@@ -772,7 +779,7 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
                         type="button"
                         onClick={() => setShowStyleModal(true)}
                         title="Default card style for this edition"
-                        className="ml-auto flex items-center gap-2 min-h-9 px-3 py-1.5 rounded-control border border-(--divider) text-[13px] font-bold text-(--text-secondary) hover:border-(--text-tertiary) transition-colors cursor-pointer"
+                        className={buttonClass('secondary', 'sm', 'ml-auto min-h-9')}
                     >
                         <FaPalette className="text-[12px] shrink-0" />
                         <span><span className="hidden sm:inline">Card </span>Style</span>
@@ -816,9 +823,9 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
                 className={`flex-col flex-1 min-h-0 ${step === 'pool' ? 'flex' : 'hidden'}`}
             >
             {!readOnly && (
-                <Tabs.List className="md:hidden flex items-center px-3 border-b border-(--divider) gap-x-1 py-1 shrink-0 overflow-x-auto">
+                <Tabs.List className={`md:hidden ${TAB_LIST_CLASS}`}>
                     <Tabs.Trigger value="build" className={TAB_TRIGGER_CLASS}>
-                        <FaWandMagicSparkles className="text-[10px] mr-1.5" /> Build
+                        <FaWandMagicSparkles className="text-[10px]" /> Build
                     </Tabs.Trigger>
                     {poolTabTriggers}
                 </Tabs.List>
@@ -833,7 +840,7 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
                         className="hidden md:flex flex-col items-center gap-3 w-9 shrink-0 py-3 border-r border-(--divider) text-(--text-tertiary) hover:text-(--text-primary) hover:bg-(--background-secondary) transition-colors cursor-pointer"
                     >
                         <FaAnglesRight className="text-[12px]" />
-                        <span className="text-[10px] font-bold uppercase tracking-wide [writing-mode:vertical-rl]">Build Method</span>
+                        <span className={`${FIELD_LABEL_CLASS} text-inherit! [writing-mode:vertical-rl]`}>Build Method</span>
                     </button>
                 )}
 
@@ -856,11 +863,11 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
                                     type="button"
                                     onClick={toggleBuildPanelHidden}
                                     title="Hide build method"
-                                    className="hidden md:flex items-center justify-center w-5 h-5 rounded text-(--text-tertiary) hover:text-(--text-primary) hover:bg-(--divider) transition-colors cursor-pointer"
+                                    className="hidden md:flex items-center justify-center w-5 h-5 rounded-control text-(--text-tertiary) hover:text-(--text-primary) hover:bg-(--divider) transition-colors cursor-pointer"
                                 >
                                     <FaAnglesLeft className="text-[11px]" />
                                 </button>
-                                <span className="text-[10px] font-bold text-(--text-tertiary) uppercase tracking-wide">Build Method</span>
+                                <span className={FIELD_LABEL_CLASS}>Build Method</span>
                             </div>
                         </div>
                         <Tabs.Root
@@ -868,12 +875,12 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
                             onValueChange={v => handleBuildMethodChange(v as BuildMethod)}
                             className="flex flex-col flex-1 min-h-0"
                         >
-                            <Tabs.List className="flex items-center px-3 border-b border-(--divider) gap-x-1 py-1 shrink-0">
+                            <Tabs.List className={TAB_LIST_CLASS}>
                                 <Tabs.Trigger value="algorithm" className={TAB_TRIGGER_CLASS}>
-                                    <FaWandMagicSparkles className="text-[10px] mr-1.5" /> Algorithm
+                                    <FaWandMagicSparkles className="text-[10px]" /> Algorithm
                                 </Tabs.Trigger>
                                 <Tabs.Trigger value="manual" className={TAB_TRIGGER_CLASS}>
-                                    <FaMagnifyingGlass className="text-[10px] mr-1.5" /> Manual
+                                    <FaMagnifyingGlass className="text-[10px]" /> Manual
                                 </Tabs.Trigger>
                             </Tabs.List>
                             <Tabs.Content value="algorithm" className="flex-1 min-h-0 flex flex-col focus:outline-none">
@@ -899,7 +906,7 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
                                         icon: <FaPlus />,
                                         label: 'Add',
                                         detailLabel: 'Add to Edition',
-                                        bgColorClass: 'bg-(--showdown-red)! text-white! p-2 md:p-1 shadow-raised hover:brightness-110',
+                                        emphasis: 'primary',
                                         onClick: handleAddCard,
                                     }}
                                 />
@@ -926,13 +933,13 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
                 <div className={`flex-1 min-w-0 flex-col min-h-0 ${activePoolTab === 'build' ? 'hidden md:flex' : 'flex'}`}>
                     {!readOnly && (
                         <div className="hidden md:flex items-center gap-2 px-3 pt-2 shrink-0">
-                            <span className="text-[10px] font-bold text-(--text-tertiary) uppercase tracking-wide">Player Pool</span>
+                            <span className={FIELD_LABEL_CLASS}>Player Pool</span>
                             <PoolStatusBadge isPreview={!!activePreview} />
                         </div>
                     )}
                     <div className="flex flex-col flex-1 min-h-0">
                         {/* Phones get the strip above the split instead (it includes Build) — except when browsing */}
-                        <Tabs.List className={`${readOnly ? 'flex' : 'hidden md:flex'} items-center px-3 border-b border-(--divider) gap-x-1 py-1 shrink-0`}>
+                        <Tabs.List className={`${readOnly ? '' : 'hidden! md:flex!'} ${TAB_LIST_CLASS}`}>
                             {poolTabTriggers}
                             <ShowdownSetLogos
                                 sets={displayCards.map(c => c.card_snapshot.showdown_set)}
@@ -967,21 +974,21 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
                                         <button
                                             type="button"
                                             onClick={handleFillRemainingSlots}
-                                            className="min-h-9 px-3.5 py-2 rounded-control text-[13px] font-bold bg-(--secondary) text-(--background-primary) cursor-pointer"
+                                            className={buttonClass('primary', 'sm')}
                                         >
                                             Fill Remaining Slots
                                         </button>
                                         <button
                                             type="button"
                                             onClick={handleReplaceAllFromPreview}
-                                            className="min-h-9 px-3.5 py-2 rounded-control text-[13px] font-bold border border-(--divider) text-(--text-secondary) hover:border-(--text-tertiary) transition-colors cursor-pointer"
+                                            className={buttonClass('secondary', 'sm')}
                                         >
                                             Replace All
                                         </button>
                                         <button
                                             type="button"
                                             onClick={() => setPreviewResult(null)}
-                                            className="min-h-9 px-3.5 py-2 rounded-control text-[13px] font-semibold text-(--text-tertiary) hover:text-(--text-primary) transition-colors cursor-pointer"
+                                            className={buttonClass('ghost', 'sm')}
                                         >
                                             Discard Preview
                                         </button>
@@ -1021,15 +1028,11 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
                                                 title={showPoolFilters ? 'Hide filters' : 'Show filters'}
                                                 className={`relative flex items-center justify-center w-9 h-9 rounded-control border transition-colors shrink-0 cursor-pointer
                                                     ${showPoolFilters || activeFilterCount > 0
-                                                        ? 'border-(--secondary) text-(--secondary)'
+                                                        ? 'border-(--showdown-blue) ring-1 ring-(--showdown-blue) text-(--text-primary)'
                                                         : 'border-(--divider) text-(--text-secondary) hover:border-(--text-tertiary)'}`}
                                             >
                                                 <FaFilter className="text-[13px]" />
-                                                {activeFilterCount > 0 && (
-                                                    <span className="absolute -top-1.5 -right-1.5 min-w-4 h-4 px-1 flex items-center justify-center rounded-full bg-(--secondary) text-(--background-primary) text-[10px] font-bold">
-                                                        {activeFilterCount}
-                                                    </span>
-                                                )}
+                                                <CornerCount count={activeFilterCount} />
                                             </button>
                                             <button
                                                 type="button"
@@ -1082,7 +1085,7 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
 
                                     {!readOnly && !activePreview && (
                                         <div className="flex flex-wrap items-center gap-2 ml-auto">
-                                            <span className="text-[10px] font-bold text-(--text-tertiary) uppercase tracking-wide shrink-0">
+                                            <span className={`${FIELD_LABEL_CLASS} shrink-0`}>
                                                 Numbering
                                             </span>
                                             <div className="flex gap-1.5">
@@ -1091,10 +1094,7 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
                                                         key={opt.value}
                                                         type="button"
                                                         onClick={() => handleNumberingModeChange(opt.value)}
-                                                        className={`min-h-9 px-2.5 sm:px-3.5 py-2 rounded-control text-[13px] font-bold border transition-colors cursor-pointer
-                                                            ${numbering.mode === opt.value
-                                                                ? 'bg-(--secondary) text-(--background-primary) border-(--secondary)'
-                                                                : 'border-(--divider) text-(--text-secondary) hover:border-(--text-tertiary)'}`}
+                                                        className={choiceClass(numbering.mode === opt.value)}
                                                     >
                                                         {opt.label}
                                                     </button>
@@ -1104,7 +1104,7 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
                                                 <button
                                                     type="button"
                                                     onClick={() => persist(renumberSorted(cards, numbering.sortLayers))}
-                                                    className="flex items-center gap-1.5 min-h-9 px-3.5 py-2 rounded-control text-[13px] font-bold border border-(--divider) text-(--text-secondary) hover:border-(--text-tertiary) transition-colors cursor-pointer"
+                                                    className={buttonClass('secondary', 'sm', 'min-h-9')}
                                                 >
                                                     <FaArrowsRotate className="text-[12px]" /> Renumber Now
                                                 </button>
@@ -1126,7 +1126,7 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
                                                             {numbering.mode === 'auto' && (
                                                                 <>
                                                                     <div className="flex flex-col gap-2">
-                                                                        <span className="text-[10px] font-bold text-(--text-tertiary) uppercase tracking-wide">
+                                                                        <span className={FIELD_LABEL_CLASS}>
                                                                             Sort By (in order)
                                                                         </span>
                                                                         {numbering.sortLayers.map((layer, index) => (
@@ -1135,7 +1135,7 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
                                                                                 <select
                                                                                     value={layer.category}
                                                                                     onChange={e => updateSortLayer(index, { category: e.target.value as SortCategory })}
-                                                                                    className="flex-1 min-w-0 min-h-9 text-[13px] bg-transparent border border-(--divider) rounded-control px-2 py-2 text-(--text-primary) focus:outline-none focus:border-(--secondary)"
+                                                                                    className={fieldClass('md', 'flex-1 min-w-0 h-9! focus:outline-none')}
                                                                                 >
                                                                                     {availableCategoriesFor(layer.category).map(opt => (
                                                                                         <option key={opt.value} value={opt.value}>{opt.label}</option>
@@ -1204,7 +1204,7 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
                                                             />
 
                                                             <div className="flex flex-col gap-1">
-                                                                <span className="text-[10px] font-bold text-(--text-tertiary) uppercase tracking-wide">Prefix</span>
+                                                                <span className={FIELD_LABEL_CLASS}>Prefix</span>
                                                                 <input
                                                                     type="text"
                                                                     value={numbering.prefix}
@@ -1236,7 +1236,7 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
                                         <button
                                             type="button"
                                             onClick={clearPoolFilters}
-                                            className="min-h-9 px-3.5 py-2 rounded-control text-[13px] font-bold border border-(--divider) text-(--text-secondary) hover:border-(--text-tertiary) transition-colors cursor-pointer"
+                                            className={buttonClass('secondary', 'sm')}
                                         >
                                             Clear Filters
                                         </button>
@@ -1254,10 +1254,10 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
                                                 {groupBy !== 'none' && (
                                                     // Sticks to the top of the scrolling grid while its group is in view; -top-3/-mx-3 offset the container's p-3.
                                                     <div className="sticky -top-3 z-10 -mx-3 px-3 py-2 flex items-center gap-2 border-t border-b border-(--divider) bg-(--background-primary)">
-                                                        <span className="text-[11px] font-bold text-(--text-secondary) uppercase tracking-wide">{group.label}</span>
-                                                        <span className="text-[10px] text-(--text-tertiary) bg-(--background-secondary) py-0.5 px-1 rounded-card">
+                                                        <Heading level="panel" as="span">{group.label}</Heading>
+                                                        <Plate size="sm">
                                                             {poolGroups.find(g => g.key === group.key)?.cards.length}
-                                                        </span>
+                                                        </Plate>
                                                     </div>
                                                 )}
                                                 <div className={showFullCards ? 'grid grid-cols-[repeat(auto-fill,minmax(min(300px,100%),1fr))] gap-6' : 'grid grid-cols-2 sm:grid-cols-[repeat(auto-fit,minmax(min(200px,100%),1fr))] gap-4'}>
@@ -1397,11 +1397,11 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
 function StepButton({ number, label, isActive, onClick }: { number?: number; label: string; isActive: boolean; onClick: () => void }) {
     return (
         <button type="button" onClick={onClick} className="group flex items-center gap-2 cursor-pointer">
-            {number !== undefined && <span className={`flex items-center justify-center w-5 h-5 rounded-full text-[10px] font-black shrink-0 transition-colors
-                ${isActive ? 'bg-(--secondary) text-(--background-primary)' : 'border border-(--text-tertiary) text-(--text-tertiary) group-hover:border-(--text-secondary) group-hover:text-(--text-secondary)'}`}>
+            {number !== undefined && <span className={`flex items-center justify-center w-5 h-5 rounded-full text-[11px] font-semibold tabular-nums shrink-0 transition-colors
+                ${isActive ? 'bg-(--showdown-blue) text-white' : 'border border-(--text-tertiary) text-(--text-tertiary) group-hover:border-(--text-secondary) group-hover:text-(--text-secondary)'}`}>
                 {number}
             </span>}
-            <span className={`text-[13px] transition-colors ${isActive ? 'font-bold text-(--text-primary)' : 'font-semibold text-(--text-tertiary) group-hover:text-(--text-secondary)'}`}>
+            <span className={`${headingClass('panel')} transition-colors ${isActive ? '' : 'text-(--text-tertiary)! group-hover:text-(--text-secondary)!'}`}>
                 {label}
             </span>
         </button>

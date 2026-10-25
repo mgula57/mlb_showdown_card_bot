@@ -13,7 +13,7 @@ import {
 } from '../../api/userTeams';
 
 import FormEnabler from '../customs/FormEnabler';
-import { FIELD_LABEL_CLASS } from '../shared/fieldStyles';
+import { FIELD_LABEL_CLASS, CAPS_LABEL_CLASS } from '../shared/fieldStyles';
 type BucketSizes = {
     offense: number;   // always 9
     rotation: number;  // num_starters
@@ -268,7 +268,7 @@ export function AutofillPanel({ ptsLimit, bucketSizes, existingPts, existingPick
                 <div className="px-4 py-3 space-y-4 max-h-[60vh] overflow-y-auto">
                     {/* Layer 1: Points Distribution */}
                     <section>
-                        <div className="text-[11px] font-bold text-(--text-tertiary) uppercase tracking-wide mb-2">
+                        <div className={`mb-2 ${CAPS_LABEL_CLASS} text-(--text-tertiary)`}>
                             Points Distribution
                         </div>
 
@@ -349,7 +349,7 @@ export function AutofillPanel({ ptsLimit, bucketSizes, existingPts, existingPick
 
                     {/* Layer 2: Pitching Strategy */}
                     <section>
-                        <div className="text-[11px] font-bold text-(--text-tertiary) uppercase tracking-wide mb-2">
+                        <div className={`mb-2 ${CAPS_LABEL_CLASS} text-(--text-tertiary)`}>
                             Pitching Focus
                         </div>
                         <div className="flex flex-wrap gap-1.5">
@@ -366,7 +366,7 @@ export function AutofillPanel({ ptsLimit, bucketSizes, existingPts, existingPick
 
                     {/* Layer 3: Hitting Strategy */}
                     <section>
-                        <div className="text-[11px] font-bold text-(--text-tertiary) uppercase tracking-wide mb-2">
+                        <div className={`mb-2 ${CAPS_LABEL_CLASS} text-(--text-tertiary)`}>
                             Hitting Focus
                         </div>
                         <div className="flex flex-wrap gap-1.5">
@@ -383,7 +383,7 @@ export function AutofillPanel({ ptsLimit, bucketSizes, existingPts, existingPick
 
                     {/* Layer 4: Defense Strategy */}
                     <section>
-                        <div className="text-[11px] font-bold text-(--text-tertiary) uppercase tracking-wide mb-2">
+                        <div className={`mb-2 ${CAPS_LABEL_CLASS} text-(--text-tertiary)`}>
                             Defense Priority
                         </div>
                         <div className="flex flex-wrap gap-1.5">
@@ -400,7 +400,7 @@ export function AutofillPanel({ ptsLimit, bucketSizes, existingPts, existingPick
 
                     {/* Layer 5: Catcher Defense Strategy */}
                     <section>
-                        <div className="text-[11px] font-bold text-(--text-tertiary) uppercase tracking-wide mb-2">
+                        <div className={`mb-2 ${CAPS_LABEL_CLASS} text-(--text-tertiary)`}>
                             Catcher Defense Priority
                         </div>
                         <div className="flex flex-wrap gap-1.5">

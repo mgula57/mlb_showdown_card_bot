@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { type ShowdownBotCard } from '../../../api/showdownBotCard';
 import { fetchCardComps, type WotcCompCard } from '../../../api/card_db/cardDatabase';
 import { CardItem, CardItemFromCard, CardItemSkeleton } from '../CardItem';
+import { CAPS_LABEL_CLASS } from '../../shared/fieldStyles';
 
 type CardCompsProps = {
     card: ShowdownBotCard | null | undefined;
@@ -33,7 +34,7 @@ function CompCardItem({ comp }: { comp: WotcCompCard }) {
                 className="absolute top-2 right-2 z-10 flex items-center gap-1 rounded-plate px-2 py-0.5 opacity-80 backdrop-blur-lg"
             >
                 <div className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: barColor }} />
-                <span className="text-[10px] font-black tabular-nums" style={{ color: barColor }}>{pct}%</span>
+                <span className="text-[10px] font-bold tabular-nums" style={{ color: barColor }}>{pct}%</span>
             </div>
 
             <CardItem
@@ -128,7 +129,7 @@ export function CardComps({ card, isLoading }: CardCompsProps) {
 
             {/* Divider */}
             <div className="border-t-3 border-form-element rounded my-2" />
-            <span className="text-[10px] font-semibold uppercase tracking-wide opacity-40 text-center block">WOTC Comps</span>
+            <span className={`opacity-40 text-center block ${CAPS_LABEL_CLASS}`}>WOTC Comps</span>
 
             {comps.map(comp => (
                 <CompCardItem key={comp.id} comp={comp} />

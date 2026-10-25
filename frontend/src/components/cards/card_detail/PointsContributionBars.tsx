@@ -103,9 +103,9 @@ export default function PointsContributionBars({ pointsBreakdownData, ip }: Poin
             ))}
 
             <div className="flex items-center gap-2.5 pt-1 mt-1 border-t border-(--form-element) opacity-80">
-                <span className="text-sm font-black w-20 shrink-0">TOTAL</span>
+                <span className="text-sm font-bold w-20 shrink-0">TOTAL</span>
                 <div className="flex-1" />
-                <span className={`text-sm font-black w-20 shrink-0 text-right tabular-nums ${isEmpty ? 'blur-xs' : ''}`}>
+                <span className={`text-sm font-bold w-20 shrink-0 text-right tabular-nums ${isEmpty ? 'blur-xs' : ''}`}>
                     {Math.round(totalPoints)} pts
                 </span>
             </div>

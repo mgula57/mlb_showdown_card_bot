@@ -7,6 +7,8 @@ import { createSimLobby, joinSimLobby, type CreateSimLobbyPayload, type SimLobby
 
 import { InlineError } from '../shared/InlineError';
 import { Heading } from '../shared/Heading';
+import { buttonClass } from '../shared/buttonStyles';
+import { Tabs } from '../shared/Tabs';
 function errorMessage(err: unknown): string {
     return err instanceof Error ? err.message : String(err);
 }
@@ -63,22 +65,15 @@ export function SimLobbyEntry({ token, onEnterLobby, onBack, initialMode }: Prop
         <div className="flex flex-col gap-4">
             <div className="max-w-2xl mx-auto w-full px-4 pt-3 flex items-center justify-between gap-3">
                 <BackButton onBack={onBack} label="Back" />
-                <div className="flex rounded-control bg-(--background-tertiary) p-1 gap-1">
-                    <button
-                        type="button"
-                        onClick={() => { setMode('create'); setError(null); }}
-                        className={`flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-control text-[12px] font-bold cursor-pointer transition-colors ${mode === 'create' ? 'bg-(--secondary) text-(--background-primary)' : 'text-(--text-secondary)'}`}
-                    >
-                        <FaUsers className="text-[11px]" /> Create
-                    </button>
-                    <button
-                        type="button"
-                        onClick={() => { setMode('join'); setError(null); }}
-                        className={`flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-control text-[12px] font-bold cursor-pointer transition-colors ${mode === 'join' ? 'bg-(--secondary) text-(--background-primary)' : 'text-(--text-secondary)'}`}
-                    >
-                        <FaRightToBracket className="text-[11px]" /> Join
-                    </button>
-                </div>
+                <Tabs
+                    size="sm"
+                    value={mode}
+                    onChange={next => { setMode(next); setError(null); }}
+                    tabs={[
+                        { id: 'create', label: 'Create', icon: <FaUsers className="text-[11px]" /> },
+                        { id: 'join', label: 'Join', icon: <FaRightToBracket className="text-[11px]" /> },
+                    ]}
+                />
             </div>
 
             {mode === 'create' ? (
@@ -102,7 +97,7 @@ export function SimLobbyEntry({ token, onEnterLobby, onBack, initialMode }: Prop
                         type="button"
                         onClick={handleJoin}
                         disabled={busy}
-                        className="flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-control bg-(--secondary) text-[13px] font-bold text-(--background-primary) hover:opacity-90 transition-opacity cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                        className={buttonClass('primary', 'md')}
                     >
                         {busy ? <FaSpinner className="animate-spin text-[11px]" /> : <FaRightToBracket className="text-[11px]" />}
                         Join Lobby

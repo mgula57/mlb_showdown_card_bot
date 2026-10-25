@@ -10,6 +10,8 @@ import { FaArrowLeft, FaCheck, FaEye, FaEyeSlash, FaGlobe, FaPen, FaPlus, FaSpin
 
 import { InlineError } from '../shared/InlineError';
 import { Heading } from '../shared/Heading';
+import { buttonClass, buttonVariantClass } from '../shared/buttonStyles';
+import { Plate } from '../shared/Plate';
 type ReleaseDetailProps = {
     release: Release;
     readOnly: boolean;
@@ -183,9 +185,9 @@ export function ReleaseDetail({ release, readOnly, editionSlug, onEditionChange,
                     </button>
                     <div className="flex flex-col justify-center min-w-0 flex-1 md:flex-none md:max-w-[40%] py-1.5" title={release.description || undefined}>
                         <div className="flex items-center gap-2 min-w-0">
-                            <Heading level="section" as="h1" className="truncate">{release.name}</Heading>
-                            {release.is_official && <HeaderBadge className="bg-(--secondary) text-(--background-primary)">OFFICIAL</HeaderBadge>}
-                            {isOwner && !isPublished && <HeaderBadge className="border border-(--divider) text-(--text-tertiary)">DRAFT</HeaderBadge>}
+                            <Heading level="section" as="h1" fit>{release.name}</Heading>
+                            {release.is_official && <Plate variant="navy" size="sm">Official</Plate>}
+                            {isOwner && !isPublished && <Plate variant="outline" size="sm">Draft</Plate>}
                         </div>
                         {release.description && (
                             <div className="text-[11px] text-(--text-secondary) truncate">{release.description}</div>
@@ -196,10 +198,10 @@ export function ReleaseDetail({ release, readOnly, editionSlug, onEditionChange,
                         {editions.map(edition => (
                             <Tabs.Trigger key={edition.id} value={edition.id} className={EDITION_TAB_CLASS}>
                                 {edition.name}
-                                <span className="ml-1.5 text-[10px] text-(--text-tertiary) font-normal py-0.5 bg-(--background-primary) px-1 rounded-card">{edition.card_count}</span>
+                                <Plate size="sm" className="ml-1.5">{edition.card_count}</Plate>
                                 {/* Only worth flagging per edition when the rest of the release is already public */}
                                 {isOwner && isPublished && !edition.is_published && (
-                                    <span className="ml-1.5 text-[9px] font-black text-(--text-tertiary)">DRAFT</span>
+                                    <Plate variant="outline" size="sm" className="ml-1.5">Draft</Plate>
                                 )}
                             </Tabs.Trigger>
                         ))}
@@ -294,7 +296,7 @@ export function ReleaseDetail({ release, readOnly, editionSlug, onEditionChange,
                             type="button"
                             onClick={handleSubmitEditionForm}
                             disabled={!editionFormName.trim() || savingEditionForm}
-                            className="flex items-center gap-1.5 px-3 py-2 rounded-control bg-(--secondary) text-[12px] font-bold text-(--background-primary) hover:opacity-90 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+                            className={buttonClass('primary', 'sm')}
                         >
                             {savingEditionForm
                                 ? <FaSpinner className="animate-spin text-[10px]" />
@@ -349,17 +351,9 @@ export function ReleaseDetail({ release, readOnly, editionSlug, onEditionChange,
     );
 }
 
-function HeaderBadge({ className, children }: { className: string; children: ReactNode }) {
-    return (
-        <span className={`text-[9px] font-black rounded px-1.5 py-0.5 leading-none shrink-0 ${className}`}>
-            {children}
-        </span>
-    );
-}
-
 const HEADER_BUTTON_TONES = {
-    neutral: 'border border-(--divider) text-(--text-secondary) hover:border-(--text-tertiary) hover:text-(--text-primary)',
-    primary: 'bg-(--secondary) text-(--background-primary) hover:opacity-90',
+    neutral: buttonVariantClass('secondary'),
+    primary: buttonVariantClass('primary'),
 } as const;
 
 type HeaderButtonProps = {
@@ -382,7 +376,7 @@ function HeaderButton({ icon, label, onClick, tone = 'neutral', busy = false, co
             disabled={busy}
             title={title ?? label}
             aria-label={label}
-            className={`flex items-center justify-center gap-1.5 h-8 min-w-8 px-2 sm:px-3 rounded-control text-[12px] font-bold whitespace-nowrap transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${HEADER_BUTTON_TONES[tone]}`}
+            className={`flex items-center justify-center gap-1.5 h-8 min-w-8 px-2 sm:px-3 rounded-control text-[12px] font-semibold whitespace-nowrap ${HEADER_BUTTON_TONES[tone]}`}
         >
             <span className="text-[12px]">{busy ? <FaSpinner className="animate-spin" /> : icon}</span>
             <span className={collapseLabel ? 'hidden sm:inline' : ''}>{label}</span>

@@ -13,7 +13,7 @@ import {
 } from '../../api/userQuickFilters';
 import { LoginModal } from '../auth/LoginModal';
 
-import { fieldClass } from '../shared/fieldStyles';
+import { fieldClass, CAPS_LABEL_CLASS } from '../shared/fieldStyles';
 function Tip({ label, children }: { label: string; children: ReactNode }) {
     return (
         <div className="relative group/tip shrink-0">
@@ -210,7 +210,7 @@ export function QuickFiltersDropdown({ source, defaultPresets, currentFilters, o
                     {/* Defaults */}
                     {defaultPresets.length > 0 && (
                         <section className="px-3 pt-3 pb-2">
-                            <p className="text-xs font-semibold text-secondary uppercase tracking-wide mb-1">Defaults</p>
+                            <p className={`mb-1 ${CAPS_LABEL_CLASS} text-(--text-tertiary)`}>Defaults</p>
                             <ul className="flex flex-col gap-1">
                                 {defaultPresets.map(preset => (
                                     <li key={preset.id}>
@@ -231,7 +231,7 @@ export function QuickFiltersDropdown({ source, defaultPresets, currentFilters, o
 
                     {/* My Filters */}
                     <section className="px-3 pt-2 pb-3">
-                        <p className="text-xs font-semibold text-secondary uppercase tracking-wide mb-1">My Filters</p>
+                        <p className={`mb-1 ${CAPS_LABEL_CLASS} text-(--text-tertiary)`}>My Filters</p>
 
                         {!isLoggedIn ? (
                             <button

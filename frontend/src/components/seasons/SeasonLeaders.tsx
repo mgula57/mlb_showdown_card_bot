@@ -7,6 +7,8 @@ import { CardSource } from "../../types/cardSource";
 import { CardItemFromCardDatabaseRecord, CardItemSkeleton } from "../cards/CardItem";
 import { CardDetail } from "../cards/CardDetail";
 import { Modal } from "../shared/Modal";
+import { CAPS_LABEL_CLASS } from "../shared/fieldStyles";
+import { headingClass } from "../shared/headingStyles";
 
 // =============================================================================
 // MARK: - Category Definitions
@@ -203,7 +205,7 @@ export default function SeasonLeaders({ seasonId, season, showdownSet, sportId, 
                     </span>
                     <div className="flex items-center gap-1 min-w-0">
                         {teamAbbr && (
-                            <span className={`text-[10px] font-semibold uppercase tracking-wide text-(--text-tertiary)`}>
+                            <span className={`${CAPS_LABEL_CLASS} text-(--text-tertiary)`}>
                                 {teamAbbr}
                             </span>
                         )}
@@ -213,7 +215,7 @@ export default function SeasonLeaders({ seasonId, season, showdownSet, sportId, 
                             </span>
                         )}
                         {statValue && categoryDef && (
-                            <span className={`text-xs font-black tabular-nums text-(--text-primary)`}>
+                            <span className={`text-xs font-bold tabular-nums text-(--text-primary)`}>
                                 {statValue}
                             </span>
                         )}
@@ -263,7 +265,7 @@ export default function SeasonLeaders({ seasonId, season, showdownSet, sportId, 
             <div className="flex items-center justify-between gap-4 mb-5 flex-wrap lg:pr-6">
                 <div className="flex items-center gap-2">
                     <FaTrophy className={`text-sm text-(--gold)`} />
-                    <span className={`text-sm font-bold uppercase tracking-wide text-(--text-tertiary)`}>
+                    <span className={headingClass('panel')}>
                         Season Leaders
                     </span>
                 </div>
@@ -324,7 +326,7 @@ export default function SeasonLeaders({ seasonId, season, showdownSet, sportId, 
                             <div key={catDef.id}>
                                 {/* Category header */}
                                 <div className="flex items-center gap-2 mb-3 lg:pr-6">
-                                    <span className={`text-xs font-bold uppercase tracking-wide text-(--text-tertiary)`}>
+                                    <span className={`${CAPS_LABEL_CLASS} text-(--text-tertiary)`}>
                                         {catDef.label}
                                     </span>
                                     <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded bg-(--plate) text-(--text-secondary)`}>

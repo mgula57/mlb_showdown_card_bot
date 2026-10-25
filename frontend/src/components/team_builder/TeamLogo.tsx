@@ -63,7 +63,7 @@ export function TeamLogo({
                 {logoUrl ? (
                     <img src={logoUrl} alt={`${abbreviation} logo`} className="absolute inset-0 w-full h-full object-cover" />
                 ) : (
-                    <span className="absolute inset-0 flex items-center justify-center font-black" style={{ color: textColor }}>
+                    <span className="absolute inset-0 flex items-center justify-center font-display-upright uppercase" style={{ color: textColor }}>
                         {abbreviation}
                     </span>
                 )}

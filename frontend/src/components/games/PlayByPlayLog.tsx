@@ -5,6 +5,9 @@ import { resolveCardKey } from "../../domain/players";
 import { ordinal } from "../../functions/formatters";
 import { CardItemCompactFromCard } from "../cards/CardItemCompact";
 import type { ShowdownBotCardAPIResponse } from "../../api/showdownBotCard";
+import { headingClass } from "../shared/headingStyles";
+import { choiceClass } from "../shared/choiceStyles";
+import { CAPS_LABEL_CLASS } from "../shared/fieldStyles";
 
 type CardMap = Record<string, ShowdownBotCardAPIResponse>;
 
@@ -69,7 +72,7 @@ function CurrentMatchupRow({
 
     return (
         <div className="sticky top-0 z-10 -mx-1 px-1 pb-1 bg-primary">
-            <div className="text-sm w-full text-center font-black text-(--green) pt-1 pb-2 flex items-center justify-center gap-2">
+            <div className={`w-full pt-1 pb-2 flex items-center justify-center gap-2 ${headingClass('panel')} text-(--green)!`}>
                 <span className="relative flex h-2 w-2">
                     <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-(--green) opacity-75" />
                     <span className="relative inline-flex h-2 w-2 rounded-full bg-(--green)" />
@@ -143,11 +146,7 @@ export default function PlayByPlayLog({ plays, cardMap, onCardSelect, isLoadingC
             onClick={() => setScoringOnly((on) => !on)}
             disabled={scoringCount === 0 && !scoringOnly}
             aria-pressed={scoringOnly}
-            className={`cursor-pointer rounded-control border px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${
-                scoringOnly
-                    ? 'border-(--green)/40 bg-(--green)/10 text-(--green)'
-                    : 'border-(--divider) text-(--secondary) hover:text-(--primary)'
-            }`}
+            className={choiceClass(scoringOnly, 'sm')}
         >
             Scoring{scoringCount > 0 ? ` (${scoringCount})` : ''}
         </button>
@@ -189,12 +188,12 @@ export default function PlayByPlayLog({ plays, cardMap, onCardSelect, isLoadingC
                             {showTakeover && (
                                 <div className="flex items-center gap-2 py-2">
                                     <div className="h-px flex-1 bg-(--divider)" />
-                                    <span className="text-[10px] font-bold uppercase tracking-wider text-(--secondary)">Took over here</span>
+                                    <span className={`${CAPS_LABEL_CLASS} text-(--text-tertiary)`}>Took over here</span>
                                     <div className="h-px flex-1 bg-(--divider)" />
                                 </div>
                             )}
                             {showDivider && (
-                                <div className="text-sm w-full text-center font-black text-(--primary) pt-1 pb-2">
+                                <div className={`w-full text-center pt-1 pb-2 ${headingClass('panel')}`}>
                                     {inningLabel(play.inning, play.isTop)}
                                 </div>
                             )}
@@ -254,7 +253,7 @@ export default function PlayByPlayLog({ plays, cardMap, onCardSelect, isLoadingC
     return (
         <div className="rounded-card border border-(--divider) bg-(--background-secondary) p-3">
             <div className="mb-2 flex items-center justify-between gap-2">
-                <div className="text-xs font-bold uppercase tracking-wide text-(--secondary)">Play-by-Play</div>
+                <div className={headingClass('panel')}>Play-by-Play</div>
                 {filterToggle}
             </div>
             {list}

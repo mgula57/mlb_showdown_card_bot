@@ -8,6 +8,7 @@ import CustomSelect from '../shared/CustomSelect';
 import { InlineError } from '../shared/InlineError';
 import { buttonClass } from '../shared/buttonStyles';
 import { FIELD_LABEL_CLASS } from '../shared/fieldStyles';
+import { Heading } from '../shared/Heading';
 type NewReleaseModalProps = {
     onConfirm: (payload: ReleaseCreatePayload) => Promise<void>;
     onCancel: () => void;
@@ -45,9 +46,7 @@ export function NewReleaseModal({ onConfirm, onCancel }: NewReleaseModalProps) {
                 {/* Header */}
                 <div className="flex items-center justify-between px-4 pt-4 pb-3 border-b border-(--divider) shrink-0">
                     <div>
-                        <div className="text-[14px] font-black text-(--text-primary)">
-                            New Release
-                        </div>
+                        <Heading level="section">New Release</Heading>
                         <div className="text-[11px] text-(--text-secondary) mt-0.5">Name your set — you can add editions and cards next</div>
                     </div>
                     <button

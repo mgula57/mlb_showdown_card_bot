@@ -1,5 +1,6 @@
 import { type PointsCategoryBreakdown } from '../../../api/showdownBotCard';
 import { formatStatValue } from '../../../functions/formatters';
+import { CAPS_LABEL_CLASS } from '../../shared/fieldStyles';
 
 const METRIC_ALIAS: Record<string, string> = {
     "AVERAGE": "BA",
@@ -66,11 +67,11 @@ export default function PercentileGaugesPanel({ breakdowns }: PercentileGaugesPa
                         const color = percentileColor(pct);
                         return (
                             <tr key={bd.metric} className="border-b border-current border-opacity-10 last:border-0">
-                                <td className="py-1.5 pr-2 font-semibold uppercase tracking-wide opacity-60">{label}</td>
+                                <td className={`py-1.5 pr-2 opacity-60 ${CAPS_LABEL_CLASS}`}>{label}</td>
                                 <td className={`py-1.5 px-2 text-right font-bold ${isEmpty ? 'blur-xs' : ''}`}>
                                     {formatStatValue(bd.value, bd.metric)}
                                 </td>
-                                <td className={`py-1.5 pl-2 text-right font-black ${isEmpty ? 'blur-xs' : ''}`} style={{ color }}>
+                                <td className={`py-1.5 pl-2 text-right font-bold ${isEmpty ? 'blur-xs' : ''}`} style={{ color }}>
                                     {Math.round(pct * 100)}
                                 </td>
                                 <td className="py-1.5 pl-3">

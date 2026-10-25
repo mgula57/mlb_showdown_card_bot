@@ -11,6 +11,10 @@ const LEVEL_CLASSES: Record<HeadingLevel, string> = {
     panel: 'font-display-upright uppercase text-[15px] leading-5',
 };
 
+/** Room on the right for the italic display face, which leans past its own box; without it an
+ *  `overflow: hidden` edge (truncate, line-clamp) shaves the last letter. */
+export const SLANT_ROOM_CLASS = 'pr-[0.12em]';
+
 export function headingClass(level: HeadingLevel): string {
     return `${LEVEL_CLASSES[level]} text-(--text-primary)`;
 }

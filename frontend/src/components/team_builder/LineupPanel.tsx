@@ -281,7 +281,7 @@ export function LineupPanel({ lineups, cardMap, onLineupsChange, readOnly = fals
                                 {/* Batting order + fielding position stacked into one compact
                                     column so the card keeps as much width as possible on a phone. */}
                                 <div className="flex flex-col items-center w-6 shrink-0 leading-none gap-0.5">
-                                    <span className="text-[14px] font-black text-(--text-secondary) tabular-nums">
+                                    <span className="font-display-upright text-[17px] leading-none text-(--text-secondary) tabular-nums">
                                         {slot.batting_order}
                                     </span>
                                     <span className="text-[9px] font-bold text-(--text-tertiary)">

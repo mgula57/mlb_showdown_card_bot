@@ -23,8 +23,8 @@ import { CardSource } from '../../types/cardSource';
 import CustomSelect from '../shared/CustomSelect';
 import ShowdownBotLogo from '../shared/ShowdownBotLogo';
 import { useCustomizeCard } from '../customs/customizeCard';
-
 import { imageForSet, showdownSets } from "../shared/SiteSettingsContext";
+
 
 // Chart accuracy table (kept as table — compact and precise)
 import { ChartSelectionBreakdown } from './card_detail/ChartSelectionBreakdown';
@@ -53,6 +53,7 @@ import PinnedFooterPortal from '../shared/PinnedFooterPortal';
 import { cardImagePublicUrl } from '../../api/supabase';
 
 import { Heading } from '../shared/Heading';
+import { CAPS_LABEL_CLASS } from '../shared/fieldStyles';
 /**
  * Props for the CardDetail component
  */
@@ -112,7 +113,7 @@ const SectionPanel = ({ title, subtitle, isLoading, children }: { title: string;
     <div className={`bg-secondary rounded-card p-4 border border-form-element space-y-3 overflow-y-scroll ${isLoading ? 'blur-xs' : ''}`}>
         <div className="flex flex-col gap-1">
             <Eyebrow>{title}</Eyebrow>
-            {subtitle && <div className="text-[10px] font-semibold uppercase tracking-widest text-(--text-tertiary)">{subtitle}</div>}
+            {subtitle && <div className={`${CAPS_LABEL_CLASS} text-(--text-tertiary)`}>{subtitle}</div>}
         </div>
         {children}
     </div>

@@ -52,6 +52,7 @@ import { buttonClass } from '../shared/buttonStyles';
 
 import { Heading } from '../shared/Heading';
 import FormEnabler from '../customs/FormEnabler';
+import { CAPS_LABEL_CLASS } from '../shared/fieldStyles';
 /** Cheapest PTS a real showdown card can be — matches the floor of the lowest price band the
  *  server-side autofill pool queries against (`_CANDIDATE_PRICE_BANDS` in autofill.py). Used to
  *  reserve budget for a draft pick's still-empty roster slots. */
@@ -1419,7 +1420,7 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                     <div className="flex-1 min-w-0">
                         {/* Name + total pts */}
                         <div className="flex flex-wrap items-center gap-x-2 overflow-x-scroll scrollbar-hide">
-                            <Heading level="page" className="text-xl! md:text-3xl! truncate">{draft.name || 'Untitled Team'}</Heading>
+                            <Heading level="page" className="text-xl! md:text-3xl!" fit>{draft.name || 'Untitled Team'}</Heading>
                             
                             {draft.roster.length === draft.roster_size && (
                                 <span className="flex gap-x-0.5 items-center text-[12px] font-semibold text-(--text-tertiary) shrink-0">
@@ -1651,7 +1652,7 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                                         color={bannerLeft.fill}
                                     />
                                     {guidedActive && (
-                                        <span className="hidden md:flex items-center gap-1 px-2 py-1 rounded-control bg-black/20 font-black tabular-nums whitespace-nowrap" title="Guided Draft round">
+                                        <span className="hidden md:flex items-center gap-1 px-2 py-1 rounded-control bg-black/20 font-bold tabular-nums whitespace-nowrap" title="Guided Draft round">
                                             <FaCompass className="text-[10px]" />
                                             ROUND {Math.min(draft.roster.length + 1, draft.roster_size)}/{draft.roster_size}
                                         </span>
@@ -1696,7 +1697,7 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                                             style={{ width: `${draft.roster_size > 0 ? Math.min(100, (draft.roster.length / draft.roster_size) * 100) : 0}%`, backgroundColor: bannerRight.fill }}
                                         />
                                     </div>
-                                    <span className="text-[11px] font-black" style={{ color: bannerRight.fill }}>
+                                    <span className="text-[11px] font-bold" style={{ color: bannerRight.fill }}>
                                         {draft.roster.length}/{draft.roster_size}
                                     </span>
                                 </div>
@@ -1799,7 +1800,7 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                                 type="button"
                                 onClick={() => setSetupStep('draft')}
                                 disabled={!isTeamSetupValid(draft)}
-                                className="flex items-center gap-1.5 px-4 py-2 rounded-control text-[13px] font-bold text-white bg-(--showdown-red) hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-opacity"
+                                className={buttonClass('primary', 'md')}
                             >
                                 Continue to Draft <FaArrowRight className="text-[11px]" />
                             </button>
@@ -2023,7 +2024,7 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                             )}
                             {confirmRotationPositions.length > 0 && (
                                 <>
-                                    <div className="text-[10px] font-semibold text-(--text-tertiary) uppercase tracking-wide">Rotation</div>
+                                    <div className={`${CAPS_LABEL_CLASS} text-(--text-tertiary)`}>Rotation</div>
                                     <div className="grid grid-cols-2 lg:grid-cols-3 gap-1.5">
                                         {confirmRotationPositions.map(renderPositionButton)}
                                     </div>
@@ -2031,7 +2032,7 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                             )}
                             {confirmBullpenPositions.length > 0 && (
                                 <>
-                                    <div className="text-[10px] font-semibold text-(--text-tertiary) uppercase tracking-wide">Bullpen</div>
+                                    <div className={`${CAPS_LABEL_CLASS} text-(--text-tertiary)`}>Bullpen</div>
                                     <div className="flex flex-wrap gap-1.5">
                                         {confirmBullpenPositions.map(renderPositionButton)}
                                     </div>
@@ -2106,14 +2107,14 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                                         setShowSettingsModal(false);
                                     }}
                                     disabled={!pendingSettings || settingsChanges.length === 0 || !settingsValid}
-                                    className="flex-1 px-3 py-4 rounded-control text-[12px] font-bold bg-(--showdown-red) text-white hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer transition-opacity"
+                                    className={buttonClass('primary', 'md', 'flex-1')}
                                 >
                                     Apply Changes
                                 </button>
                                 <button
                                     type="button"
                                     onClick={closeSettingsModal}
-                                    className="px-3 py-4 rounded-control text-[12px] font-bold border border-(--divider) text-(--text-secondary) hover:text-(--text-primary) cursor-pointer transition-colors"
+                                    className={buttonClass('secondary', 'md')}
                                 >
                                     {pendingSettings && settingsChanges.length > 0 ? 'Discard' : 'Close'}
                                 </button>
@@ -2331,7 +2332,7 @@ const DraftPanel = memo(function DraftPanel({ draftSource, draftMode, onTabChang
                         actionButton={{
                             icon: <FaPlus />,
                             label: 'Select',
-                            bgColorClass: 'bg-(--showdown-blue)! text-white! p-2 md:p-1 shadow-raised hover:brightness-110',
+                            emphasis: 'primary',
                             onClick: onCardPicked,
                             disabled: actionDisabled,
                         }}
@@ -2364,7 +2365,7 @@ function SetupStepChips({ step, onStep, settingsDone, color }: {
                 {done ? <FaCircleCheck /> : id === 'settings' ? '1' : '2'}
             </span>
             <span className="inline">{label}</span>
-            {trailing && <span className="font-black tabular-nums">{trailing}</span>}
+            {trailing && <span className="font-bold tabular-nums">{trailing}</span>}
         </button>
     );
     return (

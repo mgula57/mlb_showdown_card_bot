@@ -49,6 +49,9 @@ import { startOpenSim, type OpenSimPayload } from "../../api/sim";
 
 import { Eyebrow } from '../shared/Eyebrow';
 import { Heading } from '../shared/Heading';
+import { radixVerticalTabTriggerClass } from '../shared/tabStyles';
+import { CAPS_LABEL_CLASS } from '../shared/fieldStyles';
+import { headingClass } from '../shared/headingStyles';
 const formatScheduleDate = (date?: string): string => {
     if (!date) {
         return "Today's Games";
@@ -948,13 +951,7 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
                                 <div className="flex items-center gap-1">
                                     <Tabs.Trigger
                                         value={tab.id}
-                                        className="relative flex flex-1 gap-x-2 items-center justify-start px-3 py-2.5 text-sm rounded-card transition-colors
-                                                   data-[state=active]:bg-(--background-quaternary)
-                                                   data-[state=active]:font-bold
-                                                   data-[state=active]:text-(--text-primary)
-                                                   data-[state=inactive]:text-(--text-tertiary)
-                                                   data-[state=inactive]:font-medium
-                                                   data-[state=inactive]:hover:bg-(--divider)"
+                                        className={`relative flex-1 justify-start ${radixVerticalTabTriggerClass()}`}
                                     >
                                         <span className="text-(--text-secondary)">{tab.icon}</span>
                                         {tab.label}
@@ -1102,7 +1099,7 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
                                                         title="Expand sidebar panel"
                                                     >
                                                         <FaChevronRight className="h-3.5 w-3.5" />
-                                                        <span className="lg:hidden text-xs font-semibold uppercase tracking-wide">
+                                                        <span className={`lg:hidden ${CAPS_LABEL_CLASS}`}>
                                                             Show WBC Navigation
                                                         </span>
                                                     </button>
@@ -1137,9 +1134,9 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
                                         <div className="space-y-2 px-4">
                                             {hasStaticSports && sportOptions.length <= 1 && selectedSport && (
                                                 <div className="flex items-center justify-between gap-2">
-                                                    <div className="flex items-center min-w-0">
+                                                    <div className="flex-1 flex items-center min-w-0">
                                                         {type === "wbc" ? <FaEarthAmericas className="inline-block mr-2 shrink-0 text-xl text-(--text-tertiary)" /> : <FaCalendarDays className="inline-block mr-2 shrink-0 text-xl text-(--text-tertiary)" />}
-                                                        <Heading level="page" as="span" className="truncate">{title}</Heading>
+                                                        <Heading level="page" as="span" fit>{title}</Heading>
                                                         {!(hasStaticSeasons && seasonOptions.length <= 1) && (
                                                             <CustomSelect
                                                                 className="ml-4"
@@ -1211,7 +1208,7 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
                                     >
                                         <div className="px-3 lg:px-0 space-y-2 pb-24 lg:pt-6 lg:pr-6">
                                             <div className="space-y-2 flex justify-between items-top">
-                                                <p className="text-sm font-semibold uppercase tracking-wide text-(--text-secondary)">
+                                                <p className={headingClass('panel')}>
                                                     Standings
                                                 </p>
                                                 <p className="px-1 text-xs text-(--text-secondary)">
@@ -1383,7 +1380,7 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
                                         <div className="px-3 lg:px-0 lg:pt-6 lg:pr-6 space-y-4 pb-24">
                                             <div className="flex flex-wrap items-start justify-between gap-3">
                                                 <div>
-                                                    <p className="text-sm font-semibold uppercase tracking-wide text-(--text-secondary)">
+                                                    <p className={headingClass('panel')}>
                                                         Simulations
                                                     </p>
                                                     <p className="text-xs text-(--text-secondary) mt-1">

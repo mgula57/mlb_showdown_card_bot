@@ -8,6 +8,7 @@ import type { CardStyleSettings } from '../customs/cardStyle';
 import { CARD_STYLE_DEFAULTS, parseEditionStyle } from './editionStyle';
 
 import { InlineError } from '../shared/InlineError';
+import { buttonClass } from '../shared/buttonStyles';
 type EditionStyleModalProps = {
     releaseId: string;
     edition: ReleaseEdition;
@@ -66,7 +67,7 @@ export function EditionStyleModal({ releaseId, edition, token, onClose, onEditio
                         type="button"
                         onClick={handleSave}
                         disabled={!token || saving}
-                        className="flex items-center gap-1.5 min-h-9 px-3.5 py-2 rounded-control text-[13px] font-bold bg-(--secondary) text-(--background-primary) disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                        className={buttonClass('primary', 'sm', 'min-h-9')}
                     >
                         {saving && <FaSpinner className="animate-spin text-[12px]" />} Save
                     </button>

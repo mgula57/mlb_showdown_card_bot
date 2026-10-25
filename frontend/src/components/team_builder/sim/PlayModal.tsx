@@ -12,6 +12,8 @@ import {
 import { byChallengeCategory, challengeCategoryMeta } from './challengeCategory';
 import { challengeGoalLabel, challengeDaysLeft, challengeRestrictionsLabel } from './challengeLabels';
 import { InlineError } from '../../shared/InlineError';
+import { buttonClass } from '../../shared/buttonStyles';
+import { CAPS_LABEL_CLASS } from '../../shared/fieldStyles';
 
 function errorMessage(err: unknown): string {
     return err instanceof Error ? err.message : String(err);
@@ -85,7 +87,7 @@ function ChallengeOption({ challenge, selected, blocked, onSelect }: {
             <span className="min-w-0 flex-1">
                 <span className="flex items-center gap-2 flex-wrap">
                     <span className="text-[13px] font-bold text-(--text-primary)">{challenge.title}</span>
-                    <span className="text-[10px] font-bold uppercase tracking-wide" style={{ color: `var(${category.cssVar})` }}>
+                    <span className={CAPS_LABEL_CLASS} style={{ color: `var(${category.cssVar})` }}>
                         {category.label}
                     </span>
                     {challenge.challenge_result === 'passed' && (
@@ -279,7 +281,7 @@ export function PlayModal({
                         type="button"
                         onClick={handlePlay}
                         disabled={starting || !canPlay}
-                        className="flex items-center gap-1.5 px-3 py-2 rounded-control bg-(--secondary) text-[12px] font-bold text-(--background-primary) hover:opacity-90 transition-opacity cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                        className={buttonClass('primary', 'sm')}
                     >
                         {starting ? <FaSpinner className="animate-spin text-[10px]" /> : <FaPlay className="text-[10px]" />}
                         {mode === 'season' ? 'Play Season' : 'Play Challenge'}

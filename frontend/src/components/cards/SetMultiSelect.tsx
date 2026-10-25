@@ -12,7 +12,7 @@ import { Fragment, useEffect, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { FaCaretDown, FaCheck, FaChevronDown, FaTimes } from 'react-icons/fa';
 
-import { fieldClass } from '../shared/fieldStyles';
+import { fieldClass, CAPS_LABEL_CLASS } from '../shared/fieldStyles';
 export type SetMultiSelectOption = { value: string; image?: string; label?: string; group?: string };
 
 type SetMultiSelectProps = {
@@ -158,7 +158,7 @@ export default function SetMultiSelect({ options, selections, onChange, defaultI
                         return (
                             <Fragment key={option.value}>
                                 {showGroupHeader && (
-                                    <div className="px-3 pt-2 pb-1 text-[10px] font-bold uppercase tracking-wide text-(--text-tertiary) bg-(--background-secondary)">
+                                    <div className={`px-3 pt-2 pb-1 bg-(--background-secondary) ${CAPS_LABEL_CLASS} text-(--text-tertiary)`}>
                                         {option.group}
                                     </div>
                                 )}

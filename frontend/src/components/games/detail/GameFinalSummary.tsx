@@ -11,6 +11,8 @@ import type { ShowdownBotCardAPIResponse } from "../../../api/showdownBotCard";
 import { playerOfTheGame } from "../../../domain/gameSummary";
 import { resolveCardKey } from "../../../domain/players";
 import { CardItemFromCard, CardItemSkeleton } from "../../cards/CardItem";
+import { Eyebrow } from "../../shared/Eyebrow";
+import { CAPS_LABEL_CLASS } from "../../shared/fieldStyles";
 
 type CardMap = Record<string, ShowdownBotCardAPIResponse>;
 
@@ -45,7 +47,7 @@ export default function GameFinalSummary({ game, cardMap, onCardSelect, isLoadin
             >
                 {heading}
                 <div className="flex items-baseline gap-1.5 text-sm min-w-0">
-                    {label && <span className={`font-black shrink-0 ${labelClass}`}>{label}</span>}
+                    {label && <span className={`font-display-upright uppercase shrink-0 ${labelClass}`}>{label}</span>}
                     <span className="font-semibold text-(--primary) truncate">{ref.name}</span>
                     {detail && <span className="text-xs text-(--secondary) shrink-0">{detail}</span>}
                 </div>
@@ -68,11 +70,11 @@ export default function GameFinalSummary({ game, cardMap, onCardSelect, isLoadin
         <div
             className={`@container mx-2 rounded-card border border-white/10 bg-(--background-primary)/35 backdrop-blur-xl backdrop-saturate-150 shadow-overlay p-3 space-y-3 ${className}`}
         >
-            <span className="block text-[11px] font-black tracking-widest text-(--secondary) uppercase">Game Recap</span>
+            <Eyebrow className="block">Game Recap</Eyebrow>
 
             {potg && recapPlayer(
                 "POTG", "", "", accent, { id: potg.line.id, name: potg.line.name }, potg.role, potg.line.summary,
-                <div className="flex items-center gap-1.5 text-[11px] font-black uppercase tracking-wider text-(--primary)">
+                <div className={`flex items-center gap-1.5 ${CAPS_LABEL_CLASS} text-(--text-primary)`}>
                     <FaStar className="text-(--gold)" />
                     Player of the Game
                     {winningTeam && <span className="text-(--secondary) font-bold">· {winningTeam.abbreviation}</span>}

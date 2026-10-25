@@ -5,6 +5,8 @@
 
 import { useState } from 'react';
 import { FaPlus, FaXmark } from 'react-icons/fa6';
+import { FIELD_LABEL_CLASS } from '../shared/fieldStyles';
+import { choiceClass } from '../shared/choiceStyles';
 
 /** Always offered in the editor, even before any card in the edition uses them. */
 const DEFAULT_TAG_SUGGESTIONS = ['FOIL'];
@@ -16,7 +18,7 @@ function normalizeReleaseCardTag(value: string): string {
     return value.trim().toUpperCase().slice(0, TAG_MAX_LENGTH);
 }
 
-const CHIP_CLASS = 'inline-flex items-center gap-1 rounded-card bg-(--warning) text-black font-bold uppercase tracking-wide';
+const CHIP_CLASS = 'inline-flex items-center gap-1 rounded-plate bg-(--warning) text-black font-semibold uppercase leading-none';
 
 export function ReleaseCardTagChips({ tags, onRemove }: { tags: string[]; onRemove?: (tag: string) => void }) {
     if (tags.length === 0) return null;
@@ -68,7 +70,7 @@ export function ReleaseCardTagsEditor({ tags, editionTags, readOnly, onChange }:
     return (
         <div className="flex flex-col gap-2 min-w-0">
             <div className="flex flex-wrap items-center gap-2">
-                <span className="text-[10px] font-bold text-(--text-tertiary) uppercase tracking-wide">Tags</span>
+                <span className={FIELD_LABEL_CLASS}>Tags</span>
                 <ReleaseCardTagChips tags={tags} onRemove={tag => onChange(tags.filter(t => t !== tag))} />
                 <input
                     type="text"
@@ -87,7 +89,7 @@ export function ReleaseCardTagsEditor({ tags, editionTags, readOnly, onChange }:
                             key={tag}
                             type="button"
                             onClick={() => addTag(tag)}
-                            className="flex items-center gap-1 text-[11px] font-bold uppercase tracking-wide text-(--text-tertiary) border border-dashed border-(--divider) rounded-control py-0.5 px-1.5 hover:text-(--text-primary) hover:border-(--secondary) transition-colors cursor-pointer"
+                            className={choiceClass(false, 'sm', 'border-dashed uppercase')}
                         >
                             <FaPlus className="text-[9px]" />
                             {tag}

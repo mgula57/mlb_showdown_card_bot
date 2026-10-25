@@ -6,6 +6,7 @@ import { countryCodeForTeam } from "../../functions/flags";
 import { getContrastTextColor } from "../../functions/colors";
 
 import { Eyebrow } from '../shared/Eyebrow';
+import { CAPS_LABEL_CLASS } from '../shared/fieldStyles';
 type StandingsProps = {
 	standingsEntries: [string, Standings[]][];
 	selectedSportId?: number;
@@ -64,7 +65,7 @@ export default function Standings({ standingsEntries, selectedSportId, selectedT
 						</Eyebrow>
 
 						{/* Column headers */}
-						<div className={`grid ${rowTemplate} gap-x-2 px-3 pb-1.5 text-[10px] font-bold uppercase tracking-wider text-(--text-secondary)`}>
+						<div className={`grid ${rowTemplate} gap-x-2 px-3 pb-1.5 ${CAPS_LABEL_CLASS} text-(--text-tertiary)`}>
 							<span>Team</span>
 							<span className="text-center">Record</span>
 							<span className="text-right">GB</span>
@@ -81,7 +82,7 @@ export default function Standings({ standingsEntries, selectedSportId, selectedT
 								return (
 									<Fragment key={record.team.id}>
 									{showCutline && (
-										<div className="flex items-center gap-2 px-1 py-0.5 text-[10px] font-bold uppercase tracking-wider text-(--text-secondary)">
+										<div className={`flex items-center gap-2 px-1 py-0.5 ${CAPS_LABEL_CLASS} text-(--text-tertiary)`}>
 											<span className="h-px flex-1 bg-(--divider)" />
 											Wild Card cutoff
 											<span className="h-px flex-1 bg-(--divider)" />
@@ -101,7 +102,7 @@ export default function Standings({ standingsEntries, selectedSportId, selectedT
 											color: getContrastTextColor(backgroundColor),
 										}}
 									>
-										<span className="flex items-center gap-1.5 font-black tracking-wide truncate">
+										<span className="flex items-center gap-1.5 font-display-upright uppercase truncate">
 											{isoCountryCode && (
 												<ReactCountryFlag
 													countryCode={isoCountryCode}

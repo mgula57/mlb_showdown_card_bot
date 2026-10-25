@@ -4,6 +4,7 @@ import { imageForSet } from '../shared/SiteSettingsContext';
 import { useAuth } from '../auth/AuthContext';
 import { FaLock, FaUsers, FaHeart, FaEye } from 'react-icons/fa6';
 import PointsBadge from '../cards/card_elements/PointsBadge';
+import { Plate } from '../shared/Plate';
 
 type TeamCardProps = {
     team: TeamSummary;
@@ -41,9 +42,7 @@ export function TeamCard({ team, isSelected, onClick }: TeamCardProps) {
             `}
         >
             {drafting && (
-                <span className="absolute top-0 right-0 text-[9px] font-black rounded-tr px-1 py-0.5 leading-none bg-(--red) text-white">
-                    DRAFTING
-                </span>
+                <Plate variant="red" size="sm" className="absolute top-0 right-0">Drafting</Plate>
             )}
             {/* Team logo (left of the abbreviation badge) */}
             <div className="shrink-0 flex items-center gap-1.5">
@@ -55,7 +54,7 @@ export function TeamCard({ team, isSelected, onClick }: TeamCardProps) {
                     />
                 ) : (
                     <div
-                        className="w-10 h-10 rounded-control flex items-center justify-center text-[11px] font-black shrink-0"
+                        className="w-10 h-10 rounded-control flex items-center justify-center font-display-upright uppercase text-[13px] shrink-0"
                         style={{ backgroundColor: primary, color: getContrastTextColor(primary) }}
                     >
                         {team.abbreviation}

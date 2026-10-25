@@ -109,7 +109,7 @@ const ChartPlayerPointsTrend = ({ title, trendData }: ChartPlayerPointsTrendProp
                 <div className="flex flex-col text-xs">
 
                     {/* POINTS */}
-                    <p className="font-black border-b border-(--divider)">{`${formatXAxisLabel(label)} ${card.team}: ${card.points} PTS`}</p>
+                    <p className="font-bold border-b border-(--divider)">{`${formatXAxisLabel(label)} ${card.team}: ${card.points} PTS`}</p>
 
                     {/* COMMAND/OUTS */}
                     <p className="label pt-1">{`${card.command} ${card.command_type?.toUpperCase() === 'ONBASE' ? 'OB' : 'CO'} | ${card.outs} OUTS`}</p>

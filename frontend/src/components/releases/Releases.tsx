@@ -17,6 +17,8 @@ import type { ReleaseCreatePayload } from '../../api/releases';
 
 import { InlineError } from '../shared/InlineError';
 import { Heading } from '../shared/Heading';
+import { buttonClass } from '../shared/buttonStyles';
+import { headingClass } from '../shared/headingStyles';
 /** A release that has been opened in this session. Each one keeps its own mounted ReleaseDetail
  *  (hidden when not addressed by the URL) so unsaved builder progress survives navigation. */
 /** Release tiles: two per row on phones, fixed-width tiles that wrap on wider screens. */
@@ -208,11 +210,10 @@ export default function Releases() {
                     <button
                         type="button"
                         onClick={() => setShowCreateModal(true)}
-                        className="flex items-center gap-[2.5px] px-3 py-2 rounded-control bg-(--secondary) text-[12px] font-bold text-(--background-primary) hover:opacity-90 transition-opacity cursor-pointer"
+                        className={buttonClass('primary', 'sm')}
                     >
-                        <FaPlus className="text-[10px] mr-1" />
-                        New
-                        <span className="hidden sm:inline">Release</span>
+                        <FaPlus className="text-[10px]" />
+                        <span>New<span className="hidden sm:inline"> Release</span></span>
                     </button>
                 )}
             </div>
@@ -244,7 +245,7 @@ export default function Releases() {
                     {/* My Releases */}
                     {token && (
                         <section className={px}>
-                            <div className="text-[12px] font-semibold text-(--text-secondary) uppercase tracking-wide mb-2">
+                            <div className={`mb-2 ${headingClass('panel')}`}>
                                 My Releases
                             </div>
                             {userReleases.length === 0 ? (
@@ -269,7 +270,7 @@ export default function Releases() {
                     {/* Official Releases */}
                     {officialReleases.length > 0 && (
                         <section className={px}>
-                            <div className="text-[12px] font-semibold text-(--text-secondary) uppercase tracking-wide mb-2">
+                            <div className={`mb-2 ${headingClass('panel')}`}>
                                 Official Releases
                             </div>
                             <div className={RELEASE_GRID}>

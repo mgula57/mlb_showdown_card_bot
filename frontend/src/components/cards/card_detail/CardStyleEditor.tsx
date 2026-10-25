@@ -17,6 +17,7 @@ import { chartVersionOptions, isCardStyleDifferent, type CardStyleSettings } fro
 import type { SelectOption } from '../../shared/CustomSelect';
 import type { ShowdownBotCard } from '../../../api/showdownBotCard';
 import { rankChartsByVersion } from './chartVersions';
+import { CAPS_LABEL_CLASS } from '../../shared/fieldStyles';
 
 /** Enables in-place style editing on CardDetail (see its `styleEditor` prop) */
 export type CardStyleEditorConfig = {
@@ -142,7 +143,7 @@ export function CardStyleEditor({ style: initialStyle, defaults, onSave, revertT
             {/* Header */}
             <div className="flex items-center gap-2 pl-4 pr-2 py-2 border-b border-form-element shrink-0">
                 <FaPalette className="text-[12px] opacity-60" />
-                <div className="text-[12px] font-semibold opacity-60 uppercase tracking-widest">Card Style</div>
+                <div className={`opacity-60 ${CAPS_LABEL_CLASS}`}>Card Style</div>
                 <span className="flex items-center gap-1 text-[11px] text-(--text-tertiary)">
                     {isRebuilding ? (
                         <><FaSpinner className="animate-spin text-[10px]" /> Rebuilding card</>

@@ -27,7 +27,7 @@ const markdownComponents: Components = {
     ul: ({ children }) => <ul className="list-disc pl-5 space-y-1.5 text-[13px] leading-relaxed text-(--text-secondary)">{children}</ul>,
     ol: ({ children }) => <ol className="list-decimal pl-5 space-y-1.5 text-[13px] leading-relaxed text-(--text-secondary)">{children}</ol>,
     li: ({ children }) => <li>{children}</li>,
-    strong: ({ children }) => <strong className="font-black text-(--text-primary)">{children}</strong>,
+    strong: ({ children }) => <strong className="font-bold text-(--text-primary)">{children}</strong>,
     hr: () => <hr className="border-(--divider) my-1" />,
     code: ({ children }) => (
         <code className="px-1 py-0.5 rounded bg-(--background-secondary) text-(--showdown-blue) text-[12px] font-mono">{children}</code>
@@ -115,7 +115,7 @@ export function SimulationGuidePanel({ className = '' }: { className?: string })
     return (
         <aside className={`flex flex-col overflow-hidden rounded-card border border-(--divider) bg-(--background-primary) ${className}`}>
             <div className="shrink-0 border-b border-(--divider) px-5 py-3">
-                <p className="text-[15px] font-black text-(--text-primary)"><FaDice className="inline mr-2" />{GUIDE_TITLE}</p>
+                <Heading level="section" as="div"><FaDice className="inline mr-2" />{GUIDE_TITLE}</Heading>
                 <p className="text-[12px] text-(--text-secondary)">{GUIDE_SUBTITLE}</p>
             </div>
             <div className="min-h-0 flex-1 overflow-y-auto">

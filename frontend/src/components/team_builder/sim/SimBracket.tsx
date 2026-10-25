@@ -8,6 +8,7 @@ import CardIdentityCell from '../../cards/card_elements/CardIdentityCell';
 import { CardDetail } from '../../cards/CardDetail';
 import { Modal } from '../../shared/Modal';
 import { useCardDetailModal } from '../../../hooks/useCardDetailModal';
+import { CAPS_LABEL_CLASS } from '../../shared/fieldStyles';
 
 // Mirrors PostseasonRound in models.py (oldest to newest); WS is pulled out and rendered
 // separately since it's the one round with no league.
@@ -81,7 +82,7 @@ function LeagueColumns({ league, rounds, identityFor, highlightAbbr, selectedKey
         <div className="flex items-stretch gap-6">
             {rounds.map(([round, seriesList]) => (
                 <div key={round} className="flex flex-col gap-2">
-                    <p className="text-[10px] font-bold uppercase tracking-wide text-(--text-tertiary) text-center">
+                    <p className={`text-center ${CAPS_LABEL_CLASS} text-(--text-tertiary)`}>
                         {roundLabel(round, league)}
                     </p>
                     <div className="flex flex-1 flex-col justify-around gap-4">
@@ -110,7 +111,7 @@ function WorldSeriesPanel({ series, champion, identityFor, highlightAbbr, select
     if (!series) return null;
     return (
         <div className="flex flex-col items-center justify-center gap-2 self-stretch px-2">
-            <p className="text-[10px] font-bold uppercase tracking-wide text-(--text-tertiary)">World Series</p>
+            <p className={`${CAPS_LABEL_CLASS} text-(--text-tertiary)`}>World Series</p>
             <Matchup
                 series={series} identityFor={identityFor} highlightAbbr={highlightAbbr}
                 isSelected={selectedKey === seriesKey(series)}

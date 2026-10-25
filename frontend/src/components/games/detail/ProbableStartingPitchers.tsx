@@ -3,6 +3,7 @@ import type { ShowdownBotCardAPIResponse } from "../../../api/showdownBotCard";
 import { cardKey } from "../../../domain/players";
 import { getReadableTextColor } from "../../../functions/colors";
 import { CardItemFromCard, CardItemSkeleton } from "../../cards/CardItem";
+import { headingClass } from "../../shared/headingStyles";
 
 type CardMap = Record<string, ShowdownBotCardAPIResponse>;
 
@@ -47,7 +48,7 @@ export default function ProbableStartingPitchers({
         <div className="@container">
             <div className="flex flex-col @[500px]:grid @[500px]:grid-cols-2 p-3 gap-x-6 gap-y-2 rounded-card border border-(--divider) backdrop-blur bg-(--background-secondary)/50 text-sm">
                 <div className="col-span-full mb-1">
-                    <span className="text-xs font-bold uppercase tracking-wide text-(--secondary)">Probable Starting Pitchers</span>
+                    <span className={headingClass('panel')}>Probable Starting Pitchers</span>
                 </div>
                 {pitcherItem(away, probablePitchers.away)}
                 {pitcherItem(home, probablePitchers.home)}

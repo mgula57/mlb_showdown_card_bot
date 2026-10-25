@@ -15,6 +15,7 @@ import PointsEstimateComparison from "./card_elements/PointsEstimateComparison";
 import ChartVersionBadge from "./card_elements/ChartVersionBadge";
 import type { CardStyleOverrides } from "./cardStyleOverrides";
 import { Plate } from "../shared/Plate";
+import { buttonVariantClass } from '../shared/buttonStyles';
 
 /**
  * Props for the CardItem component
@@ -213,7 +214,9 @@ export const CardItem = ({
                         transition-colors
                         ${actionButton.disabled
                             ? 'bg-(--background-tertiary) border border-(--divider) text-(--text-tertiary) opacity-60 grayscale cursor-not-allowed'
-                            : `${actionButton.bgColorClass ? actionButton.bgColorClass : 'bg-tertiary border'} text-(--text-tertiary) hover:bg-(--background-quaternary) hover:text-(--text-primary) cursor-pointer`}
+                            : actionButton.emphasis === 'primary'
+                                ? `p-2 md:p-1 ${buttonVariantClass('primary')}`
+                                : 'bg-tertiary border text-(--text-tertiary) hover:bg-(--background-quaternary) hover:text-(--text-primary) cursor-pointer'}
                     `}
                 >
                     {actionButton.icon}

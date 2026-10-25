@@ -11,6 +11,8 @@ import { Modal } from "../shared/Modal";
 import { CardNotFoundOverlay } from "../shared/CardNotFoundOverlay";
 import { defenseAtPosition } from "../shared/DefenseUtils";
 import { FieldView } from "../team_builder/FieldView";
+import { CAPS_LABEL_CLASS } from "../shared/fieldStyles";
+import { headingClass } from "../shared/headingStyles";
 
 // =============================================================================
 // MARK: - Award Definitions
@@ -252,7 +254,7 @@ export default function AwardWinners({ seasonId, season, showdownSet, isActive }
             {/* Header */}
             <div className="flex items-center gap-2 mb-5 lg:pr-6">
                 <FaMedal className={`text-sm text-(--gold)`} />
-                <span className={`text-sm font-bold uppercase tracking-wide text-(--text-tertiary)`}>
+                <span className={headingClass('panel')}>
                     Award Winners
                 </span>
             </div>
@@ -269,7 +271,7 @@ export default function AwardWinners({ seasonId, season, showdownSet, isActive }
                     {filteredSingleWinnerAwards.map(({ key, label }) => (
                         <div key={key}>
                             <div className="mb-3 lg:pr-6">
-                                <span className={`text-xs font-bold uppercase tracking-wide text-(--text-tertiary)`}>
+                                <span className={`${CAPS_LABEL_CLASS} text-(--text-tertiary)`}>
                                     {label}
                                 </span>
                             </div>
@@ -279,7 +281,7 @@ export default function AwardWinners({ seasonId, season, showdownSet, isActive }
                                     const card = recipient ? cardMap[cardKey(recipient)] : undefined;
                                     return (
                                         <div key={league} className="flex flex-col gap-1.5">
-                                            <span className={`text-[10px] font-semibold uppercase tracking-wide px-1.5 text-(--text-tertiary)`}>
+                                            <span className={`px-1.5 ${CAPS_LABEL_CLASS} text-(--text-tertiary)`}>
                                                 {league}
                                             </span>
                                             {!recipient ? (
@@ -315,14 +317,14 @@ export default function AwardWinners({ seasonId, season, showdownSet, isActive }
                     {showGoldGlove && (
                         <div>
                             <div className="mb-3 lg:pr-6">
-                                <span className={`text-xs font-bold uppercase tracking-wide text-(--text-tertiary)`}>
+                                <span className={`${CAPS_LABEL_CLASS} text-(--text-tertiary)`}>
                                     Gold Glove
                                 </span>
                             </div>
                             <div className="grid grid-cols-1 md:grid-cols-[repeat(auto-fit,minmax(450px,1fr))] gap-6 lg:pr-6">
                                 {LEAGUES.map(league => (
                                     <div key={league} className="flex flex-col gap-1.5 bg-secondary py-2 rounded-card border border-(--divider)">
-                                        <span className={`text-[10px] font-semibold uppercase tracking-wide px-3 text-(--text-tertiary)`}>
+                                        <span className={`px-3 ${CAPS_LABEL_CLASS} text-(--text-tertiary)`}>
                                             {league}
                                         </span>
                                         <FieldView
@@ -346,14 +348,14 @@ export default function AwardWinners({ seasonId, season, showdownSet, isActive }
                     {showSilverSlugger && (
                         <div>
                             <div className="mb-3 lg:pr-6">
-                                <span className={`text-xs font-bold uppercase tracking-wide text-(--text-tertiary)`}>
+                                <span className={`${CAPS_LABEL_CLASS} text-(--text-tertiary)`}>
                                     Silver Slugger
                                 </span>
                             </div>
                             <div className="grid grid-cols-[repeat(auto-fit,minmax(450px,1fr))] gap-6 lg:pr-6">
                                 {LEAGUES.map(league => (
                                     <div key={league} className="flex flex-col gap-1.5 bg-secondary py-2 rounded-card border border-(--divider)">
-                                        <span className={`text-[10px] font-semibold uppercase tracking-wide px-3 text-(--text-tertiary)`}>
+                                        <span className={`px-3 ${CAPS_LABEL_CLASS} text-(--text-tertiary)`}>
                                             {league}
                                         </span>
                                         <FieldView

@@ -9,6 +9,8 @@ import { FieldView, FIELD_POSITIONS } from '../FieldView';
 import { buildSimStatHighlights, SIM_STATS_TOOLTIP } from './simStatColumns';
 import { roundLabel } from './roundLabel';
 import { useCardLinks } from './useCardLinks';
+import { CAPS_LABEL_CLASS } from '../../shared/fieldStyles';
+import { headingClass } from '../../shared/headingStyles';
 
 const CATEGORY_LABELS: Record<AwardWinner['category'], string> = {
     MVP: 'Most Valuable Player',
@@ -106,7 +108,7 @@ export function SimAwardsList({ awards, identities }: Props) {
                 if (winners.length === 0) return null;
                 return (
                     <div key={category}>
-                        <p className="text-[12px] font-bold uppercase tracking-wide text-(--text-tertiary) mb-3">
+                        <p className={`mb-3 ${headingClass('panel')}`}>
                             {CATEGORY_LABELS[category]}
                         </p>
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -115,7 +117,7 @@ export function SimAwardsList({ awards, identities }: Props) {
                                 if (!award) return null;
                                 return (
                                     <div key={league} className="flex flex-col gap-1.5">
-                                        <span className="text-[10px] font-semibold uppercase tracking-wide text-(--text-tertiary) px-1.5">
+                                        <span className={`px-1.5 ${CAPS_LABEL_CLASS} text-(--text-tertiary)`}>
                                             {league}
                                         </span>
                                         {renderCard(award.player)}
@@ -129,13 +131,13 @@ export function SimAwardsList({ awards, identities }: Props) {
 
             {seriesMvps.length > 0 && (
                 <div>
-                    <p className="text-[12px] font-bold uppercase tracking-wide text-(--text-tertiary) mb-3">
+                    <p className={`mb-3 ${headingClass('panel')}`}>
                         Series MVP
                     </p>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                         {seriesMvps.map((mvp, i) => (
                             <div key={i} className="flex flex-col gap-1.5">
-                                <span className="text-[10px] font-semibold uppercase tracking-wide text-(--text-tertiary) px-1.5">
+                                <span className={`px-1.5 ${CAPS_LABEL_CLASS} text-(--text-tertiary)`}>
                                     {roundLabel(mvp.round, mvp.league)} · {mvp.value_label}
                                 </span>
                                 {renderCard(mvp.player)}
@@ -147,13 +149,13 @@ export function SimAwardsList({ awards, identities }: Props) {
 
             {silverSluggers.length > 0 && (
                 <div>
-                    <p className="text-[12px] font-bold uppercase tracking-wide text-(--text-tertiary) mb-3">
+                    <p className={`mb-3 ${headingClass('panel')}`}>
                         {CATEGORY_LABELS.SILVER_SLUGGER}
                     </p>
                     <div className="grid grid-cols-1 sm:grid-cols-[repeat(auto-fit,minmax(450px,1fr))] gap-6">
                         {leagues.filter(league => silverSluggers.some(w => w.league === league)).map(league => (
                             <div key={league} className="flex flex-col gap-1.5 bg-secondary py-2 rounded-card border border-(--divider)">
-                                <span className="text-[10px] font-semibold uppercase tracking-wide px-3 text-(--text-tertiary)">
+                                <span className={`px-3 ${CAPS_LABEL_CLASS} text-(--text-tertiary)`}>
                                     {league}
                                 </span>
                                 <FieldView

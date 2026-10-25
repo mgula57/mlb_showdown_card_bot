@@ -20,7 +20,8 @@ export type CardItemActionButton = {
     onClick: () => void;
     /** aria-label for the action button */
     label?: string;
-    bgColorClass?: string; // Optional additional background color class for the action button (e.g. "bg-(--showdown-red)")
+    /** `primary` makes it the navy raised action (e.g. "Add" from a search); default is a quiet icon button. Full-size cards only. */
+    emphasis?: 'quiet' | 'primary';
     placement?: 'left' | 'right'; // Optionally change which side the button appears on
     /** Greys out the button and blocks clicks — e.g. while a previous pick is still saving. */
     disabled?: boolean;

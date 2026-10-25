@@ -4,6 +4,7 @@
  * `DepthChartPanel.SectionHeader`), identical except for outer container styling.
  */
 import type { KpiTile } from '../team_builder/TeamKpiUtils';
+import { CAPS_LABEL_CLASS } from './fieldStyles';
 
 type SectionHeaderVariant = 'overlay' | 'plain';
 
@@ -21,13 +22,13 @@ const VARIANT_CLASSES: Record<SectionHeaderVariant, { container: string; row: st
     overlay: {
         container: 'px-4 py-1 backdrop-blur-xs bg-(--background)/40',
         row: 'flex items-center gap-1.5 opacity-75',
-        label: 'text-[11px] font-bold text-(--text-secondary) uppercase tracking-wide',
+        label: `${CAPS_LABEL_CLASS} text-(--text-tertiary)`,
         total: 'ml-auto text-[10px] font-semibold text-(--text-tertiary)',
     },
     plain: {
         container: 'px-0 py-1 backdrop-blur-xs bg-(--background)/40',
         row: 'flex items-center gap-1.5 opacity-75',
-        label: 'text-[11px] font-bold text-(--text-secondary) uppercase tracking-wide',
+        label: `${CAPS_LABEL_CLASS} text-(--text-tertiary)`,
         total: 'ml-auto text-[10px] font-semibold text-(--text-tertiary)',
     },
 };

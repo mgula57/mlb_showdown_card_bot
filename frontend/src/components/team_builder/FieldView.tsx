@@ -11,6 +11,7 @@ import { Modal } from '../shared/Modal';
 import { CardDetail } from '../cards/CardDetail';
 import { SlotSavingOverlay } from './SlotSavingOverlay';
 import { CardNotFoundOverlay } from '../shared/CardNotFoundOverlay';
+import { CAPS_LABEL_CLASS } from '../shared/fieldStyles';
 
 // Percentage-based [left, top] coordinates relative to the Field.png container
 export const POSITION_COORDS: Record<string, [number, number]> = {
@@ -245,8 +246,8 @@ export function FieldView({
         <div ref={rootRef} className="flex flex-col @container">
             {showTotalPoints && (
                 <div className="flex items-center justify-center gap-2 p-1">
-                    <span className="text-[11px] font-semibold uppercase tracking-wide text-(--text-tertiary)">Total Points</span>
-                    <span className="text-sm font-black tabular-nums text-(--text-primary)">{totalPts}</span>
+                    <span className={`${CAPS_LABEL_CLASS} text-(--text-tertiary)`}>Total Points</span>
+                    <span className="font-display-upright text-[17px] leading-none tabular-nums text-(--text-primary)">{totalPts}</span>
                 </div>
             )}
             <div className="relative w-full" style={{ aspectRatio: '1 / 1' }}>
@@ -268,8 +269,8 @@ export function FieldView({
                             { label: 'CA ARM',   value: armC,       color: colorArmC },
                         ] as const).map(({ label, value, color }) => (
                             <Fragment key={label}>
-                                <span className="text-[10px] font-semibold text-(--text-secondary) uppercase tracking-wide">{label}</span>
-                                <span className={`text-xs font-black text-right ${color}`}>
+                                <span className={`${CAPS_LABEL_CLASS} text-(--text-tertiary)`}>{label}</span>
+                                <span className={`text-xs font-bold text-right ${color}`}>
                                     {
                                         value === null ?
                                             '-'
@@ -464,7 +465,7 @@ function PositionSlotPlaceholder({ position, onClick, isActive }: PlaceholderPro
                 transition-colors
             `}
         >
-            <span className={`text-[11px] font-black ${isActive ? 'text-(--secondary)' : 'text-white/70'}`}>{position}</span>
+            <span className={`text-[11px] font-bold ${isActive ? 'text-(--secondary)' : 'text-white/70'}`}>{position}</span>
             {onClick && <FaPlus className={`text-[9px] shrink-0 ${isActive ? 'text-(--secondary)' : 'text-white/50'}`} />}
         </button>
     );
@@ -481,7 +482,7 @@ const LoadingDots = ({ dotClassName }: { dotClassName: string }) => (
 function PositionSlotLoadingPlaceholder({ position }: { position: string }) {
     return (
         <div className="w-full flex items-center justify-between gap-1 rounded-card px-2 h-12 border-2 border-dashed border-white/30 bg-black/20 backdrop-blur-[2px]">
-            <span className="text-[11px] font-black text-white/70">{position}</span>
+            <span className="text-[11px] font-bold text-white/70">{position}</span>
             <LoadingDots dotClassName="bg-white/60" />
         </div>
     );

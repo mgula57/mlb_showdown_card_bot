@@ -7,6 +7,7 @@ import { useAuth } from '../auth/AuthContext';
 import { FaCircle, FaHatWizard, FaRobot, FaUsers, FaHeart, FaEye } from 'react-icons/fa6';
 import type { ReactNode } from 'react';
 import { Plate } from '../shared/Plate';
+import { FitText } from '../shared/FitText';
 
 // A minimal, source-agnostic shape so the same tile renders community teams (TeamSummary),
 // historical MLB teams, and All-Star teams alike.
@@ -152,19 +153,17 @@ export function TeamPreviewCard({ team, onClick, size = 'md', className = '' }: 
 
                     {/* Team logo and abbreviation */}
                     <div className="flex items-end gap-1.5 min-w-0">
-                        <div className="flex items-center gap-1.5 min-w-0">
-                            {team.logo_url && (
-                                <img
-                                    src={team.logo_url}
-                                    alt=""
-                                    loading="lazy"
-                                    className="w-7 h-7 rounded-[3px] object-cover shrink-0 ring-1 ring-white/20"
-                                />
-                            )}
-                            <div className="font-display text-[44px] leading-[0.88] text-white text-outline-double truncate">
-                                {team.abbreviation}
-                            </div>
-                        </div>
+                        {team.logo_url && (
+                            <img
+                                src={team.logo_url}
+                                alt=""
+                                loading="lazy"
+                                className="self-center w-7 h-7 rounded-[3px] object-cover shrink-0 ring-1 ring-white/20"
+                            />
+                        )}
+                        <FitText minScale={0.45} className="font-display text-[44px] leading-[0.88] text-white text-outline-double">
+                            {team.abbreviation}
+                        </FitText>
                         {avatarUrl && (
                             <img
                                 src={avatarUrl}
@@ -174,9 +173,9 @@ export function TeamPreviewCard({ team, onClick, size = 'md', className = '' }: 
                             />
                         )}
                     </div>
-                    <div className="font-display text-[11px] uppercase tracking-[0.2em] mt-1 line-clamp-1 opacity-90" style={{ color: onPrimary }}>
+                    <FitText minScale={0.75} className="font-display text-[11px] uppercase tracking-[0.2em] mt-1 opacity-90" style={{ color: onPrimary }}>
                         {team.name}
-                    </div>
+                    </FitText>
                     {byline && (
                         <div className="text-[10px] font-semibold line-clamp-1 opacity-75" style={{ color: onPrimary }}>
                             {byline}

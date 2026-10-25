@@ -9,6 +9,10 @@ import FormDropdown from '../customs/FormDropdown';
 import MultiSelect from '../shared/MultiSelect';
 import PercentageSlider from '../shared/PercentageSlider';
 import { InlineError } from '../shared/InlineError';
+import { Heading } from '../shared/Heading';
+import { headingClass } from '../shared/headingStyles';
+import { FIELD_LABEL_CLASS } from '../shared/fieldStyles';
+import { choiceClass } from '../shared/choiceStyles';
 import { useAuth } from '../auth/AuthContext';
 import PointBucketsEditor from './PointBucketsEditor';
 import { validatePointBuckets } from './pointBuckets';
@@ -112,7 +116,7 @@ function SettingsGroup({ id, title, summary, children, defaultOpen = true }: { i
                 aria-expanded={isOpen}
                 className="group flex items-center justify-between gap-3 text-left cursor-pointer"
             >
-                <span className="shrink-0 text-[14px] font-black text-(--text-primary)">{title}</span>
+                <span className={`shrink-0 ${headingClass('panel')}`}>{title}</span>
                 <span className="flex items-center gap-2 min-w-0">
                     {!isOpen && summary && (
                         <span title={summary} className="text-[11px] font-semibold text-(--text-tertiary) truncate">{summary}</span>
@@ -125,9 +129,9 @@ function SettingsGroup({ id, title, summary, children, defaultOpen = true }: { i
     );
 }
 
-/** Small bold label for a sub-part of a SettingsGroup. */
+/** Field-style caps label for a sub-part of a SettingsGroup. */
 function SettingsLabel({ children }: { children: React.ReactNode }) {
-    return <span className="text-[12px] font-bold text-(--text-secondary)">{children}</span>;
+    return <span className={FIELD_LABEL_CLASS}>{children}</span>;
 }
 
 // =============================================================================
@@ -222,13 +226,13 @@ function templateChanges(template: AlgorithmTemplate, config: AlgorithmConfig): 
 function ManualPickList({ label, picks, emptyText, onRemove }: { label: string; picks: ManualPick[]; emptyText: string; onRemove: (id: string) => void }) {
     return (
         <div className="flex flex-col gap-1.5">
-            <SettingsLabel>{label} <span className="font-semibold text-(--text-tertiary)">{picks.length}</span></SettingsLabel>
+            <SettingsLabel>{label} <span className="tabular-nums">{picks.length}</span></SettingsLabel>
             {picks.length === 0 ? (
                 <p className="text-[11px] text-(--text-tertiary)">{emptyText}</p>
             ) : (
                 <div className="flex flex-wrap gap-1.5">
                     {picks.map(pick => (
-                        <span key={pick.id} className="inline-flex items-center gap-1 rounded-full border border-(--divider) py-0.5 pl-2.5 pr-1 text-[12px] font-semibold text-(--text-secondary)">
+                        <span key={pick.id} className="inline-flex items-center gap-1 rounded-control border border-(--divider) py-0.5 pl-2 pr-0.5 text-[12px] font-semibold text-(--text-secondary)">
                             {manualPickLabel(pick)}
                             <button
                                 type="button"
@@ -252,11 +256,7 @@ function TemplateChip({ template, isActive, onSelect }: { template: AlgorithmTem
             type="button"
             onClick={onSelect}
             aria-pressed={isActive}
-            className={`flex items-center gap-1.5 px-2.5 py-1 rounded-control border text-[12px] whitespace-nowrap transition-colors cursor-pointer ${
-                isActive
-                    ? 'border-(--text-secondary) bg-(--background-quaternary) text-(--text-primary) font-bold'
-                    : 'border-(--divider) text-(--text-secondary) font-medium hover:bg-(--background-secondary)'
-            }`}
+            className={choiceClass(isActive, 'sm')}
         >
             <span className="text-[10px]">{template.icon}</span>
             {template.name}
@@ -415,12 +415,12 @@ export function AlgorithmBuilder({ releaseId, edition, token, defaultShowdownSet
         <div className="flex-1 min-h-0 overflow-y-auto p-3 pb-24 flex flex-col gap-5">
 
             <section className="flex flex-col gap-2 shrink-0">
-                <span className="text-[14px] font-black text-(--text-primary)">Start From</span>
+                <Heading level="panel" as="span">Start From</Heading>
                 <div className="flex flex-wrap gap-1.5">
                     <TemplateChip template={CUSTOM_TEMPLATE} isActive={config.template_id === CUSTOM_TEMPLATE_ID} onSelect={() => config.template_id !== CUSTOM_TEMPLATE_ID && applyTemplate(CUSTOM_TEMPLATE)} />
                     {wotcProfiles === null
                         ? Array.from({ length: WOTC_BASE_SET_COUNT }, (_, i) => (
-                            <div key={i} aria-hidden className="h-6.5 w-20 rounded-full bg-(--background-quaternary) animate-pulse" />
+                            <div key={i} aria-hidden className="h-6.5 w-20 rounded-control bg-(--background-tertiary) animate-pulse" />
                         ))
                         : wotcTemplates.map(template => (
                             <TemplateChip key={template.id} template={template} isActive={config.template_id === template.id} onSelect={() => config.template_id !== template.id && applyTemplate(template)} />

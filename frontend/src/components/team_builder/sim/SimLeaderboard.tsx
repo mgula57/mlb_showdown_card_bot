@@ -10,6 +10,7 @@ import { Tabs, type TabItem } from '../../shared/Tabs';
 import { InlineError } from '../../shared/InlineError';
 import { Eyebrow } from '../../shared/Eyebrow';
 import { Heading } from '../../shared/Heading';
+import { Plate } from '../../shared/Plate';
 type Props = {
     token?: string;
     onOpenSeason: (teamId: string, jobId: string) => void;
@@ -87,7 +88,7 @@ function ChallengeLeaderboardCard({ card, onOpenSeason, onOpenChallenge }: {
                         <FaTrophy className="text-[11px] text-(--showdown-blue) shrink-0" />
                         {group.challenge_title}
                         {hasOwnEntry && (
-                            <span className="text-[10px] font-bold text-(--showdown-blue) uppercase tracking-wide">You</span>
+                            <Plate variant="navy" size="sm">You</Plate>
                         )}
                     </Heading>
                     {group.challenge_description && (
@@ -361,7 +362,7 @@ export function SimLeaderboard({ token, onOpenSeason, onOpenChallenge, sort }: P
                                             {teamCount} {teamCount === 1 ? 'team' : 'teams'} played
                                         </span>
                                         {season.has_own_entry && (
-                                            <span className="text-[10px] font-bold text-(--showdown-blue) uppercase tracking-wide">You</span>
+                                            <Plate variant="navy" size="sm">You</Plate>
                                         )}
                                     </div>
                                     <div className="flex flex-col gap-1.5">

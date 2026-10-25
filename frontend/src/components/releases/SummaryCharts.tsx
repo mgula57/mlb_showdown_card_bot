@@ -5,6 +5,9 @@ import type { CardDatabaseRecord } from '../../api/card_db/cardDatabase';
 import { defenseAtPosition } from '../shared/DefenseUtils';
 import CompactSelect from '../shared/CompactSelect';
 import FormEnabler from '../customs/FormEnabler';
+import { headingClass } from '../shared/headingStyles';
+import { CAPS_LABEL_CLASS } from '../shared/fieldStyles';
+import { choiceClass } from '../shared/choiceStyles';
 
 type SummaryChartsProps = {
     cards: ReleaseCard[];
@@ -324,7 +327,7 @@ function Section({ title, action, fit, className, children }: { title: string; a
     return (
         <div className={className}>
             <div className="flex items-center justify-between gap-2 mb-2">
-                <div className="flex items-center gap-1.5 text-[12px] font-semibold text-(--text-secondary) uppercase tracking-wide">
+                <div className={`flex items-center gap-1.5 ${headingClass('panel')}`}>
                     {title}
                     {fit && <FitDot check={fit} />}
                 </div>
@@ -338,8 +341,8 @@ function Section({ title, action, fit, className, children }: { title: string; a
 function StatTile({ label, value, compareValue }: { label: string; value: string | number; compareValue?: string | number }) {
     return (
         <div className="flex flex-col items-center justify-center rounded-card border border-(--divider) px-3 py-2 min-w-22">
-            <span className="text-[18px] font-black text-(--text-primary)">{value}</span>
-            <span className="text-[10px] text-(--text-tertiary) uppercase tracking-wide">{label}</span>
+            <span className="font-display-upright text-[22px] leading-none tabular-nums text-(--text-primary)">{value}</span>
+            <span className={`${CAPS_LABEL_CLASS} text-(--text-tertiary) mt-1`}>{label}</span>
             {compareValue !== undefined && (
                 <span className="text-[10px] text-(--text-secondary)">WOTC {compareValue}</span>
             )}
@@ -480,7 +483,7 @@ function ChartPanel({ title, average, fit, className, children }: { title: strin
     return (
         <div className={`rounded-card border border-(--divider) p-2 min-w-0 ${className ?? ''}`}>
             <div className="flex items-baseline justify-between gap-2 px-1">
-                <span className="flex items-center gap-1.5 text-[13px] font-black text-(--text-primary)">
+                <span className={`flex items-center gap-1.5 ${headingClass('panel')}`}>
                     {title}
                     {fit && <FitDot check={fit} />}
                 </span>
@@ -596,10 +599,7 @@ function SubsetFilterBar({ value, onChange }: { value: SubsetFilter; onChange: (
                     key={opt.value}
                     type="button"
                     onClick={() => onChange(opt.value)}
-                    className={`px-2.5 py-1 rounded-control text-[11px] font-bold border transition-colors
-                        ${value === opt.value
-                            ? 'bg-(--secondary) text-(--background-primary) border-(--secondary)'
-                            : 'border-(--divider) text-(--text-secondary) hover:border-(--text-tertiary)'}`}
+                    className={choiceClass(value === opt.value, 'sm')}
                 >
                     {opt.label}
                 </button>

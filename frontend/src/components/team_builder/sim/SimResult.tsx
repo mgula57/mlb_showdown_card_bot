@@ -24,6 +24,7 @@ import { useClubSeason } from './simClubSeason';
 import { describePostseasonExit } from './postseasonExit';
 import { radixTabTriggerClass } from '../../shared/tabStyles';
 import { buttonClass } from '../../shared/buttonStyles';
+import { CAPS_LABEL_CLASS } from '../../shared/fieldStyles';
 
 const TAB_TRIGGER_CLASS = radixTabTriggerClass();
 
@@ -240,12 +241,12 @@ export function SimResult({ summary, challengeResult, challengeStanding, onOpenC
             {challengeStanding && (
                 <div className="mx-4 flex flex-wrap items-stretch gap-2 text-[12px]">
                     <StandingTile>
-                        <span className="text-[10px] font-bold uppercase tracking-wide text-(--text-tertiary)">Attempt</span>
-                        <span className="font-black text-(--text-primary)">#{challengeStanding.attempts}</span>
+                        <span className={`${CAPS_LABEL_CLASS} text-(--text-tertiary)`}>Attempt</span>
+                        <span className="font-bold text-(--text-primary)">#{challengeStanding.attempts}</span>
                     </StandingTile>
                     <StandingTile>
-                        <span className="text-[10px] font-bold uppercase tracking-wide text-(--text-tertiary)">Budget</span>
-                        <span className="font-black text-(--text-primary) tabular-nums">
+                        <span className={`${CAPS_LABEL_CLASS} text-(--text-tertiary)`}>Budget</span>
+                        <span className="font-bold text-(--text-primary) tabular-nums">
                             {challengeStanding.roster_points ?? '?'}
                             {challengeStanding.pts_limit != null && (
                                 <span className="font-semibold text-(--text-tertiary)"> / {challengeStanding.pts_limit} pts</span>
@@ -262,11 +263,11 @@ export function SimResult({ summary, challengeResult, challengeStanding, onOpenC
                     {(() => {
                         const inner = (
                             <>
-                                <span className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide text-(--text-tertiary)">
+                                <span className={`flex items-center gap-1 ${CAPS_LABEL_CLASS} text-(--text-tertiary)`}>
                                     Leaderboard
                                     {onOpenChallengeLeaderboard && <FaChevronRight className="text-[8px]" />}
                                 </span>
-                                <span className="font-black text-(--text-primary)">
+                                <span className="font-bold text-(--text-primary)">
                                     {challengeStanding.rank != null
                                         ? `${ordinal(challengeStanding.rank)} of ${challengeStanding.entrants}`
                                         : `${challengeStanding.entrants} entered`}

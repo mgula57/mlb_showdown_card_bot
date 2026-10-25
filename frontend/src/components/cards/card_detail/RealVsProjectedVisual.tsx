@@ -101,7 +101,7 @@ function PercentileBar({ stat, real, statRanges, hasRanges, isLoading, playerTyp
         if (!hasRanges) return (
             <div className={`flex-1 relative h-5 flex items-center opacity-25 ${className || ''}`}>
                 <div className="absolute inset-x-0 h-1 rounded-full" style={{ backgroundColor: GHOST_COLOR }} />
-                <div className="absolute h-4.5 w-4.5 rounded-full flex items-center justify-center text-[8px] font-black text-white" style={{ left: '-2px', backgroundColor: GHOST_COLOR }}>
+                <div className="absolute h-4.5 w-4.5 rounded-full flex items-center justify-center text-[8px] font-bold text-white" style={{ left: '-2px', backgroundColor: GHOST_COLOR }}>
                     0
                 </div>
             </div>
@@ -125,7 +125,7 @@ function PercentileBar({ stat, real, statRanges, hasRanges, isLoading, playerTyp
             <div
                 className={`
                     absolute h-5 w-5 rounded-full flex items-center justify-center
-                    font-extrabold text-white ${targetPct.toString().length > 2 ? 'text-[8px]' : 'text-[10px]'}
+                    font-bold text-white ${targetPct.toString().length > 2 ? 'text-[8px]' : 'text-[10px]'}
                     transition-all duration-700 cursor-default group
                 `}
                 style={{ left: `calc(${badgeOffset}%)`, backgroundColor: color }}
@@ -133,7 +133,7 @@ function PercentileBar({ stat, real, statRanges, hasRanges, isLoading, playerTyp
                 {targetPct}
                 <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 hidden group-hover:flex flex-col items-center pointer-events-none z-10">
                     <div className="rounded-control px-2 py-1 text-[9px] font-semibold text-white whitespace-nowrap shadow-overlay" style={{ backgroundColor: color }}>
-                        <div className="font-black">{targetPct}th percentile</div>
+                        <div className="font-bold">{targetPct}th percentile</div>
                         <div className="opacity-80">Min {formatStatValue(range!.min, stat)} · Max {formatStatValue(range!.max, stat)}</div>
                     </div>
                     <div className="w-1.5 h-1.5 rotate-45 -mt-1" style={{ backgroundColor: color }} />
@@ -188,7 +188,7 @@ export default function RealVsProjectedVisual({ realVsProjectedData, statRanges,
                         <span className="text-[12px] font-bold w-14 shrink-0 opacity-70 leading-tight">
                             {cleanStat}{suffix && <span className="text-[9px] opacity-50">{suffix}</span>}
                         </span>
-                        <span className={`text-[12px] font-black w-12 shrink-0 text-right tabular-nums ${isEmpty ? 'blur-xs' : ''}`}>
+                        <span className={`text-[12px] font-bold w-12 shrink-0 text-right tabular-nums ${isEmpty ? 'blur-xs' : ''}`}>
                             {formatStatValue(stat.projected, cleanStat)}
                         </span>
                         <span className={`text-[12px] font-semibold w-12 shrink-0 text-right tabular-nums opacity-60 ${isEmpty ? 'blur-xs' : ''}`}>

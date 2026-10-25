@@ -12,6 +12,7 @@ import type { ShowdownBotCardAPIResponse } from "../../api/showdownBotCard";
 import { CardItemFromCard, CardItemSkeleton } from "../cards/CardItem";
 import type { AdvantageSide } from "../../domain/play";
 import { CardItemCompactFromCard } from "../cards/CardItemCompact";
+import { CAPS_LABEL_CLASS } from "../shared/fieldStyles";
 
 type CardMap = Record<string, ShowdownBotCardAPIResponse>;
 
@@ -166,12 +167,12 @@ export default function GameMatchup({ game, cardMap, isLoadingCards, onCardSelec
                 <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 border-t border-(--divider) pt-2 text-[11px]">
                     {situation.onDeck && (
                         <span className="text-(--secondary)">
-                            <span className="font-bold uppercase tracking-wide">On Deck</span> {situation.onDeck.name}
+                            <span className={CAPS_LABEL_CLASS}>On Deck</span> {situation.onDeck.name}
                         </span>
                     )}
                     {situation.inHole && (
                         <span className="text-(--secondary)">
-                            <span className="font-bold uppercase tracking-wide">In Hole</span> {situation.inHole.name}
+                            <span className={CAPS_LABEL_CLASS}>In Hole</span> {situation.inHole.name}
                         </span>
                     )}
                 </div>

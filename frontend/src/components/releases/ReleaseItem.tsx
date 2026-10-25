@@ -3,6 +3,7 @@ import type { Release, ReleasePreviewImage } from '../../api/releases';
 import { cardImagePublicUrl } from '../../api/supabase';
 import { ShowdownSetLogos } from '../shared/ShowdownSetLogos';
 import { FaLayerGroup } from 'react-icons/fa6';
+import { SLANT_ROOM_CLASS } from '../shared/headingStyles';
 import { Plate } from '../shared/Plate';
 
 /** Tile frame shared by ReleaseItem and its skeleton — sized like TeamPreviewCard's 'md' tile on
@@ -67,13 +68,13 @@ export function ReleaseItem({ release, onClick, showPublishStatus = false }: Rel
             {/* Double-rule frame from the 2001 card back: outer rule on the button, hairline here */}
             <div className="relative h-full flex flex-col overflow-hidden rounded-plate border border-(--divider)">
                 {/* Official plate + every included set, wrapping onto a second row when there are many */}
-                <div className="absolute top-1.5 inset-x-1.5 z-30 flex items-start justify-between gap-1 pointer-events-none">
+                <div className="absolute top-0.5 inset-x-0.5 z-1 flex items-start justify-between gap-1 pointer-events-none">
                     {release.is_official ? <Plate variant="navy" size="sm">Official</Plate> : <span />}
                     <ShowdownSetLogos
                         sets={sets}
                         heightClass="h-5"
                         abbreviatedHeightClass="h-4"
-                        className="flex flex-wrap items-center justify-end gap-1 rounded-plate p-0.5 bg-(--background-secondary)"
+                        className="flex flex-wrap items-center justify-end gap-1 p-0.5"
                     />
                 </div>
 
@@ -92,7 +93,7 @@ export function ReleaseItem({ release, onClick, showPublishStatus = false }: Rel
 
                 {/* Details */}
                 <div className="relative z-20 flex flex-col gap-1 px-2 pt-2 pb-2 border-t border-(--divider) bg-(--background-secondary)">
-                    <div className="font-display text-[21px] leading-[0.95] uppercase text-(--text-primary) line-clamp-2">
+                    <div className={`font-display text-[21px] leading-[0.95] uppercase text-(--text-primary) line-clamp-2 ${SLANT_ROOM_CLASS}`}>
                         {release.name}
                     </div>
                     {release.description && (
@@ -138,7 +139,7 @@ function FannedCardImage({ image, index, cardCount }: { image: ReleasePreviewIma
             loading="lazy"
             draggable={false}
             className="
-                absolute left-1/2 top-[8%] w-[48%] h-auto select-none drop-shadow-[0_2px_0_rgb(0_0_0/0.25)]
+                absolute left-1/2 top-[10%] w-[48%] h-auto select-none drop-shadow-[0_2px_0_rgb(0_0_0/0.25)]
                 transform-(--fan-rest) transition-transform duration-300 ease-out motion-reduce:transition-none
                 [@media(hover:hover)]:motion-safe:group-hover:transform-(--fan-hover)
             "
