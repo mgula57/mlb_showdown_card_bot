@@ -21,7 +21,7 @@ export function PoolFilterPanel({ cards, filters, onChange }: PoolFilterPanelPro
     );
 
     return (
-        <div className="grid grid-cols-[repeat(auto-fill,minmax(min(200px,100%),1fr))] gap-3 px-3 py-3 border-b border-(--divider) shrink-0">
+        <div className="grid grid-cols-[repeat(auto-fill,minmax(min(200px,100%),1fr))] gap-3 px-3 py-3 border-b border-(--divider) bg-(--background-secondary) shrink-0">
             {dimensions.map(dimension => (
                 <MultiSelect
                     key={dimension.value}

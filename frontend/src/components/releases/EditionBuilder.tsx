@@ -66,8 +66,11 @@ type EditionBuilderProps = {
 };
 
 const TAB_TRIGGER_CLASS = radixTabTriggerClass('sm');
-/** The panels' tab strips: inset to line up with their content, never shrinking out of the column. */
-const TAB_LIST_CLASS = tabListClass(true, 'px-3 shrink-0');
+/** The panels' tab strips: inset to line up with their content, never shrinking out of the column.
+ * Chrome (the step bar, panel headers, tab strips, the pool toolbar) sits on the raised surface so
+ * it reads apart from the build panel's page background and the card grid's darker tray. */
+const CHROME_SURFACE_CLASS = 'bg-(--background-secondary)';
+const TAB_LIST_CLASS = tabListClass(true, `px-3 shrink-0 ${CHROME_SURFACE_CLASS}`);
 
 // =============================================================================
 // MARK: - NUMBERING
@@ -768,7 +771,7 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
     return (
         <div className="flex flex-col flex-1 min-h-0">
             {/* Step indicator */}
-            <div className="flex items-center gap-3 px-4 py-3 border-b border-(--divider) shrink-0">
+            <div className={`flex items-center gap-3 px-4 py-3 border-b border-(--divider) shrink-0 ${CHROME_SURFACE_CLASS}`}>
                 {/* Numbered as a workflow while editing; plain views while browsing */}
                 <StepButton number={readOnly ? undefined : 1} label={readOnly ? 'Cards' : 'Player Pool'} isActive={step === 'pool'} onClick={() => setStep('pool')} />
                 <div className={`${readOnly ? 'w-3' : 'w-8'} h-px bg-(--divider) shrink-0`} />
@@ -857,7 +860,7 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
                             md:flex-none md:shrink-0 md:w-(--build-panel-width) md:max-w-(--build-panel-max-width) md:border-r md:border-(--divider)
                             ${buildPanelHidden ? 'md:hidden' : 'md:flex'}`}
                     >
-                        <div className="px-3 pt-2 pb-1 shrink-0 flex items-center justify-between gap-2">
+                        <div className={`px-3 pt-2 pb-1 shrink-0 flex items-center justify-between gap-2 ${CHROME_SURFACE_CLASS}`}>
                             <div className="flex items-center gap-1.5">
                                 <button
                                     type="button"
@@ -932,7 +935,7 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
                 {/* Selected Cards / Summary — takes whatever width the Build panel leaves. */}
                 <div className={`flex-1 min-w-0 flex-col min-h-0 ${activePoolTab === 'build' ? 'hidden md:flex' : 'flex'}`}>
                     {!readOnly && (
-                        <div className="hidden md:flex items-center gap-2 px-3 pt-2 shrink-0">
+                        <div className={`hidden md:flex items-center gap-2 px-3 pt-2 shrink-0 ${CHROME_SURFACE_CLASS}`}>
                             <span className={FIELD_LABEL_CLASS}>Player Pool</span>
                             <PoolStatusBadge isPreview={!!activePreview} />
                         </div>
@@ -996,7 +999,7 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
                                 </div>
                             )}
                             {((!readOnly && !activePreview) || displayCards.length > 0) && (
-                                <div className="flex flex-wrap items-center gap-x-2 gap-y-2 px-3 py-2 border-b border-(--divider) shrink-0">
+                                <div className={`flex flex-wrap items-center gap-x-2 gap-y-2 px-3 py-2 border-b border-(--divider) shrink-0 ${CHROME_SURFACE_CLASS}`}>
                                     {displayCards.length > 0 && (
                                         <div className="flex flex-wrap items-center gap-2">
                                             <CompactSelect
@@ -1229,7 +1232,7 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
                             )}
 
                             {/* Card Grid */}
-                            <div className={`flex-1 min-h-0 overflow-y-auto p-3 ${activePreview ? 'bg-(--preview-accent)/4' : ''}`}>
+                            <div className={`flex-1 min-h-0 overflow-y-auto p-3 ${activePreview ? 'bg-(--preview-accent)/4' : 'bg-(--background-tertiary)'}`}>
                                 {displayCards.length > 0 && filteredCards.length === 0 ? (
                                     <div className="flex flex-col items-center gap-2 py-8">
                                         <p className="text-[13px] text-(--text-tertiary)">No cards match these filters.</p>
@@ -1253,7 +1256,7 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
                                             <div key={group.key} className="flex flex-col gap-2">
                                                 {groupBy !== 'none' && (
                                                     // Sticks to the top of the scrolling grid while its group is in view; -top-3/-mx-3 offset the container's p-3.
-                                                    <div className="sticky -top-3 z-10 -mx-3 px-3 py-2 flex items-center gap-2 border-t border-b border-(--divider) bg-(--background-primary)">
+                                                    <div className="sticky -top-3 z-10 -mx-3 px-3 py-2 flex items-center gap-2 border-t border-b border-(--divider) bg-(--background-secondary)">
                                                         <Heading level="panel" as="span">{group.label}</Heading>
                                                         <Plate size="sm">
                                                             {poolGroups.find(g => g.key === group.key)?.cards.length}
