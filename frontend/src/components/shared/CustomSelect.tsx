@@ -203,9 +203,10 @@ const CustomSelect: React.FC<CustomSelectProps> = ({ value, onChange, options, c
             return;
         }
 
-        const maxWidth = Math.min(400, window.innerWidth - btnRect.left - MARGIN);
-        // Clamp left so the dropdown never overflows the right edge
-        const left = Math.min(btnRect.left, window.innerWidth - maxWidth - MARGIN);
+        const maxWidth = Math.min(400, window.innerWidth - 2 * MARGIN);
+        // Shift left (rather than squeeze) when the menu's natural width would overflow the right edge
+        const menuW = Math.max(minWidth, Math.min(maxWidth, dropdownRef.current?.getBoundingClientRect().width ?? 0));
+        const left = Math.min(btnRect.left, window.innerWidth - menuW - MARGIN);
         setMenuPos({ left: Math.max(0, left), top, minWidth, maxWidth, maxHeight });
     };
 
