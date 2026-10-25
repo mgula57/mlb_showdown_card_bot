@@ -21,6 +21,10 @@ export const FIELD_LABEL_CLASS = 'block text-[11px] font-semibold uppercase trac
  *  color (green "Overperformers") or sit inline in a row. */
 export const CAPS_LABEL_CLASS = 'text-[11px] font-semibold uppercase tracking-[0.08em] leading-4';
 
+/** A label inside a small field, before its value ("Sort Points", "Positions All", a filter chip's
+ *  "Small Samples? No"): semibold in the tertiary ink, same size as the field's text. */
+export const INLINE_FIELD_LABEL_CLASS = 'font-semibold text-(--text-tertiary) whitespace-nowrap';
+
 /** Border, surface and states only, for wrappers that size themselves (e.g. an input row). */
 export const FIELD_FRAME_CLASS =
     'rounded-control border border-(--divider) bg-(--background-secondary) text-(--text-primary) ' +

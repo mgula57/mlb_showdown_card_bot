@@ -24,10 +24,10 @@ import { Modal } from "../shared/Modal";
 import PinnedFooterScrollArea from "../shared/PinnedFooterScrollArea";
 import { useSiteSettings, showdownSets, imageForSet } from "../shared/SiteSettingsContext";
 import {
-    FaFilter, FaBaseballBall, FaArrowUp, FaArrowDown, FaTimes, FaHashtag,
+    FaFilter, FaBaseballBall, FaArrowUp, FaArrowDown, FaHashtag,
     FaDollarSign, FaMitten, FaCalendarAlt, FaChevronCircleRight, FaChevronCircleLeft,
     FaSort, FaTable, FaImage, FaAddressCard, FaLayerGroup, FaCheck, FaGripVertical,
-    FaChartLine, FaLock
+    FaChartLine
 } from "react-icons/fa";
 import { FaArrowRotateRight, FaTableList, FaXmark } from "react-icons/fa6";
 import { snakeToTitleCase } from "../../functions/text";
@@ -47,6 +47,7 @@ import SetMultiSelect from "./SetMultiSelect";
 
 import { TeamHierarchy } from "./TeamHierarchy";
 import SortButton from "./SortButton";
+import { FilterChip, type FilterChipText } from "./FilterChip";
 import { fetchTeamHierarchy, type TeamHierarchyRecord } from '../../api/card_db/cardDatabase';
 import { CardSource } from '../../types/cardSource';
 import { QuickFiltersDropdown } from './QuickFiltersDropdown';
@@ -1328,17 +1329,17 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
     const removeFilter = makeRemoveFilter(filters, setFilters);
     const removeFilterForEditing = makeRemoveFilter(filtersForEditing, setFiltersForEditing);
 
-    const filterDisplayText = (key: string, value: any, overallList: Record<string, unknown>) => {
+    const filterDisplayText = (key: string, value: any, overallList: Record<string, unknown>): FilterChipText | undefined => {
         if (key.startsWith('min_chart_') || key.startsWith('max_chart_')) {
             const comparisonOperator = key.startsWith('min_') ? '>=' : '<=';
             const category = key.replace('min_chart_', '').replace('max_chart_', '').toUpperCase();
             const correspondingKey = key.startsWith('min_') ? key.replace('min_chart_', 'max_chart_') : key.replace('max_chart_', 'min_chart_');
 
             if (overallList[correspondingKey] === value) {
-                return key.startsWith('min_') ? `Chart ${category}: ${value}` : undefined;
+                return key.startsWith('min_') ? { label: `Chart ${category}`, value: String(value) } : undefined;
             }
 
-            return `Chart ${category} ${comparisonOperator} ${value}`;
+            return { label: `Chart ${category}`, value: `${comparisonOperator} ${value}` };
         }
 
         if (key.startsWith('min_') || key.startsWith('max_')) {
@@ -1349,7 +1350,7 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
             // Check if there's a max with the same value. If so just display the min and show as `= value` instead of `>= value`
             const correspondingKey = key.startsWith('min_') ? `max_${shortKey}` : `min_${shortKey}`;
             if (overallList[correspondingKey] === value) {
-                return key.startsWith('min_') ? `${snakeToTitleCase(shortKey)}: ${value}` : undefined; // Don't show the max if it's the same as min, it will be redundant. Just show the min as `= value`
+                return key.startsWith('min_') ? { label: snakeToTitleCase(shortKey), value: String(value) } : undefined; // Don't show the max if it's the same as min, it will be redundant. Just show the min as `= value`
             }
 
             if (shortKey.length == 2) {
@@ -1366,38 +1367,38 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
                 shortKey = 'Control/Onbase';
             }
 
-            return `${shortKey} ${comparisonOperator} ${value}`;
+            return { label: shortKey, value: `${comparisonOperator} ${value}` };
         }
 
         if (key === 'include_small_sample_size') {
             const finalValues = value.length === 2 ? ['Yes', 'No'] : value[0] === 'true' ? ['Yes'] : ['No'];
             const finalValue = finalValues.join(',');
-            return `Small Samples?: ${finalValue}`;
+            return { label: 'Small Samples?', value: finalValue };
         }
 
         if (key === 'is_hof') {
             const finalValues = value.length === 2 ? ['Yes', 'No'] : value[0] === 'true' ? ['Yes'] : ['No'];
             const finalValue = finalValues.join(',');
-            return `HOF?: ${finalValue}`;
+            return { label: 'HOF?', value: finalValue };
         }
 
         // Shown by the edition picker in the search bar instead of as a chip
         if (key === 'release_edition_id') return undefined;
 
-        if (key === 'year') return `Years: ${value.join(', ')}`;
+        if (key === 'year') return { label: 'Years', value: value.join(', ') };
 
         if (key === 'showdown_set') {
             const finalValue = Array.isArray(value) ? value.map(s => s.toUpperCase()).join(', ') : value.toUpperCase();
-            return `Set: ${finalValue}`;
+            return { label: 'Set', value: finalValue };
         }
 
         const keysWithValuesToTitleCase = ['image_match_type']
         if (keysWithValuesToTitleCase.includes(key)) {
             const finalValue = Array.isArray(value) ? value.map(snakeToTitleCase).join(', ') : snakeToTitleCase(value);
-            return `${snakeToTitleCase(key)}: ${finalValue}`;
+            return { label: snakeToTitleCase(key), value: finalValue };
         }
 
-        return `${snakeToTitleCase(key)}: ${value}`;
+        return { label: snakeToTitleCase(key), value: String(value) };
     }
 
     const renderLoadingIndicator = () => {
@@ -1551,7 +1552,7 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
                         <SetMultiSelect
                             className="shrink-0"
                             variant="pill"
-                            prefix={<><span className="@2xl:hidden">Pos:</span><span className="hidden @2xl:inline">Positions:</span></>}
+                            prefix={<><span className="@2xl:hidden">Pos</span><span className="hidden @2xl:inline">Positions</span></>}
                             placeholder="All"
                             options={POSITION_OPTIONS}
                             selections={filters.positions ?? []}
@@ -1570,21 +1571,9 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
                             .filter(([_, value]) => !(value === undefined || value === null || (Array.isArray(value) && value.length === 0)))
                             .sort(([a], [b]) => Number(isFilterLocked(a as keyof FilterSelections)) - Number(isFilterLocked(b as keyof FilterSelections)))
                             .map(([key, value]) => {
-                                const displayText = filterDisplayText(key, value, filtersWithoutSorting);
-                                if (!displayText) return null;
-                                const locked = isFilterLocked(key as keyof FilterSelections);
-                                return (
-                                    <div key={key} className={`flex items-center rounded-plate px-2 py-1 ${locked ? 'bg-(--background-tertiary) text-(--text-secondary)' : 'bg-(--background-secondary)'}`}>
-                                        <span className="text-sm max-w-84 overflow-x-clip text-nowrap">{displayText}</span>
-                                        {locked ? (
-                                            <FaLock className="ml-1 shrink-0 text-[10px] opacity-50" title="Locked by team settings" />
-                                        ) : (
-                                            <button onClick={() => removeFilter(key)} className="ml-1 cursor-pointer">
-                                                <FaTimes />
-                                            </button>
-                                        )}
-                                    </div>
-                                )
+                                const chipText = filterDisplayText(key, value, filtersWithoutSorting);
+                                if (!chipText) return null;
+                                return <FilterChip key={key} text={chipText} locked={isFilterLocked(key as keyof FilterSelections)} onRemove={() => removeFilter(key)} />;
                             }
                         )}
 
@@ -1846,21 +1835,9 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
                                     .filter(([_, value]) => !(value === undefined || value === null || (Array.isArray(value) && value.length === 0)))
                                     .sort(([a], [b]) => Number(isFilterLocked(a as keyof FilterSelections)) - Number(isFilterLocked(b as keyof FilterSelections)))
                                     .map(([key, value]) => {
-                                        const displayText = filterDisplayText(key, value, filtersWithoutSortingForEditing);
-                                        if (!displayText) return null;
-                                        const locked = isFilterLocked(key as keyof FilterSelections);
-                                        return (
-                                            <div key={key} className={`flex items-center rounded-plate px-2 py-1 ${locked ? 'bg-(--background-tertiary) text-(--text-secondary)' : 'bg-(--background-secondary)'}`}>
-                                                <span className="text-sm max-w-84 overflow-x-clip text-nowrap">{displayText}</span>
-                                                {locked ? (
-                                                    <FaLock className="ml-1 shrink-0 text-[10px] opacity-50" title="Locked by team settings" />
-                                                ) : (
-                                                    <button onClick={() => removeFilterForEditing(key)} className="ml-1 cursor-pointer">
-                                                        <FaTimes />
-                                                    </button>
-                                                )}
-                                            </div>
-                                        )
+                                        const chipText = filterDisplayText(key, value, filtersWithoutSortingForEditing);
+                                        if (!chipText) return null;
+                                        return <FilterChip key={key} text={chipText} locked={isFilterLocked(key as keyof FilterSelections)} onRemove={() => removeFilterForEditing(key)} />;
                                     }
                                 )}
                             </div>

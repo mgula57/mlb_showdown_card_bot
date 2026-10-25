@@ -618,8 +618,10 @@ export const CardDetail = memo(function CardDetail({ showdownBotCardData: showdo
                 )}
 
                 {/* Iterate through attributes */}
-                {Object.entries(cardAttributes).map(([key, value]) => (
-                    <Plate key={key} size="md" className={value === null ? 'hidden' : ''}>
+                {Object.entries(cardAttributes)
+                    .filter(([, value]) => value != null && value !== '')
+                    .map(([key, value]) => (
+                    <Plate key={key} size="md">
                         <span>{value}</span>
                         
                         {/* Change in Points Weekly */}

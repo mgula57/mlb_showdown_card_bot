@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import type { SelectOption } from '../shared/CustomSelect';
 
-import { FIELD_FRAME_CLASS, CAPS_LABEL_CLASS } from '../shared/fieldStyles';
+import { FIELD_FRAME_CLASS, CAPS_LABEL_CLASS, INLINE_FIELD_LABEL_CLASS } from '../shared/fieldStyles';
 type SortOptionGroup = {
     label: string;
     options: SelectOption[];
@@ -100,7 +100,7 @@ const SortButton: React.FC<SortButtonProps> = ({
                     disabled={disableSortBy}
                     onClick={() => !disableSortBy && setIsOpen(prev => !prev)}
                 >
-                    <span className="font-semibold text-(--text-tertiary)">Sort</span>
+                    <span className={INLINE_FIELD_LABEL_CLASS}>Sort</span>
                     {selectedOption.icon && <span className="text-primary">{selectedOption.icon}</span>}
                     <span>{selectedOption.label ?? 'N/A'}</span>
                 </button>

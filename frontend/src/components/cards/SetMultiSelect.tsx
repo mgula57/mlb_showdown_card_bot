@@ -12,7 +12,7 @@ import { Fragment, useEffect, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { FaCaretDown, FaCheck, FaChevronDown, FaTimes } from 'react-icons/fa';
 
-import { fieldClass, CAPS_LABEL_CLASS } from '../shared/fieldStyles';
+import { fieldClass, CAPS_LABEL_CLASS, INLINE_FIELD_LABEL_CLASS } from '../shared/fieldStyles';
 export type SetMultiSelectOption = { value: string; image?: string; label?: string; group?: string };
 
 type SetMultiSelectProps = {
@@ -119,7 +119,7 @@ export default function SetMultiSelect({ options, selections, onChange, defaultI
                     onClick={() => setIsOpen(open => !open)}
                     className={fieldClass(isPill ? 'sm' : 'lg', 'flex items-center cursor-pointer')}
                 >
-                    {prefix && <span className="text-primary font-semibold whitespace-nowrap mr-1">{prefix}</span>}
+                    {prefix && <span className={`${INLINE_FIELD_LABEL_CLASS} mr-1`}>{prefix}</span>}
                     {/* Same footprint as the single-select set dropdown: one w-16 logo (first pick) + "+N" for extras */}
                     {(() => {
                         const shown = selectedOptions[0];

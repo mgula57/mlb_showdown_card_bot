@@ -2,7 +2,7 @@ import React from 'react';
 import { MdVerified } from 'react-icons/md';
 
 /** Display name for the built-in library. The backend's stable library_name stays 'Showdown Bot'. */
-const SHOWDOWN_BOT_DISPLAY_NAME = 'Showdown Bot (Official)';
+const SHOWDOWN_BOT_DISPLAY_NAME = 'Bot Official';
 
 /** Image library name, showing the built-in library as "Showdown Bot (Official)" with a verified check. */
 export const ImageLibraryName: React.FC<{ name: string; isShowdownBot: boolean; className?: string }> = ({ name, isShowdownBot, className = '' }) => (
