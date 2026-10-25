@@ -7,8 +7,16 @@ type CardIconProps = {
     /** Complete card data containing chart ranges and styling information */
     color: string;
     value: string;
-    circleSize: string;
+    circleSize: CircleSize;
     textSize: number;
+};
+
+type CircleSize = '3' | '4';
+
+/** Full class strings so Tailwind can see them (it can't read `w-${size}`). */
+const CIRCLE_SIZE_CLASSES: Record<CircleSize, string> = {
+    '3': 'w-3 h-3',
+    '4': 'w-4 h-4',
 };
 
 /**
@@ -19,13 +27,13 @@ const CardIcon = ({ color, value, circleSize, textSize }: CardIconProps) => {
     const twoDigitTextSize = value.length === 2 ? (textSize - 1) : textSize;
 
     return (
-        <div 
+        <div
             className={`
-                text-[${twoDigitTextSize}px] flex w-${circleSize} h-${circleSize} 
-                items-center font-bold justify-center 
-                rounded-full tracking-tight shrink-0
-            `} 
-            style={{ backgroundColor: color, color: contrastColor }}
+                ${CIRCLE_SIZE_CLASSES[circleSize]} flex items-center justify-center
+                font-display-upright uppercase leading-none
+                rounded-full shrink-0
+            `}
+            style={{ backgroundColor: color, color: contrastColor, fontSize: `${twoDigitTextSize}px` }}
         >
             {value}
         </div>

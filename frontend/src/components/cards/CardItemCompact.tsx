@@ -15,6 +15,9 @@ import { getFirstName, getLastName, getFirstInitial } from "../../functions/name
 // TYPES
 // =============================================================================
 
+/** The team/year and points badges under a compact card's name: the card's condensed bold face, like the plates beside the name on a full card. */
+const STAT_BADGE_CLASS = 'font-display-upright uppercase text-[10px] leading-none shrink-0 rounded-plate px-0.75 py-0.5';
+
 export type CardItemActionButton = {
     icon: React.ReactNode;
     onClick: () => void;
@@ -187,7 +190,7 @@ export const CardItemCompact = ({
                 />
             )}
 
-            <div className="min-w-0 flex-1 flex flex-col justify-center gap-1 text-left">
+            <div className="min-w-0 flex-1 flex flex-col justify-center gap-0.5 text-left">
                 <div className={`flex gap-x-0.5 font-display-upright uppercase text-[13px] leading-none text-(--text-primary) overflow-x-scroll scrollbar-hide truncate ${isRedacted ? 'redacted' : ''}`}>
                     {isRedacted 
                         ? 'REDACTED NAME' 
@@ -216,7 +219,7 @@ export const CardItemCompact = ({
                 {!hideTeamPoints && (
                     <div className="hidden @[75px]:flex items-center gap-1 min-w-0 overflow-x-scroll scrollbar-hide">
                         <div
-                            className={`flex font-display-upright uppercase text-[10px] leading-none shrink-0 rounded-plate px-0.75 py-0.5 ${isRedacted ? 'redacted' : ''}`}
+                            className={`flex ${STAT_BADGE_CLASS} ${isRedacted ? 'redacted' : ''}`}
                             style={isRedacted ? undefined : teamStyle}
                         >
                             {card?.team || 'N/A'}
@@ -224,7 +227,7 @@ export const CardItemCompact = ({
                             <span className="hidden @[130px]:block ml-0.5"> {formatYear(card?.year || '-')}</span>
                         </div>
                         <div
-                            className={`hidden @[80px]:flex text-[9px] leading-none font-semibold uppercase tracking-tight tabular-nums text-nowrap rounded-plate px-0.75 py-0.5 ${isRedacted ? 'redacted' : ''}`}
+                            className={`hidden @[80px]:flex ${STAT_BADGE_CLASS} tabular-nums text-nowrap ${isRedacted ? 'redacted' : ''}`}
                             style={isRedacted ? undefined : pointsBadgeStyle}
                         >
                             {hasPtsMultiplier ? (
