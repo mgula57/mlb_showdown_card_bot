@@ -5,6 +5,7 @@
  */
 import type { ReactNode } from "react";
 import { CornerCount } from "../../shared/CornerCount";
+import { SLANT_ROOM_CLASS } from "../../shared/headingStyles";
 
 type TopBarButtonProps = {
     label: string;
@@ -29,11 +30,11 @@ export default function TopBarButton({ label, shortLabel, onClick, icon, badge, 
             {icon && <span className="shrink-0 flex items-center">{icon}</span>}
             {shortLabel ? (
                 <>
-                    <span className="truncate sm:hidden">{shortLabel}</span>
-                    <span className="truncate hidden sm:inline">{label}</span>
+                    <span className={`truncate sm:hidden ${SLANT_ROOM_CLASS}`}>{shortLabel}</span>
+                    <span className={`truncate hidden sm:inline ${SLANT_ROOM_CLASS}`}>{label}</span>
                 </>
             ) : (
-                <span className="truncate">{label}</span>
+                <span className={`truncate ${SLANT_ROOM_CLASS}`}>{label}</span>
             )}
             <CornerCount count={badge ?? 0} />
         </button>

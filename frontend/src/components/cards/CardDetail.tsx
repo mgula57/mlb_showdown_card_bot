@@ -668,7 +668,7 @@ export const CardDetail = memo(function CardDetail({ showdownBotCardData: showdo
                                 disabled={draftDisabled}
                                 title={draftDisabled ? 'Saving your last pick…' : undefined}
                                 onClick={onDraft}
-                                className={buttonClass('primary', 'sm')}
+                                className={buttonClass('feature', 'sm')}
                             >
                                 <FaPlus className="w-3.5 h-3.5" />
                                 {draftLabel}

@@ -456,7 +456,7 @@ export function SeasonSimSetupForm(props: Props) {
                         type="button"
                         onClick={handleSubmit}
                         disabled={starting || loadingClubs || year === null}
-                        className={buttonClass('primary', 'md')}
+                        className={buttonClass('feature', 'md')}
                     >
                         {starting ? <FaSpinner className="animate-spin text-[11px]" /> : isLobby ? <FaUserGroup className="text-[11px]" /> : <FaPlay className="text-[11px]" />}
                         {isLobby ? 'Create Lobby' : 'Simulate Season'}

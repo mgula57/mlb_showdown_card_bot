@@ -924,7 +924,7 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
                         <button
                             type="button"
                             onClick={() => setIsSimModalOpen(true)}
-                            className={buttonClass('primary', 'sm', 'w-full')}
+                            className={buttonClass('feature', 'sm', 'w-full')}
                         >
                             <FaDice className="text-[11px]" />
                             Simulate this season
@@ -1146,7 +1146,7 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
                                                             <button
                                                                 type="button"
                                                                 onClick={() => setIsSimModalOpen(true)}
-                                                                className={buttonClass('primary', 'sm', 'whitespace-nowrap')}
+                                                                className={buttonClass('feature', 'sm', 'whitespace-nowrap')}
                                                             >
                                                                 <FaDice className="text-[11px]" />
                                                                 Simulate

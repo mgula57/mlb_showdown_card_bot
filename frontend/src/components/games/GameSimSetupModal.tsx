@@ -207,7 +207,7 @@ export default function GameSimSetupModal({ gamePk, showdownSet, onCancel, onSta
                             type="button"
                             onClick={handleStart}
                             disabled={!setup || starting || setup.is_final}
-                            className={buttonClass('primary', 'sm')}
+                            className={buttonClass('feature', 'sm')}
                         >
                             {starting ? <FaSpinner className="animate-spin text-[10px]" /> : <FaTerminal className="text-[15px]" />}
                             {starting ? 'Simulating…' : setup?.is_takeover ? 'Take Over' : 'Simulate'}

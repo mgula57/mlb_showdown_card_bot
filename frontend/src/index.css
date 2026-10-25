@@ -28,6 +28,8 @@
        upward, for sheets anchored to the bottom edge (BottomSheet, SlideOver). */
     --shadow-raised: 0 2px 0 var(--rule-strong);
     --shadow-overlay: 0 12px 32px rgb(0 0 0 / 0.18);
+    /* `shadow-feature`: the hard raised edge in Showdown red, for the one feature button per screen. */
+    --shadow-feature: 0 3px 0 var(--showdown-red);
     --shadow-sheet: 0 -12px 32px rgb(0 0 0 / 0.18);
 }
 

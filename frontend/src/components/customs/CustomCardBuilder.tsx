@@ -1419,7 +1419,7 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
                                         text-white
                                         h-16 w-16 rounded-full shadow-overlay
                                         @2xl:h-auto @2xl:w-full @2xl:flex-1 @2xl:gap-x-1.5
-                                        @2xl:rounded-control @2xl:py-3.5 @2xl:shadow-raised
+                                        @2xl:rounded-control @2xl:py-3.5 @2xl:shadow-feature @2xl:active:shadow-none
                                         transition-transform
                                         ${disableBuildButton
                                             ? 'cursor-not-allowed opacity-25'

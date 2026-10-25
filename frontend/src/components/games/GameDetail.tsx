@@ -51,7 +51,7 @@ const MOBILE_TABS: TabItem<MobileTab>[] = [
 const MID_TABS = MOBILE_TABS.filter((tab): tab is TabItem<MidTab> => tab.id !== 'field');
 
 const OUTLINE_BUTTON_CLASS = `rounded-control px-2.5 py-1.5 ${buttonVariantClass('secondary')}`;
-const PRIMARY_BUTTON_CLASS = `rounded-control px-3 py-1.5 ${buttonVariantClass('primary')}`;
+const FEATURE_BUTTON_CLASS = `rounded-control px-3 py-1.5 text-[15px]! ${buttonVariantClass('feature')}`;
 
 type GameDetailProps = {
     gamePk: number;
@@ -488,7 +488,7 @@ export default function GameDetail({ gamePk, sportId, season, showdownSet, isAct
                                         label="Simulate"
                                         icon={<FaTerminal />}
                                         onClick={() => { setSimError(null); setShowSimSetup(true); }}
-                                        className={PRIMARY_BUTTON_CLASS}
+                                        className={FEATURE_BUTTON_CLASS}
                                     />
                                 )}
                             </div>

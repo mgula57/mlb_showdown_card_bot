@@ -49,7 +49,7 @@ A club with no colors falls back to `NEUTRAL_TEAM_COLOR` / `NEUTRAL_TEAM_COLOR_S
 
 | Role | Class | Use |
 |---|---|---|
-| Display | `font-display uppercase` | Headlines that stand alone: page and section titles, release names, team abbreviations and names on team tiles, tab labels. The bundled Helvetica Neue Condensed Heavy Oblique (already slanted, so never add `italic`) |
+| Display | `font-display uppercase` | Headlines that stand alone: page and section titles, release names, team abbreviations and names on team tiles, tab labels, `feature` button labels. The bundled Helvetica Neue Condensed Heavy Oblique (already slanted, so never add `italic`) |
 | Command number | `font-display-black` | On-Base and Control numbers in `CardCommand`. Helvetica Neue 107 Extra Black Condensed |
 | Card name | `font-display-upright` | Player names and the year/team plate next to them on cards (`CardItem`, `CardItemCompact`), stat-badge values, game scores, and form section titles (`FormSection`), which sit inline with summary chips. Helvetica Neue Bold Condensed |
 | Eyebrow | `<Eyebrow>` | Small, widely spaced caps above a title |
@@ -71,7 +71,7 @@ Charts keep their compact footprint: don't increase cell padding, minimum widths
 - **Corners:** `rounded-card` (5px) for panels and tiles, `rounded-control` (4px) for buttons and inputs. `rounded-plate` (2px) for plates, badges and skeleton bars, just enough to soften them at small sizes. Circles only for avatars, the command art and small status dots. No `rounded-xl` or larger, and no pills for counts or status (use a `Plate`).
 - **Depth has three steps:**
   - **Flat:** 1px `--divider` border. Most things.
-  - **Raised:** `shadow-raised`, a hard 2px bottom edge, for primary buttons and pressable tiles.
+  - **Raised:** `shadow-raised`, a hard 2px bottom edge, for primary buttons and pressable tiles. `shadow-feature` is the same hard edge in Showdown red, 3px, only on `feature` buttons.
   - **Overlay:** `shadow-overlay`, the only soft shadow, for modals, menus, sheets and floating buttons. `shadow-sheet` is the same shadow cast upward, for sheets and strips anchored to the bottom edge (`BottomSheet`, `SlideOver`, the docked Guided Draft strip).
 - **No glass.** Overlays, sticky bars and footers are opaque surfaces (or a flat translucent fill over field art), never `backdrop-blur`. Modal and sheet scrims are a flat `bg-black/50`.
 - **Selection** is a navy outline: `border-(--showdown-blue) ring-1 ring-(--showdown-blue)`. Never an inverted fill (`bg-(--secondary) text-(--background-primary)`), which reads as a primary button, and never a glow. Rows of options use `choiceClass`. An active slot on the field art (`FieldView`) uses the white `--card-edge` ring instead, since navy disappears on the grass.
@@ -84,7 +84,7 @@ Use these before writing new styles. All live in `src/components/shared/` unless
 |---|---|
 | `Plate` | The stat box from the card front, in semibold body-face caps. Variants: `ink` (stats, points), `navy`/`red` (OFFICIAL, LIVE, errata), `outline` (Draft, awards), `success` (Published), `onField`/`onFieldOutline` (on team-color fields), `custom` (team-colored, pass `style`; on cards the year/team plate takes the primary color and the points plate the secondary). Replaces rounded pills |
 | `Eyebrow` | Spaced small caps above a title or labeling a group ("WHIP Leaders", "Step 1") |
-| `buttonStyles.ts` → `buttonClass(variant, size)` | Buttons and button-styled links: `primary` (navy, `shadow-raised`), `secondary` (bordered surface), `ghost`, `danger` (red, destructive confirms only; adding, drafting or starting something is `primary`). Works on `<button>`, `<Link>` and `<a>`. `buttonVariantClass(variant)` is just the colors and states, for buttons that size themselves (`GameDetail`'s top bar, a card's corner action) |
+| `buttonStyles.ts` → `buttonClass(variant, size)` | Buttons and button-styled links: `feature` (navy with a hard red `shadow-feature` edge, label in the display face; the one headline action per screen, like Build Card, Simulate, a modal's Start or a card's Draft), `primary` (navy, `shadow-raised`), `secondary` (bordered surface), `ghost`, `danger` (red, destructive confirms only; adding, drafting or starting something is `primary`). Works on `<button>`, `<Link>` and `<a>`. `buttonVariantClass(variant)` is just the colors and states, for buttons that size themselves (`GameDetail`'s top bar, a card's corner action) |
 | `choiceStyles.ts` → `choiceClass(selected, size)` | Choice chips: a row of options where one is picked (numbering mode, algorithm templates, a chart subset, a scoring filter). Bordered surface; the picked one gets the navy selection outline. Switching between views is a tab strip, not choice chips |
 | `CornerCount` | The small navy count plate pinned to a button's corner (active filters, new sims) |
 | Card action button | `CardItemActionButton` (`cards/CardItemCompact`). `emphasis: 'primary'` makes a card's corner action the navy raised button (Add, Draft from a search); pass that instead of color classes |
