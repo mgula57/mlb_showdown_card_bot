@@ -28,7 +28,7 @@ All colors come from tokens in [`src/index.css`](src/index.css). Components neve
 | Stat plates | `--plate`, `--plate-ink` | Silver plate in light, raised gray plate in dark. Team-color fields use the dark `onField` plate instead |
 | Status | `--green`, `--red`, `--warning`, `--success`, `--error`, `--live` | Semantic only, never decorative |
 | Team-color fields | `--card-edge`, `--field-ink`, `--field-live` | Same in both themes; see below |
-| Set badge outline | `--set-outline` | Letter outline on `SetBadge`: dark gray in light, white in dark |
+| Set badge outline | `--set-outline` | Letter outline on `SetBadge`: white in both themes, like the printed set logos (a dark outline muddied the letters on light surfaces) |
 | Highlight gold | `--gold` | Starred teams, Hall of Fame, All-Star marks. Never decorative |
 | Bronze | `--bronze` | Third-place medals only (1st is `--gold`, 2nd `--text-secondary`) |
 | Grade scale | `--grade-a` … `--grade-d` | Percentile and match-quality readouts, best to worst (points breakdown, percentile gauges, card comps). Use `gradeColor(score, cutoffs?)` from `functions/colors.ts` |

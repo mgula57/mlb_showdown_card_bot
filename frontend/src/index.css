@@ -56,8 +56,9 @@
     --background-quaternary: #d6dbe1;
     --divider: #d3d8de;
     --rule-strong: #9aa3ad;
-    /* Outline around set badge lettering (SetBadge): dark gray in light, white in dark. */
-    --set-outline: #3a4149;
+    /* Outline around set badge lettering (SetBadge): white in both themes, like the printed set
+       logos. A dark outline smeared into the navy and red letters on light surfaces. */
+    --set-outline: #ffffff;
     --background-gradient: linear-gradient(to bottom right, rgb(228, 232, 236), rgb(247, 248, 250), rgb(221, 226, 231));
 
     /* Stat plates: a silver step off the white card in light mode, a raised gray in dark mode, so
@@ -159,7 +160,6 @@
 
     --divider: #2f3844;
     --rule-strong: #4a5461;
-    --set-outline: #ffffff;
 
     /* A raised gray rather than a white plate, so stat plates don't glare on dark cards. */
     --plate: #343e4b;

@@ -27,8 +27,8 @@ type SetBadgeProps = {
 };
 
 /**
- * A Showdown set's name the way the cards print it: display italic caps in the set's color with an
- * outline (`--set-outline`, dark gray in light and white in dark). Renders nothing for an unknown set.
+ * A Showdown set's name the way the cards print it: display italic caps in the set's color with a
+ * white outline (`--set-outline`). Renders nothing for an unknown set.
  */
 export function SetBadge({ set, abbreviated = false, size = 'md', onField = false, className = '' }: SetBadgeProps) {
     const found = showdownSets.find(s => s.value === set);
