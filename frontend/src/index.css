@@ -2,36 +2,86 @@
 
 /* Tailwind CSS v4 directive; suppress the standard CSS language-service warning. */
 /* css-lint disable unknownAtRules */
+/* Design language: see frontend/DESIGN.md before adding or changing anything below. */
 @theme {
     --container-field-split: 600px;
     --breakpoint-2xs: 22rem; /* or 352px */
     --breakpoint-xs: 30rem; /* or 480px */
     --breakpoint-3xl: 120rem; /* or 1920px */
+
+    /* `font-display`: condensed heavy italic for standalone headlines. `font-display-upright`:
+       condensed bold for player names on cards. `font-display-black`: extra black condensed for
+       command numbers. Their metrics are normalized by scripts/normalize_font_metrics.py so caps
+       center in the line box. See DESIGN.md. */
+    --font-display: 'ShowdownDisplay', 'Helvetica Neue', 'Arial Narrow', sans-serif;
+    --font-display-upright: 'ShowdownDisplayUpright', 'Helvetica Neue', 'Arial Narrow', sans-serif;
+    --font-display-black: 'ShowdownDisplayBlack', 'Helvetica Neue', 'Arial Narrow', sans-serif;
+
+    /* `rounded-card` for panels and tiles, `rounded-control` for buttons and inputs. */
+    --radius-card: 5px;
+    --radius-control: 4px;
+
+    /* `shadow-raised` is the hard bottom edge for raised controls; `shadow-overlay` is the only
+       soft shadow, reserved for modals, menus and sheets. */
+    --shadow-raised: 0 2px 0 var(--rule-strong);
+    --shadow-overlay: 0 12px 32px rgb(0 0 0 / 0.18);
 }
 
 :root {
-    --primary: #000000;
-    --secondary: #292929;
-    --tertiary: #3c3c3c;
-    --quaternary: #5a5a5a;
+    --primary: #101317;
+    --secondary: #2a2f36;
+    --tertiary: #3e444c;
+    --quaternary: #5c636c;
 
+    /* Text roles. Prefer these over --primary/--secondary in new code. */
+    --text-primary: var(--primary);
+    --text-secondary: var(--secondary);
+    --text-tertiary: #69717c;
 
     --showdown-blue: #1a3b5f;
-    --showdown-red: #9a362f;
+    --showdown-red: #b3342b;
     --showdown-gray: #6e6e73;
 
     /* Unsaved / algorithm-preview state (e.g. Release Builder preview pools) */
     --preview-accent: #6d28d9;
-    
-    --background-primary: #f5f3f0;
-    --background-secondary: #fdfcfa;
-    --background-tertiary: #ebe8e3;
-    --background-quaternary: #e0dcd6;
-    --divider: #e2ded8;
-    --background-gradient: linear-gradient(to bottom right, rgb(235, 232, 227), rgb(253, 252, 250), rgb(228, 222, 214));
 
-    --table-header: #dedad4;
-    --table-banding: #f0ede9;
+    /* Surfaces: a pale 2001 card-back silver page, white panels, silver fills. */
+    --background-primary: #eef0f3;
+    --background-secondary: #ffffff;
+    --background-tertiary: #e2e6ea;
+    --background-quaternary: #d6dbe1;
+    --divider: #d3d8de;
+    --rule-strong: #9aa3ad;
+    --background-gradient: linear-gradient(to bottom right, rgb(228, 232, 236), rgb(247, 248, 250), rgb(221, 226, 231));
+
+    /* Stat plates: a silver step off the white card in light mode, a raised gray in dark mode, so
+       they read as plates without being the loudest thing on the card. */
+    --plate: #d6dbe1;
+    --plate-ink: #101317;
+
+    /* Highlight gold: starred teams, Hall of Fame, All-Star marks. Never decorative. */
+    --gold: #b7861f;
+    /* Third-place medal, next to --gold (1st) and --text-secondary (2nd). */
+    --bronze: #a0622b;
+
+    /* Team-color fields (team tiles, card fronts) look the same in both themes: a white card
+       edge, near-black plates, and a light red for live states on dark plates. */
+    --card-edge: #f4f5f7;
+    --field-ink: #0b0d10;
+    --field-live: #ff6b5e;
+
+    /* Card-back pinstripe texture (`bg-pinstripe`). */
+    --stripe: rgb(26 59 95 / 0.07);
+
+    --table-header: #dfe3e8;
+    --table-banding: #f2f4f6;
+
+    /* Legacy aliases: used across components but never defined before the design-language pass. */
+    --background: var(--background-primary);
+    --background-secondary-hover: var(--background-tertiary);
+    --form-element: var(--divider);
+    --border-primary: var(--divider);
+    --border-secondary: var(--rule-strong);
 
     --success: #4BB543;
     --warning: #d5ad0c;
@@ -69,27 +119,40 @@
 .dark {
     --die-body: #000000;
     --die-ink: #ffffff;
-    --primary: #ffffff;
-    --secondary: #dfdfdf;
-    --tertiary: #cfcfcf;
-    --quaternary: #b0b0b0;
+    --primary: #f1f3f5;
+    --secondary: #d5dae0;
+    --tertiary: #c3c9d1;
+    --quaternary: #a3abb5;
 
-    --showdown-blue: #4682e6;
-    --showdown-red: #d04e47;
+    --text-tertiary: #8b939d;
+
+    --showdown-blue: #4f86cf;
+    --showdown-red: #e0574d;
     --showdown-gray: #a0a0a5;
 
     --preview-accent: #c4b5fd;
 
-    --background-primary: #1c1a18;
-    --background-secondary: #25221f;
-    --background-tertiary: #36322d;
-    --background-quaternary: #3f3a34;
-    --background-gradient: linear-gradient(to bottom right, rgb(16, 15, 14), rgb(37, 34, 31), rgb(28 25 23));
+    /* Navy-tinted near-black. */
+    --background-primary: #0d1116;
+    --background-secondary: #161b22;
+    --background-tertiary: #212833;
+    --background-quaternary: #2b333e;
+    --background-gradient: linear-gradient(to bottom right, rgb(10, 13, 17), rgb(22, 27, 34), rgb(16, 21, 27));
 
-    --divider: #47423b;
+    --divider: #2f3844;
+    --rule-strong: #4a5461;
 
-    --table-header: #47423b;
-    --table-banding: #1d1b19;
+    /* A raised gray rather than a white plate, so stat plates don't glare on dark cards. */
+    --plate: #343e4b;
+    --plate-ink: #f1f3f5;
+
+    --stripe: rgb(120 160 220 / 0.06);
+
+    --gold: #e0b352;
+    --bronze: #d08a52;
+
+    --table-header: #2b333e;
+    --table-banding: #12171d;
 
     --success: #4dc545;
     --warning: #e9de3f;
@@ -101,8 +164,8 @@
     --challenge-themed: #f0806c;
 
 
-    --green: #5df452;
-    --red: #fb3232;
+    --green: #5cc46f;
+    --red: #f0675c;
 
     --live: #f04438;
 }
@@ -116,7 +179,36 @@
     font-display: swap;
 }
 
+@font-face {
+    font-family: 'ShowdownDisplay';
+    src: url('./assets/fonts/HelveticaNeueCondensedHeavyOblique.otf') format('opentype');
+    font-weight: 400 900;
+    font-style: normal;
+    font-display: swap;
+}
+
+@font-face {
+    font-family: 'ShowdownDisplayBlack';
+    src: url('./assets/fonts/HelveticaNeueExtraBlackCondensed.otf') format('opentype');
+    font-weight: 400 900;
+    font-style: normal;
+    font-display: swap;
+}
+
+@font-face {
+    font-family: 'ShowdownDisplayUpright';
+    src: url('./assets/fonts/HelveticaNeueBoldCondensed.ttf') format('truetype');
+    font-weight: 400 900;
+    font-style: normal;
+    font-display: swap;
+}
+
 @layer utilities {
+    /* Card-back pinstripes. Headers and hero bands only (see DESIGN.md). */
+    .bg-pinstripe {
+        background-image: repeating-linear-gradient(90deg, var(--stripe) 0 1px, transparent 1px 12px);
+    }
+
     .bg-primary {
         background-color: var(--background-primary);
     }

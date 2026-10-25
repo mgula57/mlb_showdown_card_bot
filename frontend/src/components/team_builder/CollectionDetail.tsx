@@ -4,6 +4,7 @@ import { TeamPreviewCard } from './TeamPreviewCard';
 import BackButton from '../shared/BackButton';
 import { FaSpinner } from 'react-icons/fa6';
 
+import { Heading } from '../shared/Heading';
 type CollectionDetailProps = {
     slug: string;
     onOpenTeam: (team: TeamSummary) => void;
@@ -31,9 +32,9 @@ export function CollectionDetail({ slug, onOpenTeam, onBack, horizontalPadding }
             <div className={`flex items-center gap-3 ${px}`}>
                 <BackButton onBack={onBack} />
                 <div>
-                    <h1 className="text-[20px] font-black text-(--text-primary)">
+                    <Heading level="page">
                         {collection ? `${collection.cover_emoji ? collection.cover_emoji + ' ' : ''}${collection.title}` : 'Collection not found'}
-                    </h1>
+                    </Heading>
                     {collection?.description && (
                         <p className="text-[12px] text-(--text-secondary)">{collection.description}</p>
                     )}

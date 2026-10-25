@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import type { SelectOption } from '../shared/CustomSelect';
 
+import { FIELD_FRAME_CLASS } from '../shared/fieldStyles';
 type SortOptionGroup = {
     label: string;
     options: SelectOption[];
@@ -92,20 +93,20 @@ const SortButton: React.FC<SortButtonProps> = ({
 
     return (
         <div ref={buttonRef} className="relative shrink-0">
-            <div className="flex items-center bg-(--background-secondary) border border-form-element rounded-full text-sm text-nowrap overflow-hidden">
+            <div className={`flex items-stretch h-8 text-[12px] text-nowrap overflow-hidden ${FIELD_FRAME_CLASS}`}>
                 <button
                     type="button"
-                    className="flex flex-row gap-1 items-center px-2 py-1 cursor-pointer hover:bg-(--background-secondary-hover) disabled:opacity-40 disabled:cursor-not-allowed"
+                    className="flex flex-row gap-1 items-center px-2.5 cursor-pointer hover:bg-(--background-tertiary) disabled:opacity-40 disabled:cursor-not-allowed"
                     disabled={disableSortBy}
                     onClick={() => !disableSortBy && setIsOpen(prev => !prev)}
                 >
-                    <span className="text-primary font-semibold">Sort:</span>
+                    <span className="font-semibold text-(--text-tertiary)">Sort</span>
                     {selectedOption.icon && <span className="text-primary">{selectedOption.icon}</span>}
                     <span>{selectedOption.label ?? 'N/A'}</span>
                 </button>
                 <button
                     type="button"
-                    className="px-2 py-1 border-l border-form-element cursor-pointer hover:bg-(--background-secondary-hover) disabled:opacity-40 disabled:cursor-not-allowed font-semibold"
+                    className="px-2.5 border-l border-(--divider) cursor-pointer hover:bg-(--background-tertiary) disabled:opacity-40 disabled:cursor-not-allowed font-semibold"
                     disabled={disableSortDirection}
                     onClick={() => onSortDirectionChange(sortDirection === 'asc' ? 'desc' : 'asc')}
                 >
@@ -119,7 +120,7 @@ const SortButton: React.FC<SortButtonProps> = ({
                     className={`
                         fixed z-1000
                         ${openAbove ? '-translate-y-full -mt-1' : 'mt-1'}
-                        bg-(--background-primary) rounded-xl shadow-lg
+                        bg-(--background-primary) rounded-card shadow-overlay
                         border border-(--background-tertiary)
                         overflow-auto scrollbar-hide
                     `}
@@ -154,7 +155,7 @@ const SortButton: React.FC<SortButtonProps> = ({
                                     {option.icon && <span className="text-primary shrink-0">{option.icon}</span>}
                                     <span className="flex-1 text-sm">{option.label}</span>
                                     {option.value === selectedOption.value && (
-                                        <span className="ml-auto text-blue-400 text-xs">✓</span>
+                                        <span className="ml-auto text-(--showdown-blue) text-xs">✓</span>
                                     )}
                                 </div>
                             ))}

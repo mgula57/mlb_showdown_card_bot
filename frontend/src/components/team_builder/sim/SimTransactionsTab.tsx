@@ -63,7 +63,7 @@ export function SimTransactionsTab({ summary, teamKey }: Props) {
                             const otherIdentity = identityFor(otherKey);
                             const record = acquired ? trade.to_team_record : trade.from_team_record;
                             return (
-                                <div key={i} className="flex items-center gap-2 text-[12px] rounded-lg bg-(--background-secondary) px-3 py-2">
+                                <div key={i} className="flex items-center gap-2 text-[12px] rounded-card bg-(--background-secondary) px-3 py-2">
                                     <FaRightLeft className={`shrink-0 ${acquired ? 'text-(--success)' : 'text-(--error)'}`} />
                                     <span className={`font-bold w-9 shrink-0 ${acquired ? 'text-(--success)' : 'text-(--error)'}`}>
                                         {acquired ? 'IN' : 'OUT'}

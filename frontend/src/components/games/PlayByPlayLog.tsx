@@ -45,7 +45,7 @@ function MiniCard({
             {card ? (
                 <CardItemCompactFromCard card={card} hideDetails onClick={cardResponse ? () => onCardSelect?.(cardResponse) : undefined} />
             ) : isLoadingCards ? (
-                <div className="h-11 rounded-lg bg-(--background-quaternary) animate-pulse" />
+                <div className="h-11 rounded-control bg-(--background-quaternary) animate-pulse" />
             ) : (
                 <div className="text-xs font-semibold text-(--primary) truncate pt-1">{fallbackName}</div>
             )}
@@ -76,22 +76,22 @@ function CurrentMatchupRow({
                 </span>
                 Now Batting · {inningLabel(situation.inning, situation.isTop)}
             </div>
-            <div className="flex items-start gap-3 p-3 rounded-xl bg-primary border border-(--green)/50 ring-1 ring-(--green)/20">
+            <div className="flex items-start gap-3 p-3 rounded-card bg-primary border border-(--green)/50 ring-1 ring-(--green)/20">
                 <div className="grid grid-cols-1 @[500px]:grid-cols-2 gap-1 min-w-24 @[300px]:min-w-32">
                     <MiniCard cardResponse={pitcherCardResponse} fallbackName={situation.pitcher?.name ?? 'Unknown'} onCardSelect={onCardSelect} isLoadingCards={isLoadingCards} />
                     <MiniCard cardResponse={batterCardResponse} fallbackName={situation.batter?.name ?? 'Unknown'} onCardSelect={onCardSelect} isLoadingCards={isLoadingCards} />
                 </div>
                 <div className="min-w-0 flex-1 pt-0.5">
                     <div className="flex flex-wrap items-center gap-1.5">
-                        <span className="inline-block rounded-full border border-(--green)/40 px-2 py-0.5 text-[11px] font-bold text-(--green)">
+                        <span className="inline-block rounded-[2px] border border-(--green)/40 px-2 py-0.5 text-[11px] font-bold text-(--green)">
                             At Bat
                         </span>
                         {hasCount && (
-                            <span className="rounded-full bg-(--background-tertiary) px-2 py-0.5 text-[10px] font-bold tracking-wide text-(--secondary)">
+                            <span className="rounded-[2px] bg-(--background-tertiary) px-2 py-0.5 text-[10px] font-bold tracking-wide text-(--secondary)">
                                 {situation.balls}-{situation.strikes}
                             </span>
                         )}
-                        <span className="rounded-full bg-(--background-tertiary) px-2 py-0.5 text-[10px] font-bold tracking-wide text-(--secondary)">
+                        <span className="rounded-[2px] bg-(--background-tertiary) px-2 py-0.5 text-[10px] font-bold tracking-wide text-(--secondary)">
                             {situation.outs} out{situation.outs !== 1 ? 's' : ''}
                         </span>
                     </div>
@@ -143,7 +143,7 @@ export default function PlayByPlayLog({ plays, cardMap, onCardSelect, isLoadingC
             onClick={() => setScoringOnly((on) => !on)}
             disabled={scoringCount === 0 && !scoringOnly}
             aria-pressed={scoringOnly}
-            className={`cursor-pointer rounded-full border px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${
+            className={`cursor-pointer rounded-control border px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${
                 scoringOnly
                     ? 'border-(--green)/40 bg-(--green)/10 text-(--green)'
                     : 'border-(--divider) text-(--secondary) hover:text-(--primary)'
@@ -198,14 +198,14 @@ export default function PlayByPlayLog({ plays, cardMap, onCardSelect, isLoadingC
                                     {inningLabel(play.inning, play.isTop)}
                                 </div>
                             )}
-                            <div className="flex items-start gap-3 p-3 rounded-xl bg-primary border border-(--divider)/50">
+                            <div className="flex items-start gap-3 p-3 rounded-card bg-primary border border-(--divider)/50">
                                 <div className="grid grid-cols-1 @[500px]:grid-cols-2 gap-1 min-w-24 @[300px]:min-w-32">
                                     <MiniCard cardResponse={pitcherCardResponse} fallbackName={play.pitcherName} onCardSelect={onCardSelect} isLoadingCards={isLoadingCards} />
                                     <MiniCard cardResponse={batterCardResponse} fallbackName={play.batterName} onCardSelect={onCardSelect} isLoadingCards={isLoadingCards} />
                                 </div>
                                 <div className="min-w-0 flex-1 pt-0.5">
                                     <div className="flex flex-wrap items-center gap-1.5">
-                                        <span className={`inline-block rounded-full border px-2 py-0.5 text-[11px] font-bold ${
+                                        <span className={`inline-block rounded-[2px] border px-2 py-0.5 text-[11px] font-bold ${
                                             play.isScoringPlay
                                                 ? 'border-(--green)/40 text-(--green)'
                                                 : 'border-(--divider) text-(--secondary)'
@@ -214,7 +214,7 @@ export default function PlayByPlayLog({ plays, cardMap, onCardSelect, isLoadingC
                                         </span>
                                         {/* Sim games resolve a plate appearance with two d20s instead of a pitch count. */}
                                         {play.roll && (
-                                            <span className="rounded-full bg-(--background-tertiary) px-2 py-0.5 text-[10px] font-bold tracking-wide text-(--secondary)">
+                                            <span className="rounded-[2px] bg-(--background-tertiary) px-2 py-0.5 text-[10px] font-bold tracking-wide text-(--secondary)">
                                                 P {play.roll.pitchRoll} · S {play.roll.swingRoll}
                                             </span>
                                         )}
@@ -231,11 +231,13 @@ export default function PlayByPlayLog({ plays, cardMap, onCardSelect, isLoadingC
                     );
                 })}
             </div>
+            {/* design-ok-start: scroll fade over the log, not decoration */}
             <div
                 className={`absolute bottom-0 inset-x-0 h-10 bg-linear-to-t from-(--background-secondary) to-transparent pointer-events-none transition-opacity duration-300 ${
                     showBottomFade ? 'opacity-100' : 'opacity-0'
                 }`}
             />
+            {/* design-ok-end */}
         </div>
     );
 
@@ -250,7 +252,7 @@ export default function PlayByPlayLog({ plays, cardMap, onCardSelect, isLoadingC
     }
 
     return (
-        <div className="rounded-xl border border-(--divider) bg-(--background-secondary) p-3">
+        <div className="rounded-card border border-(--divider) bg-(--background-secondary) p-3">
             <div className="mb-2 flex items-center justify-between gap-2">
                 <div className="text-xs font-bold uppercase tracking-wide text-(--secondary)">Play-by-Play</div>
                 {filterToggle}

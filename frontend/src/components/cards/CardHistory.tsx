@@ -122,7 +122,7 @@ export const CardHistory = ({ history, onSelectCard }: CardHistoryProps) => {
 
                             return (
                                 <li key={index}>
-                                    <div className="flex items-start gap-2 py-2 rounded-lg bg-(--background-primary) px-3">
+                                    <div className="flex items-start gap-2 py-2 rounded-card bg-(--background-primary) px-3">
 
                                         {/* Thumbnail */}
                                         {(() => {
@@ -130,7 +130,7 @@ export const CardHistory = ({ history, onSelectCard }: CardHistoryProps) => {
                                             const fullUrl = getFullImageUrl(group.record);
                                             return (
                                                 <div
-                                                    className={`relative z-0 shrink-0 w-20 rounded-lg overflow-hidden bg-(--background-secondary) group/thumb ${fullUrl ? 'cursor-zoom-in' : ''}`}
+                                                    className={`relative z-0 shrink-0 w-20 rounded-control overflow-hidden bg-(--background-secondary) group/thumb ${fullUrl ? 'cursor-zoom-in' : ''}`}
                                                     style={{ aspectRatio: '3.5 / 4.5' }}
                                                     onClick={() => fullUrl && setModalImageUrl(fullUrl)}
                                                 >
@@ -262,7 +262,8 @@ export const CardHistory = ({ history, onSelectCard }: CardHistoryProps) => {
                     <img
                         src={modalImageUrl}
                         alt="Card full view"
-                        className="max-h-[90vh] max-w-[90vw] object-contain rounded-lg shadow-2xl"
+                        // design-ok: card art keeps its printed corner radius
+                        className="max-h-[90vh] max-w-[90vw] object-contain rounded-lg shadow-overlay"
                         onClick={(e) => e.stopPropagation()}
                     />
                 </div>,

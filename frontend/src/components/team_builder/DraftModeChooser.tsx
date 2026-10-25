@@ -26,7 +26,7 @@ export function DraftModeChooser({ onChoose, onClose }: { onChoose: (choice: Dra
                         key={value}
                         type="button"
                         onClick={() => onChoose(value)}
-                        className="flex sm:flex-col items-start gap-3 sm:gap-2 rounded-xl border border-(--divider) bg-(--background-secondary) p-3 text-left cursor-pointer transition-colors hover:border-(--showdown-red)"
+                        className="flex sm:flex-col items-start gap-3 sm:gap-2 rounded-card border border-(--divider) bg-(--background-secondary) p-3 text-left cursor-pointer transition-colors hover:border-(--showdown-red)"
                     >
                         <span className="flex items-center justify-center w-9 h-9 shrink-0 rounded-full bg-(--showdown-red)/10 text-(--showdown-red)">
                             <Icon className="text-[15px]" />
@@ -68,7 +68,7 @@ export function DraftModeBannerToggle({ mode, onChange, btnClass, alwaysShowLabe
         </button>
     );
     return (
-        <div role="radiogroup" aria-label="Draft mode" className={`flex items-stretch h-7 rounded-lg overflow-hidden ${btnClass}`}>
+        <div role="radiogroup" aria-label="Draft mode" className={`flex items-stretch h-7 rounded-card overflow-hidden ${btnClass}`}>
             {option('search', FaMagnifyingGlass, 'Search')}
             {option('guided', FaCompass, 'Guided')}
         </div>

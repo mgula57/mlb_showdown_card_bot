@@ -16,21 +16,21 @@ function normalizeReleaseCardTag(value: string): string {
     return value.trim().toUpperCase().slice(0, TAG_MAX_LENGTH);
 }
 
-const CHIP_CLASS = 'inline-flex items-center gap-1 rounded-md bg-(--warning) text-black font-bold uppercase tracking-wide';
+const CHIP_CLASS = 'inline-flex items-center gap-1 rounded-card bg-(--warning) text-black font-bold uppercase tracking-wide';
 
 export function ReleaseCardTagChips({ tags, onRemove }: { tags: string[]; onRemove?: (tag: string) => void }) {
     if (tags.length === 0) return null;
     return (
         <div className="flex flex-wrap gap-1">
             {tags.map(tag => (
-                <span key={tag} className={`${CHIP_CLASS} ${onRemove ? 'text-[11px] py-1 pl-2 pr-1' : 'text-[9px] py-0.5 px-1.5 shadow-sm ring-1 ring-black/20'}`}>
+                <span key={tag} className={`${CHIP_CLASS} ${onRemove ? 'text-[11px] py-1 pl-2 pr-1' : 'text-[9px] py-0.5 px-1.5 ring-1 ring-black/20'}`}>
                     {tag}
                     {onRemove && (
                         <button
                             type="button"
                             onClick={() => onRemove(tag)}
                             aria-label={`Remove ${tag} tag`}
-                            className="flex items-center justify-center w-4 h-4 rounded-full hover:bg-red-500/90 hover:text-white transition-colors cursor-pointer"
+                            className="flex items-center justify-center w-4 h-4 rounded-full hover:bg-(--red)/90 hover:text-white transition-colors cursor-pointer"
                         >
                             <FaXmark className="text-[10px]" />
                         </button>
@@ -77,7 +77,7 @@ export function ReleaseCardTagsEditor({ tags, editionTags, readOnly, onChange }:
                     onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addTag(draft); } }}
                     maxLength={TAG_MAX_LENGTH}
                     placeholder="Add tag…"
-                    className="w-28 min-h-8 text-[12px] uppercase bg-transparent border border-(--divider) rounded-lg px-2 py-1 text-(--text-primary) focus:outline-none focus:border-(--secondary)"
+                    className="w-28 min-h-8 text-[12px] uppercase bg-transparent border border-(--divider) rounded-control px-2 py-1 text-(--text-primary) focus:outline-none focus:border-(--secondary)"
                 />
             </div>
             {suggestions.length > 0 && (
@@ -87,7 +87,7 @@ export function ReleaseCardTagsEditor({ tags, editionTags, readOnly, onChange }:
                             key={tag}
                             type="button"
                             onClick={() => addTag(tag)}
-                            className="flex items-center gap-1 text-[11px] font-bold uppercase tracking-wide text-(--text-tertiary) border border-dashed border-(--divider) rounded-md py-0.5 px-1.5 hover:text-(--text-primary) hover:border-(--secondary) transition-colors cursor-pointer"
+                            className="flex items-center gap-1 text-[11px] font-bold uppercase tracking-wide text-(--text-tertiary) border border-dashed border-(--divider) rounded-control py-0.5 px-1.5 hover:text-(--text-primary) hover:border-(--secondary) transition-colors cursor-pointer"
                         >
                             <FaPlus className="text-[9px]" />
                             {tag}

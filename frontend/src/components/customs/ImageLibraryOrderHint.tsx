@@ -57,16 +57,16 @@ export const ImageLibraryOrderHint: React.FC<{ className?: string }> = ({ classN
     return (
         <div className={`text-xs ${className}`}>
             <div className="flex items-center justify-between gap-2 mb-1">
-                <span className="flex items-center gap-1.5 text-gray-500">Image search order <NewBadge /></span>
+                <span className="flex items-center gap-1.5 text-(--text-tertiary)">Image search order <NewBadge /></span>
                 <Link to={IMAGE_LIBRARIES_PATH} className={linkClass}>Manage</Link>
             </div>
             <ol className="space-y-0.5">
                 {ordered.map((entry, index) => (
                     <li key={entry.id} className="flex items-center gap-1.5 min-w-0 text-secondary">
-                        <span className="w-3 shrink-0 text-right text-gray-500">{index + 1}</span>
+                        <span className="w-3 shrink-0 text-right text-(--text-tertiary)">{index + 1}</span>
                         {entry.isShowdownBot
-                            ? <FaRobot className="shrink-0 text-gray-500" />
-                            : <FaGoogleDrive className="shrink-0 text-gray-500" />}
+                            ? <FaRobot className="shrink-0 text-(--text-tertiary)" />
+                            : <FaGoogleDrive className="shrink-0 text-(--text-tertiary)" />}
                         <ImageLibraryName name={entry.name} isShowdownBot={entry.isShowdownBot} />
                     </li>
                 ))}

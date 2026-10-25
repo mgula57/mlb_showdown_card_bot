@@ -40,7 +40,7 @@ export function FeaturedCollections({ onOpen, onOpenCollection, horizontalPaddin
     }, [collections, query, showdownSet]);
 
     if (error) {
-        return <p className={`${px} text-[12px] text-red-400`}>{error}</p>;
+        return <p className={`${px} text-[12px] text-(--red)`}>{error}</p>;
     }
     if (collections === null) {
         return <TeamShelfSkeleton shelves={2} className={px} />;

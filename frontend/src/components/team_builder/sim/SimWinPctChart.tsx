@@ -16,7 +16,7 @@ function CustomTooltip({ active, payload }: { active?: boolean; payload?: { payl
     const point = payload[0].payload;
     if (point.isSeed) {
         return (
-            <div className="bg-(--background-secondary) border border-(--divider) rounded-lg px-2.5 py-1.5 text-[11px] shadow-lg">
+            <div className="bg-(--background-secondary) border border-(--divider) rounded-card px-2.5 py-1.5 text-[11px] shadow-overlay">
                 <p className="font-bold text-primary">Real record</p>
                 <p className="text-tertiary">
                     {point.wins}–{point.losses} ({point.winPct.toFixed(3).replace(/^0\./, '.')})
@@ -26,7 +26,7 @@ function CustomTooltip({ active, payload }: { active?: boolean; payload?: { payl
         );
     }
     return (
-        <div className="bg-(--background-secondary) border border-(--divider) rounded-lg px-2.5 py-1.5 text-[11px] shadow-lg">
+        <div className="bg-(--background-secondary) border border-(--divider) rounded-card px-2.5 py-1.5 text-[11px] shadow-overlay">
             <p className="font-bold text-primary">Game {point.game} · {point.date}</p>
             <p className="text-tertiary">
                 {point.wins}–{point.losses} ({point.winPct.toFixed(3).replace(/^0\./, '.')})
@@ -103,7 +103,7 @@ export function SimWinPctChart({ games, playoffCutlinePct, totalGames, seedRecor
                     </LineChart>
                 </ResponsiveContainer>
                 <div className="absolute inset-0 flex items-center justify-center px-4">
-                    <p className="rounded-md border border-(--divider) bg-(--background-secondary)/90 px-3 py-1.5 text-center text-[12px] font-semibold text-tertiary">
+                    <p className="rounded-card border border-(--divider) bg-(--background-secondary)/90 px-3 py-1.5 text-center text-[12px] font-semibold text-tertiary">
                         No Regular Season Simmed Games
                     </p>
                 </div>

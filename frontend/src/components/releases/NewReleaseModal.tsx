@@ -5,6 +5,9 @@ import { useSiteSettings, showdownSets } from '../shared/SiteSettingsContext';
 import { FaXmark, FaPlus, FaSpinner } from 'react-icons/fa6';
 import CustomSelect from '../shared/CustomSelect';
 
+import { InlineError } from '../shared/InlineError';
+import { buttonClass } from '../shared/buttonStyles';
+import { FIELD_LABEL_CLASS } from '../shared/fieldStyles';
 type NewReleaseModalProps = {
     onConfirm: (payload: ReleaseCreatePayload) => Promise<void>;
     onCancel: () => void;
@@ -36,7 +39,7 @@ export function NewReleaseModal({ onConfirm, onCancel }: NewReleaseModalProps) {
             onClick={onCancel}
         >
             <div
-                className="bg-(--background-primary) rounded-2xl w-full max-w-lg shadow-2xl border border-(--divider) overflow-hidden flex flex-col max-h-[90dvh]"
+                className="bg-(--background-primary) rounded-card w-full max-w-lg shadow-overlay border border-(--divider) overflow-hidden flex flex-col max-h-[90dvh]"
                 onClick={e => e.stopPropagation()}
             >
                 {/* Header */}
@@ -71,7 +74,7 @@ export function NewReleaseModal({ onConfirm, onCancel }: NewReleaseModalProps) {
                         placeholder="Optional"
                     />
                     <div className="flex flex-col gap-1 ">
-                        <label className="text-sm font-medium text-secondary">Default Showdown Set</label>
+                        <label className={FIELD_LABEL_CLASS}>Default Showdown Set</label>
                         <CustomSelect
                             value={draft.default_showdown_set ?? userShowdownSet}
                             onChange={v => setDraft(prev => ({ ...prev, default_showdown_set: v }))}
@@ -87,15 +90,15 @@ export function NewReleaseModal({ onConfirm, onCancel }: NewReleaseModalProps) {
                 {/* Footer */}
                 <div className="px-4 py-3 border-t border-(--divider) shrink-0 flex flex-col gap-2">
                     {error && (
-                        <div className="text-[11px] text-red-400 px-2 py-1.5 rounded-lg border border-red-400/30 bg-red-400/5">
+                        <InlineError>
                             {error}
-                        </div>
+                        </InlineError>
                     )}
                     <div className="flex gap-2">
                         <button
                             type="button"
                             onClick={onCancel}
-                            className="flex-1 py-2.5 rounded-xl text-[13px] font-semibold border border-(--divider) text-(--text-secondary) hover:border-(--text-tertiary) transition-colors"
+                            className={buttonClass('secondary', 'md', 'flex-1 py-2.5!')}
                         >
                             Cancel
                         </button>
@@ -103,8 +106,7 @@ export function NewReleaseModal({ onConfirm, onCancel }: NewReleaseModalProps) {
                             type="button"
                             onClick={handleCreate}
                             disabled={!canCreate || creating}
-                            className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-[13px] font-bold text-white transition-opacity
-                                ${canCreate && !creating ? 'bg-linear-to-r from-blue-500 to-red-500 hover:opacity-90 cursor-pointer' : 'bg-(--secondary) opacity-40 cursor-not-allowed'}`}
+                            className={buttonClass('primary', 'md', 'flex-1 py-2.5!')}
                         >
                             {creating
                                 ? <><FaSpinner className="animate-spin text-[11px]" /> Creating…</>

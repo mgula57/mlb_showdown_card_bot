@@ -88,8 +88,16 @@ export const getReadableTextColor = (bg: string, preferredText: string): string 
     return whiteContrast >= blackContrast ? '#ffffff' : '#000000';
 };
 
-/** Best-contrast text color (black or white) for a background, with no preferred override. */
-export const getContrastTextColor = (bg: string): string => getReadableTextColor(bg, '#000000');
+/** White text reads better than black on saturated mid-tones (team reds, oranges, blues) even
+ *  where black wins on raw contrast ratio, so white is kept down to the 3:1 bold-text threshold. */
+const MIN_WHITE_TEXT_CONTRAST = 3;
+
+/** Text color (white or black) for a background: white unless the background is genuinely light. */
+export const getContrastTextColor = (bg: string): string => {
+    const bgRgb = parseToRgb(bg);
+    if (!bgRgb) return '#000000';
+    return contrastRatioWithWhite(bgRgb) >= MIN_WHITE_TEXT_CONTRAST ? '#ffffff' : '#000000';
+};
 
 /** Contrast-aware translucent tokens for content sitting on a solid identity color — the mode
  *  banners in the team builder and on the game page. `getContrastTextColor` returns '#000000'

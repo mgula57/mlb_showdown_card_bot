@@ -13,6 +13,7 @@ import { HistoricalTeams, type HistoricalNavState } from './HistoricalTeams';
 import { EraTeams } from './EraTeams';
 import CustomSelect, { type SelectOption } from '../shared/CustomSelect';
 
+import { Heading } from '../shared/Heading';
 type BrowseType = 'all' | 'featured' | 'community' | 'historical' | 'era';
 
 const TYPE_OPTIONS: SelectOption[] = [
@@ -132,7 +133,7 @@ function BrowseSection({ meta, horizontalPadding, children }: {
                 <div className={horizontalPadding}>
                     <div className="flex items-center gap-2">
                         <span className="text-[18px]" style={{ color: `var(${accent})` }}>{icon}</span>
-                        <h2 className="text-[22px] font-black text-(--text-primary) tracking-tight">{title}</h2>
+                        <Heading level="section">{title}</Heading>
                     </div>
                     <p className="text-[12px] text-(--text-secondary) mt-0.5 max-w-2xl">{description}</p>
                 </div>
@@ -316,8 +317,7 @@ export function BrowseTeams({ onOpenTeam, horizontalPadding, currentUserId, myTe
                         }
                     }}
                     options={TYPE_OPTIONS}
-                    buttonClassName="px-2.5 py-2 rounded-lg border border-(--divider) bg-(--background-secondary) text-(--text-primary) text-[13px] text-nowrap cursor-pointer flex items-center"
-                    dropdownArrowSize={12}
+                    size="md"
                 />
 
                 <CustomSelect
@@ -331,9 +331,8 @@ export function BrowseTeams({ onOpenTeam, horizontalPadding, currentUserId, myTe
                         }
                     }}
                     options={SET_OPTIONS}
-                    buttonClassName="px-2.5 py-2 rounded-lg border border-(--divider) bg-(--background-secondary) text-(--text-primary) text-[13px] text-nowrap cursor-pointer flex items-center"
+                    size="md"
                     imageClassName="mr-0.5 w-6 h-5 object-contain object-center"
-                    dropdownArrowSize={12}
                 />
 
                 <div className="flex-1 min-w-48 max-w-88">

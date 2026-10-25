@@ -17,7 +17,7 @@ export default function ChartVersionBadge({ chartVersion, className = '', style 
             className={`
                 flex items-center justify-center shrink-0
                 text-[9px] font-bold leading-none tracking-tight
-                rounded-md px-1 py-0.5
+                rounded-card px-1 py-0.5
                 ${style ? '' : 'bg-(--showdown-blue) text-white'}
                 ${className}
             `}

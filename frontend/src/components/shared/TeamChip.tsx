@@ -68,12 +68,12 @@ export function TeamChip({ team, record, size = "md", isStarred, onToggleStar, c
                             onToggleStar();
                         }
                     }}
-                    className={`text-sm leading-none cursor-pointer ${isStarred ? "text-yellow-300" : "text-(--quaternary) hover:text-yellow-300"}`}
+                    className={`text-sm leading-none cursor-pointer ${isStarred ? "text-(--gold)" : "text-(--quaternary) hover:text-(--gold)"}`}
                 >
                     {isStarred ? <FaStar className="h-3.5 w-3.5" /> : <FaRegStar className="h-3.5 w-3.5" />}
                 </span>
             ) : isStarred ? (
-                <FaStar className="h-3 w-3 shrink-0 text-yellow-400" aria-label={`${team.abbreviation} is starred`} />
+                <FaStar className="h-3 w-3 shrink-0 text-(--gold)" aria-label={`${team.abbreviation} is starred`} />
             ) : null}
         </div>
     );

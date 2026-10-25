@@ -19,9 +19,10 @@ import {
     type CardStyleSettings,
 } from './cardStyle';
 
+import { Eyebrow } from '../shared/Eyebrow';
 /** Small pill badge used to flag newly added options/fields */
 export const NewBadge = () => (
-    <span className="text-[9px] font-bold leading-none px-1.5 py-0.5 rounded-full bg-(--red) text-white uppercase tracking-wide">
+    <span className="text-[9px] font-bold leading-none px-1.5 py-0.5 rounded-[2px] bg-(--red) text-white uppercase tracking-wide">
         New
     </span>
 );
@@ -111,7 +112,7 @@ export function ImageStyleFields({ values, onChange, hideParallel = false }: Sty
             />
 
             {/* Extras */}
-            <h1 className="col-span-full text-md font-semibold text-secondary mt-2">Extras</h1>
+            <Eyebrow className="col-span-full mt-2">Extras</Eyebrow>
             <FormDropdown
                 label="Show Real Stats?"
                 options={statHighlightsTypeOptions}

@@ -131,7 +131,7 @@ export function SimSummaryTab({ summary, teamKey }: Props) {
                             const oppWins = series.home_team === teamKey ? series.away_team_wins : series.home_team_wins;
                             const won = series.winner === teamKey;
                             return (
-                                <div key={i} className="flex items-center gap-2 text-[12px] rounded-lg bg-(--background-secondary) px-3 py-2">
+                                <div key={i} className="flex items-center gap-2 text-[12px] rounded-card bg-(--background-secondary) px-3 py-2">
                                     <span className="text-(--text-tertiary) w-20 shrink-0 font-semibold">{roundLabel(series.round, series.league)}</span>
                                     <span className={`font-bold ${won ? 'text-(--showdown-blue)' : 'text-(--text-tertiary)'}`}>{won ? 'W' : 'L'}</span>
                                     <span className="text-(--text-primary)">{myWins}–{oppWins} vs</span>
@@ -149,7 +149,7 @@ export function SimSummaryTab({ summary, teamKey }: Props) {
                 {myAwards.length > 0 ? (
                     <div className="flex flex-col gap-1.5">
                         {myAwards.map((award, i) => (
-                            <div key={i} className="flex items-center gap-2 text-[12px] rounded-lg bg-(--background-secondary) px-3 py-2">
+                            <div key={i} className="flex items-center gap-2 text-[12px] rounded-card bg-(--background-secondary) px-3 py-2">
                                 <FaTrophy className="text-(--secondary) shrink-0" />
                                 <span className="font-bold text-(--text-primary)">{award.player.name}</span>
                                 <span className="text-(--text-tertiary)">

@@ -1,3 +1,6 @@
+import { Plate } from '../shared/Plate';
+import { Eyebrow } from '../shared/Eyebrow';
+import { buttonClass } from '../shared/buttonStyles';
 /**
  * @fileoverview CardDetail - Comprehensive card display and analysis component
  * 
@@ -49,6 +52,7 @@ import ImageSourceBadge from './card_detail/ImageSourceBadge';
 import PinnedFooterPortal from '../shared/PinnedFooterPortal';
 import { cardImagePublicUrl } from '../../api/supabase';
 
+import { Heading } from '../shared/Heading';
 /**
  * Props for the CardDetail component
  */
@@ -101,11 +105,14 @@ type CardDetailProps = {
     styleEditor?: CardStyleEditorConfig;
 };
 
+// design-ok: the rendered card art has its own large corner radius; the image clip matches it
+const CARD_IMAGE_RADIUS = 'rounded-2xl';
+
 const SectionPanel = ({ title, subtitle, isLoading, children }: { title: string; subtitle?: string; isLoading?: boolean; children: React.ReactNode }) => (
-    <div className={`bg-secondary rounded-xl p-4 border border-form-element space-y-3 overflow-y-scroll ${isLoading ? 'blur-xs' : ''}`}>
-        <div className="flex flex-col gap-0.5">
-            <div className="text-[12px] font-semibold opacity-40 uppercase tracking-widest">{title}</div>
-            {subtitle && <div className="text-[10px] font-semibold opacity-30 uppercase tracking-widest">{subtitle}</div>}
+    <div className={`bg-secondary rounded-card p-4 border border-form-element space-y-3 overflow-y-scroll ${isLoading ? 'blur-xs' : ''}`}>
+        <div className="flex flex-col gap-1">
+            <Eyebrow>{title}</Eyebrow>
+            {subtitle && <div className="text-[10px] font-semibold uppercase tracking-widest text-(--text-tertiary)">{subtitle}</div>}
         </div>
         {children}
     </div>
@@ -405,7 +412,7 @@ export const CardDetail = memo(function CardDetail({ showdownBotCardData: showdo
     if (isThisYearBeforeOct8th === false || !isValidStatsPeriodType) {
         weeklyChangePoints = null; // Only show for current year cards
     }
-    const weeklyChangePointsColor = weeklyChangePoints ? (weeklyChangePoints > 0 ? 'text-green-500' : 'text-red-500') : '';
+    const weeklyChangePointsColor = weeklyChangePoints ? (weeklyChangePoints > 0 ? 'text-(--green)' : 'text-(--red)') : '';
     const weeklyChangePointsSymbol = weeklyChangePoints ? (weeklyChangePoints > 0 ? '▲' : '▼') : '';
 
     // Handle Image Generation
@@ -557,8 +564,8 @@ export const CardDetail = memo(function CardDetail({ showdownBotCardData: showdo
 
             {/* Warnings */}
             {activeCardData?.card?.warnings && activeCardData.card.warnings.length > 0 && (
-                <div className="bg-(--warning)/5 border border-(--warning) text-(--warning) p-2 rounded-md">
-                    <h4 className="font-semibold">Warnings</h4>
+                <div className="bg-(--warning)/5 border border-(--warning) text-(--warning) p-2 rounded-card">
+                    <Heading level="panel" as="h4">Warnings</Heading>
                     <ul className="list-disc list-inside">
                         {activeCardData.card.warnings.map((warning, index) => (
                             <li key={index}>{warning}</li>
@@ -575,7 +582,7 @@ export const CardDetail = memo(function CardDetail({ showdownBotCardData: showdo
             ">
                 <a 
                     href={activeCardData?.card?.bref_url || '#'} 
-                    className='text-3xl font-black opacity-85 pr-2'
+                    className='font-display uppercase text-3xl leading-none text-(--text-primary) hover:text-(--showdown-blue) transition-colors pr-2'
                     target="_blank"
                     rel="noopener noreferrer"
                 >
@@ -587,7 +594,7 @@ export const CardDetail = memo(function CardDetail({ showdownBotCardData: showdo
                     <div className="flex flex-col items-start">
                         <CustomSelect
                             className="w-28"
-                            buttonClassName="flex justify-center items-center cursor-pointer select-none disabled:opacity-50 disabled:cursor-wait border border-(--divider) rounded-lg py-1 px-2"
+                            size="sm"
                             imageClassName="object-contain object-center h-6"
                             value={activeCardData.card.set}
                             onChange={handleSetSwitch}
@@ -611,16 +618,7 @@ export const CardDetail = memo(function CardDetail({ showdownBotCardData: showdo
 
                 {/* Iterate through attributes */}
                 {Object.entries(cardAttributes).map(([key, value]) => (
-                    <div 
-                        key={key} 
-                        className={`
-                            flex items-center
-                            space-x-2 py-1 px-4 
-                            bg-secondary rounded-2xl
-                            text-sm font-semibold
-                            ${value === null ? 'hidden': ''}
-                        `}
-                    >
+                    <Plate key={key} size="md" className={value === null ? 'hidden' : ''}>
                         <span>{value}</span>
                         
                         {/* Change in Points Weekly */}
@@ -629,8 +627,7 @@ export const CardDetail = memo(function CardDetail({ showdownBotCardData: showdo
                                 {weeklyChangePointsSymbol} {Math.abs(weeklyChangePoints)} THIS WEEK
                             </div>
                         )}
-
-                    </div>
+                    </Plate>
                 ))}
 
                 {/* Player image source (Showdown Bot library, user's Drive library, upload, link) */}
@@ -659,15 +656,7 @@ export const CardDetail = memo(function CardDetail({ showdownBotCardData: showdo
                                     ? setIsStyleEditorOpen(open => !open)
                                     : activeCardData.card && customizeCard(activeCardData.card)}
                                 title={styleEditor ? "Edit this card's style" : 'Open in the Custom Card Builder'}
-                                className={`
-                                    relative flex items-center gap-2
-                                    py-1 px-4 rounded-2xl
-                                    border border-(--divider)
-                                    text-sm font-semibold
-                                    hover:bg-(--background-secondary) active:scale-95 transition
-                                    cursor-pointer
-                                    ${showStyleEditor ? 'bg-(--background-secondary) border-(--text-tertiary)' : ''}
-                                `}
+                                className={buttonClass('secondary', 'sm', `relative ${showStyleEditor ? 'bg-(--background-tertiary)' : ''}`)}
                             >
                                 <FaWandMagicSparkles className="w-3.5 h-3.5" />
                                 Customize
@@ -683,14 +672,7 @@ export const CardDetail = memo(function CardDetail({ showdownBotCardData: showdo
                                 disabled={draftDisabled}
                                 title={draftDisabled ? 'Saving your last pick…' : undefined}
                                 onClick={onDraft}
-                                className={`
-                                    flex items-center gap-2
-                                    py-1 px-4 rounded-2xl
-                                    border border-transparent
-                                    animated-showdown-gradient text-white text-sm font-bold
-                                    shadow-md transition
-                                    ${draftDisabled ? 'opacity-50 cursor-not-allowed' : 'hover:opacity-90 active:scale-95 cursor-pointer'}
-                                `}
+                                className={buttonClass('primary', 'sm')}
                             >
                                 <FaPlus className="w-3.5 h-3.5" />
                                 {draftLabel}
@@ -703,7 +685,7 @@ export const CardDetail = memo(function CardDetail({ showdownBotCardData: showdo
 
             {/* Tooltip */}
             {tooltip && (
-                <div className="bg-(--showdown-red)/5 border border-(--showdown-red) text-(--showdown-red) p-2 rounded-md text-xs">
+                <div className="bg-(--showdown-red)/5 border border-(--showdown-red) text-(--showdown-red) p-2 rounded-card text-xs">
                     {tooltip}
                 </div>
             )}
@@ -713,7 +695,7 @@ export const CardDetail = memo(function CardDetail({ showdownBotCardData: showdo
                 <div className="
                     bg-(--secondary)/50
                     border border-(--form-element)
-                    rounded-lg
+                    rounded-card
                     p-3
                     text-xs
                 ">
@@ -768,7 +750,7 @@ export const CardDetail = memo(function CardDetail({ showdownBotCardData: showdo
                                 block
                                 @2xl:mx-auto
                                 ${cardImageMaxHeight}
-                                rounded-2xl overflow-hidden
+                                ${CARD_IMAGE_RADIUS} overflow-hidden
                                 object-contain
                                 fade-in
                                 ${isLoadingOverall ? 'blur-xs' : ''}
@@ -801,10 +783,10 @@ export const CardDetail = memo(function CardDetail({ showdownBotCardData: showdo
                                     <div className="
                                         flex items-center gap-2
                                         px-4 py-2
-                                        rounded-full whitespace-nowrap
+                                        rounded-control whitespace-nowrap
                                         bg-(--background-secondary)/70 backdrop-blur-md
                                         border border-(--divider)
-                                        shadow-lg
+                                        shadow-overlay
                                     ">
                                         <div className="card-processing-spinner" />
                                         <p className="text-xs font-semibold tracking-wide">

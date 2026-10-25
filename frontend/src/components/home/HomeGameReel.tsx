@@ -45,7 +45,7 @@ const GRASS_FADE_STYLE: React.CSSProperties = {
     WebkitMaskComposite: "source-in",
 };
 /** Translucent framing for text over the grass — matches GameDetail's ScoreHeader. */
-const OVER_GRASS_PANEL = "rounded-lg border border-(--divider) bg-(--background-secondary)/70 backdrop-blur-sm";
+const OVER_GRASS_PANEL = "rounded-card border border-(--divider) bg-(--background-secondary)/70 backdrop-blur-sm";
 
 // Browser-session cache — the reel loops, so each game is fetched at most once per set.
 const _segmentCache = new Map<string, Promise<ReelSegment>>();
@@ -195,7 +195,7 @@ function ReelSkeleton() {
                 <div className="h-4 w-40 rounded bg-(--divider)" />
                 <div className="h-4 w-24 rounded bg-(--divider)" />
             </div>
-            <div className="aspect-703/369 w-full rounded-lg bg-(--divider)/60" />
+            <div className="aspect-703/369 w-full rounded-card bg-(--divider)/60" />
         </div>
     );
 }

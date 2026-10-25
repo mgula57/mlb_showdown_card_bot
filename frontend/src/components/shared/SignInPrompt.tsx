@@ -1,7 +1,9 @@
 import React, { useState } from 'react';
+import { buttonClass } from './buttonStyles';
 import { FaLock } from 'react-icons/fa';
 import { LoginModal } from '../auth/LoginModal';
 
+import { Heading } from './Heading';
 interface SignInPromptProps {
     /** Icon to display above the message. Defaults to FaLock. */
     icon?: React.ReactNode;
@@ -32,13 +34,13 @@ export const SignInPrompt: React.FC<SignInPromptProps> = ({
             </div>
 
             <div className="flex flex-col gap-1">
-                <h2 className="text-lg font-bold text-primary">{title}</h2>
+                <Heading level="section">{title}</Heading>
                 {message && <p className="text-sm text-secondary">{message}</p>}
             </div>
 
             <button
                 onClick={() => setShowLoginModal(true)}
-                className="px-6 py-2.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold transition-colors cursor-pointer"
+                className={buttonClass('primary')}
             >
                 Sign in / Sign up
             </button>

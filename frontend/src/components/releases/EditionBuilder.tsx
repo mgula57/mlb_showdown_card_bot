@@ -39,6 +39,7 @@ import { TeamSearchInput } from '../team_builder/TeamSearchInput';
 import { FaGripVertical } from 'react-icons/fa';
 import { FaPlus, FaXmark, FaSpinner, FaWandMagicSparkles, FaCircleCheck, FaMagnifyingGlass, FaArrowsRotate, FaGear, FaArrowUp, FaArrowDown, FaTriangleExclamation, FaTableCellsLarge, FaList, FaAnglesLeft, FaAnglesRight, FaListCheck, FaChartColumn, FaPalette, FaFilter } from 'react-icons/fa6';
 
+import { InlineError } from '../shared/InlineError';
 /** Narrowest the Player Pool panel can get; it takes whatever the Build Method panel leaves. */
 const MIN_POOL_PANEL_WIDTH = 280;
 /** Narrowest the Build Method panel can be dragged to. */
@@ -57,7 +58,7 @@ type EditionBuilderProps = {
 };
 
 const TAB_TRIGGER_CLASS =
-    'relative flex items-center px-4 py-2 text-sm rounded-lg transition-colors ' +
+    'relative flex items-center px-4 py-2 text-sm rounded-control transition-colors ' +
     'data-[state=active]:bg-(--background-quaternary) data-[state=active]:font-bold ' +
     'data-[state=inactive]:text-(--text-tertiary) data-[state=inactive]:font-medium data-[state=inactive]:hover:bg-(--divider)';
 
@@ -213,7 +214,7 @@ const BUILD_PANEL_HIDDEN_STORAGE_KEY = 'releaseBuilder.buildPanelHidden';
 /** Labels the right panel as an unsaved Algorithm preview or the edition's saved pool. */
 function PoolStatusBadge({ isPreview }: { isPreview: boolean }) {
     return isPreview ? (
-        <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide leading-none px-1.5 py-1 rounded-full border border-(--preview-accent)/35 bg-(--preview-accent)/12 text-(--preview-accent)">
+        <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide leading-none px-1.5 py-1 rounded-[2px] border border-(--preview-accent)/35 bg-(--preview-accent)/12 text-(--preview-accent)">
             <FaWandMagicSparkles className="text-[9px]" /> Preview · Unsaved
         </span>
     ) : (
@@ -749,7 +750,7 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
             <Tabs.Trigger value="cards" className={TAB_TRIGGER_CLASS}>
                 {activePreview ? <FaWandMagicSparkles className="text-[10px] mr-1.5 text-(--preview-accent)" /> : <FaListCheck className="text-[10px] mr-1.5" />}
                 {readOnly ? 'List' : activePreview ? 'Preview' : 'Selected'}
-                <span className={`ml-1.5 text-[10px] py-0.5 px-1 rounded-md ${activePreview ? 'bg-(--preview-accent)/12 text-(--preview-accent)' : 'text-(--text-tertiary) bg-(--background-secondary)'}`}>{displayCards.length}</span>
+                <span className={`ml-1.5 text-[10px] py-0.5 px-1 rounded-card ${activePreview ? 'bg-(--preview-accent)/12 text-(--preview-accent)' : 'text-(--text-tertiary) bg-(--background-secondary)'}`}>{displayCards.length}</span>
             </Tabs.Trigger>
             <Tabs.Trigger value="summary" className={TAB_TRIGGER_CLASS}>
                 <FaChartColumn className="text-[10px] mr-1.5" /> Summary
@@ -771,7 +772,7 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
                         type="button"
                         onClick={() => setShowStyleModal(true)}
                         title="Default card style for this edition"
-                        className="ml-auto flex items-center gap-2 min-h-9 px-3 py-1.5 rounded-lg border border-(--divider) text-[13px] font-bold text-(--text-secondary) hover:border-(--text-tertiary) transition-colors cursor-pointer"
+                        className="ml-auto flex items-center gap-2 min-h-9 px-3 py-1.5 rounded-control border border-(--divider) text-[13px] font-bold text-(--text-secondary) hover:border-(--text-tertiary) transition-colors cursor-pointer"
                     >
                         <FaPalette className="text-[12px] shrink-0" />
                         <span><span className="hidden sm:inline">Card </span>Style</span>
@@ -787,9 +788,9 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
             </div>
 
             {error && (
-                <div className="mx-4 mt-2 text-[12px] text-red-400 px-3 py-2 rounded-lg border border-red-400/30 bg-red-400/5 shrink-0">
+                <InlineError size="md" className="mx-4 mt-2 shrink-0">
                     {error}
-                </div>
+                </InlineError>
             )}
 
             {/* Images step: mounts on first open, then stays mounted (hidden) so a running render keeps reporting */}
@@ -898,7 +899,7 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
                                         icon: <FaPlus />,
                                         label: 'Add',
                                         detailLabel: 'Add to Edition',
-                                        bgColorClass: 'bg-(--showdown-red) opacity-95 border p-2 md:p-1 text-white shadow-sm rounded-full',
+                                        bgColorClass: 'bg-(--showdown-red)! text-white! p-2 md:p-1 shadow-raised hover:brightness-110',
                                         onClick: handleAddCard,
                                     }}
                                 />
@@ -916,7 +917,7 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
                     >
                         <div aria-hidden className="absolute inset-y-0 -left-2.5 -right-2.5" />
                         {/* Touch screens get a bigger, bordered grip — it's the only cue the bar drags, and a finger covers it */}
-                        <FaGripVertical className="absolute text-[14px] text-(--text-tertiary) group-hover:text-(--text-secondary) transition-colors bg-(--background-primary) rounded-md px-0.5
+                        <FaGripVertical className="absolute text-[14px] text-(--text-tertiary) group-hover:text-(--text-secondary) transition-colors bg-(--background-primary) rounded-control px-0.5
                             pointer-coarse:text-[22px] pointer-coarse:py-1 pointer-coarse:border pointer-coarse:border-(--divider) pointer-coarse:text-(--text-secondary)" />
                     </div>
                 )}
@@ -956,7 +957,7 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
                                     {activePreview.summary.warnings.length > 0 && (
                                         <div className="flex flex-col gap-1">
                                             {activePreview.summary.warnings.map((warning, i) => (
-                                                <div key={i} className="flex items-center gap-1.5 text-[11px] text-amber-500">
+                                                <div key={i} className="flex items-center gap-1.5 text-[11px] text-(--gold)">
                                                     <FaTriangleExclamation className="shrink-0" /> {warning}
                                                 </div>
                                             ))}
@@ -966,21 +967,21 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
                                         <button
                                             type="button"
                                             onClick={handleFillRemainingSlots}
-                                            className="min-h-9 px-3.5 py-2 rounded-lg text-[13px] font-bold bg-(--secondary) text-(--background-primary) cursor-pointer"
+                                            className="min-h-9 px-3.5 py-2 rounded-control text-[13px] font-bold bg-(--secondary) text-(--background-primary) cursor-pointer"
                                         >
                                             Fill Remaining Slots
                                         </button>
                                         <button
                                             type="button"
                                             onClick={handleReplaceAllFromPreview}
-                                            className="min-h-9 px-3.5 py-2 rounded-lg text-[13px] font-bold border border-(--divider) text-(--text-secondary) hover:border-(--text-tertiary) transition-colors cursor-pointer"
+                                            className="min-h-9 px-3.5 py-2 rounded-control text-[13px] font-bold border border-(--divider) text-(--text-secondary) hover:border-(--text-tertiary) transition-colors cursor-pointer"
                                         >
                                             Replace All
                                         </button>
                                         <button
                                             type="button"
                                             onClick={() => setPreviewResult(null)}
-                                            className="min-h-9 px-3.5 py-2 rounded-lg text-[13px] font-semibold text-(--text-tertiary) hover:text-(--text-primary) transition-colors cursor-pointer"
+                                            className="min-h-9 px-3.5 py-2 rounded-control text-[13px] font-semibold text-(--text-tertiary) hover:text-(--text-primary) transition-colors cursor-pointer"
                                         >
                                             Discard Preview
                                         </button>
@@ -1010,7 +1011,7 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
                                                 type="button"
                                                 onClick={() => setSortDirection(d => d === 'asc' ? 'desc' : 'asc')}
                                                 title={sortDirection === 'asc' ? 'Ascending' : 'Descending'}
-                                                className="flex items-center justify-center w-9 h-9 rounded-lg border border-(--divider) text-(--text-secondary) hover:border-(--text-tertiary) transition-colors shrink-0 cursor-pointer"
+                                                className="flex items-center justify-center w-9 h-9 rounded-control border border-(--divider) text-(--text-secondary) hover:border-(--text-tertiary) transition-colors shrink-0 cursor-pointer"
                                             >
                                                 {sortDirection === 'asc' ? <FaArrowUp className="text-[13px]" /> : <FaArrowDown className="text-[13px]" />}
                                             </button>
@@ -1018,7 +1019,7 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
                                                 type="button"
                                                 onClick={() => setShowPoolFilters(v => !v)}
                                                 title={showPoolFilters ? 'Hide filters' : 'Show filters'}
-                                                className={`relative flex items-center justify-center w-9 h-9 rounded-lg border transition-colors shrink-0 cursor-pointer
+                                                className={`relative flex items-center justify-center w-9 h-9 rounded-control border transition-colors shrink-0 cursor-pointer
                                                     ${showPoolFilters || activeFilterCount > 0
                                                         ? 'border-(--secondary) text-(--secondary)'
                                                         : 'border-(--divider) text-(--text-secondary) hover:border-(--text-tertiary)'}`}
@@ -1034,7 +1035,7 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
                                                 type="button"
                                                 onClick={toggleShowFullCards}
                                                 title={showFullCards ? 'Show compact cards' : 'Show full cards'}
-                                                className="flex items-center justify-center w-9 h-9 rounded-lg border border-(--divider) text-(--text-secondary) hover:border-(--text-tertiary) transition-colors shrink-0 cursor-pointer"
+                                                className="flex items-center justify-center w-9 h-9 rounded-control border border-(--divider) text-(--text-secondary) hover:border-(--text-tertiary) transition-colors shrink-0 cursor-pointer"
                                             >
                                                 {showFullCards ? <FaList className="text-[13px]" /> : <FaTableCellsLarge className="text-[13px]" />}
                                             </button>
@@ -1065,8 +1066,8 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
                                                         ?? (liveImageMatches.libraryNames.length > 0
                                                             ? `Matched against: ${liveImageMatches.libraryNames.join(', ')}. Click to re-check your image libraries.`
                                                             : 'Re-check your image libraries')}
-                                                    className={`flex items-center gap-1.5 min-h-9 px-3 py-2 rounded-lg text-[12px] font-semibold border transition-colors shrink-0 cursor-pointer disabled:cursor-wait
-                                                        ${liveImageMatches.error ? 'border-red-400/40 text-red-400' : 'border-(--divider) text-(--text-secondary) hover:border-(--text-tertiary)'}`}
+                                                    className={`flex items-center gap-1.5 min-h-9 px-3 py-2 rounded-control text-[12px] font-semibold border transition-colors shrink-0 cursor-pointer disabled:cursor-wait
+                                                        ${liveImageMatches.error ? 'border-(--red)/40 text-(--red)' : 'border-(--divider) text-(--text-secondary) hover:border-(--text-tertiary)'}`}
                                                 >
                                                     <FaArrowsRotate className={`text-[11px] ${liveImageMatches.loading ? 'animate-spin' : ''}`} />
                                                     {liveImageMatches.loading
@@ -1090,7 +1091,7 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
                                                         key={opt.value}
                                                         type="button"
                                                         onClick={() => handleNumberingModeChange(opt.value)}
-                                                        className={`min-h-9 px-2.5 sm:px-3.5 py-2 rounded-lg text-[13px] font-bold border transition-colors cursor-pointer
+                                                        className={`min-h-9 px-2.5 sm:px-3.5 py-2 rounded-control text-[13px] font-bold border transition-colors cursor-pointer
                                                             ${numbering.mode === opt.value
                                                                 ? 'bg-(--secondary) text-(--background-primary) border-(--secondary)'
                                                                 : 'border-(--divider) text-(--text-secondary) hover:border-(--text-tertiary)'}`}
@@ -1103,7 +1104,7 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
                                                 <button
                                                     type="button"
                                                     onClick={() => persist(renumberSorted(cards, numbering.sortLayers))}
-                                                    className="flex items-center gap-1.5 min-h-9 px-3.5 py-2 rounded-lg text-[13px] font-bold border border-(--divider) text-(--text-secondary) hover:border-(--text-tertiary) transition-colors cursor-pointer"
+                                                    className="flex items-center gap-1.5 min-h-9 px-3.5 py-2 rounded-control text-[13px] font-bold border border-(--divider) text-(--text-secondary) hover:border-(--text-tertiary) transition-colors cursor-pointer"
                                                 >
                                                     <FaArrowsRotate className="text-[12px]" /> Renumber Now
                                                 </button>
@@ -1114,14 +1115,14 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
                                                     <button
                                                         type="button"
                                                         onClick={() => setShowNumberingSettings(v => !v)}
-                                                        className="flex items-center justify-center w-9 h-9 rounded-lg border border-(--divider) text-(--text-secondary) hover:border-(--text-tertiary) transition-colors cursor-pointer"
+                                                        className="flex items-center justify-center w-9 h-9 rounded-control border border-(--divider) text-(--text-secondary) hover:border-(--text-tertiary) transition-colors cursor-pointer"
                                                         aria-label="Numbering settings"
                                                     >
                                                         <FaGear className="text-[15px]" />
                                                     </button>
 
                                                     {showNumberingSettings && (
-                                                        <div className="absolute right-0 top-full mt-2 w-80 max-w-[calc(100vw-2rem)] p-3 bg-(--background-secondary) border border-(--divider) rounded-lg shadow-xl z-50 flex flex-col gap-4">
+                                                        <div className="absolute right-0 top-full mt-2 w-80 max-w-[calc(100vw-2rem)] p-3 bg-(--background-secondary) border border-(--divider) rounded-card shadow-overlay z-50 flex flex-col gap-4">
                                                             {numbering.mode === 'auto' && (
                                                                 <>
                                                                     <div className="flex flex-col gap-2">
@@ -1134,7 +1135,7 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
                                                                                 <select
                                                                                     value={layer.category}
                                                                                     onChange={e => updateSortLayer(index, { category: e.target.value as SortCategory })}
-                                                                                    className="flex-1 min-w-0 min-h-9 text-[13px] bg-transparent border border-(--divider) rounded-lg px-2 py-2 text-(--text-primary) focus:outline-none focus:border-(--secondary)"
+                                                                                    className="flex-1 min-w-0 min-h-9 text-[13px] bg-transparent border border-(--divider) rounded-control px-2 py-2 text-(--text-primary) focus:outline-none focus:border-(--secondary)"
                                                                                 >
                                                                                     {availableCategoriesFor(layer.category).map(opt => (
                                                                                         <option key={opt.value} value={opt.value}>{opt.label}</option>
@@ -1144,7 +1145,7 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
                                                                                     type="button"
                                                                                     onClick={() => updateSortLayer(index, { direction: layer.direction === 'asc' ? 'desc' : 'asc' })}
                                                                                     title={layer.direction === 'asc' ? 'Ascending' : 'Descending'}
-                                                                                    className="flex items-center justify-center w-9 h-9 rounded-lg border border-(--divider) text-(--text-secondary) hover:border-(--text-tertiary) transition-colors shrink-0"
+                                                                                    className="flex items-center justify-center w-9 h-9 rounded-control border border-(--divider) text-(--text-secondary) hover:border-(--text-tertiary) transition-colors shrink-0"
                                                                                 >
                                                                                     {layer.direction === 'asc' ? <FaArrowUp className="text-[13px]" /> : <FaArrowDown className="text-[13px]" />}
                                                                                 </button>
@@ -1168,7 +1169,7 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
                                                                                     <button
                                                                                         type="button"
                                                                                         onClick={() => removeSortLayer(index)}
-                                                                                        className="flex items-center justify-center w-8 h-9 text-(--text-tertiary) hover:text-red-400 transition-colors shrink-0"
+                                                                                        className="flex items-center justify-center w-8 h-9 text-(--text-tertiary) hover:text-(--red) transition-colors shrink-0"
                                                                                     >
                                                                                         <FaXmark className="text-[13px]" />
                                                                                     </button>
@@ -1179,7 +1180,7 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
                                                                             <button
                                                                                 type="button"
                                                                                 onClick={addSortLayer}
-                                                                                className="flex items-center gap-1.5 min-h-9 px-2 text-[13px] font-semibold text-secondary hover:bg-(--background-quaternary) rounded-lg transition-colors self-start"
+                                                                                className="flex items-center gap-1.5 min-h-9 px-2 text-[13px] font-semibold text-secondary hover:bg-(--background-quaternary) rounded-control transition-colors self-start"
                                                                             >
                                                                                 <FaPlus className="text-[11px]" /> Add sort level
                                                                             </button>
@@ -1211,7 +1212,7 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
                                                                     onBlur={handlePrefixInputBlur}
                                                                     maxLength={3}
                                                                     placeholder="e.g. AS"
-                                                                    className="w-24 min-h-9 text-[13px] font-mono uppercase bg-transparent border border-(--divider) rounded-lg px-2 py-1.5 text-(--text-primary) focus:outline-none focus:border-(--secondary)"
+                                                                    className="w-24 min-h-9 text-[13px] font-mono uppercase bg-transparent border border-(--divider) rounded-control px-2 py-1.5 text-(--text-primary) focus:outline-none focus:border-(--secondary)"
                                                                 />
                                                             </div>
                                                         </div>
@@ -1235,7 +1236,7 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
                                         <button
                                             type="button"
                                             onClick={clearPoolFilters}
-                                            className="min-h-9 px-3.5 py-2 rounded-lg text-[13px] font-bold border border-(--divider) text-(--text-secondary) hover:border-(--text-tertiary) transition-colors cursor-pointer"
+                                            className="min-h-9 px-3.5 py-2 rounded-control text-[13px] font-bold border border-(--divider) text-(--text-secondary) hover:border-(--text-tertiary) transition-colors cursor-pointer"
                                         >
                                             Clear Filters
                                         </button>
@@ -1254,7 +1255,7 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
                                                     // Sticks to the top of the scrolling grid while its group is in view; -top-3/-mx-3 offset the container's p-3.
                                                     <div className="sticky -top-3 z-10 -mx-3 px-3 py-2 flex items-center gap-2 border-t border-b border-(--divider) bg-(--background-primary)">
                                                         <span className="text-[11px] font-bold text-(--text-secondary) uppercase tracking-wide">{group.label}</span>
-                                                        <span className="text-[10px] text-(--text-tertiary) bg-(--background-secondary) py-0.5 px-1 rounded-md">
+                                                        <span className="text-[10px] text-(--text-tertiary) bg-(--background-secondary) py-0.5 px-1 rounded-card">
                                                             {poolGroups.find(g => g.key === group.key)?.cards.length}
                                                         </span>
                                                     </div>
@@ -1285,7 +1286,7 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
                                                                             onChange={e => handleNumberInputChange(card.id, e.target.value)}
                                                                             onBlur={() => handleNumberInputBlur(card.id)}
                                                                             placeholder="—"
-                                                                            className="w-14 min-h-9 text-[13px] font-mono text-right bg-transparent border border-(--divider) rounded-lg px-2 py-1.5 text-(--text-primary) focus:outline-none focus:border-(--secondary)"
+                                                                            className="w-14 min-h-9 text-[13px] font-mono text-right bg-transparent border border-(--divider) rounded-control px-2 py-1.5 text-(--text-primary) focus:outline-none focus:border-(--secondary)"
                                                                         />
                                                                     </div>
                                                                 ) : (
@@ -1300,14 +1301,14 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
                                                                         title="Remove and exclude from Algorithm runs"
                                                                         aria-label="Remove"
                                                                         data-remove-button
-                                                                        className="flex items-center justify-center w-5 h-5 rounded-full text-(--text-tertiary) hover:bg-red-500/90 hover:text-white transition-colors shrink-0 cursor-pointer"
+                                                                        className="flex items-center justify-center w-5 h-5 rounded-full text-(--text-tertiary) hover:bg-(--red)/90 hover:text-white transition-colors shrink-0 cursor-pointer"
                                                                     >
                                                                         <FaXmark className="text-[11px]" />
                                                                     </button>
                                                                 )}
                                                             </div>
                                                             {/* Hovering the remove button outlines the card it removes. */}
-                                                            <div className={`relative flex-1 min-w-0 transition-shadow group-has-[[data-remove-button]:hover]/row:ring-2 group-has-[[data-remove-button]:hover]/row:ring-red-500/80 ${showFullCards ? 'rounded-xl max-w-100' : 'rounded-lg'}`}>
+                                                            <div className={`relative flex-1 min-w-0 transition-shadow group-has-[[data-remove-button]:hover]/row:ring-2 group-has-[[data-remove-button]:hover]/row:ring-(--red)/80 ${showFullCards ? 'rounded-card max-w-100' : 'rounded-card'}`}>
                                                                 {showFullCards
                                                                     ? <CardItemFromCardDatabaseRecord {...cardProps} styleOverrides={styleOverrides} />
                                                                     : <CardItemCompactFromCardDatabaseRecord {...cardProps} />}

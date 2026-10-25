@@ -31,6 +31,7 @@ npm run dev          # dev server on :5173
 npm run build        # production build
 npm run type-check   # tsc type check (no emit)
 npm run lint         # eslint
+npm run lint:design  # design-language rules on changed lines (see frontend/DESIGN.md)
 ```
 
 ### Running both together
@@ -54,6 +55,7 @@ FRONTEND_ORIGIN               # CORS allowed origin (default: http://localhost:5
 **DRY is a top priority.** Before adding new code, check whether existing abstractions already handle it. Duplication is a bug.
 
 - **Frontend (React/TypeScript):** 
+  - **All UI follows the design language in [`frontend/DESIGN.md`](frontend/DESIGN.md).** Read it before building or restyling any screen. Use its tokens and shared components (`Heading`, `Plate`, `Eyebrow`, `buttonClass`, `fieldClass`, `CustomSelect` sizes, `SearchFrame`, `InlineError`, `CardCommand`, `tabStyles`), never raw Tailwind palette colors, hex values, raw `<h1>`–`<h6>`, `rounded-md` or larger, pills, or soft shadows. Run `npm run lint:design` with lint and type-check. If a new pattern is needed, extend `DESIGN.md` in the same change.
   - Extract repeated JSX patterns into components. If the same visual structure or behavior appears more than once, it belongs in a component in `frontend/src/components/`. Prefer composing existing primitives (`FormDropdown`, `FormInput`, `FormSection`, `FormEnabler`) over inline repetition. On clickable elements like buttons use `cursor-pointer`.
   - When adding elements that rely on loading, prefer including a "skeleton" placeholder for content instead of just a loading spinner. It should occupy similar dimensions that the content that is being loaded will.
 - **Backend (Python):** Prefer classes over standalone functions for anything stateful or logically grouped. Use dataclasses, Pydantic models, or plain classes to encapsulate related data and behavior. Standalone utility functions are fine for pure transformations, but grouping via a class is preferred when there are multiple related operations.

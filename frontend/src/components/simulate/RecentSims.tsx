@@ -57,7 +57,7 @@ export function RecentSims({ token, onOpen, seasonYear, layout, className }: Pro
 
     if (!token || error) {
         return error ? (
-            <div className="text-[12px] text-red-400 px-3 py-2 rounded-lg border border-red-400/30 bg-red-400/5">
+            <div className="text-[12px] text-(--red) px-3 py-2 rounded-card border border-(--red)/30 bg-(--red)/5">
                 {error}
             </div>
         ) : null;

@@ -41,7 +41,7 @@ export default function GameFinalSummary({ game, cardMap, onCardSelect, isLoadin
             <div
                 key={key}
                 style={{ borderLeftColor: accentColor }}
-                className="min-w-0 space-y-1 rounded-xl border border-l-4 border-white/10 bg-(--background-secondary)/30 p-2.5"
+                className="min-w-0 space-y-1 rounded-card border border-l-4 border-white/10 bg-(--background-secondary)/30 p-2.5"
             >
                 {heading}
                 <div className="flex items-baseline gap-1.5 text-sm min-w-0">
@@ -61,19 +61,19 @@ export default function GameFinalSummary({ game, cardMap, onCardSelect, isLoadin
     const decisions = [
         winner && recapPlayer("W", "W", "text-(--green)", "var(--green)", winner, "P", pitchingLine(winner)?.note),
         loser && recapPlayer("L", "L", "text-(--red)", "var(--red)", loser, "P", pitchingLine(loser)?.note),
-        save && recapPlayer("SV", "SV", "text-blue-400", "#60a5fa", save, "P", pitchingLine(save)?.note),
+        save && recapPlayer("SV", "SV", "text-(--showdown-blue)", "#60a5fa", save, "P", pitchingLine(save)?.note),
     ].filter(Boolean);
 
     return (
         <div
-            className={`@container mx-2 rounded-2xl border border-white/10 bg-(--background-primary)/35 backdrop-blur-xl backdrop-saturate-150 shadow-xl p-3 space-y-3 ${className}`}
+            className={`@container mx-2 rounded-card border border-white/10 bg-(--background-primary)/35 backdrop-blur-xl backdrop-saturate-150 shadow-overlay p-3 space-y-3 ${className}`}
         >
             <span className="block text-[11px] font-black tracking-widest text-(--secondary) uppercase">Game Recap</span>
 
             {potg && recapPlayer(
                 "POTG", "", "", accent, { id: potg.line.id, name: potg.line.name }, potg.role, potg.line.summary,
                 <div className="flex items-center gap-1.5 text-[11px] font-black uppercase tracking-wider text-(--primary)">
-                    <FaStar className="text-yellow-400" />
+                    <FaStar className="text-(--gold)" />
                     Player of the Game
                     {winningTeam && <span className="text-(--secondary) font-bold">· {winningTeam.abbreviation}</span>}
                 </div>,

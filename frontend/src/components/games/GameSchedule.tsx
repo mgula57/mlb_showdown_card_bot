@@ -8,6 +8,7 @@ import { cardKey } from "../../domain/players";
 import type { GameState } from "../../domain/game";
 import GameItem from "./GameItem";
 
+import { Heading } from '../shared/Heading';
 type CardMap = Record<string, CardDatabaseRecord>;
 
 type GameScheduleProps = {
@@ -28,7 +29,7 @@ const STATE_SORT_ORDER: Record<GameState, number> = { LIVE: 0, PREVIEW: 1, FINAL
 
 function GameItemSkeleton() {
     return (
-        <div className="rounded-xl border-2 border-(--divider) bg-(--background-secondary) overflow-hidden p-3 animate-pulse">
+        <div className="rounded-card border-2 border-(--divider) bg-(--background-secondary) overflow-hidden p-3 animate-pulse">
             <div className="w-full space-y-2 py-2">
                 <div className="flex items-center justify-between gap-3">
                     <div className="h-3.5 w-24 rounded bg-(--background-quaternary)" />
@@ -59,7 +60,7 @@ function GameScheduleHeader({ dateLabel, description, onRefresh }: GameScheduleH
     return (
         <div className="flex justify-between items-center">
             <div>
-                <div className="text-lg font-extrabold text-(--text-primary)">{dateLabel}</div>
+                <Heading level="section">{dateLabel}</Heading>
                 {description && (
                     <div className="text-sm font-semibold text-(--text-secondary)">{description}</div>
                 )}
@@ -70,7 +71,7 @@ function GameScheduleHeader({ dateLabel, description, onRefresh }: GameScheduleH
                 <button
                     className="
                         hidden md:flex ml-4 px-4 py-2 items-center gap-1
-                        bg-secondary text-white rounded-lg
+                        bg-secondary text-white rounded-control
                         hover:bg-(--showdown-blue)/50 transition-colors
                         cursor-pointer
                     "
@@ -243,7 +244,7 @@ export default function GameSchedule({ games, dateLabel, description, sportId, s
             <GameScheduleHeader dateLabel={dateLabel} description={description} onRefresh={onRefresh} />
 
             {!sortedGames.length ? (
-                <div className="rounded-xl border-2 border-dashed border-(--divider) py-10 text-center text-sm font-semibold text-(--text-secondary)">
+                <div className="rounded-card border-2 border-dashed border-(--divider) py-10 text-center text-sm font-semibold text-(--text-secondary)">
                     No games scheduled for this day.
                 </div>
             ) : (

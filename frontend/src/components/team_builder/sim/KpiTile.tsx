@@ -10,7 +10,7 @@ import type { KpiComparison } from './simStatColumns';
  * for OPS, but down is good for ERA). */
 export function KpiTile({ label, value, info, comparison }: { label: string; value: string; info?: string; comparison?: KpiComparison }) {
     return (
-        <div className="rounded-lg flex flex-col items-center border border-(--divider) bg-linear-to-b from-(--background-secondary) to-(--background-primary) px-3 py-2 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.08)]">
+        <div className="rounded-card flex flex-col items-center border border-(--divider) bg-(--background-secondary) px-3 py-2">
             <div className="flex items-center gap-1">
                 <p className="text-[11px] text-(--text-tertiary)">{label}</p>
                 {info && <InfoTooltip text={info} />}
@@ -18,7 +18,7 @@ export function KpiTile({ label, value, info, comparison }: { label: string; val
             <p className="text-[18px] font-bold text-(--text-primary) tabular-nums">{value}</p>
             {comparison && (
                 <p className={`flex items-center gap-0.5 text-[10px] font-semibold tabular-nums ${
-                    comparison.direction === 'flat' ? 'text-(--text-tertiary)' : comparison.isGood ? 'text-(--success)' : 'text-(--error)'
+                    comparison.direction === 'flat' ? 'text-(--text-tertiary)' : comparison.isGood ? 'text-(--green)' : 'text-(--red)'
                 }`}>
                     {comparison.direction === 'up' && <FaCaretUp className="text-[12px]" />}
                     {comparison.direction === 'down' && <FaCaretDown className="text-[12px]" />}

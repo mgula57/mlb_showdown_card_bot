@@ -16,9 +16,9 @@ export function OutcomeDivider({ label, tone }: { label: string; tone: 'success'
 }
 
 function medalClass(rank: number): string {
-    if (rank === 1) return 'text-yellow-300';
+    if (rank === 1) return 'text-(--gold)';
     if (rank === 2) return 'text-(--text-secondary)';
-    if (rank === 3) return 'text-orange-400';
+    if (rank === 3) return 'text-(--bronze)';
     return 'text-(--text-tertiary)';
 }
 
@@ -53,7 +53,7 @@ export function SimSeasonRow({ entry, onOpen, rank, attempts, showTime, disabled
             type="button"
             onClick={onOpen}
             disabled={disabled}
-            className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-left transition-colors ${
+            className={`w-full flex items-center gap-3 px-3 py-2 rounded-control text-left transition-colors ${
                 disabled ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer hover:bg-(--divider)'
             } ${
                 entry.is_own ? 'bg-(--showdown-blue)/10 ring-1 ring-(--showdown-blue)/40' : 'bg-(--background-tertiary)'
@@ -70,7 +70,7 @@ export function SimSeasonRow({ entry, onOpen, rank, attempts, showTime, disabled
                     <span className="text-[13px] font-bold text-(--text-primary) truncate">
                         {entry.team_name ?? entry.team_abbreviation ?? (isOpenSim ? entry.year : 'Unnamed team')}
                     </span>
-                    {entry.is_champion && <FaTrophy className="text-[10px] text-yellow-300 shrink-0" title="Won the World Series" />}
+                    {entry.is_champion && <FaTrophy className="text-[10px] text-(--gold) shrink-0" title="Won the World Series" />}
                     {entry.is_own && rank !== undefined && <FaLock className="text-[9px] text-(--text-tertiary) shrink-0" title="Your result" />}
                 </span>
                 <span className="block text-[11px] text-(--text-tertiary) truncate">
@@ -118,7 +118,7 @@ export function SimSeasonRow({ entry, onOpen, rank, attempts, showTime, disabled
  *  reserve the rank column, so the skeleton doesn't shift width when data lands. */
 export function SimSeasonRowSkeleton({ showRank = false }: { showRank?: boolean }) {
     return (
-        <div aria-hidden className="w-full flex items-center gap-3 px-3 py-2 rounded-lg bg-(--background-tertiary) animate-pulse">
+        <div aria-hidden className="w-full flex items-center gap-3 px-3 py-2 rounded-card bg-(--background-tertiary) animate-pulse">
             {showRank && <span className="w-6 h-3.5 rounded bg-(--background-primary) shrink-0" />}
             <span className="w-1.5 h-7 rounded-full shrink-0 bg-(--background-primary)" />
             <span className="min-w-0 flex-1 flex flex-col gap-1.5 py-0.5">

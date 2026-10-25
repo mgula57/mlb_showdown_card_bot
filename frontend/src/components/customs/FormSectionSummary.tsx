@@ -12,7 +12,7 @@ export function formSectionSummary(summaryItems: SelectOption[]) {
     return (
         <div className="text-xs font-bold flex flex-wrap items-center gap-x-1.5 gap-y-1 text-(--tertiary)">
             {summaryItems.map(item => (
-                <div key={item.label} className={`flex shrink-0 items-center whitespace-nowrap rounded-md px-1 border ${item.borderColor || 'border-(--tertiary)/65'}`}>
+                <div key={item.label} className={`flex shrink-0 items-center whitespace-nowrap rounded-[2px] px-1 border ${item.borderColor || 'border-(--tertiary)/65'}`}>
                     <span className="font-semibold">{item.icon}</span>
                     {(() => {
                         const label = item.label?.toLowerCase()

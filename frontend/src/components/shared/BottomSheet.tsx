@@ -312,7 +312,7 @@ export function BottomSheet({ isOpen, onClose, title, children, dismissible = tr
                 instead of leaving a gap. */}
             <div
                 ref={sheetRef}
-                className="lg:hidden fixed bottom-0 left-0 right-0 z-49 bg-(--background-primary) rounded-t-2xl flex flex-col shadow-[0_-8px_30px_rgba(0,0,0,0.18)] border-t border-(--divider)"
+                className="lg:hidden fixed bottom-0 left-0 right-0 z-49 bg-(--background-primary) rounded-t-card flex flex-col shadow-[0_-8px_30px_rgba(0,0,0,0.18)] border-t border-(--divider)"
                 style={{ height: '90lvh', transform: 'translateY(100%)', willChange: 'transform' }}
             >
                 {/* Drag handle */}

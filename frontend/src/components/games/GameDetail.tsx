@@ -47,7 +47,7 @@ const MOBILE_TABS: TabItem<MobileTab>[] = [
 
 const MID_TABS = MOBILE_TABS.filter((tab): tab is TabItem<MidTab> => tab.id !== 'field');
 
-const OUTLINE_BUTTON_CLASS = "rounded-lg border border-(--divider) px-2.5 py-1.5 text-(--secondary) hover:text-(--primary)";
+const OUTLINE_BUTTON_CLASS = "rounded-control border border-(--divider) px-2.5 py-1.5 text-(--secondary) hover:text-(--primary)";
 
 type GameDetailProps = {
     gamePk: number;
@@ -144,7 +144,7 @@ export default function GameDetail({ gamePk, sportId, season, showdownSet, isAct
                 <div className="px-4 py-2.5 border-b border-(--divider) shrink-0">
                     <BackButton onBack={onBack} />
                 </div>
-                <div className="flex-1 flex items-center justify-center text-red-400 text-sm">
+                <div className="flex-1 flex items-center justify-center text-(--red) text-sm">
                     {error ?? "Boxscore data unavailable."}
                 </div>
             </div>
@@ -242,7 +242,7 @@ export default function GameDetail({ gamePk, sportId, season, showdownSet, isAct
                 legacy log with no player ids — that one is frozen at the final line, so while the
                 user is watching the replay we hide it outright rather than spoil the result. */}
             {hideResult ? (
-                <div className="rounded-xl border border-(--divider) bg-(--background-secondary)/30 p-6 text-center">
+                <div className="rounded-card border border-(--divider) bg-(--background-secondary)/30 p-6 text-center">
                     <div className="text-xs font-semibold text-(--primary)">Box score hidden during replay</div>
                     <div className="mt-1 text-[11px] text-(--secondary)">
                         The full line reveals when the replay reaches the end — or use “Skip to result” to jump ahead.
@@ -253,18 +253,18 @@ export default function GameDetail({ gamePk, sportId, season, showdownSet, isAct
                 they collapse into tabs; at/above it, both Tabs.Content panels are forced visible
                 (via forceMount + the @[820px] override below) and sit in a 2-column grid instead. */
             <Tabs.Root defaultValue="away">
-                <Tabs.List className="@[820px]:hidden flex gap-1 rounded-lg bg-(--background-tertiary) p-1 mb-3">
+                <Tabs.List className="@[820px]:hidden flex gap-1 rounded-card bg-(--background-tertiary) p-1 mb-3">
                     <Tabs.Trigger
                         value="away"
                         style={{ '--tab-bg': away.team.primary_color ?? '#374151', '--tab-text': getReadableTextColor(away.team.primary_color ?? '#374151', '#ffffff') } as CSSProperties}
-                        className="flex-1 px-4 py-2 text-sm font-semibold rounded-md text-(--secondary) data-[state=active]:bg-(--tab-bg) data-[state=active]:text-(--tab-text) cursor-pointer transition-colors"
+                        className="flex-1 px-4 py-2 text-sm font-semibold rounded-control text-(--secondary) data-[state=active]:bg-(--tab-bg) data-[state=active]:text-(--tab-text) cursor-pointer transition-colors"
                     >
                         {away.team.abbreviation}
                     </Tabs.Trigger>
                     <Tabs.Trigger
                         value="home"
                         style={{ '--tab-bg': home.team.primary_color ?? '#374151', '--tab-text': getReadableTextColor(home.team.primary_color ?? '#374151', '#ffffff') } as CSSProperties}
-                        className="flex-1 px-4 py-2 text-sm font-semibold rounded-md text-(--secondary) data-[state=active]:bg-(--tab-bg) data-[state=active]:text-(--tab-text) cursor-pointer transition-colors"
+                        className="flex-1 px-4 py-2 text-sm font-semibold rounded-control text-(--secondary) data-[state=active]:bg-(--tab-bg) data-[state=active]:text-(--tab-text) cursor-pointer transition-colors"
                     >
                         {home.team.abbreviation}
                     </Tabs.Trigger>
@@ -358,7 +358,7 @@ export default function GameDetail({ gamePk, sportId, season, showdownSet, isAct
                     <button
                         type="button"
                         onClick={() => setIsRecapDismissed((dismissed) => !dismissed)}
-                        className="flex items-center gap-1 cursor-pointer rounded-full border border-(--divider) bg-(--background-primary)/60 backdrop-blur px-2.5 py-1 text-[10px] font-bold text-(--secondary) hover:text-(--primary) transition-colors"
+                        className="flex items-center gap-1 cursor-pointer rounded-control border border-(--divider) bg-(--background-primary)/60 backdrop-blur px-2.5 py-1 text-[10px] font-bold text-(--secondary) hover:text-(--primary) transition-colors"
                     >
                         {showRecap ? <FaRing size={10} /> : <FaStar size={10} />}
                         {showRecap ? 'Show Field' : 'Recap'}
@@ -402,7 +402,7 @@ export default function GameDetail({ gamePk, sportId, season, showdownSet, isAct
                                 ? '— live updates paused while you scrub'
                                 : '— playback controls open')
                         : null;
-                const modeButtonClass = `rounded-lg px-2 py-1 h-7 ${simBannerTokens.btnClass}`;
+                const modeButtonClass = `rounded-card px-2 py-1 h-7 ${simBannerTokens.btnClass}`;
                 const simControls = simResult ? (
                         <div className="flex min-w-0 items-center gap-2">
                             {/* The sim already opens parked on the first pitch, so this is a
@@ -448,11 +448,11 @@ export default function GameDetail({ gamePk, sportId, season, showdownSet, isAct
                         >
                             <BackButton onBack={onBack} />
                             <div className="flex items-center gap-2">
-                                <h1 className={`hidden sm:inline text-[20px] font-black ${isModeBar ? 'drop-shadow-sm' : 'text-(--text-primary)'}`} style={isModeBar ? { color: simLeftTokens.fill } : undefined}>Showdown Live</h1>
+                                <h1 className={`hidden sm:inline font-display uppercase text-[20px] leading-none ${isModeBar ? '' : 'text-(--text-primary)'}`} style={isModeBar ? { color: simLeftTokens.fill } : undefined}>Showdown Live</h1>
                                 <BetaBadge />
                             </div>
                             {modeLabel && (
-                                <span className="hidden min-w-0 truncate whitespace-nowrap text-[11px] font-bold drop-shadow-sm" style={{ color: simLeftTokens.fill }}>
+                                <span className="hidden min-w-0 truncate whitespace-nowrap text-[11px] font-bold" style={{ color: simLeftTokens.fill }}>
                                     {modeLabel}
                                     <span className="hidden md:inline font-normal ml-4">{modeDetail}</span>
                                 </span>
@@ -492,7 +492,7 @@ export default function GameDetail({ gamePk, sportId, season, showdownSet, isAct
                                         label="Simulate"
                                         icon={<FaTerminal />}
                                         onClick={() => { setSimError(null); setShowSimSetup(true); }}
-                                        className="rounded-lg animated-showdown-gradient px-3 py-1.5 text-white hover:opacity-90"
+                                        className="rounded-control bg-(--showdown-blue) shadow-raised active:translate-y-px active:shadow-none px-3 py-1.5 text-white hover:brightness-110"
                                     />
                                 )}
                             </div>

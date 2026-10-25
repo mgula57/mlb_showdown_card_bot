@@ -11,7 +11,7 @@ export const SIDE_MENU_MOTION = 'duration-300 ease-(--side-menu-ease) motion-red
  * so a row only paints a (lighter) hover state when it isn't the active tab.
  */
 export const sideMenuRowClassName = (isSelected: boolean) => `
-    group relative z-10 flex items-center h-12 w-full rounded-md cursor-pointer
+    group relative z-10 flex items-center h-12 w-full rounded-control cursor-pointer
     transition-colors duration-150
     ${isSelected ? 'text-primary' : 'text-(--quaternary) hover:text-(--primary) hover:bg-(--background-primary)'}
 `;

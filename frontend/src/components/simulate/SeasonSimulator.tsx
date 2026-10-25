@@ -11,6 +11,7 @@ import { SimLobbyRoom } from './SimLobbyRoom';
 import { RecentSims } from './RecentSims';
 import BackButton from '../shared/BackButton';
 
+import { Heading } from '../shared/Heading';
 // A running/finished simulation gets its own URL (/simulate/:jobId), the same pattern
 // team_builder's SimSeasonView uses at /teams/:teamId/sim/:jobId - a refresh mid-run reconnects
 // to the job instead of losing it, since the job's state lives in Postgres. `/simulate/lobby` and
@@ -123,7 +124,7 @@ export default function SeasonSimulator() {
     return (
         <div className="flex flex-col gap-4 max-w-2xl mx-auto w-full p-4">
             <div>
-                <h1 className="text-[20px] font-black text-(--text-primary)">Simulate</h1>
+                <Heading level="page">Simulate</Heading>
                 <p className="text-[13px] text-(--text-secondary) mt-1">
                     Play out any MLB season, solo or with friends.
                 </p>
@@ -133,20 +134,20 @@ export default function SeasonSimulator() {
                 <button
                     type="button"
                     onClick={() => setShowCreateForm(true)}
-                    className="relative overflow-hidden rounded-2xl p-4 flex flex-col items-start gap-1 border border-(--divider) bg-(--background-tertiary) text-left transition-all duration-200 hover:scale-[1.02] active:scale-95 cursor-pointer"
+                    className="relative overflow-hidden rounded-card p-4 flex flex-col items-start gap-1 border border-(--divider) bg-(--background-tertiary) text-left transition-all duration-200 hover:scale-[1.02] active:scale-95 cursor-pointer"
                 >
                     <FaDiceD20 className="absolute -bottom-2 -right-2 text-7xl opacity-5" />
-                    <FaDiceD20 className="text-3xl mb-1 text-purple-500" />
+                    <FaDiceD20 className="text-3xl mb-1 text-(--showdown-blue)" />
                     <span className="font-bold text-sm text-(--text-primary)">Solo Sim</span>
                     <span className="text-xs leading-snug text-(--text-tertiary)">Simulate a season on your own</span>
                 </button>
                 <button
                     type="button"
                     onClick={() => navigate('/simulate/lobby')}
-                    className="relative overflow-hidden rounded-2xl p-4 flex flex-col items-start gap-1 border border-(--divider) bg-(--background-tertiary) text-left transition-all duration-200 hover:scale-[1.02] active:scale-95 cursor-pointer"
+                    className="relative overflow-hidden rounded-card p-4 flex flex-col items-start gap-1 border border-(--divider) bg-(--background-tertiary) text-left transition-all duration-200 hover:scale-[1.02] active:scale-95 cursor-pointer"
                 >
                     <FaUsers className="absolute -bottom-2 -right-2 text-7xl opacity-5" />
-                    <FaUsers className="text-3xl mb-1 text-orange-500" />
+                    <FaUsers className="text-3xl mb-1 text-(--showdown-red)" />
                     <span className="font-bold text-sm text-(--text-primary)">Collab Sim</span>
                     <span className="text-xs leading-snug text-(--text-tertiary)">Create or join a lobby with friends</span>
                 </button>

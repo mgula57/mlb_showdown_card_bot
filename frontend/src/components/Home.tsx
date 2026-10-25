@@ -1,7 +1,7 @@
 import { Link } from 'react-router-dom';
 import {
-    FaBolt, FaChevronRight, FaChevronDown, FaShieldAlt,
-    FaUsers, FaFire, FaDiceD20, FaStar, FaClock,
+    FaChevronRight, FaChevronDown, FaShieldAlt,
+    FaUsers, FaFire, FaDiceD20, FaStar,
     FaCompass, FaCalendar, FaAward
 } from 'react-icons/fa';
 import CardBuildIcon from './customs/CardBuildIcon';
@@ -20,6 +20,11 @@ import type { GameState } from '../domain/game';
 import { TeamChip } from './shared/TeamChip';
 import { markNavItemSeen, useNavItemIsNew } from '../hooks/useSeenNavItems';
 import HomeGameReel from './home/HomeGameReel';
+import { Plate } from './shared/Plate';
+import { Eyebrow } from './shared/Eyebrow';
+import { NewBadge } from './shared/NewBadge';
+import { buttonClass } from './shared/buttonStyles';
+import { PinstripeBackdrop } from './shared/PinstripeBackdrop';
 
 // Modal
 import { Modal } from './shared/Modal';
@@ -38,9 +43,31 @@ import { fetchTotalCardCount, fetchTrendingPlayers, fetchPopularCards, fetchSpot
 import type { PopularCardRecord, TrendingCardRecord, SpotlightCardRecord, CardOfTheDayRecord } from '../api/card_db/cardDatabase';
 import { fetchUserGallery, type GalleryImageRecord } from '../api/gallery';
 
+import { Heading } from './shared/Heading';
 // TODO: replace hard-coded IDs with a general two-way player detection strategy
 const TWO_WAY_PLAYER_IDS = new Set([660271]); // Ohtani
 const PITCHING_LEADER_CATEGORIES = new Set(['walksAndHitsPerInningPitched', 'earnedRunAverage', 'strikeouts', 'wins', 'saves', 'inningsPitched', 'strikeoutsPer9Inn', 'strikeoutWalkRatio']);
+
+const FAQ_LINK_CLASS = 'text-(--text-primary) underline';
+
+const FAQ_ITEMS: { question: string; answer: React.ReactNode }[] = [
+    {
+        question: 'Can I print these?',
+        answer: 'These cards are for personal, non-commercial use only. This is a fan project not affiliated with or endorsed by WOTC or MLB. Cards are not licensed for printing, distribution, or sale.',
+    },
+    {
+        question: 'How does the formula work?',
+        answer: <>The formula is designed to feel true to the original WOTC cards while being accurate when simulating a full season. The Bot's source code is publicly available on GitHub. Look at the <a href="https://github.com/mgula57/mlb_showdown_card_bot/blob/master/README.md" target="_blank" rel="noopener noreferrer" className={FAQ_LINK_CLASS}>README</a> for formula details.</>,
+    },
+    {
+        question: 'What Showdown sets are supported?',
+        answer: 'The Bot supports all original Showdown sets (2000-2005) and adds CLASSIC and EXPANDED sets, which are updated designs with more diverse and accurate charting. Each set has unique point values and chart distributions.',
+    },
+    {
+        question: 'How can I contact the developers?',
+        answer: <>Send an email to <a href="mailto:mlbshowdownbot@gmail.com" className={FAQ_LINK_CLASS}>mlbshowdownbot@gmail.com</a>, or join the conversation on <a href="https://discord.com/channels/669174897939054602/857237582740193282" target="_blank" rel="noopener noreferrer" className={`${FAQ_LINK_CLASS} inline-flex items-center gap-1 align-middle`}><FaDiscord className="w-4 h-4" />Discord</a>. Feel free to reach out with questions or feedback.</>,
+    },
+];
 
 type HomeNavTileData = {
     label: string;
@@ -55,25 +82,66 @@ type HomeNavTileData = {
  * A Home quick-nav tile. Shares the "NEW" badge state with the side menu — visiting
  * the destination from either surface clears the badge on both.
  */
-function HomeNavTile({ tile, isDark }: { tile: HomeNavTileData; isDark: boolean }) {
+function HomeNavTile({ tile }: { tile: HomeNavTileData }) {
     const { label, desc, Icon, to, iconColor } = tile;
     const isNew = useNavItemIsNew(to, tile.isNew);
     return (
         <Link
             to={to}
             onClick={() => markNavItemSeen(to)}
-            className={`relative overflow-hidden rounded-2xl p-4 flex flex-col gap-1 shadow-sm border transition-all duration-200 hover:scale-105 active:scale-95 ${isDark ? 'bg-neutral-900 border-neutral-700 hover:bg-neutral-800' : 'bg-white border-neutral-200 hover:bg-neutral-50'}`}
+            className="relative overflow-hidden rounded-card p-4 flex flex-col gap-1 border border-(--divider) bg-(--background-secondary) hover:border-(--rule-strong) transition-[transform,border-color] duration-200 hover:scale-[1.03] active:scale-95 cursor-pointer"
         >
-            <Icon className={`absolute -bottom-2 -right-2 text-7xl opacity-5`} />
+            <Icon className="absolute -bottom-2 -right-2 text-7xl opacity-5" />
             <Icon className={`text-3xl mb-1 ${iconColor}`} />
-            <span className={`font-bold text-sm leading-tight ${isDark ? 'text-white' : 'text-black'}`}>{label}</span>
-            <span className={`text-xs leading-snug ${isDark ? 'text-neutral-400' : 'text-neutral-500'}`}>{desc}</span>
-            {isNew && (
-                <span className="absolute top-2 right-2 text-[9px] font-bold leading-none px-1.5 py-0.5 rounded-full bg-blue-600 text-white">
-                    NEW
-                </span>
-            )}
+            <span className="font-display uppercase text-[17px] leading-none text-(--text-primary)">{label}</span>
+            <span className="text-xs leading-snug text-(--text-tertiary)">{desc}</span>
+            {isNew && <NewBadge className="absolute top-2 right-2" />}
         </Link>
+    );
+}
+
+/** Display-face section title with an optional secondary-button link on the right. */
+function HomeSectionHeader({ title, action }: { title: string; action?: { label: string; to: string } }) {
+    return (
+        <div className="flex justify-between items-end gap-4 mb-6">
+            <Heading level="section" className="text-3xl!">{title}</Heading>
+            {action && (
+                <Link to={action.to} className={buttonClass('secondary')}>
+                    {action.label} <FaChevronRight className="text-xs" />
+                </Link>
+            )}
+        </div>
+    );
+}
+
+/** Flat panel used for the card shelves and FAQ answers. */
+function HomePanel({ children, className = '' }: { children: React.ReactNode; className?: string }) {
+    return (
+        <div className={`rounded-card p-5 border border-(--divider) bg-(--background-secondary) ${className}`}>
+            {children}
+        </div>
+    );
+}
+
+/** Title + one-line description at the top of a card shelf panel. */
+function HomePanelHeading({ Icon, title, description }: { Icon: React.ComponentType<{ className?: string }>; title: string; description: string }) {
+    return (
+        <div className="mb-3">
+            <Heading level="section" as="h3" className="text-lg! flex items-center gap-2">
+                <Icon className="text-base text-(--text-tertiary)" /> {title}
+            </Heading>
+            <div className="text-sm mt-1.5 text-(--text-tertiary)">{description}</div>
+        </div>
+    );
+}
+
+/** Body text for a How to Play bullet, keyed to which side it favors. */
+function HowToPlayBullet({ side, children }: { side: 'pitcher' | 'batter'; children: React.ReactNode }) {
+    return (
+        <div className="flex items-start gap-2">
+            <span className={`font-bold ${side === 'pitcher' ? 'text-(--showdown-red)' : 'text-(--showdown-blue)'}`}>•</span>
+            <span>{children}</span>
+        </div>
     );
 }
 
@@ -128,7 +196,6 @@ export default function Home() {
     const lastFetchedUserId = useRef<string | null>(null);
 
     // Styling
-    const gradientBlueBg = isDark ? 'bg-gradient-to-r from-blue-600/20 to-purple-600/20 border border-blue-500/30' : 'bg-gradient-to-r from-blue-100 to-purple-100 border border-blue-300'
     const cardOfDayPlaceholder = `/images/blank_players/blankplayer-${userShowdownSet.toLowerCase()}-${isDark ? 'dark' : 'light'}.png`;
     const cardOfDayImageSrc = cardOfTheDay?.card_data.image.output_folder_path ? `${cardOfTheDay.card_data.image.output_folder_path}/${cardOfTheDay.card_data.image.output_file_name}` : cardOfDayPlaceholder;
 
@@ -300,7 +367,7 @@ export default function Home() {
         return <>
             <div className='space-y-3'>
                 {[...Array(4)].map((_, index) => (
-                    <div key={index} className={`h-32 rounded-lg ${isDark ? 'bg-neutral-800 animate-pulse' : 'bg-neutral-200 animate-pulse'}`} />
+                    <div key={index} className="h-32 rounded-card bg-(--background-tertiary) animate-pulse" />
                 ))}
             </div>
         </>
@@ -309,6 +376,7 @@ export default function Home() {
     return (
         <div
             className={`
+                relative isolate
                 px-6
                 md:px-8
                 space-y-6
@@ -322,20 +390,19 @@ export default function Home() {
             <div className="max-w-7xl mx-auto py-2 grid lg:grid-cols-2 gap-6 lg:gap-8 items-center">
                 <div className="flex flex-col items-start gap-4 min-w-0">
                     <div className="flex flex-col items-start gap-3 max-w-2xl">
-                        <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-                            <span className={`hidden sm:inline-flex items-center gap-2 px-4 py-1 rounded-full text-sm font-semibold ${isDark ? 'bg-white/10' : 'bg-gray-100'}`}>
-                                <FaBolt className={`${isDark ? 'text-yellow-400' : 'text-yellow-500'}`} />
-                                <span className='leading-tight'>Showdown cards in seconds</span>
-                            </span>
-                            <div className={`leading-tight inline-flex items-center gap-1.5 px-4 py-1 rounded-full text-sm font-semibold ${gradientBlueBg}`}>
-                                <span className={`font-bold ${isDark ? 'text-blue-300' : 'text-blue-700'} ${totalCardCount !== null ? '' : 'redacted animate-pulse'}`}>{totalCardCount !== null ? totalCardCount.toLocaleString() : '---------'}</span>
-                                <span className={`${isDark ? 'text-neutral-400' : 'text-neutral-600'}`}>cards created</span>
-                            </div>
+                        <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+                            <Eyebrow className="hidden sm:inline">Showdown cards in seconds</Eyebrow>
+                            <Plate size="md">
+                                <span className={totalCardCount !== null ? '' : 'redacted animate-pulse'}>
+                                    {totalCardCount !== null ? totalCardCount.toLocaleString() : '---------'}
+                                </span>
+                                cards created
+                            </Plate>
                         </div>
-                        <h1 className="text-3xl md:text-4xl font-extrabold leading-tight">
-                            Digital Cards that Play Ball.
+                        <h1 className="font-display uppercase text-4xl md:text-5xl leading-[0.95]">
+                            Digital Cards that <span className="text-(--showdown-red)">Play Ball.</span>
                         </h1>
-                        <p className={`text-base max-w-xl leading-6 ${isDark ? 'text-neutral-300' : 'text-neutral-700'}`}>
+                        <p className="text-base max-w-xl leading-6 text-(--text-secondary)">
                             Turn real stats into Showdown cards, draft a team, and simulate full seasons — you're the GM of your own digital baseball-verse.
                         </p>
                     </div>
@@ -344,12 +411,12 @@ export default function Home() {
                     <div className="w-full pt-1">
                         <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-2 xl:grid-cols-4 gap-3 max-w-3xl">
                             {([
-                                { label: 'Card Builder',  desc: 'Build and customize your own cards', Icon: CardBuildIcon,   to: '/customs', iconColor: 'text-red-500' },
-                                { label: 'Card Explorer', desc: 'Browse our library of 100K+ cards', Icon: FaCompass,  to: '/cards',   iconColor: 'text-blue-500' },
-                                { label: 'Team Builder',  desc: 'Build teams and play 162 game sim challenges',   Icon: FaPeopleGroup, to: '/teams', iconColor: 'text-yellow-500', isNew: true },
-                                { label: 'Seasons',       desc: 'Live games, stats, and full-season simulations',   Icon: FaCalendar, to: '/seasons', iconColor: 'text-emerald-500', isNew: true },
+                                { label: 'Card Builder',  desc: 'Build and customize your own cards', Icon: CardBuildIcon,   to: '/customs', iconColor: 'text-(--showdown-red)' },
+                                { label: 'Card Explorer', desc: 'Browse our library of 100K+ cards', Icon: FaCompass,  to: '/cards',   iconColor: 'text-(--showdown-blue)' },
+                                { label: 'Team Builder',  desc: 'Build teams and play 162 game sim challenges',   Icon: FaPeopleGroup, to: '/teams', iconColor: 'text-(--showdown-red)', isNew: true },
+                                { label: 'Seasons',       desc: 'Live games, stats, and full-season simulations',   Icon: FaCalendar, to: '/seasons', iconColor: 'text-(--showdown-blue)', isNew: true },
                             ] as const).map((tile) => (
-                                <HomeNavTile key={tile.to} tile={tile} isDark={isDark} />
+                                <HomeNavTile key={tile.to} tile={tile} />
                             ))}
                         </div>
                     </div>
@@ -360,19 +427,14 @@ export default function Home() {
             </div>
 
             {/* Game Ticker */}
-            <div
-                className={`rounded-2xl border-2 overflow-hidden max-w-7xl mx-auto ${isDark ? 'bg-neutral-900/80 border-neutral-800' : 'bg-white/80 border-neutral-200'}`}
-            >
-                {/* Ticker header */}
-                <div
-                    className="flex items-center justify-between gap-4 px-4 md:px-6 py-3"
-                    style={{ backgroundImage: 'linear-gradient(95deg, #1a2f6e, color-mix(in srgb, #1a2f6e 60%, #8b1a1a 40%), #8b1a1a)' }}
-                >
-                    <p className="text-xs font-bold uppercase tracking-widest text-white/90 flex items-center gap-2">
-                        <LiveIcon size={7} className="" title="Live" color='yellow' />
-                        Today's Games
+            <div className="rounded-card border border-(--divider) overflow-hidden max-w-7xl mx-auto bg-(--background-secondary)">
+                {/* Ticker header: navy band over a red rule, from the Showdown logo */}
+                <div className="flex items-center justify-between gap-4 px-4 md:px-6 py-2.5 bg-(--showdown-blue) border-b-2 border-(--showdown-red)">
+                    <p className="flex items-center gap-2 text-white">
+                        <LiveIcon size={7} title="Live" color="var(--field-live)" />
+                        <span className="font-display uppercase text-lg leading-none">Today's Games</span>
                         {tickerSeason && (
-                            <span className="text-white/60 font-normal normal-case tracking-normal">
+                            <span className="text-xs text-white/70">
                                 {new Date().toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
                             </span>
                         )}
@@ -384,8 +446,8 @@ export default function Home() {
 
                 {/* Sim hint */}
                 {todaysGames.length > 0 && (
-                    <div className={`flex items-center gap-1.5 px-4 md:px-6 py-1.5 text-[11px] font-medium border-b border-(--divider) ${isDark ? 'bg-neutral-800/40 text-neutral-400' : 'bg-neutral-50 text-neutral-500'}`}>
-                        <FaDiceD20 className="text-primary shrink-0" />
+                    <div className="flex items-center gap-1.5 px-4 md:px-6 py-1.5 text-[11px] font-medium border-b border-(--divider) bg-(--background-tertiary) text-(--text-tertiary)">
+                        <FaDiceD20 className="text-(--text-secondary) shrink-0" />
                         <span>Click a game to watch it play out pitch by pitch, or take over and sim the rest yourself</span>
                     </div>
                 )}
@@ -395,15 +457,15 @@ export default function Home() {
                     <div className="flex gap-0 min-w-max">
                         {isLoadingGames && (
                             [...Array(6)].map((_, i) => (
-                                <div key={i} className={`w-36 shrink-0 px-4 py-3 border-r border-(--divider) animate-pulse ${isDark ? 'bg-neutral-800/40' : 'bg-neutral-100'}`}>
-                                    <div className={`h-3 w-16 rounded mb-2 ${isDark ? 'bg-neutral-700' : 'bg-neutral-300'}`} />
-                                    <div className={`h-3 w-20 rounded mb-1 ${isDark ? 'bg-neutral-700' : 'bg-neutral-300'}`} />
-                                    <div className={`h-3 w-20 rounded ${isDark ? 'bg-neutral-700' : 'bg-neutral-300'}`} />
+                                <div key={i} className="w-36 shrink-0 px-4 py-3 border-r border-(--divider) animate-pulse">
+                                    <div className="h-3 w-16 rounded-[2px] mb-2 bg-(--background-tertiary)" />
+                                    <div className="h-3 w-20 rounded-[2px] mb-1 bg-(--background-tertiary)" />
+                                    <div className="h-3 w-20 rounded-[2px] bg-(--background-tertiary)" />
                                 </div>
                             ))
                         )}
                         {!isLoadingGames && todaysGames.length === 0 &&  (
-                            <div className={`px-6 py-4 text-sm ${isDark ? 'text-neutral-500' : 'text-neutral-400'}`}>
+                            <div className="px-6 py-4 text-sm text-(--text-tertiary)">
                                 No games scheduled today.
                             </div>
                         )}
@@ -421,11 +483,7 @@ export default function Home() {
                             const inningHalf = game.situation?.isTop ? '▲' : game.situation ? '▼' : '';
                             const isAwayStarred = starredTeamKeys.includes(`${game.away.team.id}-${tickerSeason?.season_id}`);
                             const isHomeStarred = starredTeamKeys.includes(`${game.home.team.id}-${tickerSeason?.season_id}`);
-                            const statusLabel = isFinal
-                                ? 'FINAL'
-                                : isLive
-                                ? `${inningHalf}${inning ?? ''}`
-                                : game.date
+                            const statusLabel = game.date
                                 ? new Date(game.date).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
                                 : game.detailedState ?? '';
 
@@ -433,21 +491,19 @@ export default function Home() {
                                 <Link
                                     key={game.id}
                                     to={`/seasons/game/${game.id}${tickerSeason ? `?season=${tickerSeason.season_id}` : ''}`}
-                                    className={`w-36 shrink-0 px-4 py-3 border-r border-(--divider) hover:brightness-105 transition ${isDark ? 'hover:bg-neutral-800/60' : 'hover:bg-neutral-50'}`}
+                                    className="w-36 shrink-0 px-4 py-3 border-r border-(--divider) transition-colors hover:bg-(--background-tertiary)"
                                 >
-                                    {/* Status badge */}
-                                    <div className="mb-2 flex items-center justify-between gap-1.5">
-                                        <span className={`text-[10px] font-bold uppercase tracking-wide py-0.5 ${isLive || isFinal ? 'px-1.5 rounded' : ''} ${
-                                            isLive
-                                                ? 'bg-(--live)/10 text-(--live)'
-                                                : isFinal
-                                                ? 'bg-green-500/10 text-green-300'
-                                                : isDark ? 'text-neutral-100' : 'text-neutral-500'
-                                        }`}>
-                                            {isLive ? 'LIVE' : statusLabel}
-                                        </span>
+                                    {/* Status */}
+                                    <div className="mb-2 flex items-center justify-between gap-1.5 min-h-[17px]">
+                                        {isLive ? (
+                                            <Plate variant="red" size="sm">Live</Plate>
+                                        ) : isFinal ? (
+                                            <Plate variant="outline" size="sm">Final</Plate>
+                                        ) : (
+                                            <span className="text-[10px] font-semibold uppercase tabular-nums text-(--text-tertiary)">{statusLabel}</span>
+                                        )}
                                         {isLive && inning != null && (
-                                            <span className="text-[10px] font-bold text-(--live)">
+                                            <span className="text-[10px] font-bold tabular-nums text-(--live)">
                                                 {inningHalf} {inning}
                                             </span>
                                         )}
@@ -456,13 +512,13 @@ export default function Home() {
                                     {/* Away team */}
                                     <div className="flex items-center justify-between gap-1 mb-1">
                                         <TeamChip team={game.away.team} record={game.away.record} size="sm" isStarred={isAwayStarred} />
-                                        <span className="text-sm font-black tabular-nums">{game.away.score == null ? "-" : game.away.score}</span>
+                                        <span className="font-display-upright text-[17px] leading-none tabular-nums">{game.away.score == null ? "-" : game.away.score}</span>
                                     </div>
 
                                     {/* Home team */}
                                     <div className="flex items-center justify-between gap-1">
                                         <TeamChip team={game.home.team} record={game.home.record} size="sm" isStarred={isHomeStarred} />
-                                        <span className="text-sm font-black tabular-nums">{game.home.score == null ? "-" : game.home.score}</span>
+                                        <span className="font-display-upright text-[17px] leading-none tabular-nums">{game.home.score == null ? "-" : game.home.score}</span>
                                     </div>
                                 </Link>
                             );
@@ -473,10 +529,10 @@ export default function Home() {
                 {/* Leaders rows */}
                 <div className="relative border-t border-(--divider) px-4 md:px-6 py-4 space-y-4">
                     {isLoadingLeaders && (
-                        <div className={`absolute inset-0 z-10 flex items-center justify-center gap-2 rounded-b-2xl backdrop-blur-[2px] ${isDark ? 'bg-neutral-900/60' : 'bg-white/60'}`}>
-                            <span className={`w-2 h-2 rounded-full animate-bounce [animation-delay:0ms] ${isDark ? 'bg-neutral-400' : 'bg-neutral-500'}`} />
-                            <span className={`w-2 h-2 rounded-full animate-bounce [animation-delay:150ms] ${isDark ? 'bg-neutral-400' : 'bg-neutral-500'}`} />
-                            <span className={`w-2 h-2 rounded-full animate-bounce [animation-delay:300ms] ${isDark ? 'bg-neutral-400' : 'bg-neutral-500'}`} />
+                        <div className="absolute inset-0 z-10 flex items-center justify-center gap-2 backdrop-blur-[2px] bg-(--background-secondary)/60">
+                            <span className="w-2 h-2 rounded-full animate-bounce [animation-delay:0ms] bg-(--text-tertiary)" />
+                            <span className="w-2 h-2 rounded-full animate-bounce [animation-delay:150ms] bg-(--text-tertiary)" />
+                            <span className="w-2 h-2 rounded-full animate-bounce [animation-delay:300ms] bg-(--text-tertiary)" />
                         </div>
                     )}
                     {(isLoadingLeaders && leaderGroups.length === 0 ? [null, null] : leaderGroups).map((group, gi) => {
@@ -485,7 +541,7 @@ export default function Home() {
                         const isPitchingGroup = PITCHING_LEADER_CATEGORIES.has(group?.leader_category ?? '');
                         return (
                             <div key={group?.leader_category ?? gi}>
-                                <span className={`text-xs font-bold uppercase tracking-wide ${isDark ? 'text-neutral-400' : 'text-neutral-500'}`}>{label}</span>
+                                <Eyebrow>{label}</Eyebrow>
                                 <div className="mt-2 flex gap-2 overflow-x-auto scrollbar-hide lg:grid lg:grid-cols-3">
                                     {entries.map((entry, i) => {
                                         const rawId = entry?.person?.id;
@@ -513,28 +569,18 @@ export default function Home() {
 
             {/* Your Recent Cards - logged in users only */}
             {user && (isLoadingRecentCards || recentCards.length > 0) && (
-                <div className="max-w-7xl mx-auto border-y py-4 border-form-element">
-                    <div className="flex justify-between items-center mb-4">
-                        <h2 className="text-2xl font-bold flex items-center gap-2">
-                            <FaClock className="text-primary" /> Your Recent Custom Cards
-                        </h2>
-                        <Link
-                            to="/customs"
-                            className={`flex items-center gap-2 px-4 py-2 rounded-xl font-semibold transition ${isDark ? 'bg-neutral-900 border border-neutral-700 text-white hover:bg-neutral-800' : 'bg-white border border-neutral-300 text-black hover:bg-neutral-100'}`}
-                        >
-                            Build More <FaChevronRight />
-                        </Link>
-                    </div>
+                <div className="max-w-7xl mx-auto border-y py-4 border-(--divider)">
+                    <HomeSectionHeader title="Your Recent Custom Cards" action={{ label: 'Build More', to: '/customs' }} />
                     <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-hide">
                         {isLoadingRecentCards
                             ? Array.from({ length: 8 }).map((_, i) => (
                                 <div key={i} className="shrink-0 w-32 animate-pulse">
                                     <div
-                                        className={`w-full rounded-lg ${isDark ? 'bg-neutral-800' : 'bg-neutral-200'}`}
+                                        className="w-full rounded-card bg-(--background-tertiary)"
                                         style={{ aspectRatio: '2.5 / 3.5' }}
                                     />
-                                    <div className={`mt-1.5 h-3 w-3/4 rounded ${isDark ? 'bg-neutral-800' : 'bg-neutral-200'}`} />
-                                    <div className={`mt-1 h-2.5 w-1/2 rounded ${isDark ? 'bg-neutral-800' : 'bg-neutral-200'}`} />
+                                    <div className="mt-1.5 h-3 w-3/4 rounded-[2px] bg-(--background-tertiary)" />
+                                    <div className="mt-1 h-2.5 w-1/2 rounded-[2px] bg-(--background-tertiary)" />
                                 </div>
                             ))
                             : recentCards.map((item, index) => (
@@ -544,7 +590,7 @@ export default function Home() {
                                     onClick={() => setRecentCardModal(item.fullUrl)}
                                 >
                                     <div
-                                        className="w-full rounded-lg overflow-hidden bg-neutral-800 relative"
+                                        className="w-full rounded-card overflow-hidden bg-(--background-tertiary) relative"
                                         style={{ aspectRatio: '2.5 / 3.5' }}
                                     >
                                         <img
@@ -556,7 +602,7 @@ export default function Home() {
                                     </div>
                                     <div className="mt-1.5 px-0.5">
                                         <div className="text-xs font-semibold truncate">{item.record.player_name}</div>
-                                        <div className={`text-[11px] ${isDark ? 'text-neutral-400' : 'text-neutral-500'}`}>{item.record.year}</div>
+                                        <div className="text-[11px] tabular-nums text-(--text-tertiary)">{item.record.year}</div>
                                     </div>
                                 </button>
                             ))
@@ -572,7 +618,7 @@ export default function Home() {
                     onClick={() => setRecentCardModal(null)}
                 >
                     <button
-                        className="absolute top-4 right-4 text-white/70 hover:text-white transition-colors text-xl"
+                        className="absolute top-4 right-4 text-white/70 hover:text-white transition-colors text-xl cursor-pointer"
                         onClick={() => setRecentCardModal(null)}
                     >
                         <FaXmark />
@@ -580,7 +626,7 @@ export default function Home() {
                     <img
                         src={recentCardModal}
                         alt="Card full view"
-                        className="max-h-[90vh] max-w-[90vw] object-contain rounded-lg shadow-2xl"
+                        className="max-h-[90vh] max-w-[90vw] object-contain rounded-card shadow-overlay"
                         onClick={(e) => e.stopPropagation()}
                     />
                 </div>,
@@ -588,89 +634,75 @@ export default function Home() {
             )}
 
             {/* How it Works */}
-            <div className="max-w-7xl mx-auto py-6 border-t border-form-element">
-                <h2 className="text-3xl font-bold mb-8">How to Play</h2>
-                
+            <div className="max-w-7xl mx-auto py-6 border-t border-(--divider)">
+                <HomeSectionHeader title="How to Play" />
+
                 {/* Steps: Side by Side on md+ */}
                 <div className="grid md:grid-cols-2 gap-8 mb-12">
                     {/* Step 1: The Pitch */}
                     <div>
                         <div className="mb-3">
-                            <span className={`text-sm font-semibold uppercase tracking-wide ${isDark ? 'text-red-400' : 'text-red-600'}`}>Step 1</span>
-                            <h3 className="text-xl font-bold mt-1">The Pitch</h3>
-                            <p className={`text-sm mt-1 ${isDark ? 'text-neutral-400' : 'text-neutral-600'}`}>Pitcher rolls to see who gets the advantage</p>
+                            <Eyebrow className="text-(--showdown-red)">Step 1</Eyebrow>
+                            <h3 className="font-display uppercase text-2xl leading-none mt-1.5">The Pitch</h3>
+                            <p className="text-sm mt-1.5 text-(--text-tertiary)">Pitcher rolls to see who gets the advantage</p>
                         </div>
 
-                        <div className={`text-sm space-y-1.5 mb-3 ${isDark ? 'text-neutral-300' : 'text-neutral-700'}`}>
-                            <div className="flex items-start gap-2">
-                                <span className="text-red-500 font-bold">•</span>
-                                <span>Pitcher's total <strong>(Control + Dice Roll)</strong> higher = Pitcher's advantage</span>
-                            </div>
-                            <div className="flex items-start gap-2">
-                                <span className="text-blue-500 font-bold">•</span>
-                                <span>Pitcher's total lower or tied = Batter's advantage</span>
-                            </div>
+                        <div className="text-sm space-y-1.5 mb-3 text-(--text-secondary)">
+                            <HowToPlayBullet side="pitcher">Pitcher's total <strong>(Control + Dice Roll)</strong> higher = Pitcher's advantage</HowToPlayBullet>
+                            <HowToPlayBullet side="batter">Pitcher's total lower or tied = Batter's advantage</HowToPlayBullet>
                         </div>
-                        
-                        <div className={`rounded-xl p-4 ${isDark ? 'bg-neutral-800/50 border border-neutral-700' : 'bg-neutral-100 border border-neutral-300'}`}>
+
+                        <HomePanel className="p-4">
                             <div className='flex items-center justify-center gap-3'>
                                 <div className='flex flex-col items-center gap-1'>
                                     <CardCommand isPitcher={true} primaryColor="rgb(200, 16, 46)" secondaryColor="rgb(255, 255, 255)" command={4} team="BOS" className="w-10 h-10 shrink-0" />
-                                    <span className='text-[10px] font-bold text-tertiary'>Control</span>
+                                    <span className='text-[10px] font-bold text-(--text-tertiary)'>Control</span>
                                 </div>
-                                <span className='text-lg font-bold'>+</span>
+                                <span className='text-lg font-display-upright leading-none'>+</span>
                                 <div className='flex flex-col items-center gap-1'>
-                                    <FaDiceD20 className="text-gray-500 w-10 h-10" />
-                                    <span className='text-[10px] font-bold text-tertiary'>Dice Roll</span>
+                                    <FaDiceD20 className="text-(--text-tertiary) w-10 h-10" />
+                                    <span className='text-[10px] font-bold text-(--text-tertiary)'>Dice Roll</span>
                                 </div>
-                                <span className={`text-xs font-bold uppercase px-3 ${isDark ? 'text-neutral-400' : 'text-neutral-600'}`}>vs</span>
+                                <span className="font-display uppercase text-sm px-3 text-(--text-tertiary)">vs</span>
                                 <div className='flex flex-col items-center gap-1'>
                                     <CardCommand isPitcher={false} primaryColor="rgb(12, 35, 64)" secondaryColor="rgb(255, 255, 255)" command={8} team="NYY" className="w-10 h-10 shrink-0" />
-                                    <span className='text-[10px] font-bold text-tertiary'>On-Base</span>
+                                    <span className='text-[10px] font-bold text-(--text-tertiary)'>On-Base</span>
                                 </div>
                             </div>
-                        </div>
-                        
-                        
+                        </HomePanel>
                     </div>
 
                     {/* Step 2: The Swing */}
                     <div>
                         <div className="mb-3">
-                            <span className={`text-sm font-semibold uppercase tracking-wide ${isDark ? 'text-blue-400' : 'text-blue-600'}`}>Step 2</span>
-                            <h3 className="text-xl font-bold mt-1">The Swing</h3>
-                            <p className={`text-sm mt-1 ${isDark ? 'text-neutral-400' : 'text-neutral-600'}`}>Batter rolls to see what happens</p>
+                            <Eyebrow className="text-(--showdown-blue)">Step 2</Eyebrow>
+                            <h3 className="font-display uppercase text-2xl leading-none mt-1.5">The Swing</h3>
+                            <p className="text-sm mt-1.5 text-(--text-tertiary)">Batter rolls to see what happens</p>
                         </div>
-                        
-                        <div className={`text-sm space-y-1.5 mb-3 ${isDark ? 'text-neutral-300' : 'text-neutral-700'}`}>
-                            <div className="flex items-start gap-2">
-                                <span className="text-red-500 font-bold">•</span>
-                                <span><strong>Pitcher's advantage:</strong> Find result on pitcher's chart</span>
-                            </div>
-                            <div className="flex items-start gap-2">
-                                <span className="text-blue-500 font-bold">•</span>
-                                <span><strong>Batter's advantage:</strong> Find result on batter's chart</span>
-                            </div>
+
+                        <div className="text-sm space-y-1.5 mb-3 text-(--text-secondary)">
+                            <HowToPlayBullet side="pitcher"><strong>Pitcher's advantage:</strong> Find result on pitcher's chart</HowToPlayBullet>
+                            <HowToPlayBullet side="batter"><strong>Batter's advantage:</strong> Find result on batter's chart</HowToPlayBullet>
                         </div>
-                        
-                        <div className={`rounded-xl p-3 ${isDark ? 'bg-neutral-800/50 border border-neutral-700' : 'bg-neutral-100 border border-neutral-300'}`}>
+
+                        <HomePanel className="p-3">
                             <div className="flex flex-col lg:flex-row items-center lg:items-start gap-2 max-w-full">
-                                
+
                                 <div className='flex gap-3 items-center lg:items-start lg:mr-3'>
                                     <div className='flex flex-col items-center gap-1 pt-2'>
-                                        <FaDiceD20 className="text-gray-500 w-6 h-6 lg:w-8 lg:h-8" />
-                                        <span className='text-[10px] font-bold text-tertiary'>Roll</span>
+                                        <FaDiceD20 className="text-(--text-tertiary) w-6 h-6 lg:w-8 lg:h-8" />
+                                        <span className='text-[10px] font-bold text-(--text-tertiary)'>Roll</span>
                                     </div>
-                                    <div className='flex flex-col items-center justify-center gap-0.5 pt-3'>
-                                        <FaChevronRight className={`hidden lg:block ${isDark ? 'text-neutral-400' : 'text-neutral-600'}`} />
-                                        <FaChevronDown className={`lg:hidden ${isDark ? 'text-neutral-400' : 'text-neutral-600'}`} />
-                                        <span className={`text-[7px] font-semibold uppercase ${isDark ? 'text-neutral-500' : 'text-neutral-600'}`}>Find</span>
+                                    <div className='flex flex-col items-center justify-center gap-0.5 pt-3 text-(--text-tertiary)'>
+                                        <FaChevronRight className="hidden lg:block" />
+                                        <FaChevronDown className="lg:hidden" />
+                                        <span className="text-[7px] font-semibold uppercase">Find</span>
                                     </div>
                                 </div>
-                                
+
                                 <div className="flex-1 ">
                                     <CardChart
-                                        chartRanges={{"SO":"1-2","GB":"3-4","FB":"5-6","BB":"7-8","1B":"9-15","1B+":"-","2B":"16-17","3B":"18","HR":`${['2000', '2001', 'CLASSIC'].includes(userShowdownSet)? '19-20' : '19+'}`}} 
+                                        chartRanges={{"SO":"1-2","GB":"3-4","FB":"5-6","BB":"7-8","1B":"9-15","1B+":"-","2B":"16-17","3B":"18","HR":`${['2000', '2001', 'CLASSIC'].includes(userShowdownSet)? '19-20' : '19+'}`}}
                                         showdownSet={userShowdownSet || '2001'}
                                         primaryColor="rgb(12, 35, 64)"
                                         secondaryColor="rgb(255, 255, 255)"
@@ -678,73 +710,64 @@ export default function Home() {
                                         cellClassName="lg:min-w-8 xl:min-w-10"
                                         className="mb-1"
                                     />
-                                    <p className={`text-[10px] ${isDark ? 'text-neutral-500' : 'text-neutral-600'}`}>Example: Roll 16 = Double!</p>
+                                    <p className="text-[10px] text-(--text-tertiary)">Example: Roll 16 = Double!</p>
                                 </div>
                             </div>
-                        </div>
+                        </HomePanel>
                     </div>
                 </div>
-                
+
                 {/* Next Steps and Why it Works */}
                 <div className="grid md:grid-cols-2 gap-8 mb-12">
                     {/* The Rest */}
                     <div>
-                        <h2 className="text-2xl font-bold mb-4">Play out the Game</h2>
-                        <ul className="space-y-2 mb-4">
-                            <li className={`flex items-start gap-2 ${isDark ? 'text-neutral-300' : 'text-neutral-700'}`}>
-                                <span className="text-primary font-bold mt-0.5">•</span>
-                                <span><strong>Build your team:</strong> <span className={isDark ? 'text-neutral-400' : 'text-neutral-600'}>Draft players within a salary cap budget (or just pick your favorite all-stars!)</span></span>
+                        <h2 className="font-display uppercase text-2xl leading-none mb-4">Play out the Game</h2>
+                        <ul className="space-y-2 mb-4 text-(--text-secondary)">
+                            <li className="flex items-start gap-2">
+                                <span className="text-(--text-primary) font-bold mt-0.5">•</span>
+                                <span><strong>Build your team:</strong> <span className="text-(--text-tertiary)">Draft players within a salary cap budget (or just pick your favorite all-stars!)</span></span>
                             </li>
-                            <li className={`flex items-start gap-2 ${isDark ? 'text-neutral-300' : 'text-neutral-700'}`}>
-                                <span className="text-primary font-bold mt-0.5">•</span>
-                                <span><strong>Play 9 innings:</strong> <span className={isDark ? 'text-neutral-400' : 'text-neutral-600'}>Alternate pitching and batting through 9 innings</span></span>
+                            <li className="flex items-start gap-2">
+                                <span className="text-(--text-primary) font-bold mt-0.5">•</span>
+                                <span><strong>Play 9 innings:</strong> <span className="text-(--text-tertiary)">Alternate pitching and batting through 9 innings</span></span>
                             </li>
-                            <li className={`flex items-start gap-2 ${isDark ? 'text-neutral-300' : 'text-neutral-700'}`}>
-                                <span className="text-primary font-bold mt-0.5">•</span>
-                                <span><strong>Advanced Gameplay:</strong> <span className={isDark ? 'text-neutral-400' : 'text-neutral-600'}>Incorporate baserunning, fielding, and strategic decisions</span></span>
+                            <li className="flex items-start gap-2">
+                                <span className="text-(--text-primary) font-bold mt-0.5">•</span>
+                                <span><strong>Advanced Gameplay:</strong> <span className="text-(--text-tertiary)">Incorporate baserunning, fielding, and strategic decisions</span></span>
                             </li>
                         </ul>
-                        {/* <Link to="/rules" className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl font-semibold transition ${isDark ? 'bg-neutral-900 border border-neutral-700 text-white hover:bg-neutral-800' : 'bg-white border border-neutral-300 text-black hover:bg-neutral-100'}`}>
-                            Learn more about gameplay <FaChevronRight />
-                        </Link> */}
                     </div>
 
                     {/* Why it works */}
                     <div className="max-w-3xl mx-auto">
-                        <h2 className="text-2xl font-bold mb-4">Why it works</h2>
+                        <h2 className="font-display uppercase text-2xl leading-none mb-4">Why it works</h2>
                         <ul className="space-y-3 mb-4">
-                            <li className="flex items-center gap-2"><FaDiceD20 className="text-primary" /> <span>20-sided dice system <span className={isDark ? 'text-neutral-400' : 'text-neutral-600'}>— Every at-bat is different to the randomness of a dice roll.</span></span></li>
-                            <li className="flex items-center gap-2"><FaShieldAlt className="text-primary" /> <span>Real stats, simulated play <span className={isDark ? 'text-neutral-400' : 'text-neutral-600'}>— Players perform like they did in their actual season.</span></span></li>
+                            <li className="flex items-center gap-2"><FaDiceD20 className="text-(--text-secondary)" /> <span>20-sided dice system <span className="text-(--text-tertiary)">— Every at-bat is different to the randomness of a dice roll.</span></span></li>
+                            <li className="flex items-center gap-2"><FaShieldAlt className="text-(--text-secondary)" /> <span>Real stats, simulated play <span className="text-(--text-tertiary)">— Players perform like they did in their actual season.</span></span></li>
                         </ul>
-                        <div className={`rounded-xl p-4 text-sm ${isDark ? 'bg-neutral-800/80 text-neutral-300' : 'bg-neutral-200/80 text-neutral-700'}`}>
+                        <div className="rounded-card p-4 text-sm bg-(--background-tertiary) text-(--text-secondary)">
                             <div className="font-semibold mb-1">The beauty of Showdown</div>
-                            <div className={isDark ? 'text-neutral-400' : 'text-neutral-600'}>"Dice rolls meet baseball stats. Fast-paced strategy with authentic player performance."</div>
+                            <div className="text-(--text-tertiary)">"Dice rolls meet baseball stats. Fast-paced strategy with authentic player performance."</div>
                         </div>
                     </div>
                 </div>
-                
+
             </div>
 
             {/* Cards Section */}
-            <div className="max-w-7xl mx-auto py-6 border-t border-form-element">
-                <div className="flex justify-between items-center mb-6">
-                    <h2 className="text-2xl font-bold">Cards</h2>
-                    <Link to="/cards" className={`flex items-center gap-2 px-4 py-2 rounded-xl font-semibold transition ${isDark ? 'bg-neutral-900 border border-neutral-700 text-white hover:bg-neutral-800' : 'bg-white border border-neutral-300 text-black hover:bg-neutral-100'}`}>
-                        Explore Cards <FaChevronRight />
-                    </Link>
-                </div>
+            <div className="max-w-7xl mx-auto py-6 border-t border-(--divider)">
+                <HomeSectionHeader title="Cards" action={{ label: 'Explore Cards', to: '/cards' }} />
                 <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-6">
-                    <div className={`rounded-2xl p-6 overflow-hidden flex flex-col ${isDark ? 'bg-neutral-900/80 border border-neutral-800' : 'bg-white/80 border border-neutral-200'}`}>
-                        <div className="font-semibold mb-2 flex items-center gap-2"><FaAward className="text-emerald-500" /> Card of the Day</div>
-                        <div className={`text-sm mb-2 ${isDark ? 'text-neutral-400' : 'text-neutral-600'}`}>Generated by the community, refreshed daily.</div>
+                    <HomePanel className="overflow-hidden flex flex-col">
+                        <HomePanelHeading Icon={FaAward} title="Card of the Day" description="Generated by the community, refreshed daily." />
                         <div className="flex-1 min-h-0 flex flex-col items-center justify-center gap-2">
                             <img
                                 src={cardOfDayImageSrc}
                                 alt="Card of the Day"
-                                className={`w-full h-full max-w-full max-h-full rounded-lg object-contain shadow-lg ${cardOfTheDay ? 'cursor-pointer' : 'animate-pulse'}`}
+                                className={`w-full h-full max-w-full max-h-full rounded-card object-contain ${cardOfTheDay ? 'cursor-pointer' : 'animate-pulse'}`}
                                 onClick={cardOfTheDay ? () => setSelectedModalCard(cardOfTheDay.card_data) : undefined}
                             />
-                            <div className={`text-xs text-center ${isDark ? 'text-neutral-500' : 'text-neutral-400'}`}>
+                            <div className="text-xs text-center text-(--text-tertiary)">
                                 {cardOfTheDay ? (
                                     <><span className="font-semibold">{cardOfTheDay.card_data.name}</span> - {cardOfTheDay.card_data.team} ({cardOfTheDay.card_data.year})</>
                                 ) : (
@@ -752,10 +775,9 @@ export default function Home() {
                                 )}
                             </div>
                         </div>
-                    </div>
-                    <div className={`rounded-2xl p-6 overflow-hidden ${isDark ? 'bg-neutral-900/80 border border-neutral-800' : 'bg-white/80 border border-neutral-200'}`}>
-                        <div className="font-semibold mb-2 flex items-center gap-2"><FaFire className="text-red-500" /> Trending this week</div>
-                        <div className={`text-sm mb-2 ${isDark ? 'text-neutral-400' : 'text-neutral-600'}`}>Players and seasons gaining attention recently.</div>
+                    </HomePanel>
+                    <HomePanel className="overflow-hidden">
+                        <HomePanelHeading Icon={FaFire} title="Trending this week" description="Players and seasons gaining attention recently." />
                         {trendingPlayers.length > 0 ? (
                             <div className='space-y-3'>
                                 {trendingPlayers.slice(0, 4).map((card, index) => (
@@ -765,26 +787,26 @@ export default function Home() {
                         ) : (
                             renderBlankExploreCards()
                         )}
-                    </div>
-                    <div className={`rounded-2xl p-6 overflow-hidden ${isDark ? 'bg-neutral-900/80 border border-neutral-800' : 'bg-white/80 border border-neutral-200'}`}>
-                        <div className="font-semibold mb-2 flex items-center gap-2"><FaStar className="text-yellow-400" /> Most Popular</div>
-                        <div className={`text-sm mb-2 ${isDark ? 'text-neutral-400' : 'text-neutral-600'}`}>Most created custom cards all-time.</div>
+                    </HomePanel>
+                    <HomePanel className="overflow-visible">
+                        <HomePanelHeading Icon={FaStar} title="Most Popular" description="Most created custom cards all-time." />
                         {popularCards.length > 0 ? (
                             <div className='space-y-3'>
                                 {popularCards.slice(0, 4).map((card, index) => (
-                                    <div className="relative max-w-full">
-                                        <span className={`absolute z-10 text-[12px] -right-2 -top-2 ${gradientBlueBg} font-bold backdrop-blur-sm rounded-full px-2 py-1`}>{card.num_creations.toLocaleString()}</span>
-                                        <CardItemFromCard key={index} card={card.card_data} className="max-w-full" onClick={() => setSelectedModalCard(card.card_data)} />
+                                    <div key={index} className="relative max-w-full">
+                                        <Plate variant="navy" size="sm" className="absolute z-10 -right-1.5 -top-1.5" title="Times created">
+                                            {card.num_creations.toLocaleString()}
+                                        </Plate>
+                                        <CardItemFromCard card={card.card_data} className="max-w-full" onClick={() => setSelectedModalCard(card.card_data)} />
                                     </div>
                                 ))}
                             </div>
                         ) : (
                             renderBlankExploreCards()
                         )}
-                    </div>
-                    <div className={`rounded-2xl p-6 overflow-hidden ${isDark ? 'bg-neutral-900/80 border border-neutral-800' : 'bg-white/80 border border-neutral-200'}`}>
-                        <div className="font-semibold mb-2 flex items-center gap-2"><FaUsers className="text-primary" />Spotlight</div>
-                        <div className={`text-sm mb-2 ${isDark ? 'text-neutral-400' : 'text-neutral-600'}`}>{spotlightCards.length > 0 ? spotlightCards[0].spotlight_reason : 'Curated sets and fun themes.'}</div>
+                    </HomePanel>
+                    <HomePanel className="overflow-hidden">
+                        <HomePanelHeading Icon={FaUsers} title="Spotlight" description={spotlightCards.length > 0 ? spotlightCards[0].spotlight_reason : 'Curated sets and fun themes.'} />
                         {spotlightCards.length > 0 ? (
                             <div className='space-y-3'>
                                 {spotlightCards.slice(0, 4).map((card, index) => (
@@ -794,46 +816,40 @@ export default function Home() {
                         ) : (
                             renderBlankExploreCards()
                         )}
-                    </div>
+                    </HomePanel>
                 </div>
             </div>
 
             {/* FAQ Section */}
-            <div className="max-w-7xl mx-auto py-6 border-t border-form-element">
-                <h2 className="text-2xl font-bold mb-8">FAQ</h2>
+            <div className="max-w-7xl mx-auto py-6 border-t border-(--divider)">
+                <HomeSectionHeader title="FAQ" />
                 <div className="grid md:grid-cols-2 gap-6">
-                    <div className={`rounded-2xl p-6 ${isDark ? 'bg-neutral-900/80 border border-neutral-800' : 'bg-white/80 border border-neutral-200'}`}>
-                        <h3 className="text-lg font-semibold mb-2">Can I print these?</h3>
-                        <p className={isDark ? 'text-neutral-400' : 'text-neutral-600'}>These cards are for personal, non-commercial use only. This is a fan project not affiliated with or endorsed by WOTC or MLB. Cards are not licensed for printing, distribution, or sale.</p>
-                    </div>
-                    <div className={`rounded-2xl p-6 ${isDark ? 'bg-neutral-900/80 border border-neutral-800' : 'bg-white/80 border border-neutral-200'}`}>
-                        <h3 className="text-lg font-semibold mb-2">How does the formula work?</h3>
-                        <p className={isDark ? 'text-neutral-400' : 'text-neutral-600'}>The formula is designed to feel true to the original WOTC cards while being accurate when simulating a full season. The Bot's source code is publicly available on GitHub. Look at the <a href="https://github.com/mgula57/mlb_showdown_card_bot/blob/master/README.md" target="_blank" rel="noopener noreferrer" className="text-primary underline">README</a> for formula details.</p>
-                    </div>
-                    <div className={`rounded-2xl p-6 ${isDark ? 'bg-neutral-900/80 border border-neutral-800' : 'bg-white/80 border border-neutral-200'}`}>
-                        <h3 className="text-lg font-semibold mb-2">What Showdown sets are supported?</h3>
-                        <p className={isDark ? 'text-neutral-400' : 'text-neutral-600'}>The Bot supports all original Showdown sets (2000-2005) and adds CLASSIC and EXPANDED sets, which are updated designs with more diverse and accurate charting. Each set has unique point values and chart distributions.</p>
-                    </div>
-                    <div className={`rounded-2xl p-6 ${isDark ? 'bg-neutral-900/80 border border-neutral-800' : 'bg-white/80 border border-neutral-200'}`}>
-                        <h3 className="text-lg font-semibold mb-2">How can I contact the developers?</h3>
-                        <p className={isDark ? 'text-neutral-400' : 'text-neutral-600'}>Send an email to <a href="mailto:mlbshowdownbot@gmail.com" className="text-primary underline">mlbshowdownbot@gmail.com</a>, or join the conversation on <a href="https://discord.com/channels/669174897939054602/857237582740193282" target="_blank" rel="noopener noreferrer" className="text-primary underline inline-flex items-center gap-1 align-middle"><FaDiscord className="w-4 h-4" />Discord</a>. Feel free to reach out with questions or feedback.</p>
-                    </div>
+                    {FAQ_ITEMS.map(({ question, answer }) => (
+                        <HomePanel key={question} className="p-6">
+                            <Heading level="panel" className="mb-2">{question}</Heading>
+                            <p className="text-(--text-tertiary)">{answer}</p>
+                        </HomePanel>
+                    ))}
                 </div>
             </div>
 
             {/* Footer */}
-            <div className={`max-w-7xl mx-auto py-4 border-t border-form-element flex flex-col items-center gap-2`}>
+            <div className="max-w-7xl mx-auto py-4 border-t border-(--divider) flex flex-col items-center gap-2">
                 <ShowdownBotLogo className="max-w-28 opacity-70" />
-                <Link to="/privacy" className={`text-xs ${isDark ? 'text-neutral-500 hover:text-neutral-300' : 'text-neutral-400 hover:text-neutral-600'} transition`}>
+                <Link to="/privacy" className="text-xs text-(--text-tertiary) hover:text-(--text-primary) transition-colors">
                     Privacy Policy
                 </Link>
             </div>
+
+            {/* Card-back pinstripes behind the hero; last in the DOM so it doesn't take the
+                first-child slot in the page's vertical spacing */}
+            <PinstripeBackdrop heightClass="h-84" />
 
             {/* Modal */}
             <div className={selectedModalCard ? '' : 'hidden pointer-events-none'}>
                 <Modal onClose={handleModalCardClose} isVisible={!!selectedModalCard}>
                     <CardDetail
-                        showdownBotCardData={{ card: selectedModalCard} as ShowdownBotCardAPIResponse} 
+                        showdownBotCardData={{ card: selectedModalCard} as ShowdownBotCardAPIResponse}
                         hideTrendGraphs={true}
                         context="home"
                         parent='home'

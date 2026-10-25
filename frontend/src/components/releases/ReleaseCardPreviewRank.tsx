@@ -13,7 +13,7 @@ export function ReleaseCardPreviewRankBadge({ rank }: { rank: number }) {
     return (
         <span
             title={`Release preview #${rank}`}
-            className="inline-flex items-center gap-0.5 rounded-md bg-(--secondary) text-(--background-primary) text-[9px] font-black py-0.5 px-1.5 shadow-sm ring-1 ring-black/20"
+            className="inline-flex items-center gap-0.5 rounded-card bg-(--secondary) text-(--background-primary) text-[9px] font-black py-0.5 px-1.5 ring-1 ring-black/20"
         >
             <FaStar className="text-[8px]" />
             {rank}
@@ -41,7 +41,7 @@ export function ReleaseCardPreviewRankPicker({ rank, readOnly, onChange }: Relea
     return (
         <div className="flex flex-wrap items-center gap-2">
             <span className="text-[10px] font-bold text-(--text-tertiary) uppercase tracking-wide">Release Preview</span>
-            <div className="flex items-center rounded-lg border border-(--divider) overflow-hidden">
+            <div className="flex items-center rounded-card border border-(--divider) overflow-hidden">
                 {options.map(opt => {
                     const selected = opt.value === rank;
                     return (

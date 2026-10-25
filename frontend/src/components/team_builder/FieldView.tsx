@@ -259,7 +259,7 @@ export function FieldView({
 
                 {showDefenseSummary && (
                     <div
-                        className="absolute -translate-x-1/2 grid grid-cols-[auto_auto] items-center gap-x-2 gap-y-1.5 px-2.5 py-1 border border-(--divider) rounded-xl bg-primary backdrop-blur-xs pointer-events-none select-none"
+                        className="absolute -translate-x-1/2 grid grid-cols-[auto_auto] items-center gap-x-2 gap-y-1.5 px-2.5 py-1 border border-(--divider) rounded-card bg-primary backdrop-blur-xs pointer-events-none select-none"
                         style={{ top: '80%', left: '15%' }}
                     >
                         {([
@@ -326,7 +326,7 @@ export function FieldView({
                             onMouseEnter={card ? () => onCardHover?.(card.card_id) : undefined}
                             onMouseLeave={() => onCardHover?.(null)}
                         >
-                            <div className={`relative ${isActive ? 'rounded-lg ring-2 ring-(--secondary) shadow-[0_0_14px_4px_color-mix(in_srgb,var(--secondary)_50%,transparent)] animate-pulse' : ''}`}>
+                            <div className={`relative ${isActive ? 'rounded-control ring-2 ring-(--secondary) shadow-[0_0_14px_4px_color-mix(in_srgb,var(--secondary)_50%,transparent)] animate-pulse' : ''}`}>
                                 {card ? (
                                     <CardItemCompactFromCardDatabaseRecord
                                         card={card}
@@ -453,7 +453,7 @@ function PositionSlotPlaceholder({ position, onClick, isActive }: PlaceholderPro
             onClick={onClick}
             className={`
                 w-full flex items-center justify-between gap-1
-                rounded-lg px-2 h-12 @[340px]:h-16
+                rounded-control px-2 h-12 @[340px]:h-16
                 border-2 border-dashed
                 backdrop-blur-[2px]
                 ${isActive
@@ -480,7 +480,7 @@ const LoadingDots = ({ dotClassName }: { dotClassName: string }) => (
 
 function PositionSlotLoadingPlaceholder({ position }: { position: string }) {
     return (
-        <div className="w-full flex items-center justify-between gap-1 rounded-lg px-2 h-12 border-2 border-dashed border-white/30 bg-black/20 backdrop-blur-[2px]">
+        <div className="w-full flex items-center justify-between gap-1 rounded-card px-2 h-12 border-2 border-dashed border-white/30 bg-black/20 backdrop-blur-[2px]">
             <span className="text-[11px] font-black text-white/70">{position}</span>
             <LoadingDots dotClassName="bg-white/60" />
         </div>
@@ -489,7 +489,7 @@ function PositionSlotLoadingPlaceholder({ position }: { position: string }) {
 
 function SlotLoadingPlaceholder() {
     return (
-        <div className="flex items-center justify-center h-9 rounded-lg border border-dashed border-(--divider)">
+        <div className="flex items-center justify-center h-9 rounded-card border border-dashed border-(--divider)">
             <LoadingDots dotClassName="bg-(--text-tertiary)" />
         </div>
     );

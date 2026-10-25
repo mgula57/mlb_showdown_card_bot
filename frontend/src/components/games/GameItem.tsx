@@ -88,7 +88,7 @@ export default function GameItem({ game, isStarred, showMatchupDetails, playerId
             || (game.away.boxscore?.pitching.find(p => p.id === playerIdForLinescoreHighlight) || game.home.boxscore?.pitching.find(p => p.id === playerIdForLinescoreHighlight))
         : undefined;
     const playerLinescoreSummary = playerIdLinescoreMatch ? (
-        <div className="mt-2 px-3 py-1 rounded border border-yellow-400/50 bg-yellow-400/5 text-yellow-400 text-sm font-bold">
+        <div className="mt-2 px-3 py-1 rounded-control border border-(--gold)/50 bg-(--gold)/5 text-(--gold) text-sm font-bold">
             {playerIdLinescoreMatch.name}: {playerIdLinescoreMatch.summary ?? '-'}
         </div>
     ) : null;
@@ -131,7 +131,7 @@ export default function GameItem({ game, isStarred, showMatchupDetails, playerId
 
     const stateBadgeLabel = game.detailedState;
     const stateBadgeClasses = game.detailedState === 'Final'
-        ? 'border-green-500/40 bg-(--success)/10 text-(--success)'
+        ? 'border-(--success)/40 bg-(--success)/10 text-(--success)'
         : game.detailedState === 'Postponed'
             ? 'border-(--red)/40 bg-(--red)/10 text-(--red)'
             : isInProgress
@@ -142,14 +142,14 @@ export default function GameItem({ game, isStarred, showMatchupDetails, playerId
 
     return (
         <div
-            className={`rounded-xl border-2 bg-(--background-secondary) overflow-hidden p-3 ${isStarred ? 'border-yellow-400/50' : 'border-(--divider)'} ${onSelect ? 'cursor-pointer hover:border-(--text-secondary)/50 transition-colors' : ''}`}
+            className={`rounded-card border bg-(--background-secondary) overflow-hidden p-3 ${isStarred ? 'border-(--gold)/60' : 'border-(--divider)'} ${onSelect ? 'cursor-pointer hover:border-(--rule-strong) transition-colors' : ''}`}
             onClick={onSelect ? () => onSelect(gamePk) : undefined}
             role={onSelect ? "button" : undefined}
             tabIndex={onSelect ? 0 : undefined}
             onKeyDown={onSelect ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelect(gamePk); } } : undefined}
         >
             {game.seriesLabel && game.seriesLabel !== "Regular Season" && (
-                <div className="bg-(--background-primary) text-(--text-primary) rounded-md px-3 py-1 text-center text-sm font-bold flex items-center justify-center gap-1.5">
+                <div className="bg-(--background-primary) text-(--text-primary) rounded-card px-3 py-1 text-center text-sm font-bold flex items-center justify-center gap-1.5">
                     <span>{game.seriesLabel}</span>
                 </div>
                 )
@@ -166,10 +166,10 @@ export default function GameItem({ game, isStarred, showMatchupDetails, playerId
                     {!isFinal && !hasStarted && (
                         <span>{formatGameTime(game.date)}</span>
                     )}
-                    {isStarred && <FaStar className="text-yellow-400 h-3 w-3 shrink-0" />}
+                    {isStarred && <FaStar className="text-(--gold) h-3 w-3 shrink-0" />}
                 </div>
                 <div className="flex items-center gap-1.5 shrink-0">
-                    <span className={`rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${stateBadgeClasses}`}>
+                    <span className={`rounded-[2px] border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${stateBadgeClasses}`}>
                         {stateBadgeLabel}
                     </span>
                 </div>
@@ -201,7 +201,7 @@ export default function GameItem({ game, isStarred, showMatchupDetails, playerId
                     <button
                         type="button"
                         onClick={(e) => { e.stopPropagation(); onSimSelect(gamePk); }}
-                        className="flex flex-col items-center justify-center gap-0.5 rounded-lg animated-showdown-gradient px-2.5 py-1.5 text-[9px] font-bold uppercase tracking-wide text-white cursor-pointer hover:opacity-90 transition-opacity shrink-0"
+                        className="flex flex-col items-center justify-center gap-0.5 rounded-control bg-(--showdown-blue) shadow-raised px-2.5 py-1.5 text-[9px] font-bold uppercase tracking-wide text-white cursor-pointer hover:brightness-110 active:translate-y-px transition shrink-0"
                     >
                         <FaTerminal className="h-3 w-3" />
                         Sim It!

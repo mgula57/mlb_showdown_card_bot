@@ -36,6 +36,7 @@ import { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { FaChevronDown, FaCheck, FaTimes } from 'react-icons/fa';
 
+import { FIELD_LABEL_CLASS } from './fieldStyles';
 type MultiSelectOption = { value: string; label: string; image?: string; imageAbbr?: string };
 
 /** Renders an option's logo when it has one, otherwise its label (falling back to the raw value). */
@@ -235,7 +236,7 @@ const MultiSelect = ({ label, labelDescription, options, selections, onChange, p
     return (
         <div className={`space-y-2 ${className}`} ref={wrapperRef}>
             <div>
-                <label className="block text-sm font-medium text-(--text-primary)">{label}</label>
+                <label className={FIELD_LABEL_CLASS}>{label}</label>
                 {labelDescription && <p className="text-[9px] text-(--text-secondary)">{labelDescription}</p>}
             </div>
             
@@ -248,7 +249,7 @@ const MultiSelect = ({ label, labelDescription, options, selections, onChange, p
                     disabled={disabled}
                     className={`
                         w-full flex items-center justify-between px-3 py-2 min-h-10
-                        border border-form-element rounded-lg 
+                        border border-form-element rounded-control 
                         bg-(--background-primary) text-(--text-primary)
                         hover:border-(--tertiary) focus:outline-none focus:ring-2 focus:ring-primary/20
                         ${isOpen ? 'border-primary' : ''}
@@ -264,7 +265,7 @@ const MultiSelect = ({ label, labelDescription, options, selections, onChange, p
                                 return (
                                     <span
                                         key={value}
-                                        className="inline-flex items-center px-2 py-1 bg-primary/20 text-primary text-xs rounded-md"
+                                        className="inline-flex items-center px-2 py-1 bg-primary/20 text-primary text-xs rounded-card"
                                     >
                                         <OptionContent option={option} value={value} isTag={true} />
                                         <span
@@ -306,7 +307,7 @@ const MultiSelect = ({ label, labelDescription, options, selections, onChange, p
                     <div
                         ref={menuRef}
                         style={dropdownStyle}
-                        className={`bg-(--background-primary) border border-(--border-primary) rounded-lg shadow-lg overflow-y-auto scrollbar-hide
+                        className={`bg-(--background-primary) border border-(--border-primary) rounded-card shadow-overlay overflow-y-auto scrollbar-hide
                                     transform ${openAbove ? '-translate-y-full -mt-1' : 'mt-1'}`}
                     >
                         {/* Header with select all / clear all */}

@@ -23,8 +23,8 @@ function outcomeColor(key: string, primaryColor?: string, secondaryColor?: strin
 
 function KpiTile({ label, value, blurred }: { label: string; value: number; blurred: boolean }) {
     return (
-        <div className="flex-1 flex flex-col items-center justify-center gap-1 rounded-lg py-2.5 px-3 bg-tertiary">
-            <span className={`text-2xl font-black leading-none tabular-nums ${blurred ? 'blur-xs' : ''}`}>
+        <div className="flex-1 flex flex-col items-center justify-center gap-1 rounded-card py-2.5 px-3 bg-tertiary">
+            <span className={`text-2xl font-display-upright leading-none tabular-nums ${blurred ? 'blur-xs' : ''}`}>
                 {value.toFixed(2)}
             </span>
             <span className="text-[10px] font-semibold uppercase tracking-widest opacity-50">{label}</span>

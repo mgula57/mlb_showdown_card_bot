@@ -53,7 +53,7 @@ export default function ScoreHeader({ game, className = "", compact = false, cen
 
     return (
         <div
-            className={`rounded-xl border border-(--divider) bg-(--background-secondary)/30 ${
+            className={`rounded-card border border-(--divider) bg-(--background-secondary)/30 ${
                 compact ? "mx-2 px-3 py-1.5" : "mx-2 px-4 py-2 lg:py-4"
             } ${className}`}
         >
@@ -65,7 +65,7 @@ export default function ScoreHeader({ game, className = "", compact = false, cen
                     )}
                     <div className={`flex items-center ${compact ? "gap-2" : "gap-2.5"}`}>
                         <div
-                            className={`flex items-center justify-center rounded-lg font-bold leading-none shrink-0 ${badgeSize}`}
+                            className={`flex items-center justify-center rounded-card font-bold leading-none shrink-0 ${badgeSize}`}
                             style={{ backgroundColor: awayBadgeBg, color: awayBadgeText }}
                         >{away.team.abbreviation}</div>
                         <span className={`${scoreSize} font-bold leading-none text-(--primary)`}>{awayRuns}</span>
@@ -117,7 +117,7 @@ export default function ScoreHeader({ game, className = "", compact = false, cen
                     <div className={`flex items-center ${compact ? "gap-2" : "gap-2.5"}`}>
                         <span className={`${scoreSize} font-bold leading-none text-(--primary)`}>{homeRuns}</span>
                         <div
-                            className={`flex items-center justify-center rounded-lg font-bold leading-none shrink-0 ${badgeSize}`}
+                            className={`flex items-center justify-center rounded-card font-bold leading-none shrink-0 ${badgeSize}`}
                             style={{ backgroundColor: homeBadgeBg, color: homeBadgeText }}
                         >{home.team.abbreviation}</div>
                     </div>

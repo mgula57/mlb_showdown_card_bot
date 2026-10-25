@@ -24,7 +24,7 @@ import { LineupPanel } from './LineupPanel';
 import { ProgressRing } from './ProgressRing';
 import { TeamSettingsForm } from './TeamSettingsForm';
 import { SlideOver } from '../shared/SlideOver';
-import { SearchGradientBorder } from '../shared/SearchGradientBorder';
+import { SearchFrame } from '../shared/SearchFrame';
 import { tabButtonClass, radixTabTriggerClass } from '../shared/tabStyles';
 import ShowdownCardSearch, { type FilterSelections } from '../cards/ShowdownCardSearch';
 import {
@@ -47,7 +47,11 @@ import { TEAM_CARD_SOURCES, activeSources, allowedSetsForSource } from '../../do
 import { effectiveBenchBullpenMinimums, benchBullpenSlotCounts } from '../../domain/roster';
 import { ToastMessage } from '../shared/ToastMessage';
 import { Modal } from '../shared/Modal';
+import { Plate } from '../shared/Plate';
+import { buttonClass } from '../shared/buttonStyles';
 
+import { Heading } from '../shared/Heading';
+import FormEnabler from '../customs/FormEnabler';
 /** Cheapest PTS a real showdown card can be — matches the floor of the lowest price band the
  *  server-side autofill pool queries against (`_CANDIDATE_PRICE_BANDS` in autofill.py). Used to
  *  reserve budget for a draft pick's still-empty roster slots. */
@@ -56,10 +60,10 @@ const MIN_CARD_POINTS = 10;
 /** Visual treatment for how a roster slot was filled — hand-picked, autofilled, or carried
  *  over from a forked/imported team. Kept together so the draft history badge stays consistent. */
 const PICK_SOURCE_META: Record<PickSource, { label: string; icon: IconType; className: string }> = {
-    MANUAL:   { label: 'Manual',   icon: FaHandPointer,       className: 'bg-sky-500/15 text-sky-600 dark:text-sky-300' },
-    AUTOFILL: { label: 'Autofill', icon: FaWandMagicSparkles, className: 'bg-violet-500/15 text-violet-600 dark:text-violet-300' },
-    IMPORTED: { label: 'Imported', icon: FaFileImport,        className: 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-300' },
-    GUIDED:   { label: 'Guided',   icon: FaCompass,           className: 'bg-amber-500/15 text-amber-600 dark:text-amber-300' },
+    MANUAL:   { label: 'Manual',   icon: FaHandPointer,       className: 'bg-(--showdown-blue)/15 text-(--showdown-blue)' },
+    AUTOFILL: { label: 'Autofill', icon: FaWandMagicSparkles, className: 'bg-(--plate) text-(--text-secondary)' },
+    IMPORTED: { label: 'Imported', icon: FaFileImport,        className: 'bg-(--green)/15 text-(--green)' },
+    GUIDED:   { label: 'Guided',   icon: FaCompass,           className: 'bg-(--gold)/15 text-(--gold)' },
 };
 
 /** Draft panel tab value for Guided Draft — sits alongside the card-source tabs (BOT/WOTC/...). */
@@ -69,33 +73,47 @@ function PickSourceBadge({ source }: { source: PickSource }) {
     const meta = PICK_SOURCE_META[source] ?? PICK_SOURCE_META.MANUAL;
     const Icon = meta.icon;
     return (
-        <div className={`flex items-center gap-1 rounded-lg px-1.5 py-0.5 font-semibold ${meta.className}`}>
+        <div className={`flex items-center gap-1 rounded-[2px] px-1.5 py-0.5 font-semibold ${meta.className}`}>
             <Icon className="text-[9px] shrink-0" />
             {meta.label}
         </div>
     );
 }
 
-/** Compact pill switch shown alongside the draft search tabs — caps results to cards that both
+/** Compact checklist toggle shown alongside the draft search tabs — caps results to cards that both
  *  fit the remaining budget and still fill an open roster need. Small enough to sit in a tab
  *  strip on mobile or desktop. */
 function FitsMyRosterToggle({ enabled, onToggle }: { enabled: boolean; onToggle: () => void }) {
     return (
-        <button
-            type="button"
-            role="switch"
-            aria-checked={enabled}
-            onClick={onToggle}
+        <FormEnabler
+            size="sm"
+            label={<span className="flex items-center gap-1.5 whitespace-nowrap"><FaGaugeHigh className="text-[10px]" />Fits my roster</span>}
+            isEnabled={enabled}
+            onChange={onToggle}
             title="Only show cards you can afford, and that still fill an open roster need"
-            className={`flex items-center gap-1.5 shrink-0 rounded-full border px-2 py-1 text-[11px] font-bold whitespace-nowrap cursor-pointer transition-colors ${
-                enabled
-                    ? 'border-(--showdown-red) bg-(--showdown-red)/10 text-(--showdown-red)'
-                    : 'border-(--divider) text-(--text-tertiary) hover:text-(--text-primary)'
-            }`}
-        >
-            <FaGaugeHigh className="text-[10px]" />
-            Fits my roster
-        </button>
+            className="shrink-0"
+        />
+    );
+}
+
+/** "Filling <slot>" status shown in the draft tab strips while a roster slot is waiting on a
+ *  pick, with an optional dismiss. */
+function PendingFillPill({ label, onDismiss }: { label: string; onDismiss?: () => void }) {
+    return (
+        <span className="flex items-center gap-1.5 shrink-0 rounded-control border border-(--gold) bg-(--gold)/10 px-2 py-1 text-[11px] font-bold whitespace-nowrap text-(--gold)">
+            <span className="w-1.5 h-1.5 rounded-full bg-(--gold) animate-pulse motion-reduce:animate-none" />
+            {label}
+            {onDismiss && (
+                <button
+                    type="button"
+                    onClick={onDismiss}
+                    className="hover:opacity-70 cursor-pointer"
+                    aria-label="Cancel filling"
+                >
+                    <FaXmark className="text-[10px]" />
+                </button>
+            )}
+        </span>
     );
 }
 
@@ -105,10 +123,10 @@ function FitsMyRosterToggle({ enabled, onToggle }: { enabled: boolean; onToggle:
  *  doesn't read as one undifferentiated block of ghost buttons. */
 const HEADER_ACTION_TONES = {
     neutral: 'bg-(--background-tertiary) text-(--text-secondary) hover:bg-(--background-quaternary) hover:text-(--text-primary)',
-    starred: 'bg-yellow-400/15 text-yellow-600 dark:text-yellow-300 hover:bg-yellow-400/25',
-    curate:  'bg-amber-500/15 text-amber-600 dark:text-amber-400 hover:bg-amber-500/25',
-    danger:  'bg-red-400/15 text-red-500 dark:text-red-400 hover:bg-red-400/25',
-    liked:   'bg-rose-500/15 text-rose-600 dark:text-rose-400 hover:bg-rose-500/25',
+    starred: 'bg-(--gold)/15 text-(--gold) hover:bg-(--gold)/25',
+    curate:  'bg-(--showdown-blue)/15 text-(--showdown-blue) hover:bg-(--showdown-blue)/25',
+    danger:  'bg-(--red)/15 text-(--red) hover:bg-(--red)/25',
+    liked:   'bg-(--showdown-red)/15 text-(--showdown-red) hover:bg-(--showdown-red)/25',
 } as const;
 
 type HeaderActionProps = {
@@ -133,7 +151,7 @@ function HeaderAction({ icon: Icon, label, onClick, tone = 'neutral', busy = fal
             disabled={busy}
             title={title ?? label}
             aria-label={label}
-            className={`flex flex-1 md:flex-none items-center justify-center md:min-w-24 gap-2 h-10 px-4 rounded-lg text-[13px] font-semibold whitespace-nowrap transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${HEADER_ACTION_TONES[tone]}`}
+            className={`flex flex-1 md:flex-none items-center justify-center md:min-w-24 gap-2 h-10 px-4 rounded-control text-[13px] font-semibold whitespace-nowrap transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${HEADER_ACTION_TONES[tone]}`}
         >
             {busy ? <FaSpinner className="h-4 w-4 shrink-0 animate-spin" /> : <Icon className="h-4 w-4 shrink-0" />}
             {label}
@@ -1143,18 +1161,7 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                     <FitsMyRosterToggle enabled={fitsRosterEnabled} onToggle={() => setFitsRosterEnabled(v => !v)} />
                 )}
                 {pendingLabel && draftMode === 'search' && (
-                    <span className="flex items-center gap-1.5 shrink-0 rounded-full border border-amber-500 dark:border-amber-400 bg-amber-500/10 px-2 py-1 text-[11px] font-bold whitespace-nowrap text-amber-600 dark:text-amber-400">
-                        <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
-                        {pendingLabel}
-                        <button
-                            type="button"
-                            onClick={() => setPendingSlot(null)}
-                            className="hover:opacity-70 cursor-pointer"
-                            aria-label="Cancel filling"
-                        >
-                            <FaXmark className="text-[10px]" />
-                        </button>
-                    </span>
+                    <PendingFillPill label={pendingLabel} onDismiss={() => setPendingSlot(null)} />
                 )}
             </div>
         </div>
@@ -1256,7 +1263,7 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                             <button
                                 type="button"
                                 onClick={() => setDropCandidate(slot)}
-                                className="shrink-0 p-1.5 rounded-lg text-(--text-tertiary) hover:text-red-500 hover:bg-red-500/10 cursor-pointer transition-colors"
+                                className="shrink-0 p-1.5 rounded-control text-(--text-tertiary) hover:text-(--red) hover:bg-(--red)/10 cursor-pointer transition-colors"
                                 aria-label={`Drop ${card?.name ?? 'player'}`}
                                 title="Drop from roster"
                             >
@@ -1285,7 +1292,7 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
     const simsContent = (
         <div className="flex flex-col gap-1.5 p-4">
             {activeJobForTeam && (
-                <div className="flex items-center gap-3 px-3 py-2.5 rounded-lg bg-(--background-tertiary) ring-1 ring-(--showdown-blue)/40">
+                <div className="flex items-center gap-3 px-3 py-2.5 rounded-card bg-(--background-tertiary) ring-1 ring-(--showdown-blue)/40">
                     <FaSpinner className="animate-spin text-(--text-tertiary) text-[13px] shrink-0" />
                     <div className="min-w-0 flex-1">
                         <div className="text-[12px] font-bold text-(--text-primary) truncate">
@@ -1300,7 +1307,7 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                     <button
                         type="button"
                         onClick={() => navigate(`/teams/${team.team_id}/sim/${activeJobForTeam.job_id}`)}
-                        className="shrink-0 text-[11px] font-bold px-2 py-1.5 rounded-lg border border-(--divider) text-(--text-secondary) hover:text-(--text-primary) cursor-pointer transition-colors"
+                        className={buttonClass('secondary', 'sm', 'text-[11px]! px-2!')}
                     >
                         View
                     </button>
@@ -1308,7 +1315,7 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                         type="button"
                         onClick={handleCancelActiveJob}
                         disabled={cancellingJob}
-                        className="shrink-0 text-[11px] font-bold px-2 py-1.5 rounded-lg text-red-400 hover:text-red-300 disabled:opacity-50 cursor-pointer transition-colors"
+                        className={buttonClass('ghost', 'sm', 'text-[11px]! px-2! text-(--red)!')}
                     >
                         Cancel
                     </button>
@@ -1412,7 +1419,7 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                     <div className="flex-1 min-w-0">
                         {/* Name + total pts */}
                         <div className="flex flex-wrap items-center gap-x-2 overflow-x-scroll scrollbar-hide">
-                            <div className="text-xl md:text-3xl font-black text-(--text-primary) truncate uppercase">{draft.name || 'Untitled Team'}</div>
+                            <Heading level="page" className="text-xl! md:text-3xl! truncate">{draft.name || 'Untitled Team'}</Heading>
                             
                             {draft.roster.length === draft.roster_size && (
                                 <span className="flex gap-x-0.5 items-center text-[12px] font-semibold text-(--text-tertiary) shrink-0">
@@ -1451,16 +1458,16 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                             <button
                                 type="button"
                                 onClick={() => setLogoError(null)}
-                                className="block text-left text-[11px] text-red-400 px-2 py-1 rounded-lg border border-red-400/30 bg-red-400/5 cursor-pointer"
+                                className="block text-left text-[11px] text-(--red) px-2 py-1 rounded-control border border-(--red)/30 bg-(--red)/5 cursor-pointer"
                             >
                                 {logoError}
                             </button>
                         )}
                         {/* Subtitle row: PTS Breakdown */}
                         <div className="flex items-center gap-x-1.5 gap-y-1 mt-0.5 overflow-x-scroll scrollbar-hide">
-                            <span className={`text-[12px] lg:text-[13px] font-bold shrink-0 rounded-xl px-1.5`} style={{ backgroundColor: primary, color: getContrastTextColor(primary) }}>
+                            <Plate variant="custom" size="sm" className="text-[12px] lg:text-[13px] font-bold" style={{ backgroundColor: primary, color: getContrastTextColor(primary) }}>
                                 {`${pointsBreakdown.total}${draft.pts_limit != null ? `/${draft.pts_limit}` : ''} PTS`}
-                            </span>
+                            </Plate>
                             {hasWotcCards && (
                                 <PointsEstimateComparison
                                     estimated={pointsBreakdown.estimatedTotal}
@@ -1478,9 +1485,11 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                                 ] as const).map(({ label, value, bucket }) => {
                                     const bucketComplete = bucket.filled >= bucket.target;
                                     return (
-                                        <span
+                                        <Plate
                                             key={label}
-                                            className="flex items-center gap-1 text-[10px] lg:text-[11px] font-bold rounded-xl px-1.5"
+                                            variant="custom"
+                                            size="sm"
+                                            className="text-[10px] lg:text-[11px] font-bold"
                                             style={{ backgroundColor: team.secondary_color, color: getContrastTextColor(team.secondary_color) }}
                                             title={teamMode !== 'complete' ? `${label}: ${bucket.filled}/${bucket.target} slots filled` : undefined}
                                         >
@@ -1489,8 +1498,8 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                                                     ? <FaCircleCheck className="shrink-0 text-[11px] text-(--success)" />
                                                     : <ProgressRing filled={bucket.filled} target={bucket.target} />
                                             )}
-                                            {label} <span className="font-semibold text-(--text-secondary)">{value}</span>
-                                        </span>
+                                            {label} <span className="font-semibold opacity-75">{value}</span>
+                                        </Plate>
                                     );
                                 })}
                             </div>
@@ -1505,8 +1514,8 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                                     <FaSpinner className="animate-spin text-[10px]" /> Saving
                                 </span>
                             )}
-                            {saveStatus === 'saved' && <span className="text-green-500">Saved</span>}
-                            {saveStatus === 'error' && <span className="text-red-500">Error</span>}
+                            {saveStatus === 'saved' && <span className="text-(--green)">Saved</span>}
+                            {saveStatus === 'error' && <span className="text-(--red)">Error</span>}
                             {saveStatus === 'idle' && dirty && <span className="text-(--text-tertiary) opacity-60">Unsaved</span>}
                         </div>
                     )}
@@ -1599,12 +1608,11 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                                 <button
                                     type="button"
                                     onClick={() => setShowPlayModal(true)}
-                                    className="animated-team-gradient flex flex-1 md:flex-none items-center justify-center md:justify-start gap-2 h-10 px-4 rounded-lg text-[13px] font-bold whitespace-nowrap hover:opacity-90 cursor-pointer transition-opacity"
+                                    className="flex flex-1 md:flex-none items-center justify-center md:justify-start gap-2 h-10 px-4 rounded-control shadow-raised text-[13px] font-bold whitespace-nowrap hover:brightness-110 active:translate-y-px active:shadow-none cursor-pointer transition"
                                     style={{
-                                        '--team-gradient-from': draft.primary_color,
-                                        '--team-gradient-to': draft.secondary_color,
+                                        backgroundColor: draft.primary_color,
                                         color: getContrastTextColor(draft.primary_color),
-                                    } as React.CSSProperties}
+                                    }}
                                     aria-label={`Play a season with ${draft.name}`}
                                     title="Take over a real club for a full season, or take on a live Team Challenge"
                                 >
@@ -1617,10 +1625,10 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
             </div>
 
             {stale && (
-                <div className="flex items-center gap-2 px-4 py-2 border-b border-amber-500/30 bg-amber-500/10 text-[12px] shrink-0">
-                    <span className="flex-1 text-amber-700 dark:text-amber-400">This team was updated on another device.</span>
+                <div className="flex items-center gap-2 px-4 py-2 border-b border-(--gold)/30 bg-(--gold)/10 text-[12px] shrink-0">
+                    <span className="flex-1 text-(--gold)">This team was updated on another device.</span>
                     {onReload && (
-                        <button type="button" onClick={onReload} className="font-bold text-amber-700 dark:text-amber-400 underline underline-offset-2">
+                        <button type="button" onClick={onReload} className="font-bold text-(--gold) underline underline-offset-2 cursor-pointer">
                             Reload
                         </button>
                     )}
@@ -1633,7 +1641,7 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                 <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 px-2 py-2.5 shrink-0" style={bannerStyle}>
                     <div className="flex items-center gap-1 min-w-0">
                         <span className={`hidden md:block w-2 h-2 rounded-full shrink-0 ${teamMode === 'drafting' ? 'animate-pulse' : ''}`} style={{ backgroundColor: bannerLeft.dot }} />
-                        <span className="text-[10px] md:text-[11px] font-bold drop-shadow-sm flex items-center gap-2 min-w-0" style={{ color: bannerLeft.fill }}>
+                        <span className="text-[10px] md:text-[11px] font-bold flex items-center gap-2 min-w-0" style={{ color: bannerLeft.fill }}>
                             {teamMode === 'drafting'
                                 ? <>
                                     <SetupStepChips
@@ -1643,7 +1651,7 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                                         color={bannerLeft.fill}
                                     />
                                     {guidedActive && (
-                                        <span className="hidden md:flex items-center gap-1 px-2 py-1 rounded-lg bg-black/20 font-black tabular-nums whitespace-nowrap" title="Guided Draft round">
+                                        <span className="hidden md:flex items-center gap-1 px-2 py-1 rounded-control bg-black/20 font-black tabular-nums whitespace-nowrap" title="Guided Draft round">
                                             <FaCompass className="text-[10px]" />
                                             ROUND {Math.min(draft.roster.length + 1, draft.roster_size)}/{draft.roster_size}
                                         </span>
@@ -1655,11 +1663,11 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                     {/* Fills the dead space between the step chips and the progress/controls on
                         wide screens with a draft pace readout — points left under budget and
                         roughly what that leaves per remaining pick. */}
-                    <div className="hidden sm:flex items-center gap-x-1.5 gap-y-0.5 text-[11px] font-bold drop-shadow-sm" style={{ color: bannerLeft.fill }}>
+                    <div className="hidden sm:flex items-center gap-x-1.5 gap-y-0.5 text-[11px] font-bold" style={{ color: bannerLeft.fill }}>
                         {/* Guided Draft shows its own round progress and points left, so the banner drops both. */}
                         {teamMode === 'drafting' && setupStep === 'draft' && !guidedActive && runRate && (
                             runRate.remaining < 0 ? (
-                                <span className="flex items-center gap-1.5 text-red-200">
+                                <span className="flex items-center gap-1.5 text-(--field-live)">
                                     <FaGaugeHigh className="text-[12px]" />
                                     {Math.abs(runRate.remaining)} PTS OVER BUDGET
                                 </span>
@@ -1712,7 +1720,7 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                                             <button
                                                 type="button"
                                                 onClick={() => setShowSettingsModal(true)}
-                                                className={`flex items-center gap-1 px-2 py-1 h-7 rounded-lg text-[11px] font-bold cursor-pointer transition-colors ${bannerRight.btnClass}`}
+                                                className={`flex items-center gap-1 px-2 py-1 h-7 rounded-control text-[11px] font-bold cursor-pointer transition-colors ${bannerRight.btnClass}`}
                                                 aria-label="Team settings"
                                                 title="Team settings"
                                             >
@@ -1735,7 +1743,7 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                                         type="button"
                                         onClick={handleReshuffle}
                                         disabled={reshuffling}
-                                        className={`flex items-center gap-1 px-2 py-1 h-7 rounded-lg text-[11px] font-bold disabled:opacity-50 cursor-pointer transition-colors ${bannerRight.btnClass}`}
+                                        className={`flex items-center gap-1 px-2 py-1 h-7 rounded-control text-[11px] font-bold disabled:opacity-50 cursor-pointer transition-colors ${bannerRight.btnClass}`}
                                         title="Reshuffle with same strategy"
                                     >
                                         <FaShuffle className={reshuffling ? 'animate-spin' : ''} />
@@ -1744,7 +1752,7 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                                 <button
                                     type="button"
                                     onClick={() => setShowAutofill(true)}
-                                    className={`flex items-center gap-1 px-2 py-1 h-7 rounded-lg text-[11px] font-bold cursor-pointer transition-colors ${bannerRight.btnClass}`}
+                                    className={`flex items-center gap-1 px-2 py-1 h-7 rounded-control text-[11px] font-bold cursor-pointer transition-colors ${bannerRight.btnClass}`}
                                     aria-label="Autofill"
                                     title="Autofill"
                                 >
@@ -1757,7 +1765,7 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                                 <button
                                     type="button"
                                     onClick={() => setEditMode(false)}
-                                    className={`flex items-center gap-1 px-2 py-1 h-7 rounded-lg text-[11px] font-bold cursor-pointer transition-colors ${bannerRight.btnClass}`}
+                                    className={`flex items-center gap-1 px-2 py-1 h-7 rounded-control text-[11px] font-bold cursor-pointer transition-colors ${bannerRight.btnClass}`}
                                 >
                                     <FaCircleCheck className="text-[9px]" /> Done
                                 </button>
@@ -1791,7 +1799,7 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                                 type="button"
                                 onClick={() => setSetupStep('draft')}
                                 disabled={!isTeamSetupValid(draft)}
-                                className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-[13px] font-bold text-white bg-(--showdown-red) hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-opacity"
+                                className="flex items-center gap-1.5 px-4 py-2 rounded-control text-[13px] font-bold text-white bg-(--showdown-red) hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-opacity"
                             >
                                 Continue to Draft <FaArrowRight className="text-[11px]" />
                             </button>
@@ -1912,7 +1920,7 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                                 WebkitMaskImage: 'radial-gradient(circle, black 40%, transparent 72%)',
                             }}
                         >
-                            <SearchGradientBorder rounded="rounded-full" className="pointer-events-auto shadow-lg">
+                            <SearchFrame rounded="rounded-full" className="pointer-events-auto shadow-overlay">
                                 <button
                                     type="button"
                                     onClick={() => setPendingSlot({ kind: 'roster' })}
@@ -1925,7 +1933,7 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                                 >
                                     <FaMagnifyingGlass className="text-[16px]" />
                                 </button>
-                            </SearchGradientBorder>
+                            </SearchFrame>
                         </div>
                     )}
 
@@ -1983,7 +1991,7 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                     onClick={() => setConfirmCard(null)}
                 >
                     <div
-                        className="bg-(--background-primary) rounded-2xl w-full max-w-md shadow-2xl border border-(--divider) overflow-hidden"
+                        className="bg-(--background-primary) rounded-card w-full max-w-md shadow-overlay border border-(--divider) overflow-hidden"
                         onClick={e => e.stopPropagation()}
                     >
                         {/* Header */}
@@ -2080,14 +2088,14 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                                 <ul className="flex flex-col gap-0.5">
                                     {settingsChanges.map(line => (
                                         <li key={line} className="text-[11px] text-(--text-secondary) flex items-start gap-1.5">
-                                            <span className="text-amber-500 mt-px shrink-0">→</span>
+                                            <span className="text-(--gold) mt-px shrink-0">→</span>
                                             {line}
                                         </li>
                                     ))}
                                 </ul>
                             )}
                             {!settingsValid && (
-                                <span className="text-[11px] text-red-400">Resolve the highlighted settings to apply changes.</span>
+                                <span className="text-[11px] text-(--red)">Resolve the highlighted settings to apply changes.</span>
                             )}
                             <div className="flex gap-2">
                                 <button
@@ -2098,14 +2106,14 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                                         setShowSettingsModal(false);
                                     }}
                                     disabled={!pendingSettings || settingsChanges.length === 0 || !settingsValid}
-                                    className="flex-1 px-3 py-4 rounded-lg text-[12px] font-bold bg-(--showdown-red) text-white hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer transition-opacity"
+                                    className="flex-1 px-3 py-4 rounded-control text-[12px] font-bold bg-(--showdown-red) text-white hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer transition-opacity"
                                 >
                                     Apply Changes
                                 </button>
                                 <button
                                     type="button"
                                     onClick={closeSettingsModal}
-                                    className="px-3 py-4 rounded-lg text-[12px] font-bold border border-(--divider) text-(--text-secondary) hover:text-(--text-primary) cursor-pointer transition-colors"
+                                    className="px-3 py-4 rounded-control text-[12px] font-bold border border-(--divider) text-(--text-secondary) hover:text-(--text-primary) cursor-pointer transition-colors"
                                 >
                                     {pendingSettings && settingsChanges.length > 0 ? 'Discard' : 'Close'}
                                 </button>
@@ -2160,7 +2168,7 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                             <button
                                 type="button"
                                 onClick={() => setAutofillPreview(null)}
-                                className="px-3 py-2.5 rounded-xl text-[13px] font-semibold border border-(--divider) text-(--text-secondary) hover:border-(--text-tertiary) transition-colors cursor-pointer"
+                                className={buttonClass('secondary', 'md', 'py-2.5!')}
                             >
                                 Discard
                             </button>
@@ -2168,7 +2176,7 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                                 type="button"
                                 onClick={() => generateAutofillPreview(autofillPreview.strategy)}
                                 disabled={reshuffling}
-                                className="flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl text-[13px] font-bold border border-(--divider) text-(--text-secondary) hover:text-(--text-primary) disabled:opacity-50 cursor-pointer transition-colors"
+                                className={buttonClass('secondary', 'md', 'py-2.5!')}
                             >
                                 <FaShuffle className={reshuffling ? 'animate-spin' : ''} /> Reshuffle
                             </button>
@@ -2176,7 +2184,7 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                                 type="button"
                                 onClick={acceptAutofillPreview}
                                 disabled={reshuffling}
-                                className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-[13px] font-bold text-white bg-linear-to-r from-blue-500 to-red-500 hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer transition-opacity"
+                                className={buttonClass('primary', 'md', 'flex-1 py-2.5!')}
                             >
                                 <FaCircleCheck className="text-[11px]" /> Use This Roster
                             </button>
@@ -2208,14 +2216,14 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                             <button
                                 type="button"
                                 onClick={() => setDropCandidate(null)}
-                                className="flex-1 px-3 py-2.5 rounded-xl text-[13px] font-semibold border border-(--divider) text-(--text-secondary) hover:border-(--text-tertiary) transition-colors cursor-pointer"
+                                className={buttonClass('secondary', 'md', 'flex-1 py-2.5!')}
                             >
                                 Cancel
                             </button>
                             <button
                                 type="button"
                                 onClick={() => handleDropCard(dropCandidate)}
-                                className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-[13px] font-bold text-white bg-red-500 hover:opacity-90 transition-opacity cursor-pointer"
+                                className={buttonClass('danger', 'md', 'flex-1 py-2.5!')}
                             >
                                 <FaTrash className="text-[11px]" /> Drop
                             </button>
@@ -2235,7 +2243,7 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                                 {dropPointsEffect.current}
                                 <span className="mx-1.5 text-(--text-tertiary)">→</span>
                                 {dropPointsEffect.projected}
-                                <span className="ml-2 text-red-500">−{dropPointsEffect.removed}</span>
+                                <span className="ml-2 text-(--red)">−{dropPointsEffect.removed}</span>
                             </span>
                         </div>
                     </div>
@@ -2304,20 +2312,7 @@ const DraftPanel = memo(function DraftPanel({ draftSource, draftMode, onTabChang
                             <FitsMyRosterToggle enabled={fitsRosterToggle.enabled} onToggle={fitsRosterToggle.onToggle} />
                         )}
                         {pendingLabel && !isGuided && (
-                            <span className="flex items-center gap-1.5 shrink-0 rounded-full border border-amber-500 dark:border-amber-400 bg-amber-500/10 px-2 py-1 text-[11px] font-bold whitespace-nowrap text-amber-600 dark:text-amber-400">
-                                <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
-                                {pendingLabel}
-                                {onDismissPending && (
-                                    <button
-                                        type="button"
-                                        onClick={onDismissPending}
-                                        className="hover:opacity-70 cursor-pointer"
-                                        aria-label="Cancel filling"
-                                    >
-                                        <FaXmark className="text-[10px]" />
-                                    </button>
-                                )}
-                            </span>
+                            <PendingFillPill label={pendingLabel} onDismiss={onDismissPending} />
                         )}
                     </div>
                 </Tabs.List>
@@ -2336,7 +2331,7 @@ const DraftPanel = memo(function DraftPanel({ draftSource, draftMode, onTabChang
                         actionButton={{
                             icon: <FaPlus />,
                             label: 'Select',
-                            bgColorClass: 'animated-showdown-gradient opacity-95 border p-2 md:p-1 text-white shadow-sm rounded-full',
+                            bgColorClass: 'bg-(--showdown-blue)! text-white! p-2 md:p-1 shadow-raised hover:brightness-110',
                             onClick: onCardPicked,
                             disabled: actionDisabled,
                         }}
@@ -2362,7 +2357,7 @@ function SetupStepChips({ step, onStep, settingsDone, color }: {
         <button
             type="button"
             onClick={() => onStep(id)}
-            className={`flex items-center gap-1 px-1 py-1 rounded-lg cursor-pointer transition-opacity ${step === id ? 'bg-black/20' : 'opacity-65 hover:opacity-100'}`}
+            className={`flex items-center gap-1 px-1 py-1 rounded-control cursor-pointer transition-opacity ${step === id ? 'bg-black/20' : 'opacity-65 hover:opacity-100'}`}
             style={{ color }}
         >
             <span className="w-4 h-4 rounded-full border flex items-center justify-center text-[8px] shrink-0" style={{ borderColor: color }}>
@@ -2394,7 +2389,7 @@ function PositionButton({ label, onClick, currentPts, projectedPts, overLimit, r
         <button
             type="button"
             onClick={onClick}
-            className="flex flex-col items-center justify-between gap-0.5 px-3 py-2 rounded-lg text-[12px] font-bold
+            className="flex flex-col items-center justify-between gap-0.5 px-3 py-2 rounded-control text-[12px] font-bold
                 bg-(--background-secondary) border border-(--divider)
                 text-(--text-primary) hover:border-(--secondary) hover:text-(--secondary)
                 transition-colors"
@@ -2406,7 +2401,7 @@ function PositionButton({ label, onClick, currentPts, projectedPts, overLimit, r
                 </span>
             )}
             {currentPts != null && projectedPts != null && (
-                <span className={`text-[10px] font-semibold tabular-nums ${overLimit ? 'text-red-500' : 'text-(--text-tertiary)'}`}>
+                <span className={`text-[10px] font-semibold tabular-nums ${overLimit ? 'text-(--red)' : 'text-(--text-tertiary)'}`}>
                     {currentPts} → {projectedPts}
                 </span>
             )}

@@ -15,6 +15,8 @@ import { NewReleaseModal } from './NewReleaseModal';
 import { FaPlus } from 'react-icons/fa6';
 import type { ReleaseCreatePayload } from '../../api/releases';
 
+import { InlineError } from '../shared/InlineError';
+import { Heading } from '../shared/Heading';
 /** A release that has been opened in this session. Each one keeps its own mounted ReleaseDetail
  *  (hidden when not addressed by the URL) so unsaved builder progress survives navigation. */
 /** Release tiles: two per row on phones, fixed-width tiles that wrap on wider screens. */
@@ -197,7 +199,7 @@ export default function Releases() {
             {/* Header */}
             <div className={`flex items-center ${px} justify-between`}>
                 <div>
-                    <h1 className="text-[20px] font-black text-(--text-primary)">Release Builder</h1>
+                    <Heading level="page">Release Builder</Heading>
                     <p className="text-[13px] text-(--text-secondary)">
                         Browse official card sets or build your own
                     </p>
@@ -206,7 +208,7 @@ export default function Releases() {
                     <button
                         type="button"
                         onClick={() => setShowCreateModal(true)}
-                        className="flex items-center gap-[2.5px] px-3 py-2 rounded-lg bg-(--secondary) text-[12px] font-bold text-(--background-primary) hover:opacity-90 transition-opacity cursor-pointer"
+                        className="flex items-center gap-[2.5px] px-3 py-2 rounded-control bg-(--secondary) text-[12px] font-bold text-(--background-primary) hover:opacity-90 transition-opacity cursor-pointer"
                     >
                         <FaPlus className="text-[10px] mr-1" />
                         New
@@ -224,9 +226,9 @@ export default function Releases() {
 
             {error && (
                 <div className={px}>
-                    <div className="text-[12px] text-red-400 px-3 py-2 rounded-lg border border-red-400/30 bg-red-400/5">
+                    <InlineError size="md">
                         {error}
-                    </div>
+                    </InlineError>
                 </div>
             )}
 
@@ -312,7 +314,7 @@ function ReleaseDetailSkeleton() {
                 <div className="h-4 w-20 rounded bg-(--background-primary)" />
             </div>
             <div className="flex-1 p-4">
-                <div className="h-full rounded-lg bg-(--background-secondary)" />
+                <div className="h-full rounded-card bg-(--background-secondary)" />
             </div>
         </div>
     );

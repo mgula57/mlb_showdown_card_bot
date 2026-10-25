@@ -56,6 +56,7 @@ import { useAuth } from "./auth/AuthContext";
 import { LoadingStatusToast } from "../components/shared/LoadingStatusToast";
 import { FaCircleCheck } from 'react-icons/fa6';
 
+import { Heading } from './shared/Heading';
 /**
  * Props for the AppLayout component
  */
@@ -302,7 +303,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
                         className={`
                             absolute top-0 left-0 w-64 h-full transition-[translate,box-shadow] will-change-[translate] motion-reduce:duration-[1ms]
                             ${isSideMenuVisibleMobile
-                                ? 'translate-x-0 shadow-2xl duration-300 ease-(--side-menu-ease)'
+                                ? 'translate-x-0 shadow-overlay duration-300 ease-(--side-menu-ease)'
                                 : '-translate-x-full shadow-none duration-200 ease-[cubic-bezier(0.32,0,0.67,0)]'}
                         `}
                         onTransitionEnd={handleMobileDrawerTransitionEnd}
@@ -325,7 +326,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
                     className={`
                         ${isIOSSafari ? 'fixed left-0 right-0 top-0' : 'sticky top-0'}
                         z-30 flex h-10 p-4 w-full items-center justify-between
-                        border-b-gray-600 shadow-md bg-primary/95 backdrop-blur
+                        border-b border-(--divider) bg-primary/95 backdrop-blur
                     `}
                     // Ensure header respects device notch and status bar on iOS
                     style={isIOSSafari ? { boxSizing: 'border-box' } : undefined}
@@ -338,7 +339,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
                             type="button"
                             className="
                                 md:hidden inline-flex items-center justify-center p-1.5
-                                rounded-md border border-form-element 
+                                rounded-control border border-form-element 
                                 text-secondary hover:bg-background-secondary
                                 cursor-pointer
                             "
@@ -356,10 +357,10 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
                         
                         {/* Page Title with Icon - Route-based content */}
                         {(selectedMenuItem?.text || 'Home') !== 'Home' && (
-                            <h1 className="hidden sm:flex sm:flex-row text-lg font-semibold text-secondary items-center">
-                                {selectedMenuItem?.icon && <selectedMenuItem.icon className="w-4 h-4 mr-2" />}
+                            <Heading level="section" as="h1" className="hidden sm:flex items-center">
+                                {selectedMenuItem?.icon && <selectedMenuItem.icon className="w-4 h-4 mr-2 text-(--text-tertiary)" />}
                                 {selectedMenuItem?.text || 'Home'}
-                            </h1>
+                            </Heading>
                         )}
                     </div>
 
@@ -368,6 +369,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
                     <div className="flex items-center space-x-2">
                         <CustomSelect
                             className="w-22 text-lg"
+                            // design-ok: set-logo picker, not a form field
                             buttonClassName="flex justify-center cursor-pointer select-none"
                             imageClassName="object-contain object-center w-18"
                             value={userShowdownSet}
@@ -389,7 +391,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
                 <main className={`flex-1 overflow-auto w-full relative z-0`}>
                     {/* Status Message */}
                     {selectedMenuItemStatus && (
-                        <div className="bg-yellow-100 border-l-4 border-yellow-500 text-yellow-700 p-4 m-4 rounded" role="alert">
+                        <div className="bg-(--gold)/15 border-l-4 border-(--gold) text-(--gold) p-4 m-4 rounded-control" role="alert">
                             <div className="font-bold items-center flex">
                                 <FaExclamationCircle className="inline mr-1" />
                                 Update in Progress

@@ -4,7 +4,7 @@ import type { CardDatabaseRecord } from "../../api/card_db/cardDatabase";
 import { CardChart } from "./card_elements/CardChart";
 import CardCommand from "./card_elements/CardCommand";
 import { getContrastTextColor } from "../../functions/colors";
-import { useTheme, imageForSet } from "../shared/SiteSettingsContext";
+import { imageForSet } from "../shared/SiteSettingsContext";
 import { CardSource } from "../../types/cardSource";
 import { FaStar, FaBook, FaScrewdriverWrench, FaHatWizard, FaWandMagicSparkles } from 'react-icons/fa6';
 import LiveIcon from "../shared/icons/LiveIcon";
@@ -14,6 +14,7 @@ import CardIcon from "./card_elements/CardIcon";
 import PointsEstimateComparison from "./card_elements/PointsEstimateComparison";
 import ChartVersionBadge from "./card_elements/ChartVersionBadge";
 import type { CardStyleOverrides } from "./cardStyleOverrides";
+import { Plate } from "../shared/Plate";
 
 /**
  * Props for the CardItem component
@@ -138,7 +139,6 @@ export const CardItem = ({
     onClick, className, isSelected, actionButton, hasAdvantage, chartHighlight
 }: CardItemProps) => {
 
-    const { isDark } = useTheme();
     const isRedacted = cardId === null || cardId === undefined;
 
     // Some older seasons had 2 All-Star games, which yields duplicate 'AS' entries
@@ -170,12 +170,10 @@ export const CardItem = ({
     // Determine if the card is a pitcher for conditional metadata display
     const isClickable = onClick !== undefined;
 
-    // Dynamic border styling based on selection state and theme
+    // Neutral hairline; selection is a navy outline (see frontend/DESIGN.md)
     const borderSettings = isSelected
-        ? `border-3 shadow-xl${isClickable ? ' hover:shadow-2xl' : ''}`
-        : (isDark
-            ? `border-white/10 shadow-xl${isClickable ? ' hover:border-white/50 hover:shadow-2xl' : ''}`
-            : `border-gray-200 shadow-xl${isClickable ? ' hover:shadow-2xl hover:border-black/40' : ''}`);
+        ? 'border-(--showdown-blue) ring-1 ring-(--showdown-blue)'
+        : `border-(--divider)${isClickable ? ' hover:border-(--rule-strong)' : ''}`;
 
     const hasSetBadgeContent = cardSource === 'WOTC' || cardSource === 'CUSTOM' || !!cardSetNumber
         || ['TD', 'PR', 'ASG', 'PM'].includes(cardExpansion || '');
@@ -211,7 +209,7 @@ export const CardItem = ({
                     className={`
                         absolute -top-1.5 ${actionButton.placement === 'left' ? 'left-1.5' : '-right-1.5'} z-5
                         flex items-center justify-center
-                        p-1 ${actionButton.label ? 'rounded-lg' : 'rounded-full'}
+                        p-1 ${actionButton.label ? 'rounded-control' : 'rounded-full'}
                         transition-colors
                         ${actionButton.disabled
                             ? 'bg-(--background-tertiary) border border-(--divider) text-(--text-tertiary) opacity-60 grayscale cursor-not-allowed'
@@ -227,8 +225,8 @@ export const CardItem = ({
                     relative
                     flex flex-col pl-2 pt-2 pb-1 gap-1.5
                     bg-secondary
-                    rounded-xl
-                    border-3
+                    rounded-card
+                    border
                     ${isClickable ? 'cursor-pointer' : ''}
                     ${borderSettings}
                     ${hasAdvantage ? 'card-advantage' : ''}
@@ -247,25 +245,16 @@ export const CardItem = ({
                         className="w-9 h-9 shrink-0" 
                     />
 
-                    <div className="flex flex-col gap-0.5 overflow-x-scroll scrollbar-hide">
+                    <div className="flex flex-col gap-1.5 pt-0.5 overflow-x-scroll scrollbar-hide">
                         {/* Player name, year/team badge, and special ability icons */}
                         <div className="flex flex-row gap-1 items-center">
-                            <div className={`font-black ${isRedacted ? 'redacted text-sm' : ''}`}>{cardName?.toUpperCase() || 'REDACTED NAME'}</div>
+                            <div className={`font-display-upright text-[17px] leading-none ${isRedacted ? 'redacted text-sm' : ''}`}>{cardName?.toUpperCase() || 'REDACTED NAME'}</div>
 
                             {cardIsErrata && (
-                                <div 
-                                    className="
-                                        text-[9px] flex
-                                        items-center font-bold justify-center
-                                        rounded-lg tracking-tight shrink-0
-                                        border border-white/30 px-1
-                                        bg-(--red) text-white
-                                        " 
-                                    title="Errata Card"
-                                >
-                                    <FaScrewdriverWrench className="inline-block w-2 h-2 mr-0.5" />
+                                <Plate variant="red" size="sm" title="Errata Card">
+                                    <FaScrewdriverWrench className="inline-block w-2 h-2" />
                                     ER
-                                </div>
+                                </Plate>
                             )}
 
                             {cardNotes && (
@@ -274,16 +263,16 @@ export const CardItem = ({
                             
                             {/* Year and team badge with team colors */}
                             {cardTeam && cardYear && (
-                                <div className="text-[9px] rounded-md px-1" style={colorStylingPrimary}>
+                                <Plate variant="custom" size="sm" className="font-display-upright text-[12px]" style={colorStylingPrimary}>
                                     {formatYear(cardYear)} {cardTeam?.toUpperCase()}
-                                </div>
+                                </Plate>
                             )}
 
                             {/* Edition */}
                             {(cardEdition && cardEdition !== 'NONE') && (
                                 <>
                                     {cardEdition === 'ASG' ? (
-                                        <FaStar className="inline-block w-4 h-4 text-yellow-400 shrink-0" />
+                                        <FaStar className="inline-block w-4 h-4 text-(--gold) shrink-0" />
                                     ) : (
                                         <img src={`/images/card/edition-${cardEdition.toLowerCase()}.png`} className="w-6 h-6 object-contain object-center" alt="Edition" />
                                     )}
@@ -305,20 +294,18 @@ export const CardItem = ({
                         
                         {/* Point value and player-specific metadata */}
                         <div className="flex flex-row gap-1.5 text-[11px] text-secondary tracking-tight items-center">
-                            <div className="px-1 rounded-md font-semibold" style={colorStylingSecondary}>
+                            <Plate variant="custom" size="sm" style={colorStylingSecondary}>
                                 {isRedacted ? (
                                     <span className="text-transparent">REDACTED</span>
                                 ) : hasPtsMultiplier ? (
-                                    <span className="flex items-center gap-1">
-                                        <span className="line-through opacity-60">{cardPoints}</span>
-                                        <span>{effectivePoints} PTS</span>
-                                    </span>
-                                ) : (
                                     <>
-                                        {`${cardPoints} PTS`}
+                                        <span className="line-through opacity-60">{cardPoints}</span>
+                                        <span>{effectivePoints} PT.</span>
                                     </>
+                                ) : (
+                                    `${cardPoints} PT.`
                                 )}
-                            </div>
+                            </Plate>
                             {cardPtsChange != null && cardPtsChange !== 0 && (
                                 <span
                                     className={`text-[9px] font-bold leading-none ${cardPtsChange > 0 ? 'text-(--green)' : 'text-(--red)'}`}
@@ -369,16 +356,10 @@ export const CardItem = ({
                             )
                         })()}
 
-                        {/* AWARDS: NEW WAY */}
-                        {awardList.length > 0 && (
-                            <div className="font-semibold underline">
-                                {awardList.map((stat, index) => (
-                                    <span key={index} className="font-semibold underline">
-                                        {stat}{index < awardList.length - 1 ? ',' : ''}
-                                    </span>
-                                ))}
-                            </div>
-                        )}
+                        {/* Awards as quiet outline plates */}
+                        {awardList.map((award, index) => (
+                            <Plate key={index} variant="outline" size="sm">{award}</Plate>
+                        ))}
 
                         {isRedacted && (
                             <div className="space-x-2">
@@ -418,7 +399,7 @@ export const CardItem = ({
                         className="
                             absolute bottom-0 right-0
                             flex flex-row items-center gap-x-1
-                            px-0.5 py-0.5 rounded-lg rounded-br-[9px]
+                            px-0.5 py-0.5 rounded-card rounded-br-[9px]
                             text-[9px] text-nowrap tracking-tight text-primary font-bold
                             bg-(--background-secondary)/10 backdrop-blur-sm
                         "
@@ -434,7 +415,7 @@ export const CardItem = ({
                             <FaWandMagicSparkles className="inline-block w-3 h-3" title="Custom Card" />
                         )}
                         {cardSetNumber && (
-                            <span className="font-mono font-medium text-secondary">{typeof cardSetNumber === 'number' ? String(cardSetNumber).padStart(3, '0') : cardSetNumber}</span>
+                            <span className="font-medium tabular-nums text-secondary">{typeof cardSetNumber === 'number' ? String(cardSetNumber).padStart(3, '0') : cardSetNumber}</span>
                         )}
                         {cardExpansion && ['TD', 'PR'].includes(cardExpansion) && (
                             <img 
@@ -444,7 +425,7 @@ export const CardItem = ({
                             />
                         )}
                         {cardExpansion && cardExpansion === 'ASG' && (
-                            <FaStar className="inline-block w-4 h-3 text-yellow-400" />
+                            <FaStar className="inline-block w-4 h-3 text-(--gold)" />
                         )}
                         {['PM'].includes(cardExpansion || '') && (
                             <span>PROMO</span>
@@ -634,7 +615,7 @@ export const CardItemFromCardDatabaseRecord = ({ card, onClick, className, isSel
 
 export function CardItemSkeleton({ className }: { className?: string }) {
     return (
-        <div className={`${className ?? ''} relative flex flex-col p-2 gap-1.5 rounded-xl border border-(--divider) animate-pulse`}>
+        <div className={`${className ?? ''} relative flex flex-col p-2 gap-1.5 rounded-card border border-(--divider) animate-pulse`}>
             <div className="flex flex-row gap-2 items-center">
                 <div className="w-9 h-9 rounded-full bg-(--background-quaternary) shrink-0" />
                 <div className="flex flex-col gap-1.5 flex-1 min-w-0">
@@ -644,7 +625,7 @@ export function CardItemSkeleton({ className }: { className?: string }) {
             </div>
             <div className="h-8 w-full rounded bg-(--background-quaternary)" />
             <div className="h-2.5 w-full rounded bg-(--background-quaternary)" />
-            <div className="absolute inset-0 flex items-center justify-center gap-1.5 rounded-xl bg-(--background-secondary)/60 backdrop-blur-[1px]">
+            <div className="absolute inset-0 flex items-center justify-center gap-1.5 rounded-card bg-(--background-secondary)/60 backdrop-blur-[1px]">
                 <span className="w-1.5 h-1.5 rounded-full bg-(--secondary) animate-bounce [animation-delay:0ms]" />
                 <span className="w-1.5 h-1.5 rounded-full bg-(--secondary) animate-bounce [animation-delay:150ms]" />
                 <span className="w-1.5 h-1.5 rounded-full bg-(--secondary) animate-bounce [animation-delay:300ms]" />

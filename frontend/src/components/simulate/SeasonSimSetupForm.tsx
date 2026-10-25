@@ -12,6 +12,7 @@ import {
     type TakeoverClub, type OpenSimPayload, type CreateSimLobbyPayload,
 } from '../../api/sim';
 
+import { Heading } from '../shared/Heading';
 /** Exact text of the backend's global-capacity 429 (`sim.py`'s `_sim_slots` semaphore) — every
  *  worker process only runs so many sims at once, shared across all users, so this isn't a real
  *  error so much as a "someone else is using it, try again shortly" — shown as a lighter warning
@@ -265,10 +266,10 @@ export function SeasonSimSetupForm(props: Props) {
     return (
         <div className="flex flex-col gap-4 max-w-2xl mx-auto w-full p-4">
             <div>
-                <h1 className="flex items-center gap-2 text-[20px] font-black text-(--text-primary)">
+                <Heading level="page" className="flex items-center gap-2">
                     {isLobby ? 'Create a Lobby' : 'Simulate a Season'}
                     <BetaBadge />
-                </h1>
+                </Heading>
                 <p className="text-[13px] text-(--text-secondary) mt-1">
                     {isLobby
                         ? "Set the season and rules — once everyone's joined, each person picks a club to follow or take over."
@@ -299,8 +300,7 @@ export function SeasonSimSetupForm(props: Props) {
                     options={CARD_SET_OPTIONS}
                     selectedOption={set}
                     onChange={setSet}
-                    buttonClassName="px-2.5 py-2 rounded-lg border border-(--divider) bg-(--background-secondary) select-none w-full"
-                    imageClassName="object-contain object-center max-w-18"
+                                        imageClassName="object-contain object-center max-w-18"
                 />
             </div>
 
@@ -425,19 +425,19 @@ export function SeasonSimSetupForm(props: Props) {
             </div>
 
             {!isLobby && (
-                <div className="flex flex-col gap-2 rounded-xl border border-form-element bg-secondary p-3">
+                <div className="flex flex-col gap-2 rounded-card border border-form-element bg-secondary p-3">
                     <ManagerStyleFields value={manager} onChange={setManager} />
                 </div>
             )}
 
             <div className="sticky bottom-0 z-10 -mx-4 -mb-4 flex flex-col gap-2 border-t border-form-element backdrop-blur-2xl px-4 py-3">
                 {busy && (
-                    <div className="text-[12px] text-yellow-500 px-3 py-2 rounded-lg border border-yellow-500/30 bg-yellow-500/5">
+                    <div className="text-[12px] text-(--gold) px-3 py-2 rounded-card border border-(--gold)/30 bg-(--gold)/5">
                         The simulator is busy running other seasons right now — wait about a minute and try again.
                     </div>
                 )}
                 {error && (
-                    <div className="flex items-center justify-between gap-2 text-[12px] text-red-400 px-3 py-2 rounded-lg border border-red-400/30 bg-red-400/5">
+                    <div className="flex items-center justify-between gap-2 text-[12px] text-(--red) px-3 py-2 rounded-card border border-(--red)/30 bg-(--red)/5">
                         <span>{error}</span>
                         {props.mode === 'solo' && runningJob && (
                             <button
@@ -455,7 +455,7 @@ export function SeasonSimSetupForm(props: Props) {
                         type="button"
                         onClick={handleSubmit}
                         disabled={starting || loadingClubs || year === null}
-                        className="flex items-center gap-1.5 px-4 py-2.5 rounded-lg animated-showdown-gradient text-[13px] font-bold text-white hover:opacity-90 transition-opacity cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                        className="flex items-center gap-1.5 px-4 py-2.5 rounded-control bg-(--showdown-blue) shadow-raised active:translate-y-px active:shadow-none text-[13px] font-bold text-white hover:brightness-110 transition cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
                     >
                         {starting ? <FaSpinner className="animate-spin text-[11px]" /> : isLobby ? <FaUserGroup className="text-[11px]" /> : <FaPlay className="text-[11px]" />}
                         {isLobby ? 'Create Lobby' : 'Simulate Season'}

@@ -12,6 +12,7 @@ import CustomSelect, { type SelectOption } from '../shared/CustomSelect';
 import { FaSpinner, FaChevronRight } from 'react-icons/fa6';
 import { TeamSearchInput } from './TeamSearchInput';
 
+import { InlineError } from '../shared/InlineError';
 // League team-colors for the All-Star tiles / detail header.
 export const ASG_COLORS: Record<string, { primary: string; secondary: string }> = {
     AL: { primary: 'rgb(200,16,46)', secondary: 'rgb(255,255,255)' },
@@ -317,8 +318,7 @@ export function HistoricalTeams({ horizontalPadding, hideSearch = false, externa
                     value={selectedSeason == null ? 'all' : String(selectedSeason)}
                     onChange={v => setSelectedSeason(v === 'all' ? null : Number(v))}
                     options={seasonOptions}
-                    buttonClassName="px-2.5 py-1.5 rounded-lg border border-(--divider) bg-(--background-secondary) text-(--text-primary) text-[12px] text-nowrap cursor-pointer flex items-center"
-                    dropdownArrowSize={12}
+                    size="sm"
                 />
                 <button
                     type="button"
@@ -330,9 +330,9 @@ export function HistoricalTeams({ horizontalPadding, hideSearch = false, externa
             </div>
 
             {error && (
-                <div className={`${horizontalPadding ?? ''} mx-4 text-[12px] text-red-400 px-3 py-2 rounded-lg border border-red-400/30 bg-red-400/5`}>
+                <InlineError size="md" className={`${horizontalPadding ?? ''} mx-4`}>
                     {error}
-                </div>
+                </InlineError>
             )}
 
             {/* Floors the content area to one shelf's height, so switching years (which can
@@ -355,8 +355,7 @@ export function HistoricalTeams({ horizontalPadding, hideSearch = false, externa
                                     value={sortBy}
                                     onChange={v => setSortBy(v as SortKey)}
                                     options={SORT_OPTIONS}
-                                    buttonClassName="px-2.5 py-1.5 rounded-lg border border-(--divider) bg-(--background-secondary) text-(--text-primary) text-[12px] text-nowrap cursor-pointer flex items-center"
-                                    dropdownArrowSize={12}
+                                    size="sm"
                                 />
                             </div>
                             <div className="flex flex-wrap gap-3">

@@ -71,8 +71,8 @@ export const LoadingStatusToast: React.FC<LoadingStatusToastProps> = ({
     return (
         <div
             className={`
-                fixed top-15 right-5 z-50 rounded-xl px-4 py-3 text-sm
-                text-black shadow-xl
+                fixed top-15 right-5 z-50 rounded-card px-4 py-3 text-sm
+                text-black shadow-overlay
                 max-w-56
                 ${isExiting 
                     ? 'slide-out' 

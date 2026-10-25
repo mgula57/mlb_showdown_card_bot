@@ -3,6 +3,7 @@ import { fetchChallenges, type ChallengeInstance } from '../../../api/sim';
 import { ChallengeCard, ChallengeCardSkeleton } from './ChallengeCard';
 import { byChallengeCategory } from './challengeCategory';
 
+import { InlineError } from '../../shared/InlineError';
 /** As many placeholder cards as the "usually 3-6 live at once" set `ChallengeCard` is sized for. */
 const SKELETON_COUNT = 4;
 
@@ -28,9 +29,9 @@ export function SimChallenges({ token, onNewTeam, onUseExistingTeam, onSelectCha
 
     if (error) {
         return (
-            <div className="mx-4 text-[12px] text-red-400 px-3 py-2 rounded-lg border border-red-400/30 bg-red-400/5">
+            <InlineError size="md" className="mx-4">
                 {error}
-            </div>
+            </InlineError>
         );
     }
 

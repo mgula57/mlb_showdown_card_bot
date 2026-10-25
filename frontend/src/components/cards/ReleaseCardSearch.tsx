@@ -84,7 +84,7 @@ export default function ReleaseCardSearch() {
     );
 
     const editionPicker = options === null ? (
-        <div className="h-11 w-28 md:w-48 shrink-0 rounded-xl bg-(--background-secondary) animate-pulse" />
+        <div className="h-11 w-28 md:w-48 shrink-0 rounded-card bg-(--background-secondary) animate-pulse" />
     ) : (
         <SetMultiSelect
             className="shrink-0"

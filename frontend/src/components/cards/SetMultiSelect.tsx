@@ -12,6 +12,7 @@ import { Fragment, useEffect, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { FaCaretDown, FaCheck, FaChevronDown, FaTimes } from 'react-icons/fa';
 
+import { fieldClass } from '../shared/fieldStyles';
 export type SetMultiSelectOption = { value: string; image?: string; label?: string; group?: string };
 
 type SetMultiSelectProps = {
@@ -81,7 +82,7 @@ export default function SetMultiSelect({ options, selections, onChange, defaultI
                     onClick={() => setIsOpen(open => !open)}
                     className={`
                         w-full flex items-center justify-between px-3 py-2 min-h-10
-                        border border-form-element rounded-lg
+                        border border-form-element rounded-control
                         bg-(--background-primary) text-(--text-primary)
                         hover:border-(--tertiary) focus:outline-none focus:ring-2 focus:ring-primary/20
                         ${isOpen ? 'border-primary' : ''}
@@ -92,7 +93,7 @@ export default function SetMultiSelect({ options, selections, onChange, defaultI
                         {selectedOptions.length === 0 ? (
                             <span className="text-(--tertiary)">{placeholder}</span>
                         ) : selectedOptions.map(option => (
-                            <span key={option.value} className="inline-flex items-center px-2 py-1 bg-primary/20 text-primary text-xs rounded-md">
+                            <span key={option.value} className="inline-flex items-center px-2 py-1 bg-primary/20 text-primary text-xs rounded-card">
                                 {option.label ?? option.value}
                                 {!disabled && (
                                     <span
@@ -116,13 +117,7 @@ export default function SetMultiSelect({ options, selections, onChange, defaultI
                     ref={buttonRef}
                     disabled={disabled}
                     onClick={() => setIsOpen(open => !open)}
-                    className={`
-                        ${isPill ? 'px-2 py-1 rounded-full text-sm' : 'h-11 px-3 rounded-xl'}
-                        bg-(--background-secondary) border border-form-element
-                        flex items-center cursor-pointer
-                        hover:bg-(--background-secondary-hover)
-                        disabled:opacity-40 disabled:cursor-not-allowed
-                    `}
+                    className={fieldClass(isPill ? 'sm' : 'lg', 'flex items-center cursor-pointer')}
                 >
                     {prefix && <span className="text-primary font-semibold whitespace-nowrap mr-1">{prefix}</span>}
                     {/* Same footprint as the single-select set dropdown: one w-16 logo (first pick) + "+N" for extras */}
@@ -148,7 +143,7 @@ export default function SetMultiSelect({ options, selections, onChange, defaultI
                     style={{ left: menuPos.left, top: menuPos.top, minWidth: menuPos.minWidth }}
                     className="
                         fixed z-1000 mt-1 max-h-[60vh]
-                        bg-(--background-primary) rounded-xl shadow-lg
+                        bg-(--background-primary) rounded-card shadow-overlay
                         border border-(--background-tertiary)
                         overflow-auto scrollbar-hide
                     "

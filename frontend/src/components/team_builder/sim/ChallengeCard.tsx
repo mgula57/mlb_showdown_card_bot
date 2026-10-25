@@ -10,6 +10,8 @@ import { challengeCategoryMeta } from './challengeCategory';
 import { challengeGoalLabel, challengeDaysLeft, challengeRestrictionsLabel } from './challengeLabels';
 import { challengeSuccessRate } from './challengeStats';
 
+import { Heading } from '../../shared/Heading';
+import { Eyebrow } from '../../shared/Eyebrow';
 type Props = {
     challenge: ChallengeInstance;
     token?: string;
@@ -26,7 +28,7 @@ type Props = {
 /** One tile in the challenge's info grid — an icon, a label, and its value, stacked. */
 function StatTile({ icon, label, value, fullWidth }: { icon: ReactNode; label: string; value: string; fullWidth?: boolean }) {
     return (
-        <div className={`flex items-start gap-2.5 rounded-lg bg-(--background-tertiary) px-3 py-3 ${fullWidth ? 'col-span-2' : ''}`}>
+        <div className={`flex items-start gap-2.5 rounded-card bg-(--background-tertiary) px-3 py-3 ${fullWidth ? 'col-span-2' : ''}`}>
             <span className="text-(--text-tertiary) text-[13px] mt-0.5 shrink-0">{icon}</span>
             <span className="min-w-0">
                 <span className="block text-[10px] font-bold uppercase tracking-wide text-(--text-tertiary)">{label}</span>
@@ -82,7 +84,7 @@ export function ChallengeCard({ challenge, token, onNewTeam, onUseExistingTeam, 
 
     return (
         <div
-            className="relative isolate flex flex-col gap-4 overflow-hidden rounded-xl border border-(--divider) border-l-5 bg-(--background-secondary) p-5"
+            className="relative isolate flex flex-col gap-4 overflow-hidden rounded-card border border-(--divider) border-l-5 bg-(--background-secondary) p-5"
             style={{ borderLeftColor: `var(${category.cssVar})` }}
         >
             {/* Category-tinted glow bleeding from the corner — purely decorative, sits behind all content. */}
@@ -108,15 +110,15 @@ export function ChallengeCard({ challenge, token, onNewTeam, onUseExistingTeam, 
                     <div className="flex justify-between items-start " >
                         <div className='space-y-1 flex flex-col' >
                             <span
-                                className="inline-flex self-start items-center gap-1 text-[10px] font-bold uppercase tracking-wide px-2 py-1 rounded-full"
+                                className="inline-flex self-start items-center gap-1 text-[10px] font-bold uppercase tracking-wide px-2 py-1 rounded-[2px]"
                                 style={{ color: `var(${category.cssVar})`, backgroundColor: `color-mix(in srgb, var(${category.cssVar}) 15%, transparent)` }}
                             >
                                 {category.icon} {category.label}
                             </span>
                             <div className="flex gap-y-1 gap-x-2 items-center flex-wrap">
                                 
-                                <h3 className="text-[16px] font-black text-(--text-primary)">{challenge.title}</h3>
-                                <span className="flex items-center gap-1 text-[11px] text-(--text-tertiary) bg-(--background-tertiary) px-2 py-1 rounded-full">
+                                <Heading level="panel">{challenge.title}</Heading>
+                                <span className="flex items-center gap-1 text-[11px] text-(--text-tertiary) bg-(--background-tertiary) px-2 py-1 rounded-[2px]">
                                     <FaClock className="text-[10px]" />
                                     {left > 0 ? `${left}d left` : 'Expires today'}
                                 </span>
@@ -167,22 +169,20 @@ export function ChallengeCard({ challenge, token, onNewTeam, onUseExistingTeam, 
             {token ? (
                 <div className="flex flex-col gap-2">
 
-                    <h5 className="text-[12px] font-bold text-(--text-primary) mb-1">
-                        Build your team:
-                    </h5>
+                    <Eyebrow className="block mb-1">Build your team</Eyebrow>
 
                     <div className="grid grid-cols-2 gap-2">
                         <button
                             type="button"
                             onClick={() => onNewTeam(challenge)}
-                            className="flex items-center justify-center gap-1.5 rounded-lg px-2.5 py-2.5 text-[11px] font-bold bg-(--secondary) text-(--background-primary) hover:opacity-90 cursor-pointer transition-opacity"
+                            className="flex items-center justify-center gap-1.5 rounded-control px-2.5 py-2.5 text-[11px] font-bold bg-(--secondary) text-(--background-primary) hover:opacity-90 cursor-pointer transition-opacity"
                         >
                             <FaPlus className="text-[10px]" /> New Team
                         </button>
                         <button
                             type="button"
                             onClick={toggleExisting}
-                            className="flex items-center justify-center gap-1.5 rounded-lg px-2.5 py-2.5 text-[11px] font-bold border border-(--divider) text-(--text-secondary) hover:text-(--text-primary) hover:border-(--text-tertiary) cursor-pointer transition-colors"
+                            className="flex items-center justify-center gap-1.5 rounded-control px-2.5 py-2.5 text-[11px] font-bold border border-(--divider) text-(--text-secondary) hover:text-(--text-primary) hover:border-(--text-tertiary) cursor-pointer transition-colors"
                         >
                             <FaListUl className="text-[10px]" /> Existing
                             {showExisting ? <FaChevronUp className="text-[9px]" /> : <FaChevronDown className="text-[9px]" />}
@@ -190,13 +190,13 @@ export function ChallengeCard({ challenge, token, onNewTeam, onUseExistingTeam, 
                     </div>
 
                     {showExisting && (
-                        <div className="flex flex-col gap-2 rounded-lg border border-(--divider) p-2 max-h-84 overflow-y-scroll scrollbar-hide">
-                            {existingError && <p className="text-[11px] text-red-400">{existingError}</p>}
+                        <div className="flex flex-col gap-2 rounded-card border border-(--divider) p-2 max-h-84 overflow-y-scroll scrollbar-hide">
+                            {existingError && <p className="text-[11px] text-(--red)">{existingError}</p>}
                             {!existingError && existingTeams === null && (
                                 <div className="flex flex-col gap-2" aria-hidden>
                                     {[0, 1].map(i => (
-                                        <div key={i} className="flex items-center gap-3 rounded-lg p-3 border-3 border-transparent bg-(--background-tertiary) animate-pulse">
-                                            <div className="w-10 h-10 rounded-md bg-(--background-primary) shrink-0" />
+                                        <div key={i} className="flex items-center gap-3 rounded-card p-3 border-3 border-transparent bg-(--background-tertiary) animate-pulse">
+                                            <div className="w-10 h-10 rounded-card bg-(--background-primary) shrink-0" />
                                             <div className="min-w-0 flex-1 flex flex-col gap-1.5">
                                                 <div className="h-3 w-2/5 rounded bg-(--background-primary)" />
                                                 <div className="h-2.5 w-3/5 rounded bg-(--background-primary)" />
@@ -228,7 +228,7 @@ export function ChallengeCard({ challenge, token, onNewTeam, onUseExistingTeam, 
  *  while the list loads instead of collapsing to a spinner and popping back open. */
 export function ChallengeCardSkeleton() {
     return (
-        <div aria-hidden className="flex flex-col gap-4 rounded-xl border border-(--divider) border-l-4 border-l-(--divider) bg-(--background-secondary) p-5 animate-pulse">
+        <div aria-hidden className="flex flex-col gap-4 rounded-card border border-(--divider) border-l-4 border-l-(--divider) bg-(--background-secondary) p-5 animate-pulse">
             <div className="flex flex-col gap-2 items-start">
                 <div className="h-5 w-24 rounded-full bg-(--background-tertiary)" />
                 <div className="flex items-center gap-2">
@@ -241,15 +241,15 @@ export function ChallengeCardSkeleton() {
 
             <div className="grid grid-cols-2 gap-2">
                 {Array.from({ length: 4 }, (_, i) => (
-                    <div key={i} className="h-14 rounded-lg bg-(--background-tertiary)" />
+                    <div key={i} className="h-14 rounded-card bg-(--background-tertiary)" />
                 ))}
             </div>
 
             <div className="flex flex-col gap-2">
                 <div className="h-3 w-24 rounded bg-(--background-tertiary)" />
                 <div className="grid grid-cols-2 gap-2">
-                    <div className="h-9 rounded-lg bg-(--background-tertiary)" />
-                    <div className="h-9 rounded-lg bg-(--background-tertiary)" />
+                    <div className="h-9 rounded-card bg-(--background-tertiary)" />
+                    <div className="h-9 rounded-card bg-(--background-tertiary)" />
                 </div>
             </div>
         </div>

@@ -24,6 +24,7 @@ const PhaseStep: React.FC<{ phase: typeof PHASES[number]; isLast: boolean }> = (
                 <span className={`absolute top-3 left-1/2 w-full h-0.5 ${isComplete ? 'bg-(--success)' : 'bg-(--warning)/30'}`} />
             )}
             <span
+                // design-ok: numbered step marker on a timeline, a circle by design
                 className={`
                     relative z-10 flex items-center justify-center h-6 min-w-6 px-1 rounded-full text-[10px] font-black
                     ${isComplete
@@ -45,18 +46,18 @@ const PhaseStep: React.FC<{ phase: typeof PHASES[number]; isLast: boolean }> = (
                 {phase.label}
             </span>
             <span className="text-[10px] font-semibold text-secondary leading-tight">{phase.title}</span>
-            <span className="mt-0.5 text-[10px] text-gray-500 leading-tight">{phase.detail}</span>
+            <span className="mt-0.5 text-[10px] text-(--text-tertiary) leading-tight">{phase.detail}</span>
         </li>
     );
 };
 
 /** Dismissible notice on the Custom Card Builder covering 2026 set balancing progress and new features. */
 export const Set2026Notice: React.FC<{ onDismiss: () => void }> = ({ onDismiss }) => (
-    <div className="relative rounded-xl border-2 border-(--success)/40 bg-background-secondary px-3 py-2.5 text-xs leading-snug shadow-md">
+    <div className="relative rounded-card border border-(--success)/50 bg-background-secondary px-3 py-2.5 text-xs leading-snug">
         <button
             onClick={onDismiss}
             aria-label="Dismiss"
-            className="absolute top-2 right-2 text-gray-500 hover:text-primary transition-colors cursor-pointer"
+            className="absolute top-2 right-2 text-(--text-tertiary) hover:text-primary transition-colors cursor-pointer"
         >
             <FaXmark size={18} />
         </button>

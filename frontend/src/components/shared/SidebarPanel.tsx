@@ -1,6 +1,7 @@
 import { type ReactNode } from "react";
 import { FaChevronDown } from "react-icons/fa6";
 
+import { Heading } from './Heading';
 export type SidebarSection = {
     id: string;
     title: string;
@@ -22,13 +23,13 @@ type SidebarPanelProps = {
 export default function SidebarPanel({ title, subtitle, sections, className = "", headerAction }: SidebarPanelProps) {
     return (
         <aside className={`w-full ${className}`}>
-            <div className="rounded-2xl border border-(--divider) bg-(--background-secondary) overflow-hidden">
+            <div className="rounded-card border border-(--divider) bg-(--background-secondary) overflow-hidden">
                 <div className="px-4 py-4 border-b border-(--divider) gap-2">
                     <div className="flex items-start justify-between gap-2">
                         <div>
-                            <h2 className="flex text-lg font-bold text-(--text-primary) items-center">
+                            <Heading level="section" className="flex items-center">
                                 {title}
-                            </h2>
+                            </Heading>
                         </div>
                         {headerAction && <div className="shrink-0">{headerAction}</div>}
                     </div>

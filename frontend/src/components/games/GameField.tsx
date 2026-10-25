@@ -355,7 +355,7 @@ function useRunnerMovement(
 const FLASH_SHELL = `
     absolute left-1/2 top-[6%] z-30 -translate-x-1/2
     pointer-events-none select-none whitespace-nowrap
-    rounded-full border font-black uppercase tracking-wide shadow-lg
+    rounded-control border font-black uppercase tracking-wide shadow-overlay
     transition-[opacity,transform] duration-300 ease-out
 `;
 
@@ -509,7 +509,7 @@ function DefenseSummary({
     }
 
     return (
-        <div className="inline-grid grid-cols-2 overflow-hidden rounded-md border border-(--divider) bg-(--background-secondary)/30 text-[10px] font-bold">
+        <div className="inline-grid grid-cols-2 overflow-hidden rounded-card border border-(--divider) bg-(--background-secondary)/30 text-[10px] font-bold">
             {cells.map((cell, i) => {
                 const edges = `${i % 2 === 0 ? "border-r " : ""}${i < 2 ? "border-b " : ""}border-(--divider)`;
                 const base = `flex items-center justify-center gap-1 px-1.5 py-1 ${edges}`;
@@ -543,7 +543,7 @@ function LastPlaySummary({ play }: { play: PlayEntry }) {
     if (!description && !play.event) return null;
 
     return (
-        <div className="w-full rounded-md border border-(--divider) bg-(--background-secondary)/30 px-2 py-1 text-right text-[10px] leading-snug text-(--primary)">
+        <div className="w-full rounded-card border border-(--divider) bg-(--background-secondary)/30 px-2 py-1 text-right text-[10px] leading-snug text-(--primary)">
             <p className="line-clamp-3">
                 {play.event && <span className="font-extrabold text-(--primary)">{play.event}</span>}
                 {description && description !== play.event && <span className="ml-0.5">{description}</span>}
@@ -587,7 +587,7 @@ export default function GameField({ game, cardMap, onCardSelect, expanded = fals
                             <img src="/images/games/Grass Field.jpg" alt="" style={GRASS_STYLE} className="select-none" />
                         </div>
                     )}
-                    <div className="absolute inset-0 overflow-hidden rounded-lg">
+                    <div className="absolute inset-0 overflow-hidden rounded-card">
                         <img src="/images/teams/Field No BG No IF.png" alt="" style={ART_STYLE} className="pointer-events-none select-none" />
                     </div>
 
@@ -771,7 +771,7 @@ export default function GameField({ game, cardMap, onCardSelect, expanded = fals
                                 className="
                                     pointer-events-auto group
                                     flex h-16 w-16 items-center justify-center rounded-full
-                                    animated-showdown-gradient text-white shadow-xl
+                                    bg-(--showdown-blue) text-white shadow-overlay
                                     cursor-pointer transition-transform duration-150 ease-out
                                     hover:scale-110 active:scale-95
                                 "

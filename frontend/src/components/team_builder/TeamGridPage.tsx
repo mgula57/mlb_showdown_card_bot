@@ -2,6 +2,8 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import BackButton from '../shared/BackButton';
 import { TeamPreviewCard, TeamPreviewCardSkeleton, type TeamPreviewData } from './TeamPreviewCard';
 
+import { InlineError } from '../shared/InlineError';
+import { Heading } from '../shared/Heading';
 const PAGE_SIZE = 60;
 
 type TeamGridPageProps<T> = {
@@ -63,15 +65,15 @@ export function TeamGridPage<T>({
             <div className={`flex items-center gap-3 ${px}`}>
                 <BackButton onBack={onBack} />
                 <div>
-                    <h1 className="text-[20px] font-black text-(--text-primary)">{title}</h1>
+                    <Heading level="page">{title}</Heading>
                     {subtitle && <p className="text-[12px] text-(--text-secondary)">{subtitle}</p>}
                 </div>
             </div>
 
             {error && (
-                <div className={`${px} text-[12px] text-red-400 px-3 py-2 rounded-lg border border-red-400/30 bg-red-400/5`}>
+                <InlineError size="md" className={`${px}`}>
                     {error}
-                </div>
+                </InlineError>
             )}
 
             <div className={`flex flex-wrap gap-3 ${px}`}>

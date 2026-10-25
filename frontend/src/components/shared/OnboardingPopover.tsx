@@ -36,7 +36,7 @@ export const OnboardingPopover: React.FC<OnboardingPopoverProps> = ({
             w-56 p-3
             bg-(--background-secondary)
             border border-form-element
-            rounded-xl shadow-xl
+            rounded-card shadow-overlay
             text-left z-50
             animate-fade-in
         ">
@@ -52,7 +52,7 @@ export const OnboardingPopover: React.FC<OnboardingPopoverProps> = ({
                     w-full py-1.5 px-3
                     bg-(--showdown-red) hover:bg-(--showdown-red)/80
                     text-white text-xs font-semibold
-                    rounded-lg cursor-pointer
+                    rounded-control cursor-pointer
                     transition-colors duration-150
                 "
             >

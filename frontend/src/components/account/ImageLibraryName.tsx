@@ -8,7 +8,7 @@ const SHOWDOWN_BOT_DISPLAY_NAME = 'Showdown Bot (Official)';
 export const ImageLibraryName: React.FC<{ name: string; isShowdownBot: boolean; className?: string }> = ({ name, isShowdownBot, className = '' }) => (
     <span className={`flex items-center gap-1 min-w-0 ${className}`}>
         <span className="truncate">{isShowdownBot ? SHOWDOWN_BOT_DISPLAY_NAME : name}</span>
-        {isShowdownBot && <MdVerified className="shrink-0 text-blue-500" aria-label="Official" />}
+        {isShowdownBot && <MdVerified className="shrink-0 text-(--showdown-blue)" aria-label="Official" />}
     </span>
 );
 

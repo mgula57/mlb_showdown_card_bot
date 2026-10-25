@@ -3,6 +3,7 @@ import { useAuth } from './AuthContext';
 import { FaDiscord, FaArrowLeft } from 'react-icons/fa';
 import { Modal } from '../shared/Modal';
 
+import { FIELD_LABEL_CLASS } from '../shared/fieldStyles';
 interface LoginModalProps {
     onClose: () => void;
     onSuccess?: () => void;
@@ -123,7 +124,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({ onClose, onSuccess }) =>
         w-full px-3 py-2
         bg-background-primary
         border border-form-element
-        rounded-lg text-secondary
+        rounded-control text-secondary
         focus:outline-none focus:ring-2 focus:ring-accent
         disabled:opacity-50 disabled:cursor-not-allowed
     `;
@@ -134,7 +135,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({ onClose, onSuccess }) =>
 
                 {/* Error */}
                 {error && (
-                    <div className="mb-4 p-3 bg-red-100 border border-red-400 text-red-700 rounded text-sm">
+                    <div className="mb-4 p-3 bg-(--red)/10 border border-(--red)/40 text-(--red) rounded-control text-sm">
                         {error}
                     </div>
                 )}
@@ -144,8 +145,9 @@ export const LoginModal: React.FC<LoginModalProps> = ({ onClose, onSuccess }) =>
                     <>
                         {/* OAuth */}
                         <div className="space-y-3 mb-6">
+                            {/* design-ok-start: Google and Discord sign-in buttons follow each brand's own button colors */}
                             <button onClick={() => handleOAuthSignIn('google')} disabled={loading}
-                                className="w-full flex items-center justify-center space-x-2 py-2.5 px-4 bg-white text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium">
+                                className="w-full flex items-center justify-center space-x-2 py-2.5 px-4 bg-white text-gray-700 border border-gray-300 rounded-control hover:bg-gray-50 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium">
                                 <svg className="w-5 h-5" viewBox="0 0 24 24">
                                     <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
                                     <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
@@ -155,10 +157,11 @@ export const LoginModal: React.FC<LoginModalProps> = ({ onClose, onSuccess }) =>
                                 <span>Continue with Google</span>
                             </button>
                             <button onClick={() => handleOAuthSignIn('discord')} disabled={loading}
-                                className="w-full flex items-center justify-center space-x-2 py-2.5 px-4 bg-[#5865F2] text-white rounded-lg hover:bg-[#4752c4] cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium">
+                                className="w-full flex items-center justify-center space-x-2 py-2.5 px-4 bg-[#5865F2] text-white rounded-control hover:bg-[#4752c4] cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium">
                                 <FaDiscord className="w-5 h-5" />
                                 <span>Continue with Discord</span>
                             </button>
+                            {/* design-ok-end */}
                         </div>
 
                         <div className="relative mb-6">
@@ -166,13 +169,13 @@ export const LoginModal: React.FC<LoginModalProps> = ({ onClose, onSuccess }) =>
                                 <div className="w-full border-t border-form-element" />
                             </div>
                             <div className="relative flex justify-center text-sm">
-                                <span className="px-2 bg-background-secondary text-gray-500">Or continue with email</span>
+                                <span className="px-2 bg-background-secondary text-(--text-tertiary)">Or continue with email</span>
                             </div>
                         </div>
 
                         <form onSubmit={handleEmailContinue} className="space-y-4">
                             <div>
-                                <label htmlFor="email" className="block text-sm font-medium text-secondary mb-1">Email</label>
+                                <label htmlFor="email" className={`${FIELD_LABEL_CLASS} mb-1`}>Email</label>
                                 <input
                                     id="email" type="email" value={email}
                                     onChange={(e) => setEmail(e.target.value)}
@@ -182,7 +185,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({ onClose, onSuccess }) =>
                                 />
                             </div>
                             <button type="submit" disabled={loading || !email}
-                                className="w-full py-2.5 bg-tertiary text-primary rounded-lg hover:bg-quaternary cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-semibold">
+                                className="w-full py-2.5 bg-tertiary text-primary rounded-control hover:bg-quaternary cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-semibold">
                                 {loading ? 'Checking...' : 'Continue'}
                             </button>
                         </form>
@@ -196,7 +199,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({ onClose, onSuccess }) =>
                         <form onSubmit={handleSignIn} className="space-y-4">
                             <div>
                                 <div className="flex items-center justify-between mb-1">
-                                    <label htmlFor="password" className="block text-sm font-medium text-secondary">Password</label>
+                                    <label htmlFor="password" className={FIELD_LABEL_CLASS}>Password</label>
                                     <button type="button" onClick={() => { setStep('forgot'); setError(null); }}
                                         className="text-xs text-accent hover:underline cursor-pointer">
                                         Forgot password?
@@ -211,7 +214,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({ onClose, onSuccess }) =>
                                 />
                             </div>
                             <button type="submit" disabled={loading}
-                                className="w-full py-2.5 bg-tertiary text-primary rounded-lg hover:bg-quaternary cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-semibold">
+                                className="w-full py-2.5 bg-tertiary text-primary rounded-control hover:bg-quaternary cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-semibold">
                                 {loading ? 'Signing in...' : 'Sign In'}
                             </button>
                         </form>
@@ -232,7 +235,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({ onClose, onSuccess }) =>
                                     Check your inbox and follow the link to reset your password.
                                 </p>
                                 <button onClick={goBack}
-                                    className="w-full py-2.5 bg-tertiary text-primary rounded-lg hover:bg-quaternary cursor-pointer transition-colors font-semibold">
+                                    className="w-full py-2.5 bg-tertiary text-primary rounded-control hover:bg-quaternary cursor-pointer transition-colors font-semibold">
                                     Back to Sign In
                                 </button>
                             </div>
@@ -243,7 +246,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({ onClose, onSuccess }) =>
                                 </p>
                                 <form onSubmit={handleForgotPassword} className="space-y-4">
                                     <div>
-                                        <label htmlFor="reset-email" className="block text-sm font-medium text-secondary mb-1">Email</label>
+                                        <label htmlFor="reset-email" className={`${FIELD_LABEL_CLASS} mb-1`}>Email</label>
                                         <input
                                             id="reset-email" type="email" value={email}
                                             onChange={(e) => setEmail(e.target.value)}
@@ -253,7 +256,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({ onClose, onSuccess }) =>
                                         />
                                     </div>
                                     <button type="submit" disabled={loading || !email}
-                                        className="w-full py-2.5 bg-tertiary text-primary rounded-lg hover:bg-quaternary cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-semibold">
+                                        className="w-full py-2.5 bg-tertiary text-primary rounded-control hover:bg-quaternary cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-semibold">
                                         {loading ? 'Sending...' : 'Send Reset Link'}
                                     </button>
                                 </form>
@@ -272,23 +275,23 @@ export const LoginModal: React.FC<LoginModalProps> = ({ onClose, onSuccess }) =>
                         <p className="text-sm text-secondary mb-4 break-all">{email}</p>
                         <form onSubmit={handleSignUp} className="space-y-4">
                             <div>
-                                <label htmlFor="username" className="block text-sm font-medium text-secondary mb-1">Username</label>
+                                <label htmlFor="username" className={`${FIELD_LABEL_CLASS} mb-1`}>Username</label>
                                 <input
                                     id="username" type="text" value={username}
                                     onChange={(e) => setUsername(e.target.value)}
                                     required disabled={loading} minLength={3}
-                                    className={`${inputCls} ${usernameError ? 'border-red-500' : ''}`}
+                                    className={`${inputCls} ${usernameError ? 'border-(--red)' : ''}`}
                                     placeholder="e.g. brianjordangoat"
                                 />
-                                {checkingUsername && <p className="text-xs text-gray-500 mt-1">Checking availability...</p>}
-                                {usernameError && <p className="text-xs text-red-500 mt-1">{usernameError}</p>}
+                                {checkingUsername && <p className="text-xs text-(--text-tertiary) mt-1">Checking availability...</p>}
+                                {usernameError && <p className="text-xs text-(--red) mt-1">{usernameError}</p>}
                                 {!usernameError && username && !checkingUsername && (
-                                    <p className="text-xs text-green-500 mt-1">Username is available!</p>
+                                    <p className="text-xs text-(--green) mt-1">Username is available!</p>
                                 )}
-                                <p className="text-xs text-gray-500 mt-1">Letters, numbers, and underscores only. Min 3 characters.</p>
+                                <p className="text-xs text-(--text-tertiary) mt-1">Letters, numbers, and underscores only. Min 3 characters.</p>
                             </div>
                             <div>
-                                <label htmlFor="new-password" className="block text-sm font-medium text-secondary mb-1">Password</label>
+                                <label htmlFor="new-password" className={`${FIELD_LABEL_CLASS} mb-1`}>Password</label>
                                 <input
                                     id="new-password" type="password" value={password}
                                     onChange={(e) => setPassword(e.target.value)}
@@ -298,7 +301,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({ onClose, onSuccess }) =>
                                 />
                             </div>
                             <div>
-                                <label htmlFor="confirmPassword" className="block text-sm font-medium text-secondary mb-1">Confirm Password</label>
+                                <label htmlFor="confirmPassword" className={`${FIELD_LABEL_CLASS} mb-1`}>Confirm Password</label>
                                 <input
                                     id="confirmPassword" type="password" value={confirmPassword}
                                     onChange={(e) => setConfirmPassword(e.target.value)}
@@ -308,7 +311,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({ onClose, onSuccess }) =>
                                 />
                             </div>
                             <button type="submit" disabled={loading || !!usernameError || checkingUsername}
-                                className="w-full py-2.5 bg-tertiary text-primary rounded-lg hover:bg-quaternary cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-semibold">
+                                className="w-full py-2.5 bg-tertiary text-primary rounded-control hover:bg-quaternary cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-semibold">
                                 {loading ? 'Creating account...' : 'Create Account'}
                             </button>
                         </form>

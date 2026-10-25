@@ -14,9 +14,9 @@ const PLACEHOLDER_CHART_ACCURACY: Record<string, Record<string, ChartAccuracyCat
 function KpiTile({ label, value, blurred }: { label: string; value: string | number; blurred: boolean }) {
     return (
         <div 
-            className="@container flex-1 flex flex-col items-center justify-center gap-1 rounded-lg py-2.5 px-3 bg-tertiary" 
+            className="@container flex-1 flex flex-col items-center justify-center gap-1 rounded-card py-2.5 px-3 bg-tertiary" 
         >
-            <span className={`text-xl @[80px]:text-2xl font-black leading-none tabular-nums ${blurred ? 'blur-xs' : ''}`}>
+            <span className={`text-xl @[80px]:text-2xl font-display-upright leading-none tabular-nums ${blurred ? 'blur-xs' : ''}`}>
                 {value}
             </span>
             <span className="text-[8px] @[80px]:text-[10px] font-semibold uppercase tracking-widest opacity-50">{label}</span>
@@ -47,7 +47,7 @@ function AccuracyBar({ row, blurred, isSelected, isPicked, barFloor }: { row: Ch
     const label = outs ? `${cmd}-${outs}` : row.chart;
     const isOutlier = row.notes?.includes('OUTLIER');
     return (
-        <div className={`flex items-center gap-2.5 rounded-md transition-colors ${isSelected ? '-mx-1.5 px-1.5 py-0.5' : ''}`} style={isSelected ? { background: 'color-mix(in srgb, var(--form-element) 25%, transparent)' } : undefined}>
+        <div className={`flex items-center gap-2.5 rounded-card transition-colors ${isSelected ? '-mx-1.5 px-1.5 py-0.5' : ''}`} style={isSelected ? { background: 'color-mix(in srgb, var(--form-element) 25%, transparent)' } : undefined}>
             <div className="flex items-center gap-0.5">
                 <div className="w-1.5 h-1.5 rounded-full shrink-0 translate-x-0.5" style={{ backgroundColor: isSelected ? 'rgb(34,197,94)' : 'transparent' }} />
                 <span className={`text-[12px] font-black w-14 text-right shrink-0 tabular-nums ${isSelected ? 'opacity-100' : 'opacity-60'}`}>{row.rank}. {label}</span>
@@ -128,7 +128,7 @@ export function ChartSelectionBreakdown({ chartAccuracyData, commandOutAccuracie
         <div className={`space-y-3 ${isEmpty ? 'opacity-25 pointer-events-none select-none' : ''} ${className ?? ''}`}>
             {selectedVersion && (
                 <div className="grid grid-cols-3 items-center gap-2">
-                    <div className="@container flex gap-2 items-center bg-tertiary rounded-lg py-2.5 px-1 w-full justify-center">
+                    <div className="@container flex gap-2 items-center bg-tertiary rounded-card py-2.5 px-1 w-full justify-center">
                         <CardCommand 
                             isPitcher={selectedVersion.is_pitcher} 
                             command={Number(selectedVersion.chart.split('-')[0])} 
@@ -146,7 +146,7 @@ export function ChartSelectionBreakdown({ chartAccuracyData, commandOutAccuracie
                 </div>
             )}
             {isPicked && (
-                <div className="flex items-center gap-2 rounded-lg px-2.5 py-2 text-[11px] leading-snug" style={{ background: `color-mix(in srgb, ${PICKED_COLOR} 12%, transparent)` }}>
+                <div className="flex items-center gap-2 rounded-card px-2.5 py-2 text-[11px] leading-snug" style={{ background: `color-mix(in srgb, ${PICKED_COLOR} 12%, transparent)` }}>
                     <span className="shrink-0 text-[9px] font-black uppercase tracking-wide px-1.5 py-0.5 rounded" style={{ color: PICKED_COLOR, background: 'rgba(0,0,0,0.35)' }}>
                         Curated
                     </span>

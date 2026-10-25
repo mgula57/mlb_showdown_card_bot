@@ -246,7 +246,7 @@ const SideMenu: React.FC<SideMenuProps> = ({ isOpen, setIsOpen, className, isMob
                 both states so content clips/fades rather than reflowing mid-transition. */}
             <nav ref={navRef} className={`
                 relative min-h-lvh ${isOpen ? 'w-64 md:w-52' : 'w-16'} space-y-4
-                bg-secondary shadow-sm overflow-hidden
+                bg-secondary overflow-hidden
                 transition-[width] duration-300 ease-(--side-menu-ease) motion-reduce:transition-none
                 flex flex-col
                 border-r-2 border-form-element
@@ -271,7 +271,7 @@ const SideMenu: React.FC<SideMenuProps> = ({ isOpen, setIsOpen, className, isMob
                     {/* Menu Toggle Button - one chevron that rotates; X on mobile */}
                     <button 
                         onClick={handleToggle} 
-                        className="flex items-center justify-center w-12 h-10 shrink-0 rounded-md text-(--quaternary) hover:text-(--primary) hover:bg-(--background-primary) transition-colors duration-150 cursor-pointer"
+                        className="flex items-center justify-center w-12 h-10 shrink-0 rounded-control text-(--quaternary) hover:text-(--primary) hover:bg-(--background-primary) transition-colors duration-150 cursor-pointer"
                         aria-label={isOpen ? 'Close menu' : 'Open menu'}
                         aria-expanded={isOpen}
                     >
@@ -288,7 +288,7 @@ const SideMenu: React.FC<SideMenuProps> = ({ isOpen, setIsOpen, className, isMob
                     <div
                         aria-hidden="true"
                         className={`
-                            absolute left-2 right-2 top-0 z-0 m-0! rounded-md bg-tertiary pointer-events-none
+                            absolute left-2 right-2 top-0 z-0 m-0! rounded-card bg-tertiary pointer-events-none
                             ${indicatorCanAnimate ? 'transition-[transform,height] duration-300 ease-(--side-menu-ease) motion-reduce:transition-none' : ''}
                         `}
                         style={{ transform: `translateY(${indicator.top}px)`, height: indicator.height }}

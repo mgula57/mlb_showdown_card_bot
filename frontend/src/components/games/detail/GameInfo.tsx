@@ -6,7 +6,7 @@ export default function GameInfo({ away, home }: { away: BoxscoreTeamData; home:
     if (allInfo.length === 0) return null;
 
     return (
-        <div className="rounded-xl border border-(--divider) bg-(--background-secondary) p-3 space-y-3">
+        <div className="rounded-card border border-(--divider) bg-(--background-secondary) p-3 space-y-3">
             <div className="font-black text-sm text-(--primary)">Game Info</div>
             {allInfo.map((section, idx) => (
                 <div key={idx} className="space-y-1">

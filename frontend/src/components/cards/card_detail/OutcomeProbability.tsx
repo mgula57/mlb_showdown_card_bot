@@ -244,7 +244,7 @@ export default function OutcomeProbability({ chart, primaryColor, secondaryColor
         <div className={`space-y-3 ${isEmpty ? 'opacity-25 pointer-events-none select-none' : ''}`}>
 
             {/* Mode toggle */}
-            <div className="flex items-center gap-1 p-0.5 rounded-lg self-start" style={{ background: 'color-mix(in srgb, var(--form-element) 30%, transparent)' }}>
+            <div className="flex items-center gap-1 p-0.5 rounded-card self-start" style={{ background: 'color-mix(in srgb, var(--form-element) 30%, transparent)' }}>
                 {(
                     [
                         { label: 'Baseline', value: 'slider', symbol: <FaMinus /> },
@@ -259,12 +259,12 @@ export default function OutcomeProbability({ chart, primaryColor, secondaryColor
                         }}
                         className={`
                             flex items-center gap-1
-                            px-3 py-1 rounded-md 
+                            px-3 py-1 rounded-control 
                             text-[10px] font-semibold uppercase tracking-wide 
                             transition-colors cursor-pointer
                             ${
                                 opponentMode === mode.value
-                                    ? 'bg-background-primary text-secondary shadow-sm'
+                                    ? 'bg-(--background-primary) text-secondary ring-1 ring-(--divider)'
                                     : 'text-secondary opacity-40 hover:opacity-60'
                             }`}
                     >
@@ -333,7 +333,7 @@ export default function OutcomeProbability({ chart, primaryColor, secondaryColor
             )}
 
             {/* Stacked area bar */}
-            <div className={`flex h-10 rounded-lg overflow-hidden gap-px transition-opacity duration-300 ${resultsAreBaseline ? 'opacity-20 pointer-events-none' : ''}`}>
+            <div className={`flex h-10 rounded-card overflow-hidden gap-px transition-opacity duration-300 ${resultsAreBaseline ? 'opacity-20 pointer-events-none' : ''}`}>
                 {results.map(({ key, prob }) => {
                     const pct = (prob / total) * 100;
                     const color = outcomeColor(key, primaryColor, secondaryColor);
@@ -375,7 +375,7 @@ export default function OutcomeProbability({ chart, primaryColor, secondaryColor
             </div>
 
             {/* Estimated season stats */}
-            <div className={`rounded-lg p-3 space-y-2.5 transition-opacity duration-300 ${resultsAreBaseline ? 'opacity-20 pointer-events-none' : ''}`} style={{ background: 'color-mix(in srgb, var(--form-element) 20%, transparent)' }}>
+            <div className={`rounded-card p-3 space-y-2.5 transition-opacity duration-300 ${resultsAreBaseline ? 'opacity-20 pointer-events-none' : ''}`} style={{ background: 'color-mix(in srgb, var(--form-element) 20%, transparent)' }}>
                 {isPitcher && pStats ? (
                     <>
                         <div className="text-[9px] font-semibold uppercase tracking-widest opacity-40">Est. per 9 inn.</div>

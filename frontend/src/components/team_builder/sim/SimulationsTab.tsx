@@ -11,6 +11,7 @@ import type { ChallengeInstance, SimLeaderboardSort } from '../../../api/sim';
 import { FaArrowDown } from 'react-icons/fa';
 import { FaBook, FaClockRotateLeft, FaGear, FaTrophy, FaQuestion } from 'react-icons/fa6';
 
+import { Heading } from '../../shared/Heading';
 type BrowseView = 'leaderboard' | 'mine';
 
 const BROWSE_TABS: TabItem<BrowseView>[] = [
@@ -53,9 +54,9 @@ function NavTile({ icon, title, trailingIcon, onClick }: { icon: ReactNode; titl
         <button
             type="button"
             onClick={onClick}
-            className="group flex flex-col items-center justify-center gap-1.5 text-center p-2 sm:p-3 rounded-xl border border-(--divider) bg-(--background-secondary) hover:border-(--text-tertiary) transition-colors cursor-pointer"
+            className="group flex flex-col items-center justify-center gap-1.5 text-center p-2 sm:p-3 rounded-card border border-(--divider) bg-(--background-secondary) hover:border-(--text-tertiary) transition-colors cursor-pointer"
         >
-            <span className="flex items-center justify-center w-8 h-8 sm:w-9 sm:h-9 rounded-lg bg-(--background-primary) text-(--secondary) text-[13px] sm:text-[15px] shrink-0">
+            <span className="flex items-center justify-center w-8 h-8 sm:w-9 sm:h-9 rounded-control bg-(--background-primary) text-(--secondary) text-[13px] sm:text-[15px] shrink-0">
                 {icon}
             </span>
             <span className="text-[10px] sm:text-[14px] font-black text-(--text-primary) leading-tight">{title}</span>
@@ -113,7 +114,7 @@ export function SimulationsTab({ token, horizontalPadding, onOpenSeason, onNewTe
             {/* Challenges grid */}
             <div className="flex flex-col gap-4">
                 <div className="flex justify-between items-center gap-2">
-                    <h3 className="text-[16px] font-black text-(--text-primary)">Active Challenges</h3>
+                    <Heading level="panel">Active Challenges</Heading>
                     {isAdmin && token && (
                         <button
                             type="button"
@@ -141,9 +142,9 @@ export function SimulationsTab({ token, horizontalPadding, onOpenSeason, onNewTe
             {/* Leaderboard */}
             <div ref={leaderboardRef} className="flex flex-col gap-4">
                 <div className="flex items-center justify-between gap-3 flex-wrap">
-                    <h3 className="flex items-center gap-1.5 text-[16px] font-black text-(--text-primary)">
+                    <Heading level="panel" className="flex items-center gap-1.5">
                         <FaTrophy className="text-[13px] text-(--showdown-blue)" /> Leaderboard
-                    </h3>
+                    </Heading>
                     <div className="flex items-center gap-3">
                         <Tabs tabs={SORT_TABS} value={sort} onChange={setSort} size="sm" />
                         <Tabs tabs={BROWSE_TABS} value={browseView} onChange={setBrowseView} />

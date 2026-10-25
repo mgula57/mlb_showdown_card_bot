@@ -34,7 +34,7 @@ const SET_IMAGE_REQUIREMENTS: { sets: string[]; files: string }[] = [
     { sets: ['CLASSIC', 'EXPANDED'], files: 'BG + CUT' },
 ];
 
-const buttonBase = 'px-4 py-2 rounded-lg text-sm font-semibold cursor-pointer disabled:cursor-not-allowed disabled:opacity-50 transition-colors';
+const buttonBase = 'px-4 py-2 rounded-control text-sm font-semibold cursor-pointer disabled:cursor-not-allowed disabled:opacity-50 transition-colors';
 const primaryButton = `${buttonBase} bg-accent text-primary hover:opacity-90`;
 const secondaryButton = `${buttonBase} border border-form-element text-secondary hover:bg-background-tertiary`;
 
@@ -47,7 +47,7 @@ const StepList: React.FC<{ children: React.ReactNode }> = ({ children }) => (
 );
 
 const Note: React.FC<{ children: React.ReactNode }> = ({ children }) => (
-    <p className="text-xs text-gray-500">{children}</p>
+    <p className="text-xs text-(--text-tertiary)">{children}</p>
 );
 
 /** Step indicator across the top of the modal. */
@@ -62,11 +62,11 @@ const StepIndicator: React.FC<{ step: number }> = ({ step }) => (
                     <div className="flex items-center gap-1.5 shrink-0">
                         <span className={`
                             w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold
-                            ${isDone || isActive ? 'bg-accent text-primary border border-form-element' : 'border border-form-element text-gray-500'}
+                            ${isDone || isActive ? 'bg-accent text-primary border border-form-element' : 'border border-form-element text-(--text-tertiary)'}
                         `}>
                             {isDone ? <FaCheck className="w-2.5 h-2.5" /> : index + 1}
                         </span>
-                        <span className={`text-xs hidden sm:inline ${isActive ? 'text-secondary font-semibold' : 'text-gray-500'}`}>{label}</span>
+                        <span className={`text-xs hidden sm:inline ${isActive ? 'text-secondary font-semibold' : 'text-(--text-tertiary)'}`}>{label}</span>
                     </div>
                 </React.Fragment>
             );
@@ -84,7 +84,7 @@ const CopyableEmail: React.FC<{ email: string }> = ({ email }) => {
         }).catch(() => {});
     };
     return (
-        <div className="flex items-center gap-2 rounded-lg border border-form-element bg-background-primary px-3 py-2">
+        <div className="flex items-center gap-2 rounded-control border border-form-element bg-background-primary px-3 py-2">
             <span className="flex-1 text-sm text-secondary font-mono break-all">{email}</span>
             <button type="button" onClick={copy} className="shrink-0 flex items-center gap-1 text-xs text-tertiary cursor-pointer hover:underline">
                 {copied ? <FaCheck /> : <FaCopy />}
@@ -99,18 +99,18 @@ export const ImageLibraryTestResultPanel: React.FC<{ result: ImageLibraryTestRes
     const unrecognizedCount = result.image_count - result.recognized_image_count;
     const hasNoMatches = result.recognized_image_count === 0;
     return (
-        <div className="rounded-lg border border-green-600/40 bg-green-600/10 p-4 space-y-2">
+        <div className="rounded-card border border-(--green)/40 bg-(--green)/10 p-4 space-y-2">
             <p className="flex items-center gap-2 text-sm font-semibold text-secondary">
-                <FaCheckCircle className="text-green-500" />
+                <FaCheckCircle className="text-(--green)" />
                 Connected to “{result.name}”
             </p>
             <ul className="text-sm text-secondary space-y-1 pl-6">
                 <li>{result.image_count} image{result.image_count === 1 ? '' : 's'} found</li>
                 <li>{result.recognized_image_count} follow the naming format</li>
-                {result.other_file_count > 0 && <li className="text-gray-500">{result.other_file_count} non-image file{result.other_file_count === 1 ? '' : 's'} will be ignored</li>}
+                {result.other_file_count > 0 && <li className="text-(--text-tertiary)">{result.other_file_count} non-image file{result.other_file_count === 1 ? '' : 's'} will be ignored</li>}
             </ul>
             {unrecognizedCount > 0 && (
-                <div className="flex gap-2 text-xs text-yellow-500 pt-1">
+                <div className="flex gap-2 text-xs text-(--gold) pt-1">
                     <FaExclamationTriangle className="shrink-0 mt-0.5" />
                     <div>
                         <p>{unrecognizedCount} image{unrecognizedCount === 1 ? " doesn't" : "s don't"} match the naming format and won't be used, for example:</p>
@@ -128,8 +128,8 @@ export const ImageLibraryTestResultPanel: React.FC<{ result: ImageLibraryTestRes
 };
 
 const ErrorPanel: React.FC<{ message: string }> = ({ message }) => (
-    <div className="flex gap-2 rounded-lg border border-red-600/40 bg-red-600/10 p-4 text-sm text-secondary">
-        <FaExclamationTriangle className="text-red-500 shrink-0 mt-0.5" />
+    <div className="flex gap-2 rounded-card border border-(--red)/40 bg-(--red)/10 p-4 text-sm text-secondary">
+        <FaExclamationTriangle className="text-(--red) shrink-0 mt-0.5" />
         <p>{message}</p>
     </div>
 );
@@ -220,7 +220,7 @@ export const DriveLibrarySetupModal: React.FC<DriveLibrarySetupModalProps> = ({ 
                             </li>
                         </StepList>
 
-                        <div className="rounded-lg border border-form-element p-3 space-y-2 text-sm text-secondary">
+                        <div className="rounded-card border border-form-element p-3 space-y-2 text-sm text-secondary">
                             <div className="justify-between flex">
                                 <p className="font-semibold">Naming format</p>
                                 <span className="font-extrabold text-(--warning)">**IMPORTANT**</span>
@@ -242,7 +242,7 @@ export const DriveLibrarySetupModal: React.FC<DriveLibrarySetupModalProps> = ({ 
                             </ul>
                         </div>
 
-                        <div className="rounded-lg border border-form-element p-3 space-y-2 text-sm text-secondary">
+                        <div className="rounded-card border border-form-element p-3 space-y-2 text-sm text-secondary">
                             <p className="font-semibold">Image size</p>
                             <ul className="space-y-1 text-xs">
                                 <li><b>Aspect ratio</b>: 5:7 (portrait), the same shape as the card. Other shapes are center-cropped to fit.</li>
@@ -253,7 +253,7 @@ export const DriveLibrarySetupModal: React.FC<DriveLibrarySetupModalProps> = ({ 
                             <Note>Want each set to position your image like the Showdown Bot library does? Use exactly <Code>1950 x 2730</Code> px with the 1500 x 2100 card area centered. Each set crops, zooms, and shifts it to fit its design.</Note>
                         </div>
 
-                        <div className="rounded-lg border border-form-element p-3 text-sm text-secondary">
+                        <div className="rounded-card border border-form-element p-3 text-sm text-secondary">
                             <p className="font-semibold mb-2">Images each set needs</p>
                             <table className="w-full text-xs">
                                 <tbody>
@@ -277,8 +277,8 @@ export const DriveLibrarySetupModal: React.FC<DriveLibrarySetupModalProps> = ({ 
                                     ))}
                                 </tbody>
                             </table>
-                            <div className="flex gap-2 rounded-md bg-background-tertiary p-2 my-2 text-xs">
-                                <FaExclamationTriangle className="shrink-0 mt-0.5 text-yellow-500" />
+                            <div className="flex gap-2 rounded-card bg-background-tertiary p-2 my-2 text-xs">
+                                <FaExclamationTriangle className="shrink-0 mt-0.5 text-(--gold)" />
                                 <p>
                                     Special editions like <b>Super Season</b> and <b>Cooperstown Collection</b>, plus <b>parallels</b> (Rainbow Foil, Gold, Moonlight, etc.), need <b>both BG and CUT</b> images, even on sets that normally use just one. Add both for a player to cover every option.
                                 </p>
@@ -325,7 +325,7 @@ export const DriveLibrarySetupModal: React.FC<DriveLibrarySetupModalProps> = ({ 
                             {isTesting ? 'Testing…' : 'Test connection'}
                         </button>
 
-                        {isTesting && <div className="h-28 rounded-lg bg-background-tertiary animate-pulse" />}
+                        {isTesting && <div className="h-28 rounded-card bg-background-tertiary animate-pulse" />}
                         {!isTesting && testResult && testedFolder === folder.trim() && <ImageLibraryTestResultPanel result={testResult} />}
                         {!isTesting && error && <ErrorPanel message={error} />}
                     </div>

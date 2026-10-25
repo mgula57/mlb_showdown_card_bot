@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { FaXmark } from 'react-icons/fa6';
 import { FaChessKnight } from 'react-icons/fa';
 
+import { Heading } from '../../shared/Heading';
 const STORAGE_KEY = 'mlb.challenges.updateBanner.v4.4.dismissed';
 
 const DISCORD_URL = 'https://discord.com/channels/669174897939054602/1555417587293098034';
@@ -26,7 +27,7 @@ export function ChallengesUpdateBanner() {
     };
 
     return (
-        <div className="relative rounded-xl border border-(--showdown-blue)/30 bg-(--showdown-blue)/5 px-4 py-3 flex flex-col gap-2">
+        <div className="relative rounded-card border border-(--showdown-blue)/30 bg-(--showdown-blue)/5 px-4 py-3 flex flex-col gap-2">
             <button
                 type="button"
                 onClick={dismiss}
@@ -38,7 +39,7 @@ export function ChallengesUpdateBanner() {
 
             <div className="flex items-center gap-2 pr-6">
                 <FaChessKnight className="text-(--showdown-blue) shrink-0" />
-                <h4 className="text-[14px] font-black text-(--text-primary)">Challenges just got more strategic</h4>
+                <Heading level="panel" as="h4">Challenges just got more strategic</Heading>
             </div>
 
             <ul className="flex flex-col gap-1 list-disc pl-5 text-[12px] leading-snug text-(--text-secondary)">

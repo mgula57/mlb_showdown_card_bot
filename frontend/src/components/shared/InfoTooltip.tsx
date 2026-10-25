@@ -98,7 +98,7 @@ export function InfoTooltip({ text, className = '', iconSize = 'text-[11px]', op
                         left: position.left,
                         transform: position.placement === 'above' ? 'translate(-50%, -100%)' : 'translate(-50%, 0)',
                     }}
-                    className="w-48 p-2 rounded-lg bg-(--background-tertiary) border border-(--divider) shadow-xl text-[11px] font-normal normal-case text-(--text-secondary) text-left z-50"
+                    className="w-48 p-2 rounded-card bg-(--background-tertiary) border border-(--divider) shadow-overlay text-[11px] font-normal normal-case text-(--text-secondary) text-left z-50"
                 >
                     {text}
                 </div>,

@@ -126,7 +126,7 @@ function RollingDie({ accent, label, startDelayMs }: { accent: string; label: st
                 />
                 <div
                     key={tossCount}
-                    className={`absolute inset-0 drop-shadow-sm ${rolling ? 'sim-die-toss' : ''}`}
+                    className={`absolute inset-0 drop-shadow-[0_1px_0_rgb(0_0_0/0.25)] ${rolling ? 'sim-die-toss' : ''}`}
                 >
                     <D20Face value={face} accent={accent} />
                 </div>

@@ -307,9 +307,9 @@ function combineChecks(distribution: FitCheck | null, ...averages: (FitCheck | n
 // =============================================================================
 
 const FIT_DOT_CLASS: Record<Fit, string> = {
-    ok: 'bg-emerald-500',
-    warn: 'bg-amber-500',
-    off: 'bg-red-500',
+    ok: 'bg-(--green)',
+    warn: 'bg-(--gold)',
+    off: 'bg-(--red)',
 };
 
 const FIT_LABEL: Record<Fit, string> = { ok: 'Close to WOTC', warn: 'Drifting from WOTC', off: 'Far from WOTC' };
@@ -337,7 +337,7 @@ function Section({ title, action, fit, className, children }: { title: string; a
 
 function StatTile({ label, value, compareValue }: { label: string; value: string | number; compareValue?: string | number }) {
     return (
-        <div className="flex flex-col items-center justify-center rounded-lg border border-(--divider) px-3 py-2 min-w-22">
+        <div className="flex flex-col items-center justify-center rounded-card border border-(--divider) px-3 py-2 min-w-22">
             <span className="text-[18px] font-black text-(--text-primary)">{value}</span>
             <span className="text-[10px] text-(--text-tertiary) uppercase tracking-wide">{label}</span>
             {compareValue !== undefined && (
@@ -366,7 +366,7 @@ function makeChartTooltip(compareLabel: string | null) {
         const row: BreakdownRow = payload[0].payload as BreakdownRow;
         if (row.isDivider) return null;
         return (
-            <div className="bg-(--background-primary) border border-(--divider) px-2 py-1.5 rounded-lg text-[11px]">
+            <div className="bg-(--background-primary) border border-(--divider) px-2 py-1.5 rounded-card text-[11px]">
                 <div className="font-bold text-(--text-primary)">{label}</div>
                 {compareLabel === null ? (
                     <div className="text-(--text-secondary)">{pluralizeCards(row.count)}</div>
@@ -478,7 +478,7 @@ function rowGroups(rows: BreakdownRow[]): string[] {
 /** Bordered card holding one titled chart, with its average vs WOTC's in the header. */
 function ChartPanel({ title, average, fit, className, children }: { title: string; average: ReactNode; fit?: FitCheck | null; className?: string; children: ReactNode }) {
     return (
-        <div className={`rounded-lg border border-(--divider) p-2 min-w-0 ${className ?? ''}`}>
+        <div className={`rounded-card border border-(--divider) p-2 min-w-0 ${className ?? ''}`}>
             <div className="flex items-baseline justify-between gap-2 px-1">
                 <span className="flex items-center gap-1.5 text-[13px] font-black text-(--text-primary)">
                     {title}
@@ -596,7 +596,7 @@ function SubsetFilterBar({ value, onChange }: { value: SubsetFilter; onChange: (
                     key={opt.value}
                     type="button"
                     onClick={() => onChange(opt.value)}
-                    className={`px-2.5 py-1 rounded-lg text-[11px] font-bold border transition-colors
+                    className={`px-2.5 py-1 rounded-control text-[11px] font-bold border transition-colors
                         ${value === opt.value
                             ? 'bg-(--secondary) text-(--background-primary) border-(--secondary)'
                             : 'border-(--divider) text-(--text-secondary) hover:border-(--text-tertiary)'}`}
@@ -770,7 +770,7 @@ export function SummaryCharts({ cards, editionId }: SummaryChartsProps) {
                 <div className="h-4 w-64 rounded bg-(--divider) animate-pulse" />
             )}
             {wotc.error && (
-                <div className="text-[12px] text-red-400">{wotc.error}</div>
+                <div className="text-[12px] text-(--red)">{wotc.error}</div>
             )}
             {compareLabel && comparison && (
                 <div className="flex flex-col gap-1 text-[11px]">

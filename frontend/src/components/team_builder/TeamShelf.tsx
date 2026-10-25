@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 import { FaChevronRight } from 'react-icons/fa6';
 import { TeamPreviewCardSkeleton } from './TeamPreviewCard';
 
+import { Heading } from '../shared/Heading';
 type TeamShelfProps = {
     title: string;
     subtitle?: string;
@@ -23,7 +24,7 @@ export function TeamShelf({ title, subtitle, onSeeAll, children, className, blee
         <section className="flex flex-col">
             <div className={`flex flex-col gap-0.5 mb-1.5 ${className ?? ''}`}>
                 <div className="flex items-baseline justify-between min-w-0">
-                    <h3 className="text-[15px] font-black text-(--text-primary) truncate">{title}</h3>
+                    <Heading level="panel" className="truncate">{title}</Heading>
                     {onSeeAll && (
                         <button
                             type="button"

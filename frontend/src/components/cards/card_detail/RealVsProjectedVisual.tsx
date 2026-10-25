@@ -54,7 +54,7 @@ function percentileColor(p: number): string {
 
 function diffColor(diffStr: string): string {
     if (!diffStr || diffStr === '0' || diffStr === '+0') return 'opacity-40';
-    return diffStr.startsWith('+') ? 'text-green-500' : 'text-red-500';
+    return diffStr.startsWith('+') ? 'text-(--green)' : 'text-(--red)';
 }
 
 const GHOST_COLOR = 'rgb(148,163,184)';
@@ -132,7 +132,7 @@ function PercentileBar({ stat, real, statRanges, hasRanges, isLoading, playerTyp
             >
                 {targetPct}
                 <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 hidden group-hover:flex flex-col items-center pointer-events-none z-10">
-                    <div className="rounded px-2 py-1 text-[9px] font-semibold text-white whitespace-nowrap shadow-lg" style={{ backgroundColor: color }}>
+                    <div className="rounded-control px-2 py-1 text-[9px] font-semibold text-white whitespace-nowrap shadow-overlay" style={{ backgroundColor: color }}>
                         <div className="font-black">{targetPct}th percentile</div>
                         <div className="opacity-80">Min {formatStatValue(range!.min, stat)} · Max {formatStatValue(range!.max, stat)}</div>
                     </div>

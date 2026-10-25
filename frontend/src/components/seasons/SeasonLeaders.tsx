@@ -7,7 +7,6 @@ import { CardSource } from "../../types/cardSource";
 import { CardItemFromCardDatabaseRecord, CardItemSkeleton } from "../cards/CardItem";
 import { CardDetail } from "../cards/CardDetail";
 import { Modal } from "../shared/Modal";
-import { useTheme } from "../shared/SiteSettingsContext";
 
 // =============================================================================
 // MARK: - Category Definitions
@@ -79,7 +78,6 @@ type SeasonLeadersProps = {
 // =============================================================================
 
 export default function SeasonLeaders({ seasonId, season, showdownSet, sportId, isActive }: SeasonLeadersProps) {
-    const { isDark } = useTheme();
 
     const [leaderGroups, setLeaderGroups] = useState<LeadersGroup[]>([]);
     const [cardMap, setCardMap] = useState<Record<string, CardDatabaseRecord>>({});
@@ -200,22 +198,22 @@ export default function SeasonLeaders({ seasonId, season, showdownSet, sportId, 
             <div key={`${entry?.value ?? i}-${entry?.person?.id ?? ''}`} className="flex flex-col gap-1.5 shrink-0 w-80 lg:w-auto">
                 {/* Rank / stat row */}
                 <div className="flex items-center px-1.5 space-x-1.5">
-                    <span className={`text-xs font-bold tabular-nums ${isDark ? 'text-neutral-400' : 'text-neutral-500'}`}>
+                    <span className={`text-xs font-bold tabular-nums text-(--text-tertiary)`}>
                         {rank != null ? `#${rank}` : ''}.
                     </span>
                     <div className="flex items-center gap-1 min-w-0">
                         {teamAbbr && (
-                            <span className={`text-[10px] font-semibold uppercase tracking-wide ${isDark ? 'text-neutral-500' : 'text-neutral-400'}`}>
+                            <span className={`text-[10px] font-semibold uppercase tracking-wide text-(--text-tertiary)`}>
                                 {teamAbbr}
                             </span>
                         )}
                         {name && (
-                            <span className={`text-xs font-semibold truncate max-w-28 ${isDark ? 'text-neutral-300' : 'text-neutral-600'}`} title={name}>
+                            <span className={`text-xs font-semibold truncate max-w-28 text-(--text-secondary)`} title={name}>
                                 {name.slice(name.indexOf(' ') + 1) || name}
                             </span>
                         )}
                         {statValue && categoryDef && (
-                            <span className={`text-xs font-black tabular-nums ${isDark ? 'text-white' : 'text-black'}`}>
+                            <span className={`text-xs font-black tabular-nums text-(--text-primary)`}>
                                 {statValue}
                             </span>
                         )}
@@ -264,28 +262,24 @@ export default function SeasonLeaders({ seasonId, season, showdownSet, sportId, 
             {/* Header */}
             <div className="flex items-center justify-between gap-4 mb-5 flex-wrap lg:pr-6">
                 <div className="flex items-center gap-2">
-                    <FaTrophy className={`text-sm ${isDark ? 'text-yellow-400' : 'text-yellow-500'}`} />
-                    <span className={`text-sm font-bold uppercase tracking-wide ${isDark ? 'text-neutral-400' : 'text-neutral-500'}`}>
+                    <FaTrophy className={`text-sm text-(--gold)`} />
+                    <span className={`text-sm font-bold uppercase tracking-wide text-(--text-tertiary)`}>
                         Season Leaders
                     </span>
                 </div>
 
                 {/* Filter pills */}
-                <div className={`flex items-center gap-1 p-1 rounded-lg ${isDark ? 'bg-neutral-800' : 'bg-neutral-100'}`}>
+                <div className={`flex items-center gap-1 p-1 rounded-control bg-(--background-tertiary)`}>
                     {filterOptions.map(opt => (
                         <button
                             key={opt.value}
                             type="button"
                             onClick={() => setFilterGroup(opt.value)}
                             className={[
-                                'px-3 py-1 text-xs font-semibold rounded-md transition cursor-pointer',
+                                'px-3 py-1 text-xs font-semibold rounded-control transition cursor-pointer',
                                 filterGroup === opt.value
-                                    ? isDark
-                                        ? 'bg-(--background-primary) text-white shadow'
-                                        : 'bg-white text-black shadow'
-                                    : isDark
-                                        ? 'text-neutral-400 hover:text-neutral-200'
-                                        : 'text-neutral-500 hover:text-neutral-800',
+                                    ? 'bg-(--background-primary) text-(--text-primary) shadow-raised'
+                                    : 'text-(--text-tertiary) hover:text-(--text-secondary)',
                             ].join(' ')}
                         >
                             {opt.label}
@@ -299,12 +293,12 @@ export default function SeasonLeaders({ seasonId, season, showdownSet, sportId, 
                 <div className="space-y-8">
                     {visibleCategories.slice(0, 6).map((cat) => (
                         <div key={cat.id}>
-                            <div className={`h-4 w-32 rounded mb-3 animate-pulse ${isDark ? 'bg-neutral-700' : 'bg-neutral-200'}`} />
+                            <div className={`h-4 w-32 rounded mb-3 animate-pulse bg-(--background-quaternary)`} />
                             <div className="flex gap-3 overflow-x-auto scrollbar-hide -mx-6 px-6 lg:mx-0 lg:px-0 lg:grid lg:grid-cols-3">
                                 {[0, 1, 2].map(i => (
                                     <div
                                         key={i}
-                                        className={`shrink-0 w-72 lg:w-auto h-48 rounded-xl animate-pulse ${isDark ? 'bg-neutral-800' : 'bg-neutral-200'}`}
+                                        className={`shrink-0 w-72 lg:w-auto h-48 rounded-card animate-pulse bg-(--background-tertiary)`}
                                     />
                                 ))}
                             </div>
@@ -330,10 +324,10 @@ export default function SeasonLeaders({ seasonId, season, showdownSet, sportId, 
                             <div key={catDef.id}>
                                 {/* Category header */}
                                 <div className="flex items-center gap-2 mb-3 lg:pr-6">
-                                    <span className={`text-xs font-bold uppercase tracking-wide ${isDark ? 'text-neutral-400' : 'text-neutral-500'}`}>
+                                    <span className={`text-xs font-bold uppercase tracking-wide text-(--text-tertiary)`}>
                                         {catDef.label}
                                     </span>
-                                    <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${isDark ? 'bg-neutral-700 text-neutral-400' : 'bg-neutral-100 text-neutral-500'}`}>
+                                    <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded bg-(--plate) text-(--text-secondary)`}>
                                         {catDef.abbrev}
                                     </span>
                                 </div>

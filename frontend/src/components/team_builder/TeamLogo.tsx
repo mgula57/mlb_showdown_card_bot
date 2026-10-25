@@ -20,9 +20,9 @@ type TeamLogoProps = {
 };
 
 const SIZE_CLASSES: Record<TeamLogoSize, string> = {
-    sm: 'w-9 h-9 text-[11px] rounded-md',
-    md: 'w-12 h-12 text-sm rounded-lg',
-    lg: 'w-20 h-20 text-xl rounded-xl',
+    sm: 'w-9 h-9 text-[11px] rounded-control',
+    md: 'w-12 h-12 text-sm rounded-card',
+    lg: 'w-20 h-20 text-xl rounded-card',
 };
 
 const BADGE_CLASSES: Record<TeamLogoSize, string> = {
@@ -97,7 +97,7 @@ export function TeamLogo({
                     {/* Persistent affordance so it's clear the logo can be changed, even without hover (mobile). */}
                     {!uploading && (
                         <span
-                            className={`absolute ${BADGE_CLASSES[size]} rounded-full bg-(--showdown-red) text-white border-2 border-(--background-primary) flex items-center justify-center shadow-sm`}
+                            className={`absolute ${BADGE_CLASSES[size]} rounded-full bg-(--showdown-red) text-white border-2 border-(--background-primary) flex items-center justify-center`}
                         >
                             <FaCamera />
                         </span>

@@ -50,7 +50,7 @@ function Matchup({ series, identityFor, highlightAbbr, isSelected, onSelect }: {
             role={onSelect ? 'button' : undefined}
             onClick={onSelect}
             className={`
-                flex flex-col gap-1 rounded-lg border bg-(--background-tertiary) px-2.5 py-1.5 min-w-24 max-w-48
+                flex flex-col gap-1 rounded-control border bg-(--background-tertiary) px-2.5 py-1.5 min-w-24 max-w-48
                 ${onSelect ? 'cursor-pointer hover:bg-(--background-quaternary)' : ''}
                 ${isSelected ? 'border-(--showdown-blue) ring-1 ring-(--showdown-blue)' : isHighlighted ? 'border-(--showdown-blue)' : 'border-(--divider)'}
             `}
@@ -141,7 +141,7 @@ function StarterChip({ starter, identity, onOpen, isFetching }: {
             type="button"
             disabled={!clickable}
             onClick={clickable ? () => onOpen(starter) : undefined}
-            className={`text-left rounded-md ${clickable ? 'cursor-pointer hover:bg-(--background-primary)/50' : ''} ${isFetching ? 'opacity-50' : ''}`}
+            className={`text-left rounded-control ${clickable ? 'cursor-pointer hover:bg-(--background-primary)/50' : ''} ${isFetching ? 'opacity-50' : ''}`}
         >
             <CardIdentityCell
                 name={starter.name}
@@ -182,7 +182,7 @@ function PostseasonGameResults({ seriesList, seriesMvps, identityFor, selectedKe
     }
 
     return (
-        <div className="overflow-x-auto scrollbar-hide border border-(--divider) rounded-xl">
+        <div className="overflow-x-auto scrollbar-hide border border-(--divider) rounded-card">
             <table className="w-full text-[12px] whitespace-nowrap">
                 <thead>
                     <tr className="text-(--text-tertiary) border-b border-(--divider)">
@@ -334,7 +334,7 @@ export function SimBracket({ summary, highlightAbbr, showGameResults = false }: 
                                 role={onSelectSeries ? 'button' : undefined}
                                 onClick={onSelectSeries ? () => onSelectSeries(series) : undefined}
                                 className={`
-                                    flex items-center gap-2 text-[12px] rounded-lg bg-(--background-tertiary) px-3 py-2
+                                    flex items-center gap-2 text-[12px] rounded-control bg-(--background-tertiary) px-3 py-2
                                     ${onSelectSeries ? 'cursor-pointer hover:bg-(--background-quaternary)' : ''}
                                     ${selectedKey === seriesKey(series) ? 'ring-1 ring-(--showdown-blue)' : ''}
                                 `}

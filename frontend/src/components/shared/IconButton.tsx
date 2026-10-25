@@ -21,7 +21,7 @@ export default function IconButton({ icon, onClick, label, disabled, className =
             disabled={disabled}
             aria-label={label}
             className={`
-                cursor-pointer rounded-md border border-(--divider) bg-(--background-secondary)/90 p-1.5
+                cursor-pointer rounded-control border border-(--divider) bg-(--background-secondary)/90 p-1.5
                 text-(--secondary) transition-colors hover:text-(--primary)
                 disabled:cursor-not-allowed disabled:opacity-40
                 ${className}

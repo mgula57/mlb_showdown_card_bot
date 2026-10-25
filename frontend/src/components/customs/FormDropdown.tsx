@@ -9,6 +9,7 @@
 import { type ReactNode } from "react";
 import CustomSelect, { type CustomSelectProps } from "../shared/CustomSelect";
 
+import { FIELD_LABEL_CLASS } from '../shared/fieldStyles';
 /**
  * Props for the FormDropdown component.
  * Inherits every CustomSelect prop (passed straight through) except `value`,
@@ -59,13 +60,13 @@ const FormDropdown = ({ label, selectedOption, className = "", selectClassName, 
     return (
         <div className={className}>
             {/* Form label with consistent styling */}
-            <label className={`text-sm font-medium block ${disabled ? 'text-tertiary' : 'text-secondary'}`}>{label}</label>
+            <label className={`${FIELD_LABEL_CLASS} ${disabled ? 'opacity-60' : ''}`}>{label}</label>
 
             {/* Dropdown selection component */}
             <CustomSelect
                 {...selectProps}
                 value={selectedOption}
-                className={selectClassName}
+                className={`mt-1 ${selectClassName ?? ''}`}
                 disabled={disabled}
                 showDropdownArrow={showDropdownArrow}
             />

@@ -43,6 +43,7 @@ import { Modal } from '../shared/Modal';
 import { FaCompass, FaDesktop, FaExclamationCircle } from 'react-icons/fa';
 import { FaGear } from 'react-icons/fa6';
 
+import { Heading } from '../shared/Heading';
 /**
  * Props for the WhatsNewModal component
  */
@@ -117,20 +118,20 @@ export const WhatsNewModal: React.FC<WhatsNewModalProps> = ({ isOpen, onClose })
                 {/* Header Section with Attention-Getting Icon */}
                 <div className="flex items-center gap-3 mb-6">
                     <FaExclamationCircle className="w-6 h-6" />
-                    <h2 className="text-2xl font-bold text-secondary">What's New</h2>
+                    <Heading level="section">What's New</Heading>
                 </div>
 
                 {/* Features List with Rich Visual Layout */}
                 <div className="space-y-4 mb-6">
                     {features.map((feature, index) => (
-                        <div key={index} className="flex gap-1 p-2 bg-secondary rounded-lg">
+                        <div key={index} className="flex gap-1 p-2 bg-secondary rounded-card">
                             {/* Feature Icon */}
                             <div className="shrink-0 w-10 h-10 flex items-center justify-center">
                                 {feature.icon}
                             </div>
                             {/* Feature Content */}
                             <div>
-                                <h3 className="font-black text-secondary mb-1">{feature.title}</h3>
+                                <Heading level="panel" className="mb-1">{feature.title}</Heading>
                                 <p className="text-sm text-secondary/80">{feature.description}</p>
                             </div>
                         </div>
@@ -142,7 +143,7 @@ export const WhatsNewModal: React.FC<WhatsNewModalProps> = ({ isOpen, onClose })
                     <p className="text-sm text-secondary/60">Version {WHATS_NEW_VERSION}</p>
                     <button
                         onClick={onClose}
-                        className="px-6 py-2 bg-secondary text-primary font-semibold rounded-lg hover:bg-secondary/50 transition-colors cursor-pointer"
+                        className="px-6 py-2 bg-secondary text-primary font-semibold rounded-control hover:bg-secondary/50 transition-colors cursor-pointer"
                         aria-label="Acknowledge new features and close modal"
                     >
                         Got it!

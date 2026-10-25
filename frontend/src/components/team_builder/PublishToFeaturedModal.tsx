@@ -7,6 +7,7 @@ import {
 } from '../../api/userTeams';
 import { FaSpinner } from 'react-icons/fa6';
 
+import { fieldClass, FIELD_LABEL_CLASS } from '../shared/fieldStyles';
 type PublishToFeaturedModalProps = {
     token: string;
     /** The team being published (the admin's working copy — left untouched, deep-copied server-side). */
@@ -17,8 +18,7 @@ type PublishToFeaturedModalProps = {
 
 const NEW = '__new__';
 
-const inputClass =
-    'w-full rounded-lg border border-(--divider) bg-(--background-secondary) px-3 py-2 text-[13px] text-(--text-primary) placeholder:text-(--text-tertiary)';
+const inputClass = fieldClass('md', 'w-full placeholder:text-(--text-tertiary) focus:outline-none focus:border-(--showdown-blue)');
 
 export function PublishToFeaturedModal({ token, team, onClose, onPublished }: PublishToFeaturedModalProps) {
     const [collections, setCollections] = useState<TeamCollection[] | null>(null);
@@ -102,11 +102,11 @@ export function PublishToFeaturedModal({ token, team, onClose, onPublished }: Pu
             footer={
                 <div className="flex justify-end gap-2">
                     <button type="button" onClick={onClose}
-                        className="px-3 py-2 rounded-lg text-[13px] font-semibold text-(--text-secondary) hover:bg-(--divider) cursor-pointer">
+                        className="px-3 py-2 rounded-control text-[13px] font-semibold text-(--text-secondary) hover:bg-(--divider) cursor-pointer">
                         Cancel
                     </button>
                     <button type="button" onClick={handlePublish} disabled={busy || collections === null}
-                        className="px-3 py-2 rounded-lg text-[13px] font-bold text-(--background-primary) bg-(--secondary) hover:opacity-90 disabled:opacity-50 cursor-pointer flex items-center gap-1.5">
+                        className="px-3 py-2 rounded-control text-[13px] font-bold text-(--background-primary) bg-(--secondary) hover:opacity-90 disabled:opacity-50 cursor-pointer flex items-center gap-1.5">
                         {busy && <FaSpinner className="animate-spin" />} Publish
                     </button>
                 </div>
@@ -117,31 +117,30 @@ export function PublishToFeaturedModal({ token, team, onClose, onPublished }: Pu
             ) : (
                 <div className="flex flex-col gap-3 p-4">
                     <label className="flex flex-col gap-1">
-                        <span className="text-[12px] font-semibold text-(--text-secondary)">Collection</span>
+                        <span className={FIELD_LABEL_CLASS}>Collection</span>
                         <CustomSelect
                             value={collectionSlug}
                             onChange={setCollectionSlug}
                             options={options}
-                            buttonClassName={inputClass + ' flex items-center justify-between cursor-pointer'}
-                        />
+                                                    />
                     </label>
 
                     {creatingNew && (
                         <div className="grid grid-cols-3 gap-2">
                             <label className="flex flex-col gap-1 col-span-2">
-                                <span className="text-[12px] font-semibold text-(--text-secondary)">New collection title</span>
+                                <span className={FIELD_LABEL_CLASS}>New collection title</span>
                                 <input className={inputClass} value={newTitle} onChange={e => setNewTitle(e.target.value)} placeholder="All-Time Lineups" />
                             </label>
                             <label className="flex flex-col gap-1">
-                                <span className="text-[12px] font-semibold text-(--text-secondary)">Emoji</span>
+                                <span className={FIELD_LABEL_CLASS}>Emoji</span>
                                 <input className={inputClass} value={newEmoji} onChange={e => setNewEmoji(e.target.value)} placeholder="🏆" />
                             </label>
                             <label className="flex flex-col gap-1 col-span-3">
-                                <span className="text-[12px] font-semibold text-(--text-secondary)">Slug</span>
+                                <span className={FIELD_LABEL_CLASS}>Slug</span>
                                 <input className={inputClass} value={newSlug} onChange={e => setNewSlug(e.target.value)} placeholder="all-time-lineups" />
                             </label>
                             <label className="flex flex-col gap-1 col-span-3">
-                                <span className="text-[12px] font-semibold text-(--text-secondary)">Description <span className="text-(--text-tertiary)">(shown under the title)</span></span>
+                                <span className={FIELD_LABEL_CLASS}>Description <span className="normal-case tracking-normal font-normal">(shown under the title)</span></span>
                                 <input className={inputClass} value={collectionDescription} onChange={e => setCollectionDescription(e.target.value)} placeholder="Teams featured by the creator of Showdown Bot." />
                             </label>
                         </div>
@@ -149,25 +148,25 @@ export function PublishToFeaturedModal({ token, team, onClose, onPublished }: Pu
 
                     {!creatingNew && (
                         <label className="flex flex-col gap-1">
-                            <span className="text-[12px] font-semibold text-(--text-secondary)">Collection description <span className="text-(--text-tertiary)">(shown under the title)</span></span>
+                            <span className={FIELD_LABEL_CLASS}>Collection description <span className="normal-case tracking-normal font-normal">(shown under the title)</span></span>
                             <input className={inputClass} value={collectionDescription} onChange={e => setCollectionDescription(e.target.value)} placeholder="Teams featured by the creator of Showdown Bot." />
                         </label>
                     )}
 
                     <label className="flex flex-col gap-1">
-                        <span className="text-[12px] font-semibold text-(--text-secondary)">Subtitle <span className="text-(--text-tertiary)">(shown on the tile)</span></span>
+                        <span className={FIELD_LABEL_CLASS}>Subtitle <span className="normal-case tracking-normal font-normal">(shown on the tile)</span></span>
                         <input className={inputClass} value={subtitle} onChange={e => setSubtitle(e.target.value)} placeholder="1996 World Champions" />
                     </label>
                     <label className="flex flex-col gap-1">
-                        <span className="text-[12px] font-semibold text-(--text-secondary)">Credit</span>
+                        <span className={FIELD_LABEL_CLASS}>Credit</span>
                         <input className={inputClass} value={credit} onChange={e => setCredit(e.target.value)} placeholder="Built by Gary Quinn" />
                     </label>
                     <label className="flex flex-col gap-1">
-                        <span className="text-[12px] font-semibold text-(--text-secondary)">Sort index <span className="text-(--text-tertiary)">(lower shows first)</span></span>
+                        <span className={FIELD_LABEL_CLASS}>Sort index <span className="normal-case tracking-normal font-normal">(lower shows first)</span></span>
                         <input className={inputClass} type="number" value={sortIndex} onChange={e => setSortIndex(e.target.value)} placeholder="0" />
                     </label>
 
-                    {error && <p className="text-[12px] text-red-400">{error}</p>}
+                    {error && <p className="text-[12px] text-(--red)">{error}</p>}
                 </div>
             )}
         </Modal>

@@ -12,6 +12,7 @@ import FormElementGrid from './FormElementGrid';
 import { FaChevronDown } from 'react-icons/fa6';
 import { NewBadge } from '../shared/NewBadge';
 
+import { headingClass } from '../shared/headingStyles';
 /**
  * Props for the FormSection component
  */
@@ -85,19 +86,19 @@ const FormSection: React.FC<FormSectionProps> = ({ title, children, icon, isOpen
     };
 
     return (
-        <div className="w-full px-3 py-2.5 border border-form-element rounded-xl bg-secondary">
+        <div className="w-full px-3 py-2.5 border border-form-element rounded-card bg-secondary">
 
             {/* Section header with title, icon, and (when collapsed) inline summary — clickable toggle only when collapsible */}
             <button
                 type='button'
                 className={`
-                    flex items-start gap-3 w-full min-w-0 -mx-1.5 px-1.5 py-1 rounded-lg box-content
+                    flex items-start gap-3 w-full min-w-0 -mx-1.5 px-1.5 py-1 rounded-control box-content
                     transition-colors ${collapsible ? 'cursor-pointer hover:bg-(--background-tertiary)/60' : 'cursor-default'}
                 `}
                 onClick={toggleCollapse}
                 aria-expanded={collapsible ? isOpen : undefined}
             >
-                <span className='flex items-center gap-2 shrink-0 text-sm font-bold text-secondary'>
+                <span className={`flex items-center gap-2 shrink-0 ${headingClass('panel')}`}>
                     {icon && <span className='text-xs text-(--tertiary)'>{icon}</span>}
                     {title}
                     {isNew && <NewBadge />}

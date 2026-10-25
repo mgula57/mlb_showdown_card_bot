@@ -6,6 +6,7 @@ import CustomSelect, { type SelectOption } from '../shared/CustomSelect';
 import { TeamSearchInput } from './TeamSearchInput';
 import { matchesTeamQuery } from './teamSearch';
 
+import { InlineError } from '../shared/InlineError';
 // Set ordering for the "by set" shelves — newest curated sets first.
 type SortKey = 'recent' | 'points' | 'name' | 'roster' | 'popular';
 
@@ -108,10 +109,8 @@ export function CommunityTeams({ onOpen, horizontalPadding, hideSearch = false, 
             )}
 
             {error && (
-                <div className={`${px} text-[12px] text-red-400`}>
-                    <div className="px-3 py-2 rounded-lg border border-red-400/30 bg-red-400/5">
-                        {error}
-                    </div>
+                <div className={px}>
+                    <InlineError size="md">{error}</InlineError>
                 </div>
             )}
 
@@ -131,8 +130,7 @@ export function CommunityTeams({ onOpen, horizontalPadding, hideSearch = false, 
                                 value={sortBy}
                                 onChange={v => setSortBy(v as SortKey)}
                                 options={SORT_OPTIONS}
-                                buttonClassName="px-2.5 py-1.5 rounded-lg border border-(--divider) bg-(--background-secondary) text-(--text-primary) text-[12px] text-nowrap cursor-pointer flex items-center"
-                                dropdownArrowSize={12}
+                                size="sm"
                             />
                         </div>
                         <div className="flex flex-wrap gap-3">

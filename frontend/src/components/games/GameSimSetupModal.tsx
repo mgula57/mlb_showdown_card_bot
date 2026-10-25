@@ -100,7 +100,7 @@ function TeamPanel({
                     })}
                 </div>
             ) : (
-                <div className="rounded-lg border border-(--divider) p-3 text-xs text-(--secondary)">
+                <div className="rounded-card border border-(--divider) p-3 text-xs text-(--secondary)">
                     No lineup has been posted yet. The simulation will pick one from the active roster.
                 </div>
             )}
@@ -186,7 +186,7 @@ export default function GameSimSetupModal({ gamePk, showdownSet, onCancel, onSta
             footer={(
                 <div className="space-y-1">
                     {error && (
-                        <div className="rounded-lg border border-(--red)/30 bg-(--red)/5 px-3 py-2 text-[12px] text-(--red)">
+                        <div className="rounded-card border border-(--red)/30 bg-(--red)/5 px-3 py-2 text-[12px] text-(--red)">
                             {error}
                         </div>
                     )}
@@ -195,7 +195,7 @@ export default function GameSimSetupModal({ gamePk, showdownSet, onCancel, onSta
                         <button
                             type="button"
                             onClick={onCancel}
-                            className="cursor-pointer rounded-lg bg-tertiary px-3 py-2 text-[12px] font-semibold text-(--secondary) transition-colors hover:text-(--primary)"
+                            className="cursor-pointer rounded-control bg-tertiary px-3 py-2 text-[12px] font-semibold text-(--secondary) transition-colors hover:text-(--primary)"
                         >
                             Cancel
                         </button>
@@ -203,7 +203,7 @@ export default function GameSimSetupModal({ gamePk, showdownSet, onCancel, onSta
                             type="button"
                             onClick={handleStart}
                             disabled={!setup || starting || setup.is_final}
-                            className="flex cursor-pointer items-center gap-1.5 rounded-lg animated-showdown-gradient px-3 py-2 text-[12px] font-bold text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
+                            className="flex cursor-pointer items-center gap-1.5 rounded-control bg-(--showdown-blue) shadow-raised active:translate-y-px active:shadow-none px-3 py-2 text-[12px] font-bold text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
                         >
                             {starting ? <FaSpinner className="animate-spin text-[10px]" /> : <FaTerminal className="text-[15px]" />}
                             {starting ? 'Simulating…' : setup?.is_takeover ? 'Take Over' : 'Simulate'}
@@ -216,13 +216,13 @@ export default function GameSimSetupModal({ gamePk, showdownSet, onCancel, onSta
                 {canOfferTakeover && (
                     <div className="flex items-center gap-2">
                         <span className="text-xs font-bold uppercase tracking-wide text-(--secondary)">Start from</span>
-                        <div className="inline-flex rounded-lg border border-(--divider) bg-(--background-secondary) p-0.5">
+                        <div className="inline-flex rounded-control border border-(--divider) bg-(--background-secondary) p-0.5">
                             <button
                                 type="button"
                                 onClick={() => setFromBeginning(false)}
                                 disabled={loading}
-                                className={`cursor-pointer rounded-md px-3 py-1 text-[12px] font-semibold transition-colors disabled:cursor-not-allowed ${
-                                    !fromBeginning ? 'animated-showdown-gradient text-white' : 'text-(--secondary) hover:text-(--primary)'
+                                className={`cursor-pointer rounded-control px-3 py-1 text-[12px] font-semibold transition-colors disabled:cursor-not-allowed ${
+                                    !fromBeginning ? 'bg-(--showdown-blue) text-white' : 'text-(--secondary) hover:text-(--primary)'
                                 }`}
                             >
                                 Current State
@@ -231,8 +231,8 @@ export default function GameSimSetupModal({ gamePk, showdownSet, onCancel, onSta
                                 type="button"
                                 onClick={() => setFromBeginning(true)}
                                 disabled={loading}
-                                className={`cursor-pointer rounded-md px-3 py-1 text-[12px] font-semibold transition-colors disabled:cursor-not-allowed ${
-                                    fromBeginning ? 'animated-showdown-gradient text-white' : 'text-(--secondary) hover:text-(--primary)'
+                                className={`cursor-pointer rounded-control px-3 py-1 text-[12px] font-semibold transition-colors disabled:cursor-not-allowed ${
+                                    fromBeginning ? 'bg-(--showdown-blue) text-white' : 'text-(--secondary) hover:text-(--primary)'
                                 }`}
                             >
                                 Beginning of Game
@@ -251,7 +251,7 @@ export default function GameSimSetupModal({ gamePk, showdownSet, onCancel, onSta
                 {setup && (
                     <div className={loading ? 'space-y-4 opacity-50' : 'space-y-4'}>
                         {canOfferTakeover && (
-                            <div className="rounded-xl border border-(--divider) bg-(--background-secondary) p-3">
+                            <div className="rounded-card border border-(--divider) bg-(--background-secondary) p-3">
                                 <div className="text-xs font-bold uppercase tracking-wide text-(--secondary)">
                                     {setup.is_takeover ? 'Taking over from' : 'Starting from'}
                                 </div>
@@ -266,7 +266,7 @@ export default function GameSimSetupModal({ gamePk, showdownSet, onCancel, onSta
                         )}
 
                         {setup.lineup_source === 'AUTO' && !setup.is_takeover && (
-                            <div className="rounded-xl border border-(--divider) p-3 text-xs text-(--secondary)">
+                            <div className="rounded-card border border-(--divider) p-3 text-xs text-(--secondary)">
                                 Lineups have not been posted for this game yet. Starting pitchers are the announced
                                 probables; the batting orders will be chosen from each active roster.
                             </div>

@@ -17,6 +17,8 @@ import {
 } from '../../../../api/adminChallenges';
 import { ChallengeTemplateForm } from './ChallengeTemplateForm';
 
+import { InlineError } from '../../../shared/InlineError';
+import { Heading } from '../../../shared/Heading';
 type Props = {
     token: string;
     onBack: () => void;
@@ -185,7 +187,7 @@ export function AdminChallengesView({ token, onBack }: Props) {
                     <button
                         type="button"
                         onClick={() => { setFormError(null); setEditing('new'); }}
-                        className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[12px] font-bold bg-(--secondary) text-(--background-primary) hover:opacity-90 cursor-pointer"
+                        className="flex items-center gap-1.5 rounded-control px-2.5 py-1.5 text-[12px] font-bold bg-(--secondary) text-(--background-primary) hover:opacity-90 cursor-pointer"
                     >
                         <FaPlus className="text-[10px]" /> New template
                     </button>
@@ -193,7 +195,7 @@ export function AdminChallengesView({ token, onBack }: Props) {
                         type="button"
                         onClick={rotate}
                         disabled={rotating}
-                        className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[12px] font-bold border border-(--divider) text-(--text-secondary) hover:text-(--text-primary) hover:border-(--text-tertiary) disabled:opacity-40 cursor-pointer"
+                        className="flex items-center gap-1.5 rounded-control px-2.5 py-1.5 text-[12px] font-bold border border-(--divider) text-(--text-secondary) hover:text-(--text-primary) hover:border-(--text-tertiary) disabled:opacity-40 cursor-pointer"
                     >
                         {rotating ? <FaSpinner className="animate-spin text-[10px]" /> : <FaArrowsRotate className="text-[10px]" />} Run rotation now
                     </button>
@@ -201,14 +203,14 @@ export function AdminChallengesView({ token, onBack }: Props) {
             </div>
 
             <div>
-                <h3 className="text-[16px] font-black text-(--text-primary)">Challenge Templates</h3>
+                <Heading level="panel">Challenge Templates</Heading>
                 <p className="text-[12px] text-(--text-tertiary)">
                     Templates feed the weekly rotation — one live challenge per category. Generate forces one live now.
                 </p>
             </div>
 
-            {notice && <div className="text-[12px] text-(--text-secondary) px-3 py-2 rounded-lg bg-(--background-tertiary)">{notice}</div>}
-            {error && <div className="text-[12px] text-red-400 px-3 py-2 rounded-lg border border-red-400/30 bg-red-400/5">{error}</div>}
+            {notice && <div className="text-[12px] text-(--text-secondary) px-3 py-2 rounded-card bg-(--background-tertiary)">{notice}</div>}
+            {error && <InlineError size="md">{error}</InlineError>}
 
             {liveInstances.length > 0 && (
                 <div className="flex flex-wrap gap-1.5">
@@ -217,7 +219,7 @@ export function AdminChallengesView({ token, onBack }: Props) {
                         return (
                             <span
                                 key={inst.instance_id}
-                                className="flex items-center gap-1.5 text-[11px] px-2 py-1 rounded-full bg-(--background-tertiary)"
+                                className="flex items-center gap-1.5 text-[11px] px-2 py-1 rounded-[2px] bg-(--background-tertiary)"
                                 style={{ color: `var(${meta.cssVar})` }}
                             >
                                 {meta.label}: {inst.year} {inst.replaces_abbr}
@@ -229,7 +231,7 @@ export function AdminChallengesView({ token, onBack }: Props) {
                                         type="button"
                                         title="Take offline now"
                                         onClick={() => takeOffline(inst)}
-                                        className="text-(--text-tertiary) hover:text-red-400 cursor-pointer"
+                                        className="text-(--text-tertiary) hover:text-(--red) cursor-pointer"
                                     >
                                         <FaXmark className="text-[11px]" />
                                     </button>
@@ -253,7 +255,7 @@ export function AdminChallengesView({ token, onBack }: Props) {
                                 <div className="flex items-center gap-1.5 px-1 text-[11px] font-bold uppercase tracking-wide" style={{ color: `var(${meta.cssVar})` }}>
                                     {meta.icon} {meta.label} <span className="text-(--text-tertiary) font-normal normal-case">({group.length})</span>
                                 </div>
-                                <div className="flex flex-col divide-y divide-(--divider) rounded-lg border border-(--divider)">
+                                <div className="flex flex-col divide-y divide-(--divider) rounded-card border border-(--divider)">
                                     {group.map(t => {
                                         const rowBusy = busyId === t.template_id;
                                         return (
@@ -273,10 +275,10 @@ export function AdminChallengesView({ token, onBack }: Props) {
                                                     <FaSpinner className="animate-spin text-(--text-tertiary) text-[12px]" />
                                                 ) : (
                                                     <div className="flex items-center gap-1 shrink-0">
-                                                        <button type="button" title="Generate instance now" onClick={() => generate(t)} className="p-1.5 rounded-md hover:bg-(--background-tertiary) text-(--text-secondary) cursor-pointer"><FaBolt className="text-[11px]" /></button>
-                                                        <button type="button" title={t.active ? 'Deactivate' : 'Activate'} onClick={() => toggleActive(t)} className="px-1.5 py-1 rounded-md text-[10px] font-bold hover:bg-(--background-tertiary) text-(--text-secondary) cursor-pointer">{t.active ? 'ON' : 'OFF'}</button>
-                                                        <button type="button" title="Edit" onClick={() => { setFormError(null); setEditing(t); }} className="p-1.5 rounded-md hover:bg-(--background-tertiary) text-(--text-secondary) cursor-pointer"><FaPen className="text-[11px]" /></button>
-                                                        <button type="button" title="Delete" onClick={() => remove(t)} className="p-1.5 rounded-md hover:bg-red-400/10 text-red-400 cursor-pointer"><FaTrash className="text-[11px]" /></button>
+                                                        <button type="button" title="Generate instance now" onClick={() => generate(t)} className="p-1.5 rounded-control hover:bg-(--background-tertiary) text-(--text-secondary) cursor-pointer"><FaBolt className="text-[11px]" /></button>
+                                                        <button type="button" title={t.active ? 'Deactivate' : 'Activate'} onClick={() => toggleActive(t)} className="px-1.5 py-1 rounded-control text-[10px] font-bold hover:bg-(--background-tertiary) text-(--text-secondary) cursor-pointer">{t.active ? 'ON' : 'OFF'}</button>
+                                                        <button type="button" title="Edit" onClick={() => { setFormError(null); setEditing(t); }} className="p-1.5 rounded-control hover:bg-(--background-tertiary) text-(--text-secondary) cursor-pointer"><FaPen className="text-[11px]" /></button>
+                                                        <button type="button" title="Delete" onClick={() => remove(t)} className="p-1.5 rounded-control hover:bg-(--red)/10 text-(--red) cursor-pointer"><FaTrash className="text-[11px]" /></button>
                                                     </div>
                                                 )}
                                             </div>

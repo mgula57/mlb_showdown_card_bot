@@ -8,7 +8,7 @@ import FormEnabler from '../customs/FormEnabler';
 import FormDropdown from '../customs/FormDropdown';
 import MultiSelect from '../shared/MultiSelect';
 import PercentageSlider from '../shared/PercentageSlider';
-import InlineWarning from '../shared/InlineWarning';
+import { InlineError } from '../shared/InlineError';
 import { useAuth } from '../auth/AuthContext';
 import PointBucketsEditor from './PointBucketsEditor';
 import { validatePointBuckets } from './pointBuckets';
@@ -234,7 +234,7 @@ function ManualPickList({ label, picks, emptyText, onRemove }: { label: string; 
                                 type="button"
                                 onClick={() => onRemove(pick.id)}
                                 aria-label={`Remove ${manualPickLabel(pick)}`}
-                                className="flex items-center justify-center w-4 h-4 rounded-full text-(--text-tertiary) hover:bg-red-500/90 hover:text-white transition-colors cursor-pointer"
+                                className="flex items-center justify-center w-4 h-4 rounded-full text-(--text-tertiary) hover:bg-(--red)/90 hover:text-white transition-colors cursor-pointer"
                             >
                                 <FaXmark className="text-[10px]" />
                             </button>
@@ -252,7 +252,7 @@ function TemplateChip({ template, isActive, onSelect }: { template: AlgorithmTem
             type="button"
             onClick={onSelect}
             aria-pressed={isActive}
-            className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-[12px] whitespace-nowrap transition-colors cursor-pointer ${
+            className={`flex items-center gap-1.5 px-2.5 py-1 rounded-control border text-[12px] whitespace-nowrap transition-colors cursor-pointer ${
                 isActive
                     ? 'border-(--text-secondary) bg-(--background-quaternary) text-(--text-primary) font-bold'
                     : 'border-(--divider) text-(--text-secondary) font-medium hover:bg-(--background-secondary)'
@@ -432,7 +432,7 @@ export function AlgorithmBuilder({ releaseId, edition, token, defaultShowdownSet
                     <p className="text-[11px] text-(--text-tertiary)">{activeTemplate.description}</p>
                 )}
                 {activeTemplate && changes.length > 0 && (
-                    <div className="flex items-center justify-between gap-2 rounded-lg border border-(--divider) px-2.5 py-1.5">
+                    <div className="flex items-center justify-between gap-2 rounded-card border border-(--divider) px-2.5 py-1.5">
                         <span className="text-[11px] font-semibold text-(--text-secondary)">
                             Based on {activeTemplate.name} · {changes.length} change{changes.length === 1 ? '' : 's'}
                         </span>
@@ -592,9 +592,9 @@ export function AlgorithmBuilder({ releaseId, edition, token, defaultShowdownSet
                                 Fixed by the {activeTemplate?.name} template.
                             </p>
                         ) : !isDistributionValid && (
-                            <InlineWarning>
+                            <InlineError icon>
                                 Percentages add up to {distributionTotalPercent}% — they must total 100%.
-                            </InlineWarning>
+                            </InlineError>
                         )}
                     </>
                 )}
@@ -695,9 +695,9 @@ export function AlgorithmBuilder({ releaseId, edition, token, defaultShowdownSet
             )}
 
             {error && (
-                <div className="text-[12px] text-red-400 px-3 py-2 rounded-lg border border-red-400/30 bg-red-400/5 flex items-center gap-2 shrink-0">
+                <InlineError size="md" className="flex items-center gap-2 shrink-0">
                     <FaTriangleExclamation className="shrink-0" /> {error}
-                </div>
+                </InlineError>
             )}
 
         </div>
@@ -708,7 +708,7 @@ export function AlgorithmBuilder({ releaseId, edition, token, defaultShowdownSet
             disabled={!token || !isDirty || saving}
             aria-label="Save algorithm settings"
             title={isDirty ? 'Save settings' : 'Settings saved'}
-            className="fixed md:absolute bottom-[calc(0.75rem+var(--safe-bottom))] md:bottom-3 right-22 w-16 h-16 rounded-full flex flex-col items-center justify-center gap-1 text-[12px] font-bold shadow-lg
+            className="fixed md:absolute bottom-[calc(0.75rem+var(--safe-bottom))] md:bottom-3 right-22 w-16 h-16 rounded-full flex flex-col items-center justify-center gap-1 text-[12px] font-bold shadow-overlay
                 border border-(--divider) bg-(--background-secondary) text-(--text-secondary) hover:border-(--text-tertiary) transition-colors disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer"
         >
             {saving ? <FaSpinner className="animate-spin text-[18px]" /> : (isDirty ? <FaFloppyDisk className="text-[18px]" /> : <FaCheck className="text-[18px]" />)}
@@ -720,8 +720,8 @@ export function AlgorithmBuilder({ releaseId, edition, token, defaultShowdownSet
             onClick={handleRun}
             disabled={!canRun}
             aria-label="Run algorithm"
-            className="fixed md:absolute bottom-[calc(0.75rem+var(--safe-bottom))] md:bottom-3 right-3 w-16 h-16 rounded-full flex flex-col items-center justify-center gap-1 text-[12px] font-bold shadow-lg
-                bg-linear-to-r from-blue-500 to-red-500 text-white disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+            className="fixed md:absolute bottom-[calc(0.75rem+var(--safe-bottom))] md:bottom-3 right-3 w-16 h-16 rounded-full flex flex-col items-center justify-center gap-1 text-[12px] font-bold shadow-overlay
+                bg-(--showdown-blue) text-white hover:brightness-110 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
         >
             {status === 'running' ? <FaSpinner className="animate-spin text-[18px]" /> : <FaWandMagicSparkles className="text-[18px]" />}
             {status === 'running' ? '…' : 'Run'}

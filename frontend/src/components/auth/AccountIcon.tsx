@@ -44,7 +44,7 @@ export const AccountAvatar: React.FC<AccountAvatarProps> = ({
                     cursor-pointer
                     ${user
                         ? userSettings?.avatar_url
-                            ? 'border-2 bg-transparent border-transparent hover:border-indigo-400 overflow-hidden'
+                            ? 'border-2 bg-transparent border-transparent hover:border-(--showdown-blue) overflow-hidden'
                             : 'border-0'
                         : 'border-2 bg-transparent border-(--tertiary) hover:border-secondary opacity-60 hover:opacity-100'
                     }
@@ -75,7 +75,7 @@ export const AccountAvatar: React.FC<AccountAvatarProps> = ({
                 <span className="
                     absolute bottom-0 right-0
                     w-2 h-2
-                    bg-green-500
+                    bg-(--green)
                     rounded-full
                     ring-2 ring-primary
                     pointer-events-none
@@ -165,7 +165,7 @@ export const AccountIcon: React.FC<AccountIconProps> = ({
                     w-72 py-2
                     bg-(--background-secondary)
                     border border-form-element
-                    rounded-lg shadow-xl
+                    rounded-card shadow-overlay
                     z-50
                     animate-fade-in
                 ">

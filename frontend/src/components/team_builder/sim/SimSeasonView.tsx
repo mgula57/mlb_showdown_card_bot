@@ -146,13 +146,13 @@ export function SimSeasonView({ jobId, teamName, token, onBack, onBackToChalleng
 
             {error ? (
                 <div className="flex flex-col items-center justify-center gap-3 py-16 px-4 text-center">
-                    <FaTriangleExclamation className="text-red-400 text-2xl" />
+                    <FaTriangleExclamation className="text-(--red) text-2xl" />
                     <p className="text-[13px] text-(--text-secondary) max-w-sm">{error}</p>
                     {(tryAgain || onRunAgain) && (
                         <button
                             type="button"
                             onClick={tryAgain ?? onRunAgain}
-                            className="px-3 py-2 rounded-lg bg-(--background-tertiary) text-[12px] font-bold text-(--text-primary) hover:opacity-90 transition-opacity cursor-pointer"
+                            className="px-3 py-2 rounded-control bg-(--background-tertiary) text-[12px] font-bold text-(--text-primary) hover:opacity-90 transition-opacity cursor-pointer"
                         >
                             Try again
                         </button>

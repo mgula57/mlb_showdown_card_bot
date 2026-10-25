@@ -109,7 +109,7 @@ export function CardChart({ chartRanges, showdownSet, primaryColor, secondaryCol
         return { 
             backgroundColor: '',
             color: '',
-            className: 'bg-[var(--background-secondary)] text-black'
+            className: 'bg-(--background-secondary)'
         };
     };
 
@@ -117,7 +117,7 @@ export function CardChart({ chartRanges, showdownSet, primaryColor, secondaryCol
     const hasHighlight = !!highlightKey && Object.keys(chartDataToRender).some((key) => key.toLowerCase() === highlightKey);
 
     return (
-        <div className={`inline-flex rounded-lg overflow-hidden text-xs font-semibold border border-form-element ${className || ''}`}>
+        <div className={`inline-flex rounded-[3px] overflow-hidden text-xs font-semibold border border-(--divider) ${className || ''}`}>
             {Object.entries(chartDataToRender).map(([key, value], index) => {
                 const colorInfo = getColorClass(key, index);
                 const isHighlighted = hasHighlight && key.toLowerCase() === highlightKey;
@@ -140,7 +140,7 @@ export function CardChart({ chartRanges, showdownSet, primaryColor, secondaryCol
                         } : {}}
                     >
                         {/* Result type label (e.g., "SO", "HR") */}
-                        <div className="text-[11px] sm:text-xs font-black">{key}</div>
+                        <div className="text-[10px] sm:text-[11px] font-semibold opacity-75">{key}</div>
                         {/* Dice roll range (e.g., "1-5", "16-20") */}
                         <div className="text-[10px] sm:text-[11px] font-bold text-nowrap">{String(value)}</div>
                     </div>

@@ -31,6 +31,7 @@ import { useLocation } from 'react-router-dom';
 import { FaXmark } from 'react-icons/fa6';
 import PinnedFooterScrollArea from './PinnedFooterScrollArea';
 
+import { Heading } from './Heading';
 // Global counter to track multiple concurrent modals for proper scroll lock management
 let bodyScrollLockCount = 0;
 
@@ -203,8 +204,8 @@ export function Modal({ children, onClose, title, subtitle, footer, size = 'lg',
                 ref={modalRef}
                 className={`
                     bg-(--background-primary)
-                    rounded-2xl
-                    shadow-2xl
+                    rounded-card
+                    shadow-overlay
                     w-full
                     ${sizeClasses[size]}
                     max-h-[85vh]
@@ -219,9 +220,9 @@ export function Modal({ children, onClose, title, subtitle, footer, size = 'lg',
                 {title ? (
                     <div className="flex items-start justify-between gap-3 p-3 border-b border-form-element shrink-0">
                         <div className="min-w-0">
-                            <h2 className="text-xl font-semibold text-(--text-primary) truncate">
+                            <Heading level="section" className="truncate">
                                 {title}
-                            </h2>
+                            </Heading>
                             {subtitle && (
                                 <p className="text-[12px] text-(--text-secondary) mt-0.5">
                                     {subtitle}

@@ -37,6 +37,7 @@ export const canHideDisplayText = (expansion: string, edition: string): boolean 
 
 const publicImagePath = (imageName: string): string => `/images/card/${imageName}.png`;
 
+// design-ok-start: expansion and edition colors identify the physical card products, like team colors
 export const expansionOptions: SelectOption[] = [
     { label: "Base Set", value: "BS", image: publicImagePath('expansion-bs') },
     { label: "Trading Deadline", value: "TD", image: publicImagePath('expansion-td'), 'borderColor': 'border-red-600' },
@@ -54,13 +55,14 @@ export const editionOptions: SelectOption[] = [
     { 'value': 'WBC', 'label': 'WBC', 'image': publicImagePath('edition-wbc'), 'borderColor': 'border-red-700' },
     { 'value': 'POST', 'label': 'Postseason', 'image': publicImagePath('edition-post'), 'borderColor': 'border-blue-800' },
 ];
+// design-ok-end
 
 export const imageParallelOptions: SelectOption[] = [
     { "label": "Base", "value": "NONE", 'symbol': '―' },
     { "label": "Rainbow Foil", "value": "RF", 'symbol': '🌈' },
     { "label": "Team Color Blast", "value": "TCB", 'symbol': '💥' },
     { "label": "Galaxy", "value": "GALAXY", 'symbol': '🌌' },
-    { "label": "Gold", "value": "GOLD", "borderColor": "border-yellow-300", 'symbol': '🟡' },
+    { "label": "Gold", "value": "GOLD", "borderColor": "border-(--gold)", 'symbol': '🟡' },
     { "label": "Gold Rush", "value": "GOLDRUSH", 'symbol': '✨' },
     { "label": "Gold Frame", "value": "GF", 'symbol': '🖼️' },
     { "label": "Sapphire", "value": "SPH", 'symbol': '💎' },
@@ -124,9 +126,9 @@ export function setStyleSummary(values: CardStyleSettings, defaults: CardStyleSe
     }
     if (setNumber) summaries.push({ label: 'Set Number', value: setNumber });
 
-    if (values.add_one_to_set_year) summaries.push({ value: "Set Year +1", borderColor: 'border-green-500' });
-    if (values.show_year_text) summaries.push({ value: "Show Year Text", borderColor: 'border-green-500' });
-    if (values.disable_display_text_on_card) summaries.push({ value: "Hide Date Text", borderColor: 'border-green-500' });
+    if (values.add_one_to_set_year) summaries.push({ value: "Set Year +1", borderColor: 'border-(--green)' });
+    if (values.show_year_text) summaries.push({ value: "Show Year Text", borderColor: 'border-(--green)' });
+    if (values.disable_display_text_on_card) summaries.push({ value: "Hide Date Text", borderColor: 'border-(--green)' });
     return summaries;
 }
 
@@ -153,8 +155,8 @@ export function imageStyleSummary(values: CardStyleSettings, defaults: CardStyle
         const nicknameOption = nicknameIndexOptions.find(opt => opt.value === values.nickname_index);
         summaries.push({ ...(nicknameOption || { value: values.nickname_index }), label: 'Nickname' });
     }
-    if (values.is_bordered !== defaults.is_bordered) summaries.push({ value: 'ADD BORDER', borderColor: 'border-green-500' });
-    if (values.is_dark_mode !== defaults.is_dark_mode) summaries.push({ value: 'DARK MODE', borderColor: 'border-green-500' });
-    if (values.hide_team_logo !== defaults.hide_team_logo) summaries.push({ value: 'REMOVE TEAM BRANDING', borderColor: 'border-green-500' });
+    if (values.is_bordered !== defaults.is_bordered) summaries.push({ value: 'ADD BORDER', borderColor: 'border-(--green)' });
+    if (values.is_dark_mode !== defaults.is_dark_mode) summaries.push({ value: 'DARK MODE', borderColor: 'border-(--green)' });
+    if (values.hide_team_logo !== defaults.hide_team_logo) summaries.push({ value: 'REMOVE TEAM BRANDING', borderColor: 'border-(--green)' });
     return summaries;
 }

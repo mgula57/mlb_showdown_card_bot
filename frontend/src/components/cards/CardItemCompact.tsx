@@ -2,7 +2,6 @@ import type { ShowdownBotCard, ShowdownBotCardCompact } from "../../api/showdown
 import type { CardDatabaseRecord } from "../../api/card_db/cardDatabase";
 import CardCommand from "./card_elements/CardCommand";
 import { getContrastTextColor } from "../../functions/colors";
-import { useTheme } from "../shared/SiteSettingsContext";
 import { formatYear } from "../../functions/formatters";
 import { FaHatWizard, FaWandMagicSparkles } from "react-icons/fa6";
 import { imageForSet } from '../shared/SiteSettingsContext';
@@ -21,7 +20,7 @@ export type CardItemActionButton = {
     onClick: () => void;
     /** aria-label for the action button */
     label?: string;
-    bgColorClass?: string; // Optional additional background color class for the action button (e.g. "bg-red-500")
+    bgColorClass?: string; // Optional additional background color class for the action button (e.g. "bg-(--showdown-red)")
     placement?: 'left' | 'right'; // Optionally change which side the button appears on
     /** Greys out the button and blocks clicks — e.g. while a previous pick is still saving. */
     disabled?: boolean;
@@ -114,8 +113,6 @@ export const CardItemCompact = ({
     statBadge,
 }: CardItemCompactProps) => {
 
-    const { isDark } = useTheme();
-
     const primaryColor = (['NYM', 'SDP', 'JPN'].includes(card?.team || 'N/A')
         ? card?.color_secondary
         : card?.color_primary) || 'rgb(0, 0, 0)';
@@ -136,11 +133,11 @@ export const CardItemCompact = ({
 
     const isClickable = onClick !== undefined;
 
+    // Neutral hairline; selection is a navy outline (see frontend/DESIGN.md). `accentColor`
+    // still overrides the border color inline.
     const borderSettings = isSelected
-        ? `border-3 shadow-xl${isClickable ? ' hover:shadow-2xl' : ''}`
-        : (isDark
-            ? `border-2 border-white/10 shadow-xl${isClickable ? ' hover:border-white/50 hover:shadow-2xl' : ''}`
-            : `border-2 border-black/10 shadow-xl${isClickable ? ' hover:shadow-2xl hover:border-black/40' : ''}`);
+        ? 'border border-(--showdown-blue) ring-1 ring-(--showdown-blue)'
+        : `border border-(--divider)${isClickable ? ' hover:border-(--rule-strong)' : ''}`;
 
     const isRedacted = card?.isEmpty || false;
 
@@ -164,7 +161,7 @@ export const CardItemCompact = ({
                 relative @container
                 w-full min-w-0
                 flex items-top gap-2
-                rounded-lg pl-1 py-1
+                rounded-card pl-1 py-1
                 ${backgroundSettings || 'bg-secondary'}
                 ${borderSettings}
                 ${hasAdvantage ? 'card-advantage' : ''}
@@ -174,9 +171,9 @@ export const CardItemCompact = ({
             {hasAdvantage && <AdvantageBadge />}
             {/* A stat badge takes the command's slot — e.g. the runner's tested speed on a sim steal. */}
             {statBadge ? (
-                <div className="self-center shrink-0 flex flex-col items-center gap-0.5 rounded-md bg-(--background-primary)/60 px-1.5 py-1">
+                <div className="self-center shrink-0 flex flex-col items-center gap-0.5 rounded-[2px] bg-(--background-primary)/60 px-1.5 py-1">
                     <span className="text-[7px] font-bold uppercase leading-none tracking-wider text-(--tertiary)">{statBadge.label}</span>
-                    <span className="text-xs font-black leading-none text-(--text-primary)">{statBadge.value}</span>
+                    <span className="font-display-upright text-[13px] leading-none tabular-nums text-(--text-primary)">{statBadge.value}</span>
                 </div>
             ) : !hideCommand && (
                 <CardCommand
@@ -190,7 +187,7 @@ export const CardItemCompact = ({
             )}
 
             <div className="min-w-0 items-center flex-1 space-y-0.5 text-left">
-                <div className={`flex gap-x-0.5 text-[12px] font-black text-(--text-primary) overflow-x-scroll scrollbar-hide truncate ${isRedacted ? 'redacted' : ''}`}>
+                <div className={`flex gap-x-0.5 font-display-upright uppercase text-[13px] leading-none text-(--text-primary) overflow-x-scroll scrollbar-hide truncate ${isRedacted ? 'redacted' : ''}`}>
                     {isRedacted 
                         ? 'REDACTED NAME' 
                         : 
@@ -218,7 +215,7 @@ export const CardItemCompact = ({
                 {!hideTeamPoints && (
                     <div className="hidden @[75px]:flex items-center gap-1 min-w-0 overflow-x-scroll scrollbar-hide">
                         <div
-                            className={`flex text-[9px] leading-none shrink-0 font-semibold tracking-tight rounded px-0.5 py-0.5 ${isRedacted ? 'redacted' : ''}`}
+                            className={`flex font-display-upright uppercase text-[10px] leading-none shrink-0 rounded-[2px] px-[3px] py-0.5 ${isRedacted ? 'redacted' : ''}`}
                             style={isRedacted ? undefined : teamStyle}
                         >
                             {card?.team || 'N/A'}
@@ -226,7 +223,7 @@ export const CardItemCompact = ({
                             <span className="hidden @[130px]:block ml-0.5"> {formatYear(card?.year || '-')}</span>
                         </div>
                         <div
-                            className={`hidden @[80px]:flex text-[9px] leading-none font-semibold tracking-tight text-nowrap rounded px-0.5 py-0.5 ${isRedacted ? 'redacted' : ''}`}
+                            className={`hidden @[80px]:flex text-[9px] leading-none font-semibold uppercase tracking-tight tabular-nums text-nowrap rounded-[2px] px-[3px] py-0.5 ${isRedacted ? 'redacted' : ''}`}
                             style={isRedacted ? undefined : pointsBadgeStyle}
                         >
                             {hasPtsMultiplier ? (
@@ -239,7 +236,7 @@ export const CardItemCompact = ({
                             )}
                             <span className="hidden @[120px]:block">S</span>
                         </div>
-                        <ChartVersionBadge chartVersion={card?.chart_version} className="hidden @[110px]:flex text-[8px] px-0.5 rounded" />
+                        <ChartVersionBadge chartVersion={card?.chart_version} className="hidden @[110px]:flex text-[8px] px-0.5 rounded-[2px]" />
                     </div>
                 )}
                 {!hideDetails && (
@@ -278,7 +275,7 @@ export const CardItemCompact = ({
 
             {/* Absolute positioned elements */}
             {!hideDetails && !isRedacted && !hideCommand && !statBadge && (
-                <div className="hidden @[95px]:block absolute bottom-1.5 left-0.5 bg-(--background-secondary)/70 backdrop-blur-[1px] rounded">
+                <div className="hidden @[95px]:block absolute bottom-1.5 left-0.5 bg-(--background-secondary)/70 backdrop-blur-[1px] rounded-[2px]">
                     <img src={imageForSet(card?.set || '', true)} alt={card?.set ?? 'N/A'} loading="lazy" className="h-3.5 object-contain object-center" />
                 </div>
             )}
@@ -311,7 +308,7 @@ export const CardItemCompact = ({
                     className={`
                         absolute -top-2 ${actionButton.placement === 'left' ? '-left-2' : '-right-2'}
                         flex items-center justify-center
-                        w-5 h-5 rounded
+                        w-5 h-5 rounded-control
                         text-(--text-tertiary)
                         transition-colors
                         ${actionButton.disabled
@@ -324,7 +321,7 @@ export const CardItemCompact = ({
             )}
 
             {isLoading && (
-                <div className="absolute inset-0 flex items-center justify-center gap-1 rounded-lg bg-(--background-secondary)/70 backdrop-blur-[1px]">
+                <div className="absolute inset-0 flex items-center justify-center gap-1 rounded-card bg-(--background-secondary)/70 backdrop-blur-[1px]">
                     <span className="w-1.5 h-1.5 rounded-full bg-(--secondary) animate-bounce" style={{ animationDelay: '0ms' }} />
                     <span className="w-1.5 h-1.5 rounded-full bg-(--secondary) animate-bounce" style={{ animationDelay: '150ms' }} />
                     <span className="w-1.5 h-1.5 rounded-full bg-(--secondary) animate-bounce" style={{ animationDelay: '300ms' }} />

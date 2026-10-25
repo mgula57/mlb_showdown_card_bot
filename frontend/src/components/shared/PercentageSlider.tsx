@@ -28,7 +28,7 @@ export default function PercentageSlider({ label, info, value, onChange, fillCla
                 {info && <InfoTooltip text={info} openOnHover />}
             </span>
 
-            <div className="relative flex-1 h-6 rounded-md bg-(--background-quaternary) overflow-hidden">
+            <div className="relative flex-1 h-6 rounded-control bg-(--background-quaternary) overflow-hidden">
                 <div className={`absolute inset-y-0 left-0 ${fillClassName}`} style={{ width: `${percent}%` }} />
                 <input
                     type="range"
@@ -43,7 +43,7 @@ export default function PercentageSlider({ label, info, value, onChange, fillCla
                 />
             </div>
 
-            <div className="flex items-center shrink-0 rounded-md border border-(--divider) bg-(--background-secondary) pr-2 focus-within:border-(--text-tertiary)">
+            <div className="flex items-center shrink-0 rounded-control border border-(--divider) bg-(--background-secondary) pr-2 focus-within:border-(--text-tertiary)">
                 <input
                     type="number"
                     inputMode="numeric"

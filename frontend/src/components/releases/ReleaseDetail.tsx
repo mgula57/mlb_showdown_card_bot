@@ -8,6 +8,8 @@ import { ModeBanner } from '../shared/ModeBanner';
 import { bannerTokens } from '../../functions/colors';
 import { FaArrowLeft, FaCheck, FaEye, FaEyeSlash, FaGlobe, FaPen, FaPlus, FaSpinner, FaXmark } from 'react-icons/fa6';
 
+import { InlineError } from '../shared/InlineError';
+import { Heading } from '../shared/Heading';
 type ReleaseDetailProps = {
     release: Release;
     readOnly: boolean;
@@ -181,7 +183,7 @@ export function ReleaseDetail({ release, readOnly, editionSlug, onEditionChange,
                     </button>
                     <div className="flex flex-col justify-center min-w-0 flex-1 md:flex-none md:max-w-[40%] py-1.5" title={release.description || undefined}>
                         <div className="flex items-center gap-2 min-w-0">
-                            <div className="text-lg leading-tight font-black text-(--text-primary) truncate uppercase">{release.name}</div>
+                            <Heading level="section" as="h1" className="truncate">{release.name}</Heading>
                             {release.is_official && <HeaderBadge className="bg-(--secondary) text-(--background-primary)">OFFICIAL</HeaderBadge>}
                             {isOwner && !isPublished && <HeaderBadge className="border border-(--divider) text-(--text-tertiary)">DRAFT</HeaderBadge>}
                         </div>
@@ -194,7 +196,7 @@ export function ReleaseDetail({ release, readOnly, editionSlug, onEditionChange,
                         {editions.map(edition => (
                             <Tabs.Trigger key={edition.id} value={edition.id} className={EDITION_TAB_CLASS}>
                                 {edition.name}
-                                <span className="ml-1.5 text-[10px] text-(--text-tertiary) font-normal py-0.5 bg-(--background-primary) px-1 rounded-md">{edition.card_count}</span>
+                                <span className="ml-1.5 text-[10px] text-(--text-tertiary) font-normal py-0.5 bg-(--background-primary) px-1 rounded-card">{edition.card_count}</span>
                                 {/* Only worth flagging per edition when the rest of the release is already public */}
                                 {isOwner && isPublished && !edition.is_published && (
                                     <span className="ml-1.5 text-[9px] font-black text-(--text-tertiary)">DRAFT</span>
@@ -273,9 +275,9 @@ export function ReleaseDetail({ release, readOnly, editionSlug, onEditionChange,
                 )}
 
                 {error && (
-                    <div className="mx-4 mt-2 text-[12px] text-red-400 px-3 py-2 rounded-lg border border-red-400/30 bg-red-400/5 shrink-0">
+                    <InlineError size="md" className="mx-4 mt-2 shrink-0">
                         {error}
-                    </div>
+                    </InlineError>
                 )}
 
                 {isEditing && editionForm && (
@@ -292,7 +294,7 @@ export function ReleaseDetail({ release, readOnly, editionSlug, onEditionChange,
                             type="button"
                             onClick={handleSubmitEditionForm}
                             disabled={!editionFormName.trim() || savingEditionForm}
-                            className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-(--secondary) text-[12px] font-bold text-(--background-primary) hover:opacity-90 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+                            className="flex items-center gap-1.5 px-3 py-2 rounded-control bg-(--secondary) text-[12px] font-bold text-(--background-primary) hover:opacity-90 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
                         >
                             {savingEditionForm
                                 ? <FaSpinner className="animate-spin text-[10px]" />
@@ -380,7 +382,7 @@ function HeaderButton({ icon, label, onClick, tone = 'neutral', busy = false, co
             disabled={busy}
             title={title ?? label}
             aria-label={label}
-            className={`flex items-center justify-center gap-1.5 h-8 min-w-8 px-2 sm:px-3 rounded-lg text-[12px] font-bold whitespace-nowrap transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${HEADER_BUTTON_TONES[tone]}`}
+            className={`flex items-center justify-center gap-1.5 h-8 min-w-8 px-2 sm:px-3 rounded-control text-[12px] font-bold whitespace-nowrap transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${HEADER_BUTTON_TONES[tone]}`}
         >
             <span className="text-[12px]">{busy ? <FaSpinner className="animate-spin" /> : icon}</span>
             <span className={collapseLabel ? 'hidden sm:inline' : ''}>{label}</span>
@@ -394,7 +396,7 @@ function BannerButton({ className, onClick, disabled, children }: { className: s
             type="button"
             onClick={onClick}
             disabled={disabled}
-            className={`flex items-center gap-1 rounded-lg px-2 py-1 h-7 text-[11px] font-bold whitespace-nowrap cursor-pointer transition-colors disabled:opacity-60 disabled:cursor-not-allowed ${className}`}
+            className={`flex items-center gap-1 rounded-control px-2 py-1 h-7 text-[11px] font-bold whitespace-nowrap cursor-pointer transition-colors disabled:opacity-60 disabled:cursor-not-allowed ${className}`}
         >
             {children}
         </button>

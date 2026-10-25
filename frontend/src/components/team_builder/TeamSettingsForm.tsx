@@ -20,7 +20,10 @@ import { containsProfanity } from '../../domain/profanity';
 import { useAuth } from '../auth/AuthContext';
 import { DEFAULT_PRIMARY_COLOR, DEFAULT_SECONDARY_COLOR } from '../../api/userSettings';
 import { useMediaQuery } from '../../hooks/useMediaQuery';
+import { InlineError } from '../shared/InlineError';
+import { buttonClass } from '../shared/buttonStyles';
 
+import { FIELD_LABEL_CLASS } from '../shared/fieldStyles';
 const TEAM_NAME_MAX_LENGTH = 25;
 
 type PlayerFilters = {
@@ -50,7 +53,7 @@ function SectionSummary({ items }: { items: SummaryItem[] }) {
     return (
         <div className="text-xs font-bold flex flex-wrap items-center gap-x-1.5 gap-y-1 text-(--tertiary)">
             {items.map((item, i) => (
-                <div key={`${item.label ?? ''}-${item.value}-${i}`} className="flex shrink-0 items-center whitespace-nowrap rounded-md px-1.5 border border-(--divider)">
+                <div key={`${item.label ?? ''}-${item.value}-${i}`} className="flex shrink-0 items-center whitespace-nowrap rounded-[2px] px-1.5 border border-(--divider)">
                     {item.image
                         ? <img src={item.image} alt={item.value} className="h-5 w-auto object-contain" />
                         : <span>{item.label ? `${item.label}: ` : ''}{item.value}</span>
@@ -199,9 +202,9 @@ export function TeamSettingsForm({ team, onChange, onArchive, archiving = false 
                     maxLength={TEAM_NAME_MAX_LENGTH}
                 />
                 {nameError && (
-                    <div className="col-span-full text-[11px] text-red-400 px-2 py-1.5 rounded-lg border border-red-400/30 bg-red-400/5">
+                    <InlineError className="col-span-full">
                         {nameError}
-                    </div>
+                    </InlineError>
                 )}
                 <FormInput
                     label="Abbreviation"
@@ -210,12 +213,12 @@ export function TeamSettingsForm({ team, onChange, onArchive, archiving = false 
                     placeholder="e.g. NYY"
                 />
                 {abbreviationError && (
-                    <div className="col-span-full text-[11px] text-red-400 px-2 py-1.5 rounded-lg border border-red-400/30 bg-red-400/5">
+                    <InlineError className="col-span-full">
                         {abbreviationError}
-                    </div>
+                    </InlineError>
                 )}
                 <div className='flex flex-col space-y-2' >
-                    <label className="text-sm font-medium text-secondary mt-0.5">Make Public?</label>
+                    <label className={`${FIELD_LABEL_CLASS} mt-0.5`}>Make Public?</label>
                     <FormEnabler
                         label={`${team.is_public ?? true ? 'Public' : 'Private'}`}
                         isEnabled={team.is_public ?? true}
@@ -237,7 +240,7 @@ export function TeamSettingsForm({ team, onChange, onArchive, archiving = false 
                     type="button"
                     onClick={handleSaveColorsAsDefault}
                     disabled={savedColorsAsDefault}
-                    className="col-span-full self-start flex items-center gap-1.5 rounded-lg px-3 py-2 text-[12px] font-bold border border-(--divider) text-(--text-secondary) hover:text-(--text-primary) disabled:opacity-70 cursor-pointer disabled:cursor-default transition-colors"
+                    className="col-span-full self-start flex items-center gap-1.5 rounded-control px-3 py-2 text-[12px] font-bold border border-(--divider) text-(--text-secondary) hover:text-(--text-primary) disabled:opacity-70 cursor-pointer disabled:cursor-default transition-colors"
                 >
                     {savedColorsAsDefault ? <><FaCheck /> Saved as default</> : <><FaFloppyDisk /> Save colors as default</>}
                 </button>
@@ -257,9 +260,9 @@ export function TeamSettingsForm({ team, onChange, onArchive, archiving = false 
                     onChange={v => onChange({ pts_limit: v })}
                 />
                 {ptsError && (
-                    <div className="col-span-full text-[11px] text-red-400 px-2 py-1.5 rounded-lg border border-red-400/30 bg-red-400/5">
+                    <InlineError className="col-span-full">
                         {ptsError}
-                    </div>
+                    </InlineError>
                 )}
                 <NumberInput
                     label={`Roster Size (${MIN_ROSTER}–${MAX_ROSTER})`}
@@ -267,9 +270,9 @@ export function TeamSettingsForm({ team, onChange, onArchive, archiving = false 
                     onChange={handleRosterSizeChange}
                 />
                 {rosterSizeError && (
-                    <div className="col-span-full text-[11px] text-red-400 px-2 py-1.5 rounded-lg border border-red-400/30 bg-red-400/5">
+                    <InlineError className="col-span-full">
                         {rosterSizeError}
-                    </div>
+                    </InlineError>
                 )}
                 <NumberInput
                     label={`Starting Pitchers (1–${MAX_STARTERS})`}
@@ -295,9 +298,9 @@ export function TeamSettingsForm({ team, onChange, onArchive, archiving = false 
                     onChange={v => onChange({ bench_pts_multiplier: v })}
                 />
                 {rosterError && (
-                    <div className="col-span-full text-[11px] text-red-400 px-2 py-1.5 rounded-lg border border-red-400/30 bg-red-400/5">
+                    <InlineError className="col-span-full">
                         {rosterError}
-                    </div>
+                    </InlineError>
                 )}
             </FormSection>
 
@@ -332,7 +335,7 @@ export function TeamSettingsForm({ team, onChange, onArchive, archiving = false 
                                         : [...current, s.value];
                                     onChange({ allowed_card_sources: next, ...normalizeSetSettings({ ...team, allowed_card_sources: next }) });
                                 }}
-                                className={`px-3 py-1.5 rounded-lg border-2 text-[12px] font-bold transition-colors
+                                className={`px-3 py-1.5 rounded-card border-2 text-[12px] font-bold transition-colors
                                     ${comingSoon || (challengeLocked && !active)
                                         ? 'border-(--divider) opacity-40 text-(--text-secondary) cursor-not-allowed'
                                         : challengeLocked
@@ -352,7 +355,7 @@ export function TeamSettingsForm({ team, onChange, onArchive, archiving = false 
                         </div>
                     )}
                     {(team.allowed_card_sources ?? []).length === 0 && (
-                        <div className="w-full text-[11px] text-(--text-tertiary) px-2 py-1.5 rounded-lg border border-(--divider) bg-(--background-secondary)">
+                        <div className="w-full text-[11px] text-(--text-tertiary) px-2 py-1.5 rounded-card border border-(--divider) bg-(--background-secondary)">
                             No restriction — all sources allowed.
                         </div>
                     )}
@@ -408,7 +411,7 @@ export function TeamSettingsForm({ team, onChange, onArchive, archiving = false 
                                     const next = active ? current.filter(v => v !== value) : [...current, value];
                                     updatePlayerFilters({ hand: next });
                                 }}
-                                className={`px-3 py-1.5 rounded-lg border-2 text-[12px] font-bold transition-colors cursor-pointer
+                                className={`px-3 py-1.5 rounded-control border-2 text-[12px] font-bold transition-colors cursor-pointer
                                     ${active
                                         ? 'border-(--secondary) bg-(--secondary)/10 text-(--secondary)'
                                         : 'border-(--divider) opacity-40 hover:opacity-70 text-(--text-secondary)'
@@ -422,11 +425,11 @@ export function TeamSettingsForm({ team, onChange, onArchive, archiving = false 
             </FormSection>
 
             {onArchive && (
-                <div className={`col-span-full flex flex-col gap-2 rounded-xl border-2 p-3 ${team.is_archived
-                    ? 'border-amber-500/50 bg-amber-500/10'
-                    : 'border-red-500/50 bg-red-500/10'
+                <div className={`col-span-full flex flex-col gap-2 rounded-card border-2 p-3 ${team.is_archived
+                    ? 'border-(--gold)/50 bg-(--gold)/10'
+                    : 'border-(--red)/50 bg-(--red)/10'
                 }`}>
-                    <div className={`flex items-center gap-2 text-sm font-bold ${team.is_archived ? 'text-amber-500' : 'text-red-500'}`}>
+                    <div className={`flex items-center gap-2 text-sm font-bold ${team.is_archived ? 'text-(--gold)' : 'text-(--red)'}`}>
                         {team.is_archived ? <FaBoxArchive /> : <FaTrashCan />}
                         {team.is_archived ? 'Team Archived' : 'Delete Team'}
                     </div>
@@ -439,10 +442,9 @@ export function TeamSettingsForm({ team, onChange, onArchive, archiving = false 
                         type="button"
                         onClick={onArchive}
                         disabled={archiving}
-                        className={`self-start flex items-center gap-1.5 rounded-lg px-3 py-2 text-[12px] font-bold transition-colors disabled:opacity-50 cursor-pointer disabled:cursor-default ${team.is_archived
-                            ? 'border border-amber-500/60 text-amber-500 hover:bg-amber-500/15'
-                            : 'bg-red-600 text-white hover:bg-red-700'
-                        }`}
+                        className={team.is_archived
+                            ? buttonClass('secondary', 'sm', 'self-start')
+                            : buttonClass('danger', 'sm', 'self-start')}
                     >
                         {archiving ? <FaSpinner className="animate-spin" /> : team.is_archived ? <FaBoxArchive /> : <FaTrashCan />}
                         {team.is_archived ? 'Unarchive team' : 'Archive team'}
@@ -480,7 +482,7 @@ function SetToggleGroup({ label, hint, options, selected, onToggle }: SetToggleG
                         key={value}
                         type="button"
                         onClick={() => onToggle(value)}
-                        className={`p-1 rounded-lg border-2 transition-colors cursor-pointer
+                        className={`p-1 rounded-control border-2 transition-colors cursor-pointer
                             ${active
                                 ? 'border-(--secondary) bg-(--secondary)/10'
                                 : 'border-(--divider) opacity-40 hover:opacity-70'
@@ -494,9 +496,9 @@ function SetToggleGroup({ label, hint, options, selected, onToggle }: SetToggleG
                 );
             })}
             {selected.length === 0 && (
-                <div className="w-full text-[11px] text-red-400 px-2 py-1.5 rounded-lg border border-red-400/30 bg-red-400/5">
+                <InlineError className="w-full">
                     At least one set must be selected.
-                </div>
+                </InlineError>
             )}
         </div>
     );

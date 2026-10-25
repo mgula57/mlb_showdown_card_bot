@@ -32,7 +32,7 @@ export default function PitchingTable({ team, sportId, cardMap, onCardSelect, is
         : 0;
 
     return (
-        <div className="rounded-xl border border-(--divider) bg-(--background-secondary) overflow-hidden">
+        <div className="rounded-card border border-(--divider) bg-(--background-secondary) overflow-hidden">
             <div className="px-3 py-2 border-b border-(--divider) flex items-center gap-2">
                 {sportId === 51 && countryCode && (
                     <ReactCountryFlag countryCode={countryCode} svg style={{ width: '1.25em', height: '1.25em' }} />

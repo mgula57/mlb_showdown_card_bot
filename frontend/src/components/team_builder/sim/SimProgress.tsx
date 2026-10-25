@@ -94,7 +94,7 @@ export function SimProgress({ job, teamName, onCancel }: Props) {
             <div className="flex w-full max-w-lg flex-col items-center gap-4">
                 {/* Hero panel: the dice, what's running, and how far along it is. Clipped, so the
                     panel's top padding has to clear the top of the dice' toss arc (~29px). */}
-                <div className="relative w-full max-w-lg overflow-hidden rounded-2xl border border-(--divider) bg-linear-to-br from-(--background-tertiary) to-(--background-secondary) px-5 pt-8 pb-5 shadow-sm">
+                <div className="relative w-full max-w-lg overflow-hidden rounded-card border border-(--divider) bg-(--background-secondary) px-5 pt-8 pb-5">
                     <div
                         aria-hidden
                         className="pointer-events-none absolute inset-x-0 top-0 h-44"
@@ -105,7 +105,7 @@ export function SimProgress({ job, teamName, onCancel }: Props) {
                         <button
                             type="button"
                             onClick={onCancel}
-                            className="absolute top-1 right-1 z-10 flex cursor-pointer flex-col items-center rounded-lg border border-(--divider) bg-(--background-primary) px-2.5 py-1.5 text-[11px] font-semibold leading-tight text-tertiary transition-colors hover:border-(--showdown-blue) hover:text-primary"
+                            className="absolute top-1 right-1 z-10 flex cursor-pointer flex-col items-center rounded-control border border-(--divider) bg-(--background-primary) px-2.5 py-1.5 text-[11px] font-semibold leading-tight text-tertiary transition-colors hover:border-(--showdown-blue) hover:text-primary"
                         >
                             <span>Sim Stuck?</span>
                             <span className="inline-flex items-center gap-1">

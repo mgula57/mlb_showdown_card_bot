@@ -88,7 +88,7 @@ function PositionRow({
     return (
         <div
             className={`
-                relative flex items-center gap-3 min-h-9 rounded-lg shrink-0
+                relative flex items-center gap-3 min-h-9 rounded-card shrink-0
                 transition-all duration-200
                 ${isActive ? 'ring-1 ring-(--secondary) shadow-[0_0_8px_2px_color-mix(in_srgb,var(--secondary)_40%,transparent)] animate-pulse px-1 -mx-1' : ''}`}
                 onClick={e => e.stopPropagation()}
@@ -115,7 +115,7 @@ function PositionRow({
                     type="button"
                     onClick={onClick}
                     disabled={pickDisabled}
-                    className={`flex-1 flex items-center gap-1.5 px-3 h-18 rounded-lg border border-dashed
+                    className={`flex-1 flex items-center gap-1.5 px-3 h-18 rounded-control border border-dashed
                         text-[11px] disabled:pointer-events-none disabled:opacity-40 transition-colors
                         ${isActive
                             ? 'border-(--secondary)/70 text-(--secondary) hover:border-(--secondary) hover:text-(--secondary)'

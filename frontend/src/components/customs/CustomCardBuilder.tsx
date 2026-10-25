@@ -40,6 +40,7 @@ import { InfoTooltip } from '../shared/InfoTooltip';
 
 // Popovers
 import { ToastMessage } from '../shared/ToastMessage';
+import { Plate } from '../shared/Plate';
 import { CardDetail } from '../cards/CardDetail';
 import { GalleryTabContent } from '../gallery/GalleryTabContent';
 
@@ -63,6 +64,8 @@ import { setStyleSummary, imageStyleSummary, chartVersionOptions } from './cardS
 import { formSectionSummary } from './FormSectionSummary';
 import { formInputsFromCard, type CustomizeCardRouteState } from './customizeCard';
 
+import { Heading } from '../shared/Heading';
+import { FIELD_LABEL_CLASS } from '../shared/fieldStyles';
 // ----------------------------------
 // MARK: - Form Interface
 // ----------------------------------
@@ -291,9 +294,9 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
     // Stats Period Options
     const statsPeriodOptions: SelectOption[] = [
         { 'value': 'REGULAR', 'label': 'Regular Season', 'symbol': '⚾' },
-        { 'value': 'POST', 'label': 'Postseason', 'symbol': '🏆', 'borderColor': 'border-yellow-500'},
-        { 'value': 'DATES', 'label': 'Date Range', 'symbol': '📅', 'borderColor': 'border-red-600' },
-        { 'value': 'SPLIT', 'label': 'Split', 'symbol': '🔀', 'borderColor': 'border-blue-700' },
+        { 'value': 'POST', 'label': 'Postseason', 'symbol': '🏆', 'borderColor': 'border-(--gold)'},
+        { 'value': 'DATES', 'label': 'Date Range', 'symbol': '📅', 'borderColor': 'border-(--showdown-red)' },
+        { 'value': 'SPLIT', 'label': 'Split', 'symbol': '🔀', 'borderColor': 'border-(--showdown-blue)' },
     ]
 
     const leagueOptions: SelectOption[] = [
@@ -425,8 +428,8 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
                     summaries.push({ ...(eraOption || { value: form.era || "DYNAMIC" }), label: 'Era' });
 
                 }
-                if (isSet00_01 && form.is_variable_speed_00_01 !== FORM_DEFAULTS.is_variable_speed_00_01) summaries.push({ value: 'VARIABLE SPEED', borderColor: 'border-green-500' });
-                if (form.regress_small_sample_to_replacement !== FORM_DEFAULTS.regress_small_sample_to_replacement) summaries.push({ value: 'REGRESS SMALL SAMPLE', borderColor: 'border-green-500' });
+                if (isSet00_01 && form.is_variable_speed_00_01 !== FORM_DEFAULTS.is_variable_speed_00_01) summaries.push({ value: 'VARIABLE SPEED', borderColor: 'border-(--green)' });
+                if (form.regress_small_sample_to_replacement !== FORM_DEFAULTS.regress_small_sample_to_replacement) summaries.push({ value: 'REGRESS SMALL SAMPLE', borderColor: 'border-(--green)' });
                 break;
         }
         
@@ -867,8 +870,8 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
                     group: c.navigation_menu,
                     trailing: (c.batting || c.pitching) ? (
                         <span className="flex gap-1 shrink-0">
-                            {c.batting  && <span className="text-[10px] leading-none px-1.5 py-0.5 rounded bg-blue-900/60 text-blue-300 font-semibold">Hitting</span>}
-                            {c.pitching && <span className="text-[10px] leading-none px-1.5 py-0.5 rounded bg-amber-900/60 text-amber-300 font-semibold">Pitching</span>}
+                            {c.batting  && <Plate variant="navy" size="sm">Hitting</Plate>}
+                            {c.pitching && <Plate variant="red" size="sm">Pitching</Plate>}
                         </span>
                     ) : undefined,
                 })))
@@ -1008,16 +1011,16 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
                         {/* Reset and collapse buttons */}
                         <div className='flex gap-1 text-lg items-center'>
 
-                            <h4 className={`mr-2 font-bold text-(--primary) ${isFormCollapsed ? 'hidden' : 'block'}`}>
+                            <Heading level="section" className={`mr-2 ${isFormCollapsed ? 'hidden' : 'block'}`}>
                                 Card Settings
-                            </h4>
+                            </Heading>
 
                             {/* Reset and shuffle buttons */}
                             <div className={`flex items-center gap-1 text-xl ${isFormCollapsed ? 'hidden' : 'flex'}`}>
                                 <button
                                     type="button"
                                     className={`
-                                        p-2 rounded-lg hover:bg-(--background-tertiary) transition-colors cursor-pointer
+                                        p-2 rounded-control hover:bg-(--background-tertiary) transition-colors cursor-pointer
                                     `}
                                     title="Reset Form"
                                     onClick={handleReset}
@@ -1028,7 +1031,7 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
                                 <button
                                     type="button"
                                     className={`
-                                        p-2 rounded-lg hover:bg-(--background-tertiary) transition-colors cursor-pointer
+                                        p-2 rounded-control hover:bg-(--background-tertiary) transition-colors cursor-pointer
                                     `}
                                     title='Shuffle'
                                     onClick={handleShuffle}
@@ -1041,7 +1044,7 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
 
                         <button
                             className={`
-                                text-lg p-2 rounded-lg hover:bg-(--background-tertiary) transition-colors cursor-pointer
+                                text-lg p-2 rounded-control hover:bg-(--background-tertiary) transition-colors cursor-pointer
                                 @2xl:order-first @2xl:mr-1
                                 ${isFormCollapsed ? 'flex flex-row-reverse @2xl:flex-col items-center gap-2 @2xl:gap-3 px-4 @2xl:px-2 @2xl:mr-0 w-full justify-center ' : ''}
                             `}
@@ -1062,12 +1065,12 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
                             {isFormCollapsed && (
                                 <>
                                     {/* Normal horizontal text for small screens */}
-                                    <span className="text-nowrap font-semibold text-(--tertiary) @2xl:hidden">
+                                    <span className="text-nowrap font-display uppercase text-sm leading-none text-(--text-tertiary) @2xl:hidden">
                                         Card Settings
                                     </span>
                                     {/* Vertical text for large screens */}
                                     <span 
-                                        className='text-nowrap font-semibold text-(--tertiary) hidden @2xl:block'
+                                        className='text-nowrap font-display uppercase text-sm leading-none text-(--text-tertiary) hidden @2xl:block'
                                         style={{ 
                                             writingMode: 'vertical-lr',
                                             textOrientation: 'sideways',
@@ -1133,6 +1136,7 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
                                             <div className="@container shrink-0 w-18">
                                                 <CustomSelect
                                                     className="text-sm"
+                                                    // design-ok: set-logo picker, not a form field
                                                     buttonClassName="w-full pl-1 py-2 hover:bg-(--background-secondary) cursor-pointer rounded-full"
                                                     imageClassName="object-contain object-center w-16 mr-2 h-7"
                                                     compactImageClassName="object-contain object-center w-10 h-7"
@@ -1150,13 +1154,13 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
 
                                         {/* Display Error (If Applicable) */}
                                         {errorMessage && (
-                                            <div className='w-full border-3 bg-red-500/10 text-red-500 border-red-500 rounded-xl p-2'>
+                                            <div className='w-full border-2 bg-(--red)/10 text-(--red) border-(--red) rounded-card p-2'>
                                                 <div className='flex flex-row justify-between items-center mb-1 text-xl'>
-                                                    <div className='font-black flex flex-row gap-2 items-center'> 
+                                                    <div className='font-display uppercase leading-none flex flex-row gap-2 items-center'> 
                                                         <FaExclamationCircle /> 
                                                         Error
                                                     </div>
-                                                    <button className='text-red-500 underline' onClick={() => setErrorMessage('')}>
+                                                    <button className='text-(--red) cursor-pointer hover:opacity-70' aria-label='Dismiss error' onClick={() => setErrorMessage('')}>
                                                         <FaXmark />
                                                     </button>
                                                 </div>
@@ -1299,19 +1303,20 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
                                             {getImagePreview() && (
                                                 <div className="col-span-full grid grid-cols-[12fr_8fr] gap-2 items-center">
                                                     <div>
-                                                        <label className="block text-sm font-medium text-(--tertiary) mb-1">
+                                                        <label className={`${FIELD_LABEL_CLASS} mb-1`}>
                                                             Preview
                                                         </label>
                                                         <img
                                                             src={getImagePreview() || ''}
                                                             alt="Invalid Image"
+                                                            // design-ok: card art keeps its printed corner radius
                                                             className="max-w-full h-38 object-contain rounded-lg border-2 border-form-element"
                                                         />
                                                     </div>
 
                                                     <button type="button" className="flex flex-col items-center space-x-2 cursor-pointer hover:opacity-50">
                                                         <FaXmark
-                                                            className="text-3xl text-red-500 hover:text-red-300 transition-colors"
+                                                            className="text-3xl text-(--red) hover:opacity-70 transition-opacity"
                                                             onClick={() => handleFileChange(null)}
                                                         />
                                                         <span>Remove Image</span>
@@ -1387,7 +1392,6 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
                             @2xl:pointer-events-auto
                             @2xl:bg-background-secondary/95 @2xl:backdrop-blur
                             @2xl:border-t @2xl:border-form-element
-                            @2xl:shadow-md
                             ${isFormCollapsed ? '@2xl:hidden' : ''}
                         `}>
 
@@ -1404,7 +1408,7 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
                                         fixed left-4 bottom-[calc(1rem+var(--safe-bottom))]
                                         pointer-events-auto @2xl:hidden
                                         flex items-center justify-center
-                                        h-12 w-12 rounded-full shadow-xl shadow-black/25
+                                        h-12 w-12 rounded-full shadow-overlay
                                         bg-background-secondary border border-form-element text-(--primary) text-lg
                                         cursor-pointer hover:brightness-110 active:scale-95 transition-transform
                                     "
@@ -1420,12 +1424,12 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
                                     title={disableBuildButton ? "Please enter player name and year" : "Build Card"}
                                     className={`
                                         pointer-events-auto
-                                        ${disableBuildButton ? 'bg-(--showdown-blue)' : 'animated-showdown-gradient'}
+                                        bg-(--showdown-blue)
                                         flex items-center justify-center gap-x-2
-                                        text-white font-black
-                                        h-16 w-16 rounded-full shadow-xl shadow-black/25
-                                        @2xl:h-auto @2xl:w-full @2xl:flex-1 @2xl:gap-x-1
-                                        @2xl:rounded-xl @2xl:py-4 @2xl:shadow-none
+                                        text-white
+                                        h-16 w-16 rounded-full shadow-overlay
+                                        @2xl:h-auto @2xl:w-full @2xl:flex-1 @2xl:gap-x-1.5
+                                        @2xl:rounded-control @2xl:py-3.5 @2xl:shadow-raised
                                         transition-transform
                                         ${disableBuildButton
                                             ? 'cursor-not-allowed opacity-25'
@@ -1435,7 +1439,7 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
                                     onClick={handleBuild}
                                 >
                                     <CardBuildIcon size="2rem" className='mr-0.5' />
-                                    <span className="hidden @2xl:inline">Build Card</span>
+                                    <span className="hidden @2xl:inline font-display uppercase text-2xl leading-none">Build Card</span>
                                 </button>
 
                             </div>

@@ -13,13 +13,14 @@ import {
 } from '../../api/userQuickFilters';
 import { LoginModal } from '../auth/LoginModal';
 
+import { fieldClass } from '../shared/fieldStyles';
 function Tip({ label, children }: { label: string; children: ReactNode }) {
     return (
         <div className="relative group/tip shrink-0">
             {children}
             <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 z-100 pointer-events-none
                             opacity-0 group-hover/tip:opacity-100 transition-opacity duration-150">
-                <div className="bg-gray-900 text-white text-xs rounded px-2 py-1 whitespace-nowrap shadow-lg">
+                <div className="bg-(--field-ink) text-white text-xs rounded-control px-2 py-1 whitespace-nowrap shadow-overlay">
                     {label}
                 </div>
             </div>
@@ -188,12 +189,7 @@ export function QuickFiltersDropdown({ source, defaultPresets, currentFilters, o
         <div ref={containerRef} className="relative">
             <button
                 onClick={() => setIsOpen(prev => !prev)}
-                className={`
-                    px-3 h-11 rounded-xl border flex items-center gap-2
-                    ${isOpen
-                        ? 'bg-(--background-secondary-hover) border border-form-element'
-                        : 'bg-(--background-secondary) border border-form-element hover:bg-(--background-secondary-hover)'}
-                `}
+                className={fieldClass('lg', `flex items-center gap-2 cursor-pointer ${isOpen ? 'border-(--showdown-blue)' : ''}`)}
             >
                 <FaBolt className={selectedPresetFiltersMatch ? 'text-(--success)' : 'text-primary'} />
                 <span className="hidden @2xl:inline font-medium">
@@ -209,7 +205,7 @@ export function QuickFiltersDropdown({ source, defaultPresets, currentFilters, o
                     ${alignRight ? 'right-0' : 'left-0'}
                     min-w-64 w-max max-w-80
                     bg-(--background-secondary)/95 backdrop-blur-2xl border border-form-element
-                    rounded-xl shadow-xl
+                    rounded-card shadow-overlay
                 `}>
                     {/* Defaults */}
                     {defaultPresets.length > 0 && (
@@ -220,7 +216,7 @@ export function QuickFiltersDropdown({ source, defaultPresets, currentFilters, o
                                     <li key={preset.id}>
                                         <button
                                             onClick={() => handleApply(preset.filters, preset.id)}
-                                            className="w-full text-left px-2 py-1.5 rounded-lg hover:bg-(--background-quaternary) text-sm font-medium transition-colors cursor-pointer flex items-center justify-between gap-2"
+                                            className="w-full text-left px-2 py-1.5 rounded-control hover:bg-(--background-quaternary) text-sm font-medium transition-colors cursor-pointer flex items-center justify-between gap-2"
                                         >
                                             <span>{preset.name}</span>
                                             {selectedPresetId === preset.id && selectedPresetFiltersMatch && <FaCheck className="text-(--success) text-xs shrink-0" />}
@@ -264,14 +260,14 @@ export function QuickFiltersDropdown({ source, defaultPresets, currentFilters, o
                                                         if (e.key === 'Enter') handleRenameCommit();
                                                         if (e.key === 'Escape') handleRenameCancel();
                                                     }}
-                                                    className="flex-1 text-sm px-2 py-1 rounded-lg border border-form-element bg-(--background-primary) focus:outline-none focus:border-blue-500 min-w-0"
+                                                    className="flex-1 text-sm px-2 py-1 rounded-control border border-form-element bg-(--background-primary) focus:outline-none focus:border-(--showdown-blue) min-w-0"
                                                     maxLength={40}
                                                 />
                                                 <Tip label="Save rename">
                                                     <button
                                                         onClick={handleRenameCommit}
                                                         disabled={!renameValue.trim()}
-                                                        className="p-1.5 rounded-lg bg-(--success) text-white disabled:opacity-40 cursor-pointer"
+                                                        className="p-1.5 rounded-control bg-(--success) text-white disabled:opacity-40 cursor-pointer"
                                                         aria-label="Confirm rename"
                                                     >
                                                         <FaCheck className="text-xs" />
@@ -280,7 +276,7 @@ export function QuickFiltersDropdown({ source, defaultPresets, currentFilters, o
                                                 <Tip label="Cancel">
                                                     <button
                                                         onClick={handleRenameCancel}
-                                                        className="p-1.5 rounded-lg hover:bg-(--background-secondary-hover) text-secondary cursor-pointer"
+                                                        className="p-1.5 rounded-control hover:bg-(--background-secondary-hover) text-secondary cursor-pointer"
                                                         aria-label="Cancel rename"
                                                     >
                                                         <FaTimes className="text-xs" />
@@ -291,7 +287,7 @@ export function QuickFiltersDropdown({ source, defaultPresets, currentFilters, o
                                             <>
                                                 <button
                                                     onClick={() => handleApply(f.filters, f.id)}
-                                                    className="flex-1 text-left px-2 py-1.5 rounded-lg hover:bg-(--background-quaternary) text-sm font-medium transition-colors cursor-pointer flex items-center justify-between gap-2 min-w-0"
+                                                    className="flex-1 text-left px-2 py-1.5 rounded-control hover:bg-(--background-quaternary) text-sm font-medium transition-colors cursor-pointer flex items-center justify-between gap-2 min-w-0"
                                                 >
                                                     <span className="truncate">{f.name}</span>
                                                     {selectedPresetId === f.id && selectedPresetFiltersMatch && <FaCheck className="text-(--success) text-xs shrink-0" />}
@@ -300,7 +296,7 @@ export function QuickFiltersDropdown({ source, defaultPresets, currentFilters, o
                                                     <Tip label="Update with current filters">
                                                         <button
                                                             onClick={() => handleUpdateFilters(f.id)}
-                                                            className="p-1.5 rounded-lg hover:bg-(--background-secondary-hover) text-secondary hover:text-primary transition-colors cursor-pointer"
+                                                            className="p-1.5 rounded-control hover:bg-(--background-secondary-hover) text-secondary hover:text-primary transition-colors cursor-pointer"
                                                             aria-label={`Update ${f.name} with current filters`}
                                                         >
                                                             <FaFloppyDisk className="text-xs" />
@@ -310,7 +306,7 @@ export function QuickFiltersDropdown({ source, defaultPresets, currentFilters, o
                                                 <Tip label="Rename">
                                                     <button
                                                         onClick={() => { setRenamingId(f.id); setRenameValue(f.name); }}
-                                                        className="p-1.5 rounded-lg hover:bg-(--background-secondary-hover) text-secondary hover:text-primary transition-colors cursor-pointer"
+                                                        className="p-1.5 rounded-control hover:bg-(--background-secondary-hover) text-secondary hover:text-primary transition-colors cursor-pointer"
                                                         aria-label={`Rename ${f.name}`}
                                                     >
                                                         <FaPencilAlt className="text-xs" />
@@ -319,7 +315,7 @@ export function QuickFiltersDropdown({ source, defaultPresets, currentFilters, o
                                                 <Tip label="Delete">
                                                     <button
                                                         onClick={() => handleDelete(f.id)}
-                                                        className="p-1.5 rounded-lg hover:bg-(--background-secondary-hover) text-secondary hover:text-red-500 transition-colors cursor-pointer"
+                                                        className="p-1.5 rounded-control hover:bg-(--background-secondary-hover) text-secondary hover:text-(--red) transition-colors cursor-pointer"
                                                         aria-label={`Delete ${f.name}`}
                                                     >
                                                         <FaTrash className="text-xs" />
@@ -355,14 +351,14 @@ export function QuickFiltersDropdown({ source, defaultPresets, currentFilters, o
                                         if (e.key === 'Enter') handleSave();
                                         if (e.key === 'Escape') { setSaveMode(false); setSaveName(''); }
                                     }}
-                                    className="flex-1 text-sm px-2 py-1 rounded-lg border border-form-element bg-(--background-primary) focus:outline-none focus:border-blue-500 min-w-0"
+                                    className="flex-1 text-sm px-2 py-1 rounded-control border border-form-element bg-(--background-primary) focus:outline-none focus:border-(--showdown-blue) min-w-0"
                                     maxLength={40}
                                 />
                                 <Tip label="Save">
                                     <button
                                         onClick={handleSave}
                                         disabled={!saveName.trim() || isSaving}
-                                        className="p-1.5 rounded-lg bg-(--success) text-white disabled:opacity-40 transition-opacity cursor-pointer"
+                                        className="p-1.5 rounded-control bg-(--success) text-white disabled:opacity-40 transition-opacity cursor-pointer"
                                         aria-label="Save"
                                     >
                                         <FaCheck className="text-xs" />
@@ -371,7 +367,7 @@ export function QuickFiltersDropdown({ source, defaultPresets, currentFilters, o
                                 <Tip label="Cancel">
                                     <button
                                         onClick={() => { setSaveMode(false); setSaveName(''); }}
-                                        className="p-1.5 rounded-lg hover:bg-(--background-secondary-hover) text-secondary cursor-pointer"
+                                        className="p-1.5 rounded-control hover:bg-(--background-secondary-hover) text-secondary cursor-pointer"
                                         aria-label="Cancel"
                                     >
                                         <FaTimes className="text-xs" />

@@ -3,11 +3,13 @@ import { fetchPublicTeams, type TeamSummary } from '../../api/userTeams';
 import { TeamShelf } from './TeamShelf';
 import { TeamPreviewCard, TeamPreviewCardSkeleton } from './TeamPreviewCard';
 import { LoginModal } from '../auth/LoginModal';
+import { buttonClass } from '../shared/buttonStyles';
 import {
     FaPlus, FaArrowRight, FaChevronRight, FaArrowRightToBracket,
     FaGlobe, FaClockRotateLeft,
 } from 'react-icons/fa6';
 
+import { Heading } from '../shared/Heading';
 type WelcomeTab = 'simulations' | 'browse';
 
 type TeamBuilderWelcomeProps = {
@@ -78,13 +80,7 @@ export function TeamBuilderWelcome({ px, onCreate, onGoToTab, onOpenTeam, signed
             {/* Hero */}
             <div className={px}>
                 <div
-                    className="relative overflow-hidden rounded-2xl border-4 border-transparent p-6 sm:p-8"
-                    style={{
-                        backgroundImage:
-                            'linear-gradient(var(--background-secondary), var(--background-secondary)), linear-gradient(135deg, rgb(59,130,246), rgb(239,68,68))',
-                        backgroundOrigin: 'border-box',
-                        backgroundClip: 'padding-box, border-box',
-                    }}
+                    className="relative overflow-hidden rounded-card border-2 border-(--showdown-blue) border-b-4 border-b-(--showdown-red) bg-(--background-secondary) p-6 sm:p-8"
                 >
                     <img
                         src="/images/teams/Field.png"
@@ -95,9 +91,9 @@ export function TeamBuilderWelcome({ px, onCreate, onGoToTab, onOpenTeam, signed
                     />
                     <div className="relative flex flex-col gap-4 max-w-xl">
                         <div>
-                            <h2 className="text-[22px] sm:text-[26px] font-black text-(--text-primary) leading-tight">
+                            <Heading level="section">
                                 {signedOut ? 'Build your dream roster' : 'Your dugout is empty'}
-                            </h2>
+                            </Heading>
                             <p className="text-[13px] text-(--text-secondary) mt-1.5">
                                 {signedOut
                                     ? 'Sign in to draft a roster using ANY player and ANY season in MLB history, simulate seasons, and share your team with the community.'
@@ -107,7 +103,7 @@ export function TeamBuilderWelcome({ px, onCreate, onGoToTab, onOpenTeam, signed
                         <button
                             type="button"
                             onClick={signedOut ? () => setShowLogin(true) : onCreate}
-                            className="self-start flex items-center gap-2 px-5 py-3 rounded-xl text-[14px] font-black text-white bg-linear-to-r from-blue-500 to-red-500 hover:opacity-90 transition-opacity cursor-pointer"
+                            className={buttonClass('primary', 'md', 'self-start px-5! py-3! text-[14px]! font-black')}
                         >
                             {signedOut ? <FaArrowRightToBracket className="text-[12px]" /> : <FaPlus className="text-[12px]" />}
                             {signedOut ? 'Sign in to get started' : 'Create your first team'}
@@ -123,15 +119,15 @@ export function TeamBuilderWelcome({ px, onCreate, onGoToTab, onOpenTeam, signed
                         key={path.tab}
                         type="button"
                         onClick={() => onGoToTab(path.tab)}
-                        className="group flex flex-col gap-2 text-left p-4 rounded-xl border border-(--divider) bg-(--background-secondary) hover:border-(--text-tertiary) transition-colors cursor-pointer"
+                        className="group flex flex-col gap-2 text-left p-4 rounded-card border border-(--divider) bg-(--background-secondary) hover:border-(--text-tertiary) transition-colors cursor-pointer"
                     >
                         <div className="flex items-center justify-between">
-                            <span className="flex items-center justify-center w-9 h-9 rounded-lg bg-(--background-primary) text-(--secondary) text-[15px]">
+                            <span className="flex items-center justify-center w-9 h-9 rounded-control bg-(--background-primary) text-(--secondary) text-[15px]">
                                 {path.icon}
                             </span>
                             <FaArrowRight className="text-[12px] text-(--text-tertiary) group-hover:text-(--text-secondary) group-hover:translate-x-0.5 transition-all" />
                         </div>
-                        <h3 className="text-[14px] font-black text-(--text-primary)">{path.title}</h3>
+                        <Heading level="panel">{path.title}</Heading>
                         <p className="text-[12px] text-(--text-secondary)">{path.blurb}</p>
                     </button>
                 ))}

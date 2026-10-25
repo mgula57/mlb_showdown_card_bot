@@ -47,6 +47,8 @@ import { NewBadge } from "../shared/NewBadge";
 import { BetaBadge } from "../shared/BetaBadge";
 import { startOpenSim, type OpenSimPayload } from "../../api/sim";
 
+import { Eyebrow } from '../shared/Eyebrow';
+import { Heading } from '../shared/Heading';
 const formatScheduleDate = (date?: string): string => {
     if (!date) {
         return "Today's Games";
@@ -921,9 +923,9 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
                             onClick={() => setIsSimModalOpen(true)}
                             className="
                                 w-full flex items-center justify-center gap-1.5 px-3 py-2
-                                rounded-lg animated-showdown-gradient
+                                rounded-control bg-(--showdown-blue) shadow-raised active:translate-y-px active:shadow-none
                                 text-[12px] font-semibold text-white
-                                hover:opacity-90 transition-opacity cursor-pointer
+                                hover:brightness-110 transition cursor-pointer
                             "
                         >
                             <FaDice className="text-[11px]" />
@@ -946,7 +948,7 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
                                 <div className="flex items-center gap-1">
                                     <Tabs.Trigger
                                         value={tab.id}
-                                        className="relative flex flex-1 gap-x-2 items-center justify-start px-3 py-2.5 text-sm rounded-lg transition-colors
+                                        className="relative flex flex-1 gap-x-2 items-center justify-start px-3 py-2.5 text-sm rounded-card transition-colors
                                                    data-[state=active]:bg-(--background-quaternary)
                                                    data-[state=active]:font-bold
                                                    data-[state=active]:text-(--text-primary)
@@ -968,7 +970,7 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
                                                 event.stopPropagation();
                                                 setIsTeamsNavOpen((previous) => !previous);
                                             }}
-                                            className="p-2 rounded-md text-(--text-secondary) hover:bg-(--divider) cursor-pointer"
+                                            className="p-2 rounded-control text-(--text-secondary) hover:bg-(--divider) cursor-pointer"
                                         >
                                             <FaChevronDown className={`h-3.5 w-3.5 transition-transform ${isTeamsNavOpen ? "rotate-180" : ""}`} />
                                         </button>
@@ -994,7 +996,7 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
                                                                 setSelectedTeam(team);
                                                                 setActiveTab("teams");
                                                             }}
-                                                            className={`w-full text-left px-2 py-1.5 rounded-md text-xs transition-colors ${
+                                                            className={`w-full text-left px-2 py-1.5 rounded-control text-xs transition-colors ${
                                                                 isSelected
                                                                     ? "bg-(--background-quaternary) font-semibold"
                                                                         : "text-(--text-primary) hover:bg-(--team-primary-color) hover:text-(--team-hover-text-color)"
@@ -1041,7 +1043,7 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
                                                                                 toggleStarTeam(team);
                                                                             }
                                                                         }}
-                                                                        className={`text-sm leading-none cursor-pointer ${isStarred ? 'text-yellow-300' : 'text-(--quaternary) hover:text-yellow-300'}`}
+                                                                        className={`text-sm leading-none cursor-pointer ${isStarred ? 'text-(--gold)' : 'text-(--quaternary) hover:text-(--gold)'}`}
                                                                     >
                                                                         {isStarred ? <FaStar className="h-3.5 w-3.5" /> : <FaRegStar className="h-3.5 w-3.5" />}
                                                                     </span>
@@ -1090,7 +1092,7 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
                                 <div className={`hidden lg:block order-1 lg:h-full lg:min-h-0 overflow-hidden transition-[max-height,opacity] duration-300 ease-in-out ${isSidebarCollapsed ? 'max-h-16' : 'max-h-480'} lg:max-h-480`}>
                                     {isSidebarCollapsed ? (
                                         <aside className="w-full p-2 lg:pt-6 lg:sticky lg:top-0 lg:self-start lg:min-h-0">
-                                            <div className="rounded-2xl border border-(--divider) bg-(--background-secondary) overflow-hidden lg:h-full">
+                                            <div className="rounded-card border border-(--divider) bg-(--background-secondary) overflow-hidden lg:h-full">
                                                 <div className="px-2 py-2 lg:py-3 flex items-center justify-center lg:items-start lg:justify-center">
                                                     <button
                                                         type="button"
@@ -1131,21 +1133,16 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
                                 </div>
 
                                 <div className="min-w-0 order-2 sm:pt-4 lg:h-full lg:min-h-0 lg:overflow-y-auto lg:overscroll-contain">
-                                    <div className="lg:hidden mb-4 rounded-2xl space-y-4">
+                                    <div className="lg:hidden mb-4 rounded-card space-y-4">
                                         <div className="space-y-2 px-4">
                                             {hasStaticSports && sportOptions.length <= 1 && selectedSport && (
                                                 <div className="flex items-center justify-between gap-2">
-                                                    <div className="flex items-center font-bold text-2xl min-w-0">
-                                                        {type === "wbc" ? <FaEarthAmericas className="inline-block mr-2 shrink-0" /> : <FaCalendarDays className="inline-block mr-2 shrink-0" />}
-                                                        <span className="truncate">{title}</span>
+                                                    <div className="flex items-center min-w-0">
+                                                        {type === "wbc" ? <FaEarthAmericas className="inline-block mr-2 shrink-0 text-xl text-(--text-tertiary)" /> : <FaCalendarDays className="inline-block mr-2 shrink-0 text-xl text-(--text-tertiary)" />}
+                                                        <Heading level="page" as="span" className="truncate">{title}</Heading>
                                                         {!(hasStaticSeasons && seasonOptions.length <= 1) && (
                                                             <CustomSelect
-                                                                buttonClassName="
-                                                                    ml-4 text-sm p-2 items-center
-                                                                    rounded-lg bg-secondary text-primary text-nowrap text-left
-                                                                    overflow-clip
-                                                                    cursor-pointer
-                                                                "
+                                                                className="ml-4"
                                                                 value={selectedSeason?.season_id.toString() || "2026"}
                                                                 onChange={(value) => setSelectedSeason(seasons.find(season => season.season_id === value) || null)}
                                                                 options={seasonOptions}
@@ -1159,9 +1156,9 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
                                                                 onClick={() => setIsSimModalOpen(true)}
                                                                 className="
                                                                     flex items-center gap-1.5 px-2.5 py-1.5
-                                                                    rounded-lg animated-showdown-gradient
-                                                                    text-[12px] font-semibold text-(--text-primary)
-                                                                    hover:opacity-90 transition-opacity cursor-pointer whitespace-nowrap
+                                                                    rounded-control bg-(--showdown-blue) shadow-raised active:translate-y-px active:shadow-none
+                                                                    text-[12px] font-semibold text-white
+                                                                    hover:brightness-110 transition cursor-pointer whitespace-nowrap
                                                                 "
                                                             >
                                                                 <FaDice className="text-[11px]" />
@@ -1233,13 +1230,13 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
                                                 <div ref={standingsRosterRef} className="pt-4 scroll-mt-4 space-y-3">
                                                     <hr className="border-(--divider)" />
                                                     <div className="flex items-center justify-between">
-                                                        <h2 className="text-sm font-semibold uppercase tracking-wide text-(--text-secondary)">
+                                                        <Eyebrow>
                                                             {standingsTeam.name || standingsTeam.abbreviation} Roster
-                                                        </h2>
+                                                        </Eyebrow>
                                                         <button
                                                             type="button"
                                                             onClick={handleCloseStandingsRoster}
-                                                            className="flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-semibold text-(--text-secondary) hover:bg-(--divider) cursor-pointer"
+                                                            className="flex items-center gap-1.5 rounded-control px-2.5 py-1 text-xs font-semibold text-(--text-secondary) hover:bg-(--divider) cursor-pointer"
                                                             aria-label="Close team roster"
                                                         >
                                                             <FaXmark className="h-3.5 w-3.5" />
@@ -1264,12 +1261,12 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
                                     >
                                         <div className="px-3 lg:px-0 space-y-5 lg:pt-6 lg:pr-6">
                                                 {!isGamedayBetaNoticeDismissed && (
-                                                    <div className="relative rounded-xl px-3 py-2.5 pr-8 text-xs font-semibold leading-snug border border-violet-500/30 bg-violet-500/15 text-violet-700 dark:text-violet-300">
+                                                    <div className="relative rounded-card px-3 py-2.5 pr-8 text-xs font-semibold leading-snug border border-(--showdown-blue)/30 bg-(--showdown-blue)/10 text-(--showdown-blue)">
                                                         <button
                                                             type="button"
                                                             onClick={dismissGamedayBetaNotice}
                                                             aria-label="Dismiss"
-                                                            className="absolute top-2 right-2 text-violet-500/70 hover:text-violet-700 dark:hover:text-violet-200 transition-colors cursor-pointer"
+                                                            className="absolute top-2 right-2 text-(--showdown-blue)/70 hover:text-(--showdown-blue) transition-colors cursor-pointer"
                                                         >
                                                             <FaXmark size={12} />
                                                         </button>
@@ -1279,7 +1276,7 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
                                                         </span>
                                                     </div>
                                                 )}
-                                                <div className="rounded-xl bg-(--background-secondary) px-4 py-3">
+                                                <div className="rounded-card bg-(--background-secondary) px-4 py-3">
                                                     <div className="flex items-center justify-between">
                                                         <button
                                                             type="button"
@@ -1303,14 +1300,14 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
                                                                 className="flex flex-col items-center text-center leading-tight hover:opacity-70 transition-opacity cursor-pointer group"
                                                                 aria-label="Pick a date"
                                                             >
-                                                                <div className="text-sm font-extrabold tracking-wide text-(--text-secondary)">{gamesHeaderTopText}</div>
+                                                                <Eyebrow className="block">{gamesHeaderTopText}</Eyebrow>
                                                                 <div className="flex items-center gap-1">
-                                                                    <span className="text-xl font-black text-(--text-primary)">{gamesHeaderBottomText}</span>
+                                                                    <Heading level="section" as="span">{gamesHeaderBottomText}</Heading>
                                                                     <FaChevronDown className={`h-3 w-3 text-(--text-secondary) transition-transform ${isDatePickerOpen ? 'rotate-180' : ''}`} />
                                                                 </div>
                                                             </button>
                                                             {isDatePickerOpen && (
-                                                                <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 z-50 rounded-xl border border-(--divider) bg-(--background-secondary) shadow-xl p-2">
+                                                                <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 z-50 rounded-card border border-(--divider) bg-(--background-secondary) shadow-overlay p-2">
                                                                     <DayPicker
                                                                         mode="single"
                                                                         selected={gamesDate}
@@ -1399,7 +1396,7 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
                                                         onClick={() => setIsSimGuideOpen(true)}
                                                         className="
                                                             flex items-center gap-1.5 px-3 py-2
-                                                            rounded-lg border border-(--showdown-red)/40
+                                                            rounded-control border border-(--showdown-red)/40
                                                             text-[12px] font-semibold text-(--showdown-red)
                                                             hover:bg-(--showdown-red)/10 transition-colors cursor-pointer whitespace-nowrap
                                                         "
@@ -1412,9 +1409,9 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
                                                         onClick={() => setIsSimModalOpen(true)}
                                                         className="
                                                             flex items-center gap-1.5 px-3 py-2
-                                                            rounded-lg animated-showdown-gradient
+                                                            rounded-control bg-(--showdown-blue) shadow-raised active:translate-y-px active:shadow-none
                                                             text-[12px] font-semibold text-white
-                                                            hover:opacity-90 transition-opacity cursor-pointer whitespace-nowrap
+                                                            hover:brightness-110 transition cursor-pointer whitespace-nowrap
                                                         "
                                                     >
                                                         <FaDice className="text-[11px]" />
@@ -1483,7 +1480,7 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
                                             />
                                         )} */}
                                         <div className="flex justify-center p-24 text-2xl">
-                                            <span className="p-12 rounded-lg bg-secondary">Coming soon - once 2026 stats mature!</span>
+                                            <span className="p-12 rounded-card bg-secondary">Coming soon - once 2026 stats mature!</span>
                                         </div>
                                     </Tabs.Content>
 

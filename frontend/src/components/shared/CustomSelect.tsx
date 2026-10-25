@@ -28,8 +28,9 @@
  */
 
 import React, { useState, useRef, useEffect } from 'react';
-import { FaCaretDown } from 'react-icons/fa';
+import { FaChevronDown, FaCheck } from 'react-icons/fa6';
 import { createPortal } from 'react-dom';
+import { fieldClass, type FieldSize } from './fieldStyles';
 
 /**
  * Represents a single option in the custom select dropdown
@@ -71,7 +72,10 @@ export type CustomSelectProps = {
     options: SelectOption[];
     /** Optional CSS class for the container element */
     className?: string;
-    /** Optional CSS class for the select button */
+    /** Field size from the shared field style: `md` for forms, `sm` for compact filter rows. */
+    size?: FieldSize;
+    /** Replaces the field styling entirely, for selects that aren't fields (e.g. an icon-only
+     *  theme toggle). Don't use it to restyle a regular dropdown; pick a `size` instead. */
     buttonClassName?: string;
     /** Optional CSS class for option images */
     imageClassName?: string;
@@ -110,7 +114,7 @@ export type CustomSelectProps = {
  * @param props - Component props
  * @returns A customizable select dropdown component
  */
-const CustomSelect: React.FC<CustomSelectProps> = ({ value, onChange, options, className = "", suffix = null, buttonClassName = "", imageClassName = "", compactImageClassName = "", labelClassName = "", dropdownClassName = "", disabled = false, placeholder, showDropdownArrow = true, dropdownArrowSize = 16, align = 'left' }) => {
+const CustomSelect: React.FC<CustomSelectProps> = ({ value, onChange, options, className = "", suffix = null, size = 'md', buttonClassName = "", imageClassName = "", compactImageClassName = "", labelClassName = "", dropdownClassName = "", disabled = false, placeholder, showDropdownArrow = true, dropdownArrowSize = 11, align = 'left' }) => {
 
     // State management for dropdown behavior and positioning
     /** Controls whether the dropdown menu is visible */
@@ -283,13 +287,13 @@ const CustomSelect: React.FC<CustomSelectProps> = ({ value, onChange, options, c
      */
     const renderIcon = (icon: React.ReactNode) => {
         if (icon) {
-            return <span className="bg-(--background-secondary) my-auto mr-2">{icon}</span>;
+            return <span className="my-auto mr-2">{icon}</span>;
         }
         return null;
     };
 
-    /** Determines border color for the select button based on selected option's custom styling */
-    const selectedBorderColor = options.find(option => option.value === value)?.borderColor || 'border-form-element';
+    /** Options can tint the field's border (e.g. an edition's color) */
+    const selectedBorderColor = options.find(option => option.value === value)?.borderColor ?? '';
 
     return (
         // Container
@@ -298,18 +302,11 @@ const CustomSelect: React.FC<CustomSelectProps> = ({ value, onChange, options, c
             <button
                 type="button"
                 ref={buttonRef}
-                className={buttonClassName ? buttonClassName : `
-                    w-full px-3 py-2
-                    border ${selectedBorderColor} rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-400
-                    bg-secondary text-primary text-nowrap text-left
-                    overflow-clip
-                    cursor-pointer
-                    disabled:opacity-40 disabled:cursor-not-allowed disabled:border-form-element
-                `}
+                className={buttonClassName || fieldClass(size, `w-full flex items-center text-left text-nowrap overflow-clip cursor-pointer focus:outline-none focus-visible:border-(--showdown-blue) ${isOpen ? 'border-(--showdown-blue)' : selectedBorderColor}`)}
                 onClick={handleToggle}
                 disabled={disabled}
             >
-                <div className="flex items-center overflow-clip">
+                <div className="flex flex-1 min-w-0 items-center overflow-clip">
                     { renderSelectedImage(options.find(option => option.value === value)) }
                     { renderSymbol(options.find(option => option.value === value)?.symbol) }
                     { renderIcon(options.find(option => option.value === value)?.icon) }
@@ -318,7 +315,7 @@ const CustomSelect: React.FC<CustomSelectProps> = ({ value, onChange, options, c
                         : <span className={`${labelClassName} text-tertiary`}>{placeholder}</span>
                     }
                     {suffix && <span className='ml-1'>{suffix}</span>}
-                    {showDropdownArrow && <FaCaretDown className={`ml-1 ${isOpen ? 'rotate-180' : ''} opacity-75`} size={dropdownArrowSize} />}
+                    {showDropdownArrow && <FaChevronDown className={`ml-auto pl-1.5 shrink-0 text-(--text-tertiary) transition-transform ${isOpen ? 'rotate-180' : ''}`} size={dropdownArrowSize} />}
                 </div>
             </button>
 
@@ -332,8 +329,8 @@ const CustomSelect: React.FC<CustomSelectProps> = ({ value, onChange, options, c
                             fixed z-1000
                             transform
                             ${openAbove ? '-translate-y-full -mt-1' : 'mt-1'}
-                            bg-(--background-primary) rounded-xl shadow-lg
-                            border border-(--background-tertiary)
+                            bg-(--background-secondary) rounded-card shadow-overlay
+                            border border-(--rule-strong) py-1
                             overflow-auto scrollbar-hide
                         `}
                         style={{ left: menuPos.left, right: menuPos.right, top: menuPos.top, minWidth: menuPos.minWidth, maxWidth: menuPos.maxWidth, maxHeight: menuPos.maxHeight }}
@@ -344,7 +341,7 @@ const CustomSelect: React.FC<CustomSelectProps> = ({ value, onChange, options, c
                                 acc.push(
                                     <div
                                         key={`group-${option.group}`}
-                                        className="px-3 pt-3 pb-1 text-xs font-semibold text-tertiary uppercase tracking-wider select-none"
+                                        className="px-3 pt-3 pb-1 font-display text-[11px] uppercase tracking-[0.3em] text-(--text-tertiary) select-none"
                                     >
                                         {option.group}
                                     </div>
@@ -355,11 +352,10 @@ const CustomSelect: React.FC<CustomSelectProps> = ({ value, onChange, options, c
                                     key={option.value}
                                     ref={option.value === value ? selectedItemRef : null}
                                     className={`
-                                        ${option.group ? 'pl-6 pr-3' : 'px-2'} py-2
-                                        cursor-pointer hover:bg-(--background-secondary)
-                                        border-b border-(--background-tertiary) last:border-b-0
+                                        ${option.group ? 'pl-6 pr-3' : 'px-3'} py-2 text-sm
+                                        cursor-pointer hover:bg-(--background-tertiary)
                                         flex items-center gap-2 ${option.textColor || 'text-inherit'}
-                                        ${option.value === value ? 'bg-(--background-secondary) font-semibold' : ''}
+                                        ${option.value === value ? 'bg-(--background-tertiary) font-semibold shadow-[inset_3px_0_0_var(--showdown-red)]' : ''}
                                     `}
                                     onClick={() => handleOptionClick(option.value)}
                                 >
@@ -369,7 +365,7 @@ const CustomSelect: React.FC<CustomSelectProps> = ({ value, onChange, options, c
                                     <span className="flex flex-1">{option.label}</span>
                                     { option.trailing }
                                     {option.value === value && (
-                                        <span className="ml-auto text-blue-400 text-xs">✓</span>
+                                        <FaCheck className="ml-auto shrink-0 text-(--showdown-blue) text-[11px]" />
                                     )}
                                 </div>
                             );

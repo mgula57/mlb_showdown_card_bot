@@ -11,6 +11,7 @@ import {
 } from '../../../api/sim';
 import { byChallengeCategory, challengeCategoryMeta } from './challengeCategory';
 import { challengeGoalLabel, challengeDaysLeft, challengeRestrictionsLabel } from './challengeLabels';
+import { InlineError } from '../../shared/InlineError';
 
 function errorMessage(err: unknown): string {
     return err instanceof Error ? err.message : String(err);
@@ -74,7 +75,7 @@ function ChallengeOption({ challenge, selected, blocked, onSelect }: {
             type="button"
             onClick={onSelect}
             aria-pressed={selected}
-            className={`flex items-start gap-3 text-left rounded-xl border px-3 py-2.5 transition-colors cursor-pointer ${
+            className={`flex items-start gap-3 text-left rounded-card border px-3 py-2.5 transition-colors cursor-pointer ${
                 selected
                     ? 'border-(--secondary) bg-(--background-tertiary)'
                     : 'border-(--divider) hover:border-(--text-tertiary)'
@@ -270,7 +271,7 @@ export function PlayModal({
                     <button
                         type="button"
                         onClick={onCancel}
-                        className="px-3 py-2 rounded-lg text-[12px] font-semibold text-(--text-secondary) hover:text-(--text-primary) transition-colors cursor-pointer"
+                        className="px-3 py-2 rounded-control text-[12px] font-semibold text-(--text-secondary) hover:text-(--text-primary) transition-colors cursor-pointer"
                     >
                         Cancel
                     </button>
@@ -278,7 +279,7 @@ export function PlayModal({
                         type="button"
                         onClick={handlePlay}
                         disabled={starting || !canPlay}
-                        className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-(--secondary) text-[12px] font-bold text-(--background-primary) hover:opacity-90 transition-opacity cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                        className="flex items-center gap-1.5 px-3 py-2 rounded-control bg-(--secondary) text-[12px] font-bold text-(--background-primary) hover:opacity-90 transition-opacity cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
                     >
                         {starting ? <FaSpinner className="animate-spin text-[10px]" /> : <FaPlay className="text-[10px]" />}
                         {mode === 'season' ? 'Play Season' : 'Play Challenge'}
@@ -339,9 +340,7 @@ export function PlayModal({
                         </p>
 
                         {challengesError && (
-                            <div className="text-[12px] text-red-400 px-3 py-2 rounded-lg border border-red-400/30 bg-red-400/5">
-                                {challengesError}
-                            </div>
+                            <InlineError size="md">{challengesError}</InlineError>
                         )}
 
                         <div className="flex flex-col gap-1.5">
@@ -365,7 +364,7 @@ export function PlayModal({
                         </div>
 
                         {selectedChallenge && (
-                            <div className="flex flex-col gap-2 rounded-xl bg-(--background-tertiary) px-3 py-2.5">
+                            <div className="flex flex-col gap-2 rounded-card bg-(--background-tertiary) px-3 py-2.5">
                                 <p className="text-[12px] text-(--text-secondary) leading-relaxed">{selectedChallenge.description}</p>
                                 <div className="flex items-center gap-x-4 gap-y-1 flex-wrap">
                                     <ChallengeFact icon={<FaFlagCheckered />}>{challengeGoalLabel(selectedChallenge)}</ChallengeFact>
@@ -381,7 +380,7 @@ export function PlayModal({
                                     </span>
                                 )}
                                 {selectedBlockers.map(blocker => (
-                                    <span key={blocker} className="flex items-start gap-1.5 text-[11px] text-red-400">
+                                    <span key={blocker} className="flex items-start gap-1.5 text-[11px] text-(--red)">
                                         <FaXmark className="text-[10px] mt-0.5 shrink-0" /> {blocker}
                                     </span>
                                 ))}
@@ -391,7 +390,7 @@ export function PlayModal({
                 )}
 
                 {error && (
-                    <div className="flex items-center justify-between gap-2 text-[12px] text-red-400 px-3 py-2 rounded-lg border border-red-400/30 bg-red-400/5">
+                    <InlineError size="md" className="flex items-center justify-between gap-2">
                         <span>{error}</span>
                         {runningJob && (
                             <button
@@ -402,7 +401,7 @@ export function PlayModal({
                                 View it
                             </button>
                         )}
-                    </div>
+                    </InlineError>
                 )}
 
                 

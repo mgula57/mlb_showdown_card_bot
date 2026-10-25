@@ -8,6 +8,7 @@
     "build": "vite build",
     "type-check": "tsc -b",
     "lint": "eslint .",
+    "lint:design": "node scripts/lint-design.mjs",
     "preview": "vite preview"
   },
   "dependencies": {

@@ -127,7 +127,7 @@ export default function GameMatchup({ game, cardMap, isLoadingCards, onCardSelec
     const pitcherAdvantage = control != null && onbase != null ? pitcherAdvantagePct(control, onbase) : undefined;
 
     return (
-        <div className={`@container rounded-xl border border-(--divider) bg-(--background-secondary)/30 mx-2 p-4 ${className}`}>
+        <div className={`@container rounded-card border border-(--divider) bg-(--background-secondary)/30 mx-2 p-4 ${className}`}>
             <div 
                 className={`
                     ${isCompactCards ? "grid grid-cols-2" : "grid grid-cols-1 @[600px]:grid-cols-2 "}

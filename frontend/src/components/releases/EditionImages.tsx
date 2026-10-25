@@ -9,6 +9,7 @@ import { ReleaseCardPreviewRankPicker } from './ReleaseCardPreviewRank';
 import { buildZipEntries, editionZipFileName, useEditionZipDownload, type ZipDownloadState } from './editionZipDownload';
 import { FaArrowUpRightFromSquare, FaCheck, FaDownload, FaImage, FaSpinner, FaTriangleExclamation, FaWandMagicSparkles, FaXmark } from 'react-icons/fa6';
 
+import { InlineError } from '../shared/InlineError';
 /** How often to refresh statuses while a render job runs (each card takes a few seconds). */
 const POLL_INTERVAL_MS = 2500;
 /** Skeleton tiles shown while statuses load. */
@@ -16,9 +17,9 @@ const MAX_SKELETON_TILES = 24;
 const TILE_GRID_CLASS = 'grid grid-cols-[repeat(auto-fill,minmax(140px,1fr))] gap-4';
 
 const STATUS_META: Record<ReleaseCardImageStatus, { label: string; badgeClass: string }> = {
-    rendered: { label: 'Rendered', badgeClass: 'bg-green-600 text-white' },
-    stale: { label: 'Out of date', badgeClass: 'bg-amber-500 text-black' },
-    failed: { label: 'Failed', badgeClass: 'bg-red-600 text-white' },
+    rendered: { label: 'Rendered', badgeClass: 'bg-(--green) text-white' },
+    stale: { label: 'Out of date', badgeClass: 'bg-(--gold) text-black' },
+    failed: { label: 'Failed', badgeClass: 'bg-(--red) text-white' },
     missing: { label: 'Not rendered', badgeClass: 'bg-(--background-quaternary) text-(--text-secondary)' },
 };
 const STATUS_ORDER: ReleaseCardImageStatus[] = ['rendered', 'stale', 'missing', 'failed'];
@@ -130,7 +131,7 @@ export function EditionImages({ releaseId, releaseName, edition, readOnly, token
                             />
                         ))
                     ) : (
-                        <div className="h-8 w-64 rounded-lg bg-(--background-quaternary) animate-pulse" />
+                        <div className="h-8 w-64 rounded-control bg-(--background-quaternary) animate-pulse" />
                     )}
 
                     {data && (
@@ -141,10 +142,10 @@ export function EditionImages({ releaseId, releaseName, edition, readOnly, token
                                     onClick={() => zipDownload.start(zipEntries, editionZipFileName(releaseName, edition.name))}
                                     disabled={jobActive}
                                     title={jobActive ? 'Wait for rendering to finish' : 'Download every current full-size image as a ZIP'}
-                                    className="flex items-center gap-1.5 min-h-9 px-3.5 py-2 rounded-lg text-[13px] font-bold border border-(--divider) text-(--text-secondary) hover:border-(--text-tertiary) transition-colors disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                                    className="flex items-center gap-1.5 min-h-9 px-3.5 py-2 rounded-control text-[13px] font-bold border border-(--divider) text-(--text-secondary) hover:border-(--text-tertiary) transition-colors disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
                                 >
                                     <FaDownload className="text-[12px]" /> Download ZIP
-                                    <span className="text-[10px] font-normal text-(--text-tertiary) bg-(--background-secondary) py-0.5 px-1 rounded-md">{zipEntries.length}</span>
+                                    <span className="text-[10px] font-normal text-(--text-tertiary) bg-(--background-secondary) py-0.5 px-1 rounded-control">{zipEntries.length}</span>
                                 </button>
                             )}
                             {readOnly ? null : jobActive ? (
@@ -152,7 +153,7 @@ export function EditionImages({ releaseId, releaseName, edition, readOnly, token
                                     type="button"
                                     onClick={handleCancel}
                                     disabled={requesting}
-                                    className="flex items-center gap-1.5 min-h-9 px-3.5 py-2 rounded-lg text-[13px] font-bold border border-(--divider) text-(--text-secondary) hover:border-(--text-tertiary) transition-colors disabled:opacity-50 cursor-pointer"
+                                    className="flex items-center gap-1.5 min-h-9 px-3.5 py-2 rounded-control text-[13px] font-bold border border-(--divider) text-(--text-secondary) hover:border-(--text-tertiary) transition-colors disabled:opacity-50 cursor-pointer"
                                 >
                                     <FaXmark className="text-[12px]" /> Cancel
                                 </button>
@@ -161,14 +162,14 @@ export function EditionImages({ releaseId, releaseName, edition, readOnly, token
                                     type="button"
                                     onClick={() => handleRender()}
                                     disabled={requesting || !token}
-                                    className="flex items-center gap-1.5 min-h-9 px-3.5 py-2 rounded-lg text-[13px] font-bold bg-(--secondary) text-(--background-primary) disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                                    className="flex items-center gap-1.5 min-h-9 px-3.5 py-2 rounded-control text-[13px] font-bold bg-(--secondary) text-(--background-primary) disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
                                 >
                                     {requesting ? <FaSpinner className="animate-spin text-[12px]" /> : <FaWandMagicSparkles className="text-[12px]" />}
                                     Render {needsRenderCount} Card{needsRenderCount === 1 ? '' : 's'}
                                 </button>
                             ) : (
                                 <span className="flex items-center gap-1.5 text-[12px] font-semibold text-(--text-secondary)">
-                                    <FaCheck className="text-green-500" /> All images up to date
+                                    <FaCheck className="text-(--green)" /> All images up to date
                                 </span>
                             )}
                         </div>
@@ -182,9 +183,9 @@ export function EditionImages({ releaseId, releaseName, edition, readOnly, token
                 )}
 
                 {error && (
-                    <div className="text-[12px] text-red-400 px-3 py-2 rounded-lg border border-red-400/30 bg-red-400/5">
+                    <InlineError size="md">
                         {error}
-                    </div>
+                    </InlineError>
                 )}
             </div>
 
@@ -239,12 +240,12 @@ function StatusFilterChip({ status, count, isActive, onClick }: { status: Releas
         <button
             type="button"
             onClick={onClick}
-            className={`flex items-center gap-1.5 min-h-8 px-2.5 py-1 rounded-lg text-[12px] font-bold border transition-colors cursor-pointer
+            className={`flex items-center gap-1.5 min-h-8 px-2.5 py-1 rounded-control text-[12px] font-bold border transition-colors cursor-pointer
                 ${isActive ? 'border-(--secondary) text-(--text-primary)' : 'border-(--divider) text-(--text-secondary) hover:border-(--text-tertiary)'}`}
         >
             <span className={`w-2 h-2 rounded-full ${STATUS_META[status].badgeClass}`} />
             {STATUS_META[status].label}
-            <span className="text-[10px] font-normal text-(--text-tertiary) bg-(--background-secondary) py-0.5 px-1 rounded-md">{count}</span>
+            <span className="text-[10px] font-normal text-(--text-tertiary) bg-(--background-secondary) py-0.5 px-1 rounded-control">{count}</span>
         </button>
     );
 }
@@ -281,7 +282,7 @@ function RenderJobStatus({ job }: { job: NonNullable<EditionImagesData['job']> }
                 <div className="flex items-center gap-1.5 text-[12px] font-semibold text-(--text-secondary)">
                     <FaSpinner className="animate-spin text-[11px]" />
                     {job.total > 0 ? `Rendering ${processed} of ${job.total}` : 'Starting render…'}
-                    {job.failed > 0 && <span className="text-red-400">· {job.failed} failed</span>}
+                    {job.failed > 0 && <span className="text-(--red)">· {job.failed} failed</span>}
                     {etaSeconds !== null && processed < job.total && (
                         <span className="font-normal text-(--text-tertiary)">· {formatEta(etaSeconds)}</span>
                     )}
@@ -292,7 +293,7 @@ function RenderJobStatus({ job }: { job: NonNullable<EditionImagesData['job']> }
     }
     if (job.status === 'failed') {
         return (
-            <div className="flex items-center gap-1.5 text-[12px] text-red-400">
+            <div className="flex items-center gap-1.5 text-[12px] text-(--red)">
                 <FaTriangleExclamation className="shrink-0" /> Rendering stopped: {job.error ?? 'unknown error'}
             </div>
         );
@@ -302,7 +303,7 @@ function RenderJobStatus({ job }: { job: NonNullable<EditionImagesData['job']> }
     }
     if (job.failed > 0) {
         return (
-            <div className="flex items-center gap-1.5 text-[12px] text-amber-500">
+            <div className="flex items-center gap-1.5 text-[12px] text-(--gold)">
                 <FaTriangleExclamation className="shrink-0" /> Last render finished with {job.failed} failed card{job.failed === 1 ? '' : 's'}.
             </div>
         );
@@ -327,7 +328,7 @@ function ZipDownloadStatus({ state, onCancel, onDismiss }: { state: ZipDownloadS
                 <div className="flex items-center gap-1.5 text-[12px] font-semibold text-(--text-secondary)">
                     <FaSpinner className="animate-spin text-[11px]" />
                     Zipping {state.completed} of {state.total}
-                    {failedCount > 0 && <span className="text-red-400">· {failedCount} failed</span>}
+                    {failedCount > 0 && <span className="text-(--red)">· {failedCount} failed</span>}
                     <button
                         type="button"
                         onClick={onCancel}
@@ -348,11 +349,11 @@ function ZipDownloadStatus({ state, onCancel, onDismiss }: { state: ZipDownloadS
         : state.status === 'cancelled'
             ? 'ZIP download cancelled.'
             : `ZIP download failed: ${state.error ?? 'unknown error'}`;
-    const tone = state.status === 'error' || failedCount > 0 ? 'text-amber-500' : 'text-(--text-secondary)';
+    const tone = state.status === 'error' || failedCount > 0 ? 'text-(--gold)' : 'text-(--text-secondary)';
     return (
         <div className={`flex items-start gap-1.5 text-[12px] ${tone}`}>
             {state.status === 'done' && failedCount === 0
-                ? <FaCheck className="shrink-0 mt-0.5 text-green-500" />
+                ? <FaCheck className="shrink-0 mt-0.5 text-(--green)" />
                 : <FaTriangleExclamation className="shrink-0 mt-0.5" />}
             <span className="flex-1 min-w-0 wrap-anywhere">{message}</span>
             <button type="button" onClick={onDismiss} title="Dismiss" className="shrink-0 text-(--text-tertiary) hover:text-(--text-primary) transition-colors cursor-pointer">
@@ -390,7 +391,7 @@ function CardImageWithSkeleton({ src, alt, dimmed = false, className = '' }: { s
 function ReleaseImageTileSkeleton() {
     return (
         <div className="flex flex-col gap-1.5 animate-pulse">
-            <div className="aspect-5/7 rounded-lg bg-(--background-quaternary)" />
+            <div className="aspect-5/7 rounded-card bg-(--background-quaternary)" />
             <div className="h-3 w-3/4 rounded bg-(--background-quaternary)" />
         </div>
     );
@@ -408,7 +409,7 @@ function ReleaseImageTile({ image, snapshot, isQueued, onClick }: ReleaseImageTi
     const thumbnailSrc = image.thumbnail_path ? cardImagePublicUrl(image.thumbnail_path) : null;
     return (
         <button type="button" onClick={onClick} className="group flex flex-col gap-1.5 text-left min-w-0 cursor-pointer">
-            <div className="relative aspect-5/7 rounded-lg overflow-hidden border border-(--divider) bg-(--background-secondary) group-hover:border-(--text-tertiary) transition-colors">
+            <div className="relative aspect-5/7 rounded-control overflow-hidden border border-(--divider) bg-(--background-secondary) group-hover:border-(--text-tertiary) transition-colors">
                 {thumbnailSrc ? (
                     <CardImageWithSkeleton
                         src={thumbnailSrc}
@@ -469,7 +470,7 @@ function ReleaseImageDetailModal({ image, snapshot, canRender, isRendering, onRe
                             href={fullSrc}
                             target="_blank"
                             rel="noreferrer"
-                            className="flex items-center gap-1.5 min-h-9 px-3.5 py-2 rounded-lg text-[13px] font-semibold text-(--text-tertiary) hover:text-(--text-primary) transition-colors cursor-pointer"
+                            className="flex items-center gap-1.5 min-h-9 px-3.5 py-2 rounded-control text-[13px] font-semibold text-(--text-tertiary) hover:text-(--text-primary) transition-colors cursor-pointer"
                         >
                             <FaArrowUpRightFromSquare className="text-[11px]" /> Open Full Size
                         </a>
@@ -478,7 +479,7 @@ function ReleaseImageDetailModal({ image, snapshot, canRender, isRendering, onRe
                         <button
                             type="button"
                             onClick={onRender}
-                            className="flex items-center gap-1.5 min-h-9 px-3.5 py-2 rounded-lg text-[13px] font-bold bg-(--secondary) text-(--background-primary) cursor-pointer"
+                            className="flex items-center gap-1.5 min-h-9 px-3.5 py-2 rounded-control text-[13px] font-bold bg-(--secondary) text-(--background-primary) cursor-pointer"
                         >
                             <FaWandMagicSparkles className="text-[12px]" /> Render This Card
                         </button>
@@ -503,14 +504,14 @@ function ReleaseImageDetailModal({ image, snapshot, canRender, isRendering, onRe
                     </p>
                 )}
                 {image.status === 'failed' && image.error && (
-                    <p className="text-[12px] text-red-400 text-center wrap-anywhere">{image.error}</p>
+                    <p className="text-[12px] text-(--red) text-center wrap-anywhere">{image.error}</p>
                 )}
                 {fullSrc ? (
-                    <div className="relative w-full max-w-sm aspect-5/7 rounded-xl overflow-hidden">
+                    <div className="relative w-full max-w-sm aspect-5/7 rounded-card overflow-hidden">
                         <CardImageWithSkeleton key={fullSrc} src={fullSrc} alt={title} className="w-full h-full object-contain" />
                     </div>
                 ) : (
-                    <div className="flex flex-col items-center justify-center gap-2 w-full max-w-sm aspect-5/7 rounded-xl border border-dashed border-(--divider) text-(--text-tertiary)">
+                    <div className="flex flex-col items-center justify-center gap-2 w-full max-w-sm aspect-5/7 rounded-card border border-dashed border-(--divider) text-(--text-tertiary)">
                         <FaImage className="text-3xl opacity-40" />
                         <span className="text-[12px]">Not rendered yet</span>
                     </div>

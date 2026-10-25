@@ -14,7 +14,7 @@ function Bar({ className = "" }: { className?: string }) {
 /** Scoreboard placeholder — two team rows and a state line, matching `ScoreHeader`. */
 function ScoreHeaderSkeleton() {
     return (
-        <div className="animate-pulse rounded-xl border border-(--divider) bg-(--background-secondary) p-4 space-y-3">
+        <div className="animate-pulse rounded-card border border-(--divider) bg-(--background-secondary) p-4 space-y-3">
             {[0, 1].map((i) => (
                 <div key={i} className="flex items-center gap-3">
                     <Bar className="h-7 w-7 rounded-full" />
@@ -32,7 +32,7 @@ function CardRowsSkeleton({ rows = 5 }: { rows?: number }) {
     return (
         <div className="animate-pulse space-y-3">
             {Array.from({ length: rows }, (_, i) => (
-                <div key={i} className="flex items-start gap-3 rounded-xl border border-(--divider)/50 bg-primary p-3">
+                <div key={i} className="flex items-start gap-3 rounded-card border border-(--divider)/50 bg-primary p-3">
                     <div className="grid grid-cols-1 @[500px]:grid-cols-2 gap-1 min-w-24 @[300px]:min-w-32">
                         <Bar className="h-11" />
                         <Bar className="h-11 hidden @[500px]:block" />
@@ -52,11 +52,11 @@ function CardRowsSkeleton({ rows = 5 }: { rows?: number }) {
 function BoxScoreSkeleton() {
     return (
         <div className="animate-pulse space-y-4">
-            <div className="rounded-xl border border-(--divider) bg-(--background-secondary) p-3 space-y-2">
+            <div className="rounded-card border border-(--divider) bg-(--background-secondary) p-3 space-y-2">
                 <Bar className="h-4 w-32" />
                 {Array.from({ length: 9 }, (_, i) => <Bar key={i} className="h-3 w-full" />)}
             </div>
-            <div className="rounded-xl border border-(--divider) bg-(--background-secondary) p-3 space-y-2">
+            <div className="rounded-card border border-(--divider) bg-(--background-secondary) p-3 space-y-2">
                 <Bar className="h-4 w-24" />
                 {Array.from({ length: 4 }, (_, i) => <Bar key={i} className="h-3 w-full" />)}
             </div>
@@ -70,16 +70,16 @@ export default function GameDetailSkeleton({ className, onBack }: { className?: 
             <div className="relative z-50 px-4 py-2 border-b border-(--divider) bg-(--background-primary) shrink-0 flex items-center gap-3">
                 <BackButton onBack={onBack} />
                 <div className="ml-auto flex items-center gap-2 animate-pulse">
-                    <Bar className="h-7 w-20 rounded-lg" />
-                    <Bar className="h-7 w-24 rounded-lg" />
+                    <Bar className="h-7 w-20 rounded-card" />
+                    <Bar className="h-7 w-24 rounded-card" />
                 </div>
             </div>
 
             {/* Mobile tab strip placeholder — mirrors `MOBILE_TABS`. */}
             <div className="flex md:hidden shrink-0 px-2 py-2 gap-2 animate-pulse">
-                <Bar className="h-8 flex-1 rounded-lg" />
-                <Bar className="h-8 flex-1 rounded-lg" />
-                <Bar className="h-8 flex-1 rounded-lg" />
+                <Bar className="h-8 flex-1 rounded-card" />
+                <Bar className="h-8 flex-1 rounded-card" />
+                <Bar className="h-8 flex-1 rounded-card" />
             </div>
 
             <div className="flex-1 min-h-0 md:grid md:grid-cols-2 md:gap-4 md:px-4 md:overflow-hidden lg:grid-cols-[3fr_4fr_3fr]">
@@ -91,7 +91,7 @@ export default function GameDetailSkeleton({ className, onBack }: { className?: 
                 {/* Spotlight column — scoreboard, field, matchup. */}
                 <div className="h-full overflow-y-auto space-y-4 p-4 md:px-0 md:py-4 scrollbar-hide md:order-1 lg:order-2">
                     <ScoreHeaderSkeleton />
-                    <div className="animate-pulse rounded-xl border border-(--divider) bg-(--background-secondary) aspect-4/3 w-full" />
+                    <div className="animate-pulse rounded-card border border-(--divider) bg-(--background-secondary) aspect-4/3 w-full" />
                     <div className="@container">
                         <CardRowsSkeleton rows={1} />
                     </div>
@@ -101,8 +101,8 @@ export default function GameDetailSkeleton({ className, onBack }: { className?: 
                     its own strip between `md` and `lg`, back to the outer grid at `lg`. */}
                 <div className="contents md:flex md:flex-col md:order-2 md:min-h-0 md:overflow-hidden lg:contents">
                     <div className="hidden md:flex lg:hidden shrink-0 pt-4 gap-2 animate-pulse">
-                        <Bar className="h-8 flex-1 rounded-lg" />
-                        <Bar className="h-8 flex-1 rounded-lg" />
+                        <Bar className="h-8 flex-1 rounded-card" />
+                        <Bar className="h-8 flex-1 rounded-card" />
                     </div>
                     <div className="h-full min-w-0 overflow-y-auto p-4 md:px-0 md:py-4 md:h-auto md:flex-1 md:min-h-0 scrollbar-hide @container lg:order-3">
                         <CardRowsSkeleton />

@@ -3,7 +3,7 @@ import type { AlgorithmPointBucket } from '../../api/releases';
 import FormInput from '../customs/FormInput';
 import PercentageSlider from '../shared/PercentageSlider';
 import IconButton from '../shared/IconButton';
-import InlineWarning from '../shared/InlineWarning';
+import { InlineError } from '../shared/InlineError';
 import { bucketLabel, validatePointBuckets } from './pointBuckets';
 
 /** Bucket added by "Add Bucket" — starts just above the highest existing bucket so it never overlaps. */
@@ -28,7 +28,7 @@ export default function PointBucketsEditor({ buckets, onChange }: PointBucketsEd
     return (
         <div className="flex flex-col gap-2.5">
             {buckets.map((bucket, index) => (
-                <div key={index} className="flex flex-col gap-1.5 rounded-lg border border-(--divider) p-2">
+                <div key={index} className="flex flex-col gap-1.5 rounded-card border border-(--divider) p-2">
                     <div className="flex items-end gap-2">
                         <FormInput
                             label="Min Points"
@@ -60,12 +60,12 @@ export default function PointBucketsEditor({ buckets, onChange }: PointBucketsEd
                 </div>
             ))}
 
-            {validationError && <InlineWarning>{validationError}</InlineWarning>}
+            {validationError && <InlineError icon>{validationError}</InlineError>}
 
             <button
                 type="button"
                 onClick={() => onChange([...buckets, nextBucket(buckets)])}
-                className="self-start flex items-center gap-1.5 px-2.5 py-1.5 rounded-md border border-(--divider) text-[12px] font-semibold
+                className="self-start flex items-center gap-1.5 px-2.5 py-1.5 rounded-control border border-(--divider) text-[12px] font-semibold
                     text-(--text-secondary) hover:text-(--text-primary) hover:bg-(--background-secondary) transition-colors cursor-pointer"
             >
                 <FaPlus className="text-[10px]" /> Add Bucket

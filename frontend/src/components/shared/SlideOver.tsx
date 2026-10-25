@@ -64,7 +64,7 @@ export function SlideOver({ isOpen, onClose, title, children, handleContent }: S
             <div
                 className={`
                     lg:hidden fixed bottom-0 left-0 right-0 z-49
-                    bg-(--background-primary) rounded-t-2xl flex flex-col
+                    bg-(--background-primary) rounded-t-card flex flex-col
                     shadow-[0_-8px_30px_rgba(0,0,0,0.18)] border-t border-(--divider)
                     transition-transform duration-300 ease-[cubic-bezier(0.32,0.72,0,1)]
                     ${isOpen ? 'translate-y-0 pointer-events-auto' : 'translate-y-full pointer-events-none'}
@@ -107,7 +107,7 @@ export function SlideOver({ isOpen, onClose, title, children, handleContent }: S
                             pointer-events-auto
                             w-12 h-12 rounded-full flex items-center justify-center
                             bg-(--showdown-red) text-white
-                            shadow-lg
+                            shadow-overlay
                             cursor-pointer hover:opacity-90 transition-opacity
                         "
                     >

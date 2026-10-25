@@ -10,6 +10,7 @@
 import FormInput from "./FormInput";
 import { FaTimes } from "react-icons/fa";
 
+import { FIELD_LABEL_CLASS } from '../shared/fieldStyles';
 /**
  * Props for the RangeFilter component
  */
@@ -92,16 +93,16 @@ export default function RangeFilter({
     };
 
     return (
-        <div className="flex flex-col gap-1 border-1 p-2 rounded-xl border-form-element">
+        <div className="flex flex-col gap-1 border-1 p-2 rounded-card border-form-element">
             {/* Header with label and clear button */}
             <div className="flex items-center justify-between">
-                <label className="text-sm font-medium text-secondary">{label}</label>
+                <label className={FIELD_LABEL_CLASS}>{label}</label>
                 {/* Clear button - only shown when values are set */}
                 {(minValue !== undefined || maxValue !== undefined) && !(minDisabled && maxDisabled) && (
                     <button
                         type="button"
                         onClick={clear}
-                        className="h-5 px-1 rounded-lg border border-form-element text-secondary hover:text-primary hover:border-primary"
+                        className="h-5 px-1 rounded-control border border-form-element text-secondary hover:text-primary hover:border-primary"
                         title={`Clear ${label}`}
                     >
                         <FaTimes />

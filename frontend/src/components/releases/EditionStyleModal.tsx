@@ -7,6 +7,7 @@ import { CardStyleSections } from '../customs/CardStyleFields';
 import type { CardStyleSettings } from '../customs/cardStyle';
 import { CARD_STYLE_DEFAULTS, parseEditionStyle } from './editionStyle';
 
+import { InlineError } from '../shared/InlineError';
 type EditionStyleModalProps = {
     releaseId: string;
     edition: ReleaseEdition;
@@ -50,14 +51,14 @@ export function EditionStyleModal({ releaseId, edition, token, onClose, onEditio
                     <button
                         type="button"
                         onClick={() => setStyle(CARD_STYLE_DEFAULTS)}
-                        className="min-h-9 px-3.5 py-2 mr-auto rounded-lg text-[13px] font-semibold text-(--text-tertiary) hover:text-(--text-primary) transition-colors cursor-pointer"
+                        className="min-h-9 px-3.5 py-2 mr-auto rounded-control text-[13px] font-semibold text-(--text-tertiary) hover:text-(--text-primary) transition-colors cursor-pointer"
                     >
                         Reset to Defaults
                     </button>
                     <button
                         type="button"
                         onClick={onClose}
-                        className="min-h-9 px-3.5 py-2 rounded-lg text-[13px] font-bold border border-(--divider) text-(--text-secondary) hover:border-(--text-tertiary) transition-colors cursor-pointer"
+                        className="min-h-9 px-3.5 py-2 rounded-control text-[13px] font-bold border border-(--divider) text-(--text-secondary) hover:border-(--text-tertiary) transition-colors cursor-pointer"
                     >
                         Cancel
                     </button>
@@ -65,7 +66,7 @@ export function EditionStyleModal({ releaseId, edition, token, onClose, onEditio
                         type="button"
                         onClick={handleSave}
                         disabled={!token || saving}
-                        className="flex items-center gap-1.5 min-h-9 px-3.5 py-2 rounded-lg text-[13px] font-bold bg-(--secondary) text-(--background-primary) disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                        className="flex items-center gap-1.5 min-h-9 px-3.5 py-2 rounded-control text-[13px] font-bold bg-(--secondary) text-(--background-primary) disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
                     >
                         {saving && <FaSpinner className="animate-spin text-[12px]" />} Save
                     </button>
@@ -74,9 +75,9 @@ export function EditionStyleModal({ releaseId, edition, token, onClose, onEditio
         >
             <div className="flex flex-col gap-3 p-4">
                 {error && (
-                    <div className="text-[12px] text-red-400 px-3 py-2 rounded-lg border border-red-400/30 bg-red-400/5">
+                    <InlineError size="md">
                         {error}
-                    </div>
+                    </InlineError>
                 )}
                 <CardStyleSections values={style} onChange={updateStyle} defaults={CARD_STYLE_DEFAULTS} />
             </div>

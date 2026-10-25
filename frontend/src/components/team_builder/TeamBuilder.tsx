@@ -41,6 +41,8 @@ import BackButton from '../shared/BackButton';
 import { FaPlus, FaSpinner, FaUsers, FaGlobe, FaRankingStar } from 'react-icons/fa6';
 import { fetchChallengeInstance, type ChallengeInstance } from '../../api/sim';
 
+import { InlineError } from '../shared/InlineError';
+import { Heading } from '../shared/Heading';
 // A team can be addressed by URL four ways: a saved UUID, a historical MLB team, an All-Star
 // team, or an Era Roster (all-time or all-decade).
 type TeamRef =
@@ -618,7 +620,7 @@ export default function TeamBuilder() {
                 <div className={`flex items-center gap-3 ${px}`}>
                     <BackButton onBack={() => { setTeamSearch(''); navigate('/teams'); }} />
                     <div>
-                        <h1 className="text-[20px] font-black text-(--text-primary)">My Teams</h1>
+                        <Heading level="page">My Teams</Heading>
                         <p className="text-[12px] text-(--text-secondary)">
                             {sortedUserTeams.length} team{sortedUserTeams.length === 1 ? '' : 's'}
                             {archivedCount > 0 && ` · ${archivedCount} archived`}
@@ -647,9 +649,9 @@ export default function TeamBuilder() {
                 </div>
 
                 {error && (
-                    <div className="mx-4 text-[12px] text-red-400 px-3 py-2 rounded-lg border border-red-400/30 bg-red-400/5">
+                    <InlineError size="md" className="mx-4">
                         {error}
-                    </div>
+                    </InlineError>
                 )}
 
                 {loading ? (
@@ -758,10 +760,10 @@ export default function TeamBuilder() {
             {/* Header */}
             <div className={`flex items-center ${px} justify-between`}>
                 <div>
-                    <h1 className="flex items-center gap-2 text-[20px] font-black text-(--text-primary)">
+                    <Heading level="page" className="flex items-center gap-2">
                         Team Builder
                         <BetaBadge />
-                    </h1>
+                    </Heading>
                     <p className="text-[12px] text-(--text-secondary)">
                         Build your team, compete in challenges, and explore community creations.
                     </p>
@@ -771,7 +773,7 @@ export default function TeamBuilder() {
                         type="button"
                         onClick={handleNewTeam}
                         disabled={creatingTeam}
-                        className={`flex items-center gap-1 ${px} py-3 text-sm rounded-xl bg-(--secondary) font-bold text-(--background-primary) hover:opacity-90 transition-opacity cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed`}
+                        className={`flex items-center gap-1 ${px} py-3 text-sm rounded-card bg-(--secondary) font-bold text-(--background-primary) hover:opacity-90 transition-opacity cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed`}
                     >
                         {creatingTeam ? <FaSpinner className="animate-spin" /> : <FaPlus />}
                         New
@@ -784,9 +786,9 @@ export default function TeamBuilder() {
             <Tabs tabs={TABS} value={activeTab} onChange={setActiveTab} className={px} fullWidth />
 
             {error && (
-                <div className="mx-4 text-[12px] text-red-400 px-3 py-2 rounded-lg border border-red-400/30 bg-red-400/5">
+                <InlineError size="md" className="mx-4">
                     {error}
-                </div>
+                </InlineError>
             )}
 
             {/* My Teams tab */}
@@ -900,7 +902,7 @@ function TeamListSection({ title, teams, previewCount, onOpen, showAll, emptyNot
     return (
         <div className="space-y-3">
             <div className="flex items-center justify-between gap-3">
-                <h3 className="text-[15px] font-black text-(--text-primary) truncate">{title}</h3>
+                <Heading level="panel" className="truncate">{title}</Heading>
                 {showAll && (
                     <button
                         type="button"

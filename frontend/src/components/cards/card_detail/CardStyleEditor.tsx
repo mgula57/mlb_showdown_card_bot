@@ -138,7 +138,7 @@ export function CardStyleEditor({ style: initialStyle, defaults, onSave, revertT
     }
 
     return (
-        <div className="flex-1 flex flex-col min-h-0 bg-secondary rounded-xl border border-form-element fade-in">
+        <div className="flex-1 flex flex-col min-h-0 bg-secondary rounded-card border border-form-element fade-in">
             {/* Header */}
             <div className="flex items-center gap-2 pl-4 pr-2 py-2 border-b border-form-element shrink-0">
                 <FaPalette className="text-[12px] opacity-60" />
@@ -158,7 +158,7 @@ export function CardStyleEditor({ style: initialStyle, defaults, onSave, revertT
                         onClick={() => setStyle(defaults)}
                         disabled={!isCardStyleDifferent(style, defaults)}
                         title={revertTitle}
-                        className="flex items-center gap-1.5 min-h-8 px-2.5 py-1.5 rounded-lg text-[13px] font-semibold text-(--text-tertiary) hover:text-(--text-primary) disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
+                        className="flex items-center gap-1.5 min-h-8 px-2.5 py-1.5 rounded-control text-[13px] font-semibold text-(--text-tertiary) hover:text-(--text-primary) disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
                     >
                         <FaRotateLeft className="text-[11px]" /> Revert
                     </button>
@@ -166,7 +166,7 @@ export function CardStyleEditor({ style: initialStyle, defaults, onSave, revertT
                         type="button"
                         onClick={handleClose}
                         title="Close"
-                        className="p-2 rounded-lg text-(--text-tertiary) hover:text-(--text-primary) hover:bg-(--background-tertiary) transition-colors cursor-pointer"
+                        className="p-2 rounded-control text-(--text-tertiary) hover:text-(--text-primary) hover:bg-(--background-tertiary) transition-colors cursor-pointer"
                     >
                         <FaXmark className="w-3.5 h-3.5" />
                     </button>
@@ -176,7 +176,7 @@ export function CardStyleEditor({ style: initialStyle, defaults, onSave, revertT
             {/* Fields */}
             <div className="flex flex-col gap-3 p-3 min-h-0 overflow-y-auto">
                 {error && (
-                    <div className="text-[12px] text-red-400 px-3 py-2 rounded-lg border border-red-400/30 bg-red-400/5">
+                    <div className="text-[12px] text-(--red) px-3 py-2 rounded-control border border-(--red)/30 bg-(--red)/5">
                         {error}
                     </div>
                 )}

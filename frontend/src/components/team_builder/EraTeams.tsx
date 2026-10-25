@@ -8,6 +8,7 @@ import { TeamGridPage } from './TeamGridPage';
 import CustomSelect, { type SelectOption } from '../shared/CustomSelect';
 import type { HistoricalNavState } from './HistoricalTeams';
 
+import { InlineError } from '../shared/InlineError';
 // Label lookup falls back to the same formatting the backend uses (RosterEra.label) so a tile
 // still reads correctly before /api/seasons/eras has loaded.
 const eraLabel = (eraKey: string, eras: RosterEra[]): string =>
@@ -104,16 +105,15 @@ export function EraTeams({ horizontalPadding, hideSearch = false, externalQuery,
                         value={era}
                         onChange={setEra}
                         options={eraOptions}
-                        buttonClassName="px-2.5 py-1.5 rounded-lg border border-(--divider) bg-(--background-secondary) text-(--text-primary) text-[12px] text-nowrap cursor-pointer flex items-center"
-                        dropdownArrowSize={12}
+                        size="sm"
                     />
                 </div>
             )}
 
             {error ? (
-                <div className={`${horizontalPadding ?? ''} mx-4 text-[12px] text-red-400 px-3 py-2 rounded-lg border border-red-400/30 bg-red-400/5`}>
+                <InlineError size="md" className={`${horizontalPadding ?? ''} mx-4`}>
                     {error}
-                </div>
+                </InlineError>
             ) : loading ? (
                 <TeamShelf title="Era Teams" className={horizontalPadding ?? ''} bleed>
                     {Array.from({ length: 8 }, (_, i) => <TeamPreviewCardSkeleton key={i} />)}

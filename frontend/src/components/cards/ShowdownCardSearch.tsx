@@ -53,6 +53,8 @@ import { QuickFiltersDropdown } from './QuickFiltersDropdown';
 import { useAuth } from '../auth/AuthContext';
 import { useIsSmallScreen } from '../../hooks/useIsSmallScreen';
 
+import { fieldClass, FIELD_LABEL_CLASS } from '../shared/fieldStyles';
+import { Heading } from '../shared/Heading';
 /**
  * Props for the ShowdownCardSearch component
  */
@@ -1415,7 +1417,7 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
 
     const renderResetButton = (targets: String[]) => {
         return (
-            <button onClick={() => resetFilters(targets)} className="text-black font-bold flex items-center bg-(--warning) rounded-full px-2 mx-1 gap-1 py-1 cursor-pointer">
+            <button onClick={() => resetFilters(targets)} className="text-black font-bold flex items-center bg-(--warning) rounded-control px-2 mx-1 gap-1 py-1 cursor-pointer">
                 <FaArrowRotateRight />
                 <span className="text-sm">Reset</span>
             </button>
@@ -1469,12 +1471,7 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
                         {/* Filters */}
                         <button
                             onClick={handleOpenFilters}
-                            className="
-                                px-3 h-11
-                                rounded-xl bg-(--background-secondary) border border-form-element
-                                flex items-center gap-2
-                                hover:bg-(--background-secondary-hover)
-                            ">
+                            className={fieldClass('lg', 'flex items-center gap-2 cursor-pointer')}>
                             <FaFilter className="text-primary" />
                             <span className="hidden @2xl:inline">Filter</span>
                         </button>
@@ -1500,12 +1497,7 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
                             <div className="@container shrink-0 w-24 md:w-40">
                                 <CustomSelect
                                     className="shrink-0"
-                                    buttonClassName="
-                                        h-11 px-3
-                                        rounded-xl bg-(--background-secondary) border border-form-element
-                                        flex items-center cursor-pointer
-                                        hover:bg-(--background-secondary-hover)
-                                    "
+                                    size="lg"
                                     dropdownClassName="text-xs sm:text-sm"
                                     imageClassName="object-contain object-center h-6 w-16 mr-1"
                                     compactImageClassName="object-contain object-center h-5 w-auto mr-1"
@@ -1534,7 +1526,7 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
                                 ${showPlayerDetailSidebar ? 'hidden' : 'hidden @2xl:flex'}
                             `}>
                             <FaChevronCircleLeft className="text-(--tertiary) w-7 h-7" />
-                            <span className="text-(--tertiary) text-lg font-bold">Card Detail</span>
+                            <Heading level="section" as="span">Card Detail</Heading>
                         </button>
                     )}
 
@@ -1582,7 +1574,7 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
                                 if (!displayText) return null;
                                 const locked = isFilterLocked(key as keyof FilterSelections);
                                 return (
-                                    <div key={key} className={`flex items-center rounded-full px-2 py-1 ${locked ? 'bg-(--background-tertiary) text-(--text-secondary)' : 'bg-(--background-secondary)'}`}>
+                                    <div key={key} className={`flex items-center rounded-[2px] px-2 py-1 ${locked ? 'bg-(--background-tertiary) text-(--text-secondary)' : 'bg-(--background-secondary)'}`}>
                                         <span className="text-sm max-w-84 overflow-x-clip text-nowrap">{displayText}</span>
                                         {locked ? (
                                             <FaLock className="ml-1 shrink-0 text-[10px] opacity-50" title="Locked by team settings" />
@@ -1602,7 +1594,7 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
 
                     {/* Reset Button */}
                     {hasCustomFiltersApplied && (
-                        <div className="absolute right-0 flex justify-end shadow-xl">
+                        <div className="absolute right-0 flex justify-end shadow-overlay">
                             {renderResetButton(['filters', 'editing'])}
                         </div>
                     )}
@@ -1678,7 +1670,7 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
 
                     {/* No results found message */}
                     {warningMessage && (
-                        <div className="flex justify-center p-6 text-secondary bg-(--primary)/10 rounded-xl m-10">
+                        <div className="flex justify-center p-6 text-secondary bg-(--primary)/10 rounded-card m-10">
                             <span className="text-sm">{warningMessage}</span>
                         </div>
                     )}
@@ -1709,14 +1701,14 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
                     transform transition-transform duration-300 ease-in-out
                     ${showPlayerDetailSidebar ? 'translate-x-0' : 'translate-x-full'}
                     hidden @2xl:block
-                    shadow-xl
+                    shadow-overlay
                 `}>
                     {/* Drag-to-resize handle */}
                     <div
                         onPointerDown={handleSidebarResizeStart}
                         className="absolute left-0 top-0 bottom-0 w-4 cursor-ew-resize touch-none flex items-center justify-center z-10 group"
                     >
-                        <FaGripVertical className={`${showPlayerDetailSidebar ? 'block' : 'hidden'} group-hover:text-tertiary transition-colors text-2xl -translate-x-2 text-secondary bg-(--divider) p-1 rounded-md`} />
+                        <FaGripVertical className={`${showPlayerDetailSidebar ? 'block' : 'hidden'} group-hover:text-tertiary transition-colors text-2xl -translate-x-2 text-secondary bg-(--divider) p-1 rounded-control`} />
                     </div>
 
                     {/* Sidebar Content */}
@@ -1728,7 +1720,7 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
                                 onClick={handleCloseSidebar}>
                                 <FaChevronCircleRight className="text-(--tertiary) w-7 h-7" />
                             </button>
-                            <h2 className="text-(--tertiary) text-lg font-bold">Card Detail</h2>
+                            <Heading level="section">Card Detail</Heading>
                         </div>
                         
 
@@ -1760,7 +1752,7 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
                 <div className="
                     absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2
                     bg-(--primary)/10 backdrop-blur
-                    p-4 rounded-2xl
+                    p-4 rounded-card
                     flex items-center space-x-2
                     z-10
                 ">
@@ -1804,7 +1796,7 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
                             ">
                             
                             <div className="flex items-center gap-2">
-                                <h2 className="text-xl font-bold">Filter Options</h2>
+                                <Heading level="section">Filter Options</Heading>
 
                                 <div className="absolute text-sm flex gap-x-6 right-0 p-4 text-(--background-primary)">
                                     {/* Reset button */}
@@ -1814,7 +1806,7 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
                                     {hasFiltersChanged ? (
                                         <button
                                             onClick={handleFilterApply}
-                                            className="bg-(--success) rounded-full flex items-center px-2 gap-1 py-1 cursor-pointer"
+                                            className="bg-(--success) rounded-control flex items-center px-2 gap-1 py-1 cursor-pointer"
                                         >
                                             <FaCheck />
                                             <span className="font-bold">Apply</span>
@@ -1822,7 +1814,7 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
                                     ) : (
                                         <button
                                             onClick={handleFilterApply}
-                                            className="bg-(--warning) rounded-full flex items-center px-3 gap-1 py-1 cursor-pointer"
+                                            className="bg-(--warning) rounded-control flex items-center px-3 gap-1 py-1 cursor-pointer"
                                         >
                                             <FaXmark />
                                             <span className="font-bold">Exit</span>
@@ -1836,7 +1828,7 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
 
                                 {selectedSortOptionForEditing && (
                                     <button
-                                        className="flex items-center bg-(--background-secondary) rounded-full px-2 py-1 text-sm text-nowrap cursor-pointer"
+                                        className="flex items-center bg-(--background-secondary) rounded-control px-2 py-1 text-sm text-nowrap cursor-pointer"
                                         disabled={isFilterLocked('sort_direction')}
                                         onClick={() => setFiltersForEditing((prev) => ({ ...prev, sort_direction: prev.sort_direction === 'asc' ? 'desc' : 'asc' }))} // Toggle direction
                                     >
@@ -1858,7 +1850,7 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
                                         if (!displayText) return null;
                                         const locked = isFilterLocked(key as keyof FilterSelections);
                                         return (
-                                            <div key={key} className={`flex items-center rounded-full px-2 py-1 ${locked ? 'bg-(--background-tertiary) text-(--text-secondary)' : 'bg-(--background-secondary)'}`}>
+                                            <div key={key} className={`flex items-center rounded-[2px] px-2 py-1 ${locked ? 'bg-(--background-tertiary) text-(--text-secondary)' : 'bg-(--background-secondary)'}`}>
                                                 <span className="text-sm max-w-84 overflow-x-clip text-nowrap">{displayText}</span>
                                                 {locked ? (
                                                     <FaLock className="ml-1 shrink-0 text-[10px] opacity-50" title="Locked by team settings" />
@@ -2042,7 +2034,7 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
 
                                 {/* Same grouped dropdown as the chip row's Positions picker */}
                                 <div className="space-y-2">
-                                    <label className="block text-sm font-medium text-(--text-primary)">Positions</label>
+                                    <label className={FIELD_LABEL_CLASS}>Positions</label>
                                     <SetMultiSelect
                                         variant="form"
                                         placeholder="Select..."

@@ -32,7 +32,7 @@ export default function PositionTargetsTable({ targets, setSize, onClear }: Posi
                 <button
                     type="button"
                     onClick={onClear}
-                    className="shrink-0 px-2.5 py-1.5 rounded-md border border-(--divider) text-[12px] font-semibold
+                    className="shrink-0 px-2.5 py-1.5 rounded-control border border-(--divider) text-[12px] font-semibold
                         text-(--text-secondary) hover:text-(--text-primary) hover:bg-(--background-secondary) transition-colors cursor-pointer"
                 >
                     Clear
