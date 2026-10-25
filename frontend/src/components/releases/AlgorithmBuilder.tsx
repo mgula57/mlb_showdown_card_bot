@@ -3,6 +3,7 @@ import { FaWandMagicSparkles, FaSpinner, FaTriangleExclamation, FaStar, FaLayerG
 import type { ReleaseEdition, AlgorithmConfig, AlgorithmPlayerTypeDistribution, AlgorithmPreviewResult, AlgorithmSelectionWeights, AlgorithmTeamMinimums, AlgorithmTeamWeighting, AlgorithmOtherEditionsRule, WotcSetProfile } from '../../api/releases';
 import { fetchWotcSetProfiles, previewAlgorithm, updateEdition } from '../../api/releases';
 import { showdownSets } from '../shared/SiteSettingsContext';
+import { setSelectOption } from '../shared/SetBadge';
 import FormInput from '../customs/FormInput';
 import FormEnabler from '../customs/FormEnabler';
 import FormDropdown from '../customs/FormDropdown';
@@ -468,7 +469,7 @@ export function AlgorithmBuilder({ releaseId, edition, token, defaultShowdownSet
                     <MultiSelect
                         label="Showdown Sets"
                         className="col-span-full"
-                        options={showdownSets}
+                        options={showdownSets.map(s => setSelectOption(s.value, { compact: true }))}
                         selections={config.showdown_sets}
                         onChange={values => setConfig(prev => ({ ...prev, showdown_sets: values }))}
                         placeholder="Select set(s)..."

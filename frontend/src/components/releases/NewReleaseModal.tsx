@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import type { ReleaseCreatePayload } from '../../api/releases';
 import FormInput from '../customs/FormInput';
-import { useSiteSettings, showdownSets } from '../shared/SiteSettingsContext';
+import { useSiteSettings } from '../shared/SiteSettingsContext';
+import { SET_SELECT_OPTIONS } from '../shared/SetBadge';
 import { FaXmark, FaPlus, FaSpinner } from 'react-icons/fa6';
 import CustomSelect from '../shared/CustomSelect';
 
@@ -77,8 +78,7 @@ export function NewReleaseModal({ onConfirm, onCancel }: NewReleaseModalProps) {
                         <CustomSelect
                             value={draft.default_showdown_set ?? userShowdownSet}
                             onChange={v => setDraft(prev => ({ ...prev, default_showdown_set: v }))}
-                            options={showdownSets}
-                            imageClassName="object-contain w-18 rounded-control"
+                            options={SET_SELECT_OPTIONS}
                         />
                         <span className="text-[11px] text-(--text-tertiary)">
                             This is just a starting point — you can add cards from other sets too.

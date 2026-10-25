@@ -4,7 +4,8 @@ import { MAX_STARTERS } from '../../api/userTeams';
 import FormInput from '../customs/FormInput';
 import NumberInput from '../customs/NumberInput';
 import FormEnabler from '../customs/FormEnabler';
-import { imageForSet } from '../shared/SiteSettingsContext';
+import { SetBadge } from '../shared/SetBadge';
+import { showdownSets } from '../shared/SiteSettingsContext';
 import FormSection from '../customs/FormSection';
 import RangeFilter from '../customs/RangeFilter';
 import { TeamHierarchy } from '../cards/TeamHierarchy';
@@ -44,7 +45,8 @@ const HAND_OPTIONS: { value: string; label: string }[] = [
 type SummaryItem = {
     label?: string;
     value: string;
-    image?: string;
+    /** Showdown set value; renders a set badge instead of the text */
+    set?: string;
 };
 
 /** Compact badge row shown under a collapsed FormSection, mirroring CustomCardBuilder's summary style. */
@@ -52,14 +54,14 @@ function SectionSummary({ items }: { items: SummaryItem[] }) {
     if (items.length === 0) return null;
     return (
         <div className="text-xs font-bold flex flex-wrap items-center gap-x-1.5 gap-y-1 text-(--tertiary)">
-            {items.map((item, i) => (
-                <div key={`${item.label ?? ''}-${item.value}-${i}`} className="flex shrink-0 items-center whitespace-nowrap rounded-plate px-1.5 border border-(--divider)">
-                    {item.image
-                        ? <img src={item.image} alt={item.value} className="h-5 w-auto object-contain" />
-                        : <span>{item.label ? `${item.label}: ` : ''}{item.value}</span>
-                    }
-                </div>
-            ))}
+            {items.map((item, i) => item.set
+                ? <SetBadge key={`set-${item.set}-${i}`} set={item.set} size="sm" />
+                : (
+                    <div key={`${item.label ?? ''}-${item.value}-${i}`} className="flex shrink-0 items-center whitespace-nowrap rounded-plate px-1.5 border border-(--divider)">
+                        <span>{item.label ? `${item.label}: ` : ''}{item.value}</span>
+                    </div>
+                )
+            )}
         </div>
     );
 }
@@ -156,7 +158,7 @@ export function TeamSettingsForm({ team, onChange, onArchive, archiving = false 
             : [{ value: 'All Sources' }];
         activeSources(team).forEach(source => {
             allowedSetsForSource(team, source).forEach(set => {
-                items.push({ value: set, image: imageForSet(set) });
+                items.push({ value: set, set });
             });
         });
         return items;
@@ -476,7 +478,6 @@ function SetToggleGroup({ label, hint, options, selected, onToggle }: SetToggleG
             </div>
             {options.map(value => {
                 const active = selected.includes(value);
-                const image = imageForSet(value);
                 return (
                     <button
                         key={value}
@@ -488,8 +489,8 @@ function SetToggleGroup({ label, hint, options, selected, onToggle }: SetToggleG
                                 : 'border-(--divider) opacity-40 hover:opacity-70'
                             }`}
                     >
-                        {image
-                            ? <img src={image} alt={value} className="h-5 w-auto object-contain" />
+                        {showdownSets.some(s => s.value === value)
+                            ? <SetBadge set={value} />
                             : <span className="text-[11px] font-bold px-1">{value}</span>
                         }
                     </button>

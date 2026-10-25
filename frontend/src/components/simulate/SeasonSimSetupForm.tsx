@@ -4,7 +4,8 @@ import FormDropdown from '../customs/FormDropdown';
 import ManagerStyleFields from './ManagerStyleFields';
 import SimSettingToggle from './SimSettingToggle';
 import { NEUTRAL_MANAGER, managerPayload, type ManagerPreference } from '../../api/manager';
-import { useSiteSettings, showdownSets } from '../shared/SiteSettingsContext';
+import { useSiteSettings } from '../shared/SiteSettingsContext';
+import { SET_SELECT_OPTIONS } from '../shared/SetBadge';
 import { BetaBadge } from '../shared/BetaBadge';
 import { fetchUserTeams, type TeamSummary } from '../../api/userTeams';
 import {
@@ -25,10 +26,10 @@ function errorMessage(err: unknown): string {
 }
 
 // Bot-generated cards are pinned to one baseline set (WOTC's freely-combinable sets don't apply
-// here), so the picker is just `showdownSets` filtered to the ones the bot actually renders —
-// reusing the shared list gives the dropdown its set artwork for free.
+// here), so the picker is just `SET_SELECT_OPTIONS` filtered to the ones the bot actually renders —
+// reusing the shared list gives the dropdown its set badges for free.
 const BOT_SET_VALUES = new Set(['2000', '2001', 'CLASSIC', '2002', '2003', '2004', '2005', 'EXPANDED']);
-const CARD_SET_OPTIONS = showdownSets.filter(option => BOT_SET_VALUES.has(option.value));
+const CARD_SET_OPTIONS = SET_SELECT_OPTIONS.filter(option => BOT_SET_VALUES.has(option.value));
 
 /** Engine settings that represent a standing user preference (independent of season/team/manager),
  *  persisted so a repeat "Simulate a season" starts from how they last configured it. */
@@ -301,7 +302,6 @@ export function SeasonSimSetupForm(props: Props) {
                     options={CARD_SET_OPTIONS}
                     selectedOption={set}
                     onChange={setSet}
-                                        imageClassName="object-contain object-center max-w-18"
                 />
             </div>
 

@@ -1,9 +1,9 @@
 /**
  * @fileoverview SetMultiSelect - compact multi-select dropdown for the search bar (Showdown sets,
  * release editions). Mirrors the look of the single-select set override dropdown, but lets several
- * options be picked. Options show their logo when they have one, otherwise their label; `group`
+ * options be picked. Options show their icon (a set badge) when they have one, otherwise their label; `group`
  * adds a header above each run of options sharing it. An empty selection falls back to the default
- * set (shown via `defaultImage`), or `placeholder` text when there's no default image.
+ * set (shown via `defaultIcon`), or `placeholder` text when there's no default icon.
  * The `pill` variant renders a compact rounded trigger for the chip row (next to the sort button);
  * the `form` variant matches `MultiSelect`'s trigger (removable tags) for use inside forms/modals.
  */
@@ -13,16 +13,16 @@ import { createPortal } from 'react-dom';
 import { FaCaretDown, FaCheck, FaChevronDown, FaTimes } from 'react-icons/fa';
 
 import { fieldClass, CAPS_LABEL_CLASS, INLINE_FIELD_LABEL_CLASS } from '../shared/fieldStyles';
-export type SetMultiSelectOption = { value: string; image?: string; label?: string; group?: string };
+export type SetMultiSelectOption = { value: string; icon?: ReactNode; label?: string; group?: string };
 
 type SetMultiSelectProps = {
     options: SetMultiSelectOption[];
     /** Selected set values; empty = the default set */
     selections: string[];
     onChange: (values: string[]) => void;
-    /** Image shown when nothing is selected (the set the search falls back to) */
-    defaultImage?: string;
-    /** Text shown when nothing is selected and there's no `defaultImage` */
+    /** Icon shown when nothing is selected (the set the search falls back to) */
+    defaultIcon?: ReactNode;
+    /** Text shown when nothing is selected and there's no `defaultIcon` */
     placeholder?: string;
     className?: string;
     disabled?: boolean;
@@ -33,7 +33,7 @@ type SetMultiSelectProps = {
     prefix?: ReactNode;
 };
 
-export default function SetMultiSelect({ options, selections, onChange, defaultImage, placeholder, className = '', disabled = false, variant = 'toolbar', prefix }: SetMultiSelectProps) {
+export default function SetMultiSelect({ options, selections, onChange, defaultIcon, placeholder, className = '', disabled = false, variant = 'toolbar', prefix }: SetMultiSelectProps) {
     const isPill = variant === 'pill';
     const isForm = variant === 'form';
     const [isOpen, setIsOpen] = useState(false);
@@ -120,14 +120,14 @@ export default function SetMultiSelect({ options, selections, onChange, defaultI
                     className={fieldClass(isPill ? 'sm' : 'lg', 'flex items-center cursor-pointer')}
                 >
                     {prefix && <span className={`${INLINE_FIELD_LABEL_CLASS} mr-1`}>{prefix}</span>}
-                    {/* Same footprint as the single-select set dropdown: one w-16 logo (first pick) + "+N" for extras */}
+                    {/* Same footprint as the single-select set dropdown: one badge (first pick) + "+N" for extras */}
                     {(() => {
                         const shown = selectedOptions[0];
-                        const image = shown?.image ?? defaultImage;
+                        const icon = shown?.icon ?? defaultIcon;
                         return (
                             <>
-                                {image
-                                    ? <img src={image} alt={shown?.value ?? 'default set'} className="object-contain object-center h-6 w-16 mr-1" />
+                                {icon
+                                    ? <span className="flex items-center shrink-0 mr-1">{icon}</span>
                                     : <span className={`${isPill ? '' : 'text-xs'} whitespace-nowrap truncate max-w-28 md:max-w-56 mr-1`}>{shown ? (shown.label ?? shown.value) : placeholder}</span>}
                                 {selectedOptions.length > 1 && <span className={`${isPill ? '' : 'text-xs'} text-secondary whitespace-nowrap`}>+{selectedOptions.length - 1}</span>}
                             </>
@@ -174,8 +174,8 @@ export default function SetMultiSelect({ options, selections, onChange, defaultI
                                     <div className={`flex items-center justify-center w-4 h-4 border rounded shrink-0 ${isSelected ? 'bg-primary border-primary' : 'border-(--border-primary)'}`}>
                                         {isSelected && <FaCheck className="h-2 w-2" />}
                                     </div>
-                                    {option.image
-                                        ? <img src={option.image} alt={option.value} className="object-contain object-center h-6 w-16" />
+                                    {option.icon
+                                        ? option.icon
                                         : <span className="text-sm whitespace-nowrap">{option.label ?? option.value}</span>}
                                 </div>
                             </Fragment>

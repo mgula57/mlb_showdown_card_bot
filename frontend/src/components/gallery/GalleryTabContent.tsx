@@ -9,7 +9,7 @@ import FormInput from '../customs/FormInput';
 import CustomSelect from '../shared/CustomSelect';
 import { expansionOptions, editionOptions } from '../customs/cardStyle';
 import { buttonClass } from '../shared/buttonStyles';
-import { showdownSets, imageForSet } from '../shared/SiteSettingsContext';
+import { SetBadge, SET_SELECT_OPTIONS } from '../shared/SetBadge';
 
 /** Editions offered as gallery filters (the rest of `editionOptions` rarely appear in a gallery). */
 const GALLERY_EDITION_FILTERS = new Set(['CC', 'SS', 'RS', 'ASG', 'WBC', 'POST']);
@@ -107,7 +107,6 @@ const GalleryStackCell: React.FC<{
     const thumbUrl = top.thumbnail_public_url ?? top.public_url ?? top.storage_path;
     const label = [top.player_name, top.year, top.set_name].filter(Boolean).join(' · ');
     const stackTextLabel = [top.player_name, top.year].filter(Boolean).join(' · ');
-    const stackSetImage = imageForSet(top.set_name ?? '');
 
     if (isExpanded) {
         return (
@@ -193,9 +192,7 @@ const GalleryStackCell: React.FC<{
                 {stackTextLabel && (
                     <p className="text-[10px] font-bold text-secondary text-center truncate px-1 w-full">{stackTextLabel}</p>
                 )}
-                {stackSetImage && (
-                    <img src={stackSetImage} alt={top.set_name ?? ''} className="h-3.5 object-contain object-center" />
-                )}
+                {top.set_name && <SetBadge set={top.set_name} size="sm" />}
             </div>
         </div>
     );
@@ -219,7 +216,6 @@ const GalleryCard: React.FC<{
     const thumbUrl = item.thumbnail_public_url ?? fullUrl;
     const label = [item.player_name, item.year, item.set_name].filter(Boolean).join(' · ');
     const textLabel = [item.player_name, item.year].filter(Boolean).join(' · ');
-    const setImage = imageForSet(item.set_name ?? '');
 
     const inputs = item.user_inputs ?? {};
     const badges = [
@@ -292,9 +288,7 @@ const GalleryCard: React.FC<{
                 {textLabel && (
                     <p className="text-[10px] font-bold text-secondary text-center truncate px-1 w-full">{textLabel}</p>
                 )}
-                {setImage && (
-                    <img src={setImage} alt={item.set_name ?? ''} className="h-3.5 object-contain object-center" />
-                )}
+                {item.set_name && <SetBadge set={item.set_name} size="sm" />}
                 {badges.length > 0 && (
                     <div className="flex flex-wrap justify-center">
                         {badges.map(badge => (
@@ -536,11 +530,10 @@ export const GalleryTabContent: React.FC<GalleryTabContentProps> = ({ user, toke
                 {/* Row 2: Set + Expansion + Edition + Team + Year + Hidden toggle */}
                 <div className="flex items-end gap-1.5 w-full overflow-x-scroll scrollbar-hide">
                     <CustomSelect
-                        options={[{ value: '', label: 'All Sets', image: undefined, textColor: 'text-secondary' }, ...showdownSets]}
+                        options={[{ value: '', label: 'All Sets', textColor: 'text-secondary' }, ...SET_SELECT_OPTIONS]}
                         value={filters.set_name ?? ''}
                         onChange={handleSetChange}
                         size="lg"
-                        imageClassName="object-contain object-center w-18 mr-2"
                     />
                     <CustomSelect
                         options={[

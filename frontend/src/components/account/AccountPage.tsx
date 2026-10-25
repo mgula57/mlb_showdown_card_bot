@@ -21,7 +21,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../auth/AuthContext';
 import { useNavigate } from 'react-router-dom';
-import { useSiteSettings, useTheme, showdownSets } from '../shared/SiteSettingsContext';
+import { useSiteSettings, useTheme } from '../shared/SiteSettingsContext';
+import { SET_SELECT_OPTIONS_LG } from '../shared/SetBadge';
 import { FaEnvelope, FaClock, FaPalette, FaSignOutAlt, FaTrash, FaCog, FaUser, FaCamera, FaSpinner } from 'react-icons/fa';
 import { SignInPrompt } from '../shared/SignInPrompt';
 import CustomSelect from '../shared/CustomSelect';
@@ -443,13 +444,11 @@ const AccountPage: React.FC = () => {
                         {/* Default Showdown Set */}
                         <div>
                             <CustomSelect
-                                className="font-showdown-set-italic w-26 text-xl"
-                                // design-ok: set-logo picker, not a form field
-                                buttonClassName="flex justify-center cursor-pointer select-none p-2 rounded-control border"
-                                imageClassName="object-contain object-center w-18"
+                                className="w-44"
+                                size="lg"
                                 value={userShowdownSet}
                                 onChange={setUserShowdownSet}
-                                options={showdownSets}
+                                options={SET_SELECT_OPTIONS_LG}
                                 showDropdownArrow={true}
                             />
                             

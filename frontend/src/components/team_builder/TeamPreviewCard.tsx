@@ -2,7 +2,7 @@ import type { CardDatabaseRecord } from '../../api/card_db/cardDatabase';
 import type { TeamSource } from '../../api/userTeams';
 import { CardItemCompactFromCardDatabaseRecord } from '../cards/CardItemCompact';
 import { getContrastTextColor } from '../../functions/colors';
-import { imageForSet } from '../shared/SiteSettingsContext';
+import { SetBadgeRow } from '../shared/SetBadge';
 import { useAuth } from '../auth/AuthContext';
 import { FaCircle, FaHatWizard, FaRobot, FaUsers, FaHeart, FaEye } from 'react-icons/fa6';
 import type { ReactNode } from 'react';
@@ -134,16 +134,11 @@ export function TeamPreviewCard({ team, onClick, size = 'md', className = '' }: 
                     </Plate>
                 )}
                 {showSetGrid && (
-                    <div className="rounded-plate p-1 flex flex-wrap items-center justify-end gap-0.5 max-w-24 bg-(--field-ink)/60">
-                        {allowedSets.map(set => {
-                            const useAbbreviated = allowedSets.length >= 2;
-                            const image = imageForSet(set, useAbbreviated);
-                            const heightClass = useAbbreviated ? 'h-3' : 'h-4';
-                            return image ? (
-                                <img key={set} src={image} alt={set} loading="lazy" className={`${heightClass} w-auto object-contain`} />
-                            ) : null;
-                        })}
-                    </div>
+                    <SetBadgeRow
+                        sets={allowedSets}
+                        onField
+                        className="rounded-plate p-1 flex flex-wrap items-center justify-end gap-0.5 max-w-24 bg-(--field-ink)/60"
+                    />
                 )}
             </div>
 

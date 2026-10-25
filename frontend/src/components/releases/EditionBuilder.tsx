@@ -13,7 +13,7 @@ import { CardItemFromCardDatabaseRecord } from '../cards/CardItem';
 import { CardDetail } from '../cards/CardDetail';
 import { Modal } from '../shared/Modal';
 import CompactSelect from '../shared/CompactSelect';
-import { ShowdownSetLogos } from '../shared/ShowdownSetLogos';
+import { SetBadgeRow } from '../shared/SetBadge';
 import type { ShowdownBotCardAPIResponse } from '../../api/showdownBotCard';
 import type { FilterSelections } from '../cards/ShowdownCardSearch';
 import FormEnabler from '../customs/FormEnabler';
@@ -782,7 +782,7 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
                         type="button"
                         onClick={() => setShowStyleModal(true)}
                         title="Default card style for this edition"
-                        className={buttonClass('secondary', 'sm', 'ml-auto min-h-9')}
+                        className={buttonClass('secondary', 'sm', 'ml-auto min-h-5')}
                     >
                         <FaPalette className="text-[12px] shrink-0" />
                         <span><span className="hidden sm:inline">Card </span>Style</span>
@@ -944,10 +944,9 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
                         {/* Phones get the strip above the split instead (it includes Build) — except when browsing */}
                         <Tabs.List className={`${readOnly ? '' : 'hidden! md:flex!'} ${TAB_LIST_CLASS}`}>
                             {poolTabTriggers}
-                            <ShowdownSetLogos
+                            <SetBadgeRow
                                 sets={displayCards.map(c => c.card_snapshot.showdown_set)}
-                                heightClass="h-5.5"
-                                abbreviatedHeightClass="h-4.5"
+                                size="md"
                                 className="hidden sm:flex items-center gap-1 ml-auto shrink-0"
                             />
                         </Tabs.List>

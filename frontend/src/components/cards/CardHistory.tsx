@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { type CustomCardLogRecord } from "../../api/card_db/cardDatabase";
 import { FaCircleCheck, FaCircleXmark, FaShuffle, FaImage, FaXmark, FaExpand } from "react-icons/fa6";
-import { imageForSet } from "../shared/SiteSettingsContext";
+import { SetBadge } from "../shared/SetBadge";
 import type { CustomCardFormState } from "../customs/CustomCardBuilder";
 import { titleCase } from "../../functions/text";
 import { useAuth } from "../auth/AuthContext";
@@ -171,9 +171,9 @@ export const CardHistory = ({ history, onSelectCard }: CardHistoryProps) => {
                                                     <span className="text-xs text-secondary shrink-0">{group.record.year}</span>
                                                 </div>
 
-                                                {/* Set image + set number + expansion + league */}
+                                                {/* Set badge + set number + expansion + league */}
                                                 <div className="text-xs text-secondary flex items-center gap-1.5">
-                                                    <img src={imageForSet(group.record.set)} alt={group.record.set} className="h-4 object-contain" />
+                                                    <SetBadge set={group.record.set} size="sm" />
                                                     {inputs?.set_number && (
                                                         <span className="text-[11px]">#{set_number}</span>
                                                     )}

@@ -1,7 +1,7 @@
 import { FaTrophy, FaLock } from 'react-icons/fa6';
 import type { SimSeasonListItem } from '../../../api/sim';
 import { relativeTime } from '../../../functions/formatters';
-import { imageForSet } from '../../shared/SiteSettingsContext';
+import { SetBadge } from '../../shared/SetBadge';
 import { CAPS_LABEL_CLASS } from '../../shared/fieldStyles';
 
 /** A labelled rule between the runs that cleared a challenge and the ones that didn't. Shared by
@@ -81,11 +81,7 @@ export function SimSeasonRow({ entry, onOpen, rank, attempts, showTime, disabled
                     {entry.showdown_set && (
                         <>
                             {entry.replaced_abbr ? ' · ' : ''}
-                            <img
-                                src={imageForSet(entry.showdown_set, true)}
-                                alt={entry.showdown_set}
-                                className="inline h-3 w-auto object-contain align-middle"
-                            />
+                            <SetBadge set={entry.showdown_set} abbreviated size="sm" className="align-middle" />
                         </>
                     )}
                     {entry.division ? ` · ${entry.division}` : ''}

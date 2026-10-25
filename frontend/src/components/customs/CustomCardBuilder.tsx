@@ -35,6 +35,7 @@ import { PlayerSearchInput } from './PlayerSearchInput';
 import CustomSelect from '../shared/CustomSelect';
 import type { SelectOption } from '../shared/CustomSelect';
 import { useSiteSettings, showdownSets } from '../shared/SiteSettingsContext';
+import { setSelectOption } from '../shared/SetBadge';
 import { WhatsNewBanner } from '../shared/WhatsNewBanner';
 import { InfoTooltip } from '../shared/InfoTooltip';
 
@@ -244,8 +245,6 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
         () => localStorage.getItem(SET_2026_NOTICE_KEY) === 'true'
     );
     const previewSectionRef = useRef<HTMLDivElement>(null);
-    const userDefaultSetImage = showdownSets.find(set => set.value === userShowdownSet)?.image;
-    const userDefaultSetImageAbbr = showdownSets.find(set => set.value === userShowdownSet)?.imageAbbr;
 
     // User Context
     const { user, session } = useAuth();
@@ -1136,16 +1135,14 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
                                             <div className="@container shrink-0 w-18">
                                                 <CustomSelect
                                                     className="text-sm"
-                                                    // design-ok: set-logo picker, not a form field
-                                                    buttonClassName="w-full pl-1 py-2 hover:bg-(--background-secondary) cursor-pointer rounded-full"
-                                                    imageClassName="object-contain object-center w-16 mr-2 h-7"
-                                                    compactImageClassName="object-contain object-center w-10 h-7"
+                                                    // design-ok: set-badge picker, not a form field
+                                                    buttonClassName="w-full pl-1 py-2 flex items-center hover:bg-(--background-secondary) cursor-pointer rounded-control"
                                                     value={showdownSetOverride ?? ''}
                                                     align="right"
                                                     onChange={(v) => setShowdownSetOverride(v === '' ? null : v)}
                                                     options={[
-                                                        { value: '', label: ``, image: userDefaultSetImage, imageCompact: userDefaultSetImageAbbr },
-                                                        ...showdownSets.map(set => ({ ...set, imageCompact: set.imageAbbr })),
+                                                        { ...setSelectOption(userShowdownSet, { compact: true, size: 'lg' }), value: '' },
+                                                        ...showdownSets.map(set => setSelectOption(set.value, { compact: true, size: 'lg' })),
                                                     ]}
                                                     showDropdownArrow={true}
                                                 />

@@ -1,6 +1,6 @@
 import type { TeamSummary } from '../../api/userTeams';
 import { getContrastTextColor } from '../../functions/colors';
-import { imageForSet } from '../shared/SiteSettingsContext';
+import { SetBadgeRow } from '../shared/SetBadge';
 import { useAuth } from '../auth/AuthContext';
 import { FaLock, FaUsers, FaHeart, FaEye } from 'react-icons/fa6';
 import PointsBadge from '../cards/card_elements/PointsBadge';
@@ -99,18 +99,7 @@ export function TeamCard({ team, isSelected, onClick }: TeamCardProps) {
             </div>
 
             {/* Allowed showdown sets, as a grid of icons to the left of the owner's avatar */}
-            {allowedSets.length > 0 && (
-                <div className="shrink-0 flex flex-wrap items-center justify-end gap-1 ml-auto max-w-28">
-                    {allowedSets.map(set => {
-                        const useAbbreviated = allowedSets.length >= 2;
-                        const image = imageForSet(set, useAbbreviated);
-                        const heightClass = useAbbreviated ? 'h-4.5' : 'h-5.5';
-                        return image ? (
-                            <img key={set} src={image} alt={set} className={`${heightClass} w-auto object-contain`} />
-                        ) : null;
-                    })}
-                </div>
-            )}
+            <SetBadgeRow sets={allowedSets} size="md" className="shrink-0 flex flex-wrap items-center justify-end gap-1 ml-auto max-w-28" />
 
             {/* Owner's avatar, on the far right of the card */}
             {avatarUrl && (

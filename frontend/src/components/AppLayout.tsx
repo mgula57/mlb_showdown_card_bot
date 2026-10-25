@@ -42,7 +42,8 @@ import React, { type ReactNode, useState, useEffect, useRef } from "react";
 import SideMenu from "./side_menu/SideMenu";
 import ShowdownBotLogo from "./shared/ShowdownBotLogo";
 import { useLocation } from "react-router-dom";
-import { useSiteSettings, showdownSets } from "./shared/SiteSettingsContext";
+import { useSiteSettings } from "./shared/SiteSettingsContext";
+import { SET_SELECT_OPTIONS_LG } from "./shared/SetBadge";
 import CustomSelect from "./shared/CustomSelect";
 import { FiMenu } from "react-icons/fi";
 import { sideMenuItems } from "./side_menu/sideMenuConfig";
@@ -368,13 +369,11 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
                     {/* Right Section: Showdown Set Selector and Account Icon */}
                     <div className="flex items-center space-x-2 shrink-0 ml-4">
                         <CustomSelect
-                            className="w-22 text-lg"
-                            // design-ok: set-logo picker, not a form field
-                            buttonClassName="flex justify-center cursor-pointer select-none"
-                            imageClassName="object-contain object-center w-18"
+                            // design-ok: set-badge picker, not a form field
+                            buttonClassName="flex justify-center items-center cursor-pointer select-none"
                             value={userShowdownSet}
                             onChange={setUserShowdownSet}
-                            options={showdownSets}
+                            options={SET_SELECT_OPTIONS_LG}
                             showDropdownArrow={true}
                         />
 

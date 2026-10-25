@@ -4,7 +4,8 @@ import type { CardDatabaseRecord } from "../../api/card_db/cardDatabase";
 import { CardChart } from "./card_elements/CardChart";
 import CardCommand from "./card_elements/CardCommand";
 import { getContrastTextColor } from "../../functions/colors";
-import { imageForSet } from "../shared/SiteSettingsContext";
+import { showdownSets } from "../shared/SiteSettingsContext";
+import { SetBadge } from "../shared/SetBadge";
 import { CardSource } from "../../types/cardSource";
 import { FaStar, FaBook, FaScrewdriverWrench, FaHatWizard, FaWandMagicSparkles } from 'react-icons/fa6';
 import LiveIcon from "../shared/icons/LiveIcon";
@@ -178,8 +179,9 @@ export const CardItem = ({
 
     const hasSetBadgeContent = cardSource === 'WOTC' || cardSource === 'CUSTOM' || !!cardSetNumber
         || ['TD', 'PR', 'ASG', 'PM'].includes(cardExpansion || '');
-    // Redacted/placeholder cards fall back to a blurred 2005 logo
-    const setImage = imageForSet(cardSet || '2005', true);
+    // Redacted/placeholder cards fall back to a blurred 2005 badge
+    const badgeSet = cardSet || '2005';
+    const hasSetBadge = showdownSets.some(s => s.value === badgeSet);
 
     /**
      * Player-type specific metadata display
@@ -395,9 +397,9 @@ export const CardItem = ({
 
                 </div>
 
-                {/* Source, Set Number, Expansion, and Showdown Set logo — pinned to the bottom-right corner,
+                {/* Source, Set Number, Expansion, and Showdown Set badge — pinned to the bottom-right corner,
                     blurring any highlights that scroll beneath */}
-                {setImage && (
+                {hasSetBadge && (
                     <div
                         className="
                             absolute bottom-0 right-0
@@ -433,11 +435,7 @@ export const CardItem = ({
                         {['PM'].includes(cardExpansion || '') && (
                             <span>PROMO</span>
                         )}
-                        <img
-                            src={setImage}
-                            alt={cardSet || 'Showdown Set'}
-                            className="h-4 w-auto object-contain"
-                        />
+                        <SetBadge set={badgeSet} abbreviated size="sm" />
                     </div>
                 )}
             </div>

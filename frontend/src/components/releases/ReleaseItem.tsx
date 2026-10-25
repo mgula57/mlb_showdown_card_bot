@@ -1,7 +1,7 @@
 import type { CSSProperties } from 'react';
 import type { Release, ReleasePreviewImage } from '../../api/releases';
 import { cardImagePublicUrl } from '../../api/supabase';
-import { ShowdownSetLogos } from '../shared/ShowdownSetLogos';
+import { SetBadgeRow } from '../shared/SetBadge';
 import { FaLayerGroup } from 'react-icons/fa6';
 import { SLANT_ROOM_CLASS } from '../shared/headingStyles';
 import { Plate } from '../shared/Plate';
@@ -70,10 +70,8 @@ export function ReleaseItem({ release, onClick, showPublishStatus = false }: Rel
                 {/* Official plate + every included set, wrapping onto a second row when there are many */}
                 <div className="absolute top-0.5 inset-x-0.5 z-1 flex items-start justify-between gap-1 pointer-events-none">
                     {release.is_official ? <Plate variant="navy" size="sm">Official</Plate> : <span />}
-                    <ShowdownSetLogos
+                    <SetBadgeRow
                         sets={sets}
-                        heightClass="h-5"
-                        abbreviatedHeightClass="h-4"
                         className="flex flex-wrap items-center justify-end gap-1 p-0.5"
                     />
                 </div>

@@ -49,6 +49,8 @@ type SelectOption = {
     symbol?: string;
     /** React component or element to display as an icon */
     icon?: React.ReactNode;
+    /** Smaller variant of `icon` shown on the selected-value button at narrow widths, like `imageCompact` */
+    iconCompact?: React.ReactNode;
     /** Custom border color for the option when selected */
     borderColor?: string;
     /** Custom text color for the option */
@@ -285,11 +287,26 @@ const CustomSelect: React.FC<CustomSelectProps> = ({ value, onChange, options, c
      * @param icon - Optional React node for icon display
      * @returns Span wrapper with icon or null if no icon provided
      */
-    const renderIcon = (icon: React.ReactNode) => {
+    const renderIcon = (icon: React.ReactNode, extraClassName = "") => {
         if (icon) {
-            return <span className="my-auto mr-2">{icon}</span>;
+            return <span className={`my-auto mr-2 shrink-0 ${extraClassName}`}>{icon}</span>;
         }
         return null;
+    };
+
+    /**
+     * Renders the selected option's icon on the button, swapping to its compact variant
+     * (when provided) at narrow container widths
+     * @param option - The currently selected option
+     */
+    const renderSelectedIcon = (option: SelectOption | undefined) => {
+        if (!option?.iconCompact) return renderIcon(option?.icon);
+        return (
+            <>
+                {renderIcon(option.iconCompact, '@min-[100px]:hidden')}
+                {renderIcon(option.icon, 'hidden @min-[100px]:block')}
+            </>
+        );
     };
 
     /** Options can tint the field's border (e.g. an edition's color) */
@@ -309,7 +326,7 @@ const CustomSelect: React.FC<CustomSelectProps> = ({ value, onChange, options, c
                 <div className="flex flex-1 min-w-0 items-center overflow-clip">
                     { renderSelectedImage(options.find(option => option.value === value)) }
                     { renderSymbol(options.find(option => option.value === value)?.symbol) }
-                    { renderIcon(options.find(option => option.value === value)?.icon) }
+                    { renderSelectedIcon(options.find(option => option.value === value)) }
                     {options.find(option => option.value === value)?.label
                         ? <span className={labelClassName}>{options.find(option => option.value === value)?.label}</span>
                         : <span className={`${labelClassName} text-tertiary`}>{placeholder}</span>

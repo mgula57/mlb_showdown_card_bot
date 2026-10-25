@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { FaLayerGroup, FaStar, FaUsers, FaClockRotateLeft, FaTrophy } from 'react-icons/fa6';
 import { fetchPublicTeams, type TeamSummary } from '../../api/userTeams';
 import { fetchHistoricalTeams, type HistoricalTeam, fetchEraTeams, type EraTeam, ALL_TIME_ERA_KEY } from '../../api/mlbAPI';
-import { showdownSets, imageForSet } from '../shared/SiteSettingsContext';
+import { SET_SELECT_OPTIONS } from '../shared/SetBadge';
 import { TeamPreviewCard, TeamPreviewCardSkeleton } from './TeamPreviewCard';
 import { TeamSearchInput } from './TeamSearchInput';
 import { matchesTeamQuery } from './teamSearch';
@@ -31,7 +31,7 @@ const BROWSE_SET_STORAGE_KEY = 'browseTeams.set';
 // "" = All Sets, meaning no set filter at all.
 const SET_OPTIONS: SelectOption[] = [
     { value: '', label: 'All Sets', icon: <FaLayerGroup /> },
-    ...showdownSets.map(s => ({ value: s.value, label: s.value, image: imageForSet(s.value, true) })),
+    ...SET_SELECT_OPTIONS,
 ];
 
 // Navigating into a team's detail page fully unmounts this tree (it's a distinct top-level
@@ -333,7 +333,6 @@ export function BrowseTeams({ onOpenTeam, horizontalPadding, currentUserId, myTe
                     }}
                     options={SET_OPTIONS}
                     size="md"
-                    imageClassName="mr-0.5 w-6 h-5 object-contain object-center"
                 />
 
                 <div className="flex-1 min-w-48 max-w-88">

@@ -4,7 +4,7 @@ import CardCommand from "./card_elements/CardCommand";
 import { getContrastTextColor } from "../../functions/colors";
 import { formatYear } from "../../functions/formatters";
 import { FaHatWizard, FaWandMagicSparkles } from "react-icons/fa6";
-import { imageForSet } from '../shared/SiteSettingsContext';
+import { SetBadge } from '../shared/SetBadge';
 import { defenseAtPosition } from "../shared/DefenseUtils";
 import CardIcon from "./card_elements/CardIcon";
 import AdvantageBadge from "./card_elements/AdvantageBadge";
@@ -280,7 +280,7 @@ export const CardItemCompact = ({
             {/* Absolute positioned elements */}
             {!hideDetails && !isRedacted && !hideCommand && !statBadge && (
                 <div className="hidden @[95px]:block absolute bottom-1.5 left-0.5 bg-(--background-secondary)/70 backdrop-blur-[1px] rounded-plate">
-                    <img src={imageForSet(card?.set || '', true)} alt={card?.set ?? 'N/A'} loading="lazy" className="h-3.5 object-contain object-center" />
+                    <SetBadge set={card?.set || ''} abbreviated size="sm" />
                 </div>
             )}
 

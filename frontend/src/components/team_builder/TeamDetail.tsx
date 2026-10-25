@@ -42,7 +42,7 @@ import { SimSeasonRow } from './sim/SimSeasonRow';
 import { CardItemFromCardDatabaseRecord } from '../cards/CardItem';
 import PointsEstimateComparison from '../cards/card_elements/PointsEstimateComparison';
 import { CardItemCompactFromCardDatabaseRecord } from '../cards/CardItemCompact';
-import { imageForSet } from '../shared/SiteSettingsContext';
+import { SetBadge } from '../shared/SetBadge';
 import { TEAM_CARD_SOURCES, activeSources, allowedSetsForSource } from '../../domain/teamSets';
 import { effectiveBenchBullpenMinimums, benchBullpenSlotCounts } from '../../domain/roster';
 import { ToastMessage } from '../shared/ToastMessage';
@@ -1438,14 +1438,7 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                             <div className="flex items-center gap-0.5 ">
                                 {(draft.allowed_sets ?? [])
                                 .sort((a, b) => a.localeCompare(b))
-                                    .map(s => {
-                                        const img = imageForSet(s);
-                                        return (
-                                            <span key={s} className="flex items-center">
-                                                {img && <img src={img} alt={s} className="h-5 md:h-6 w-auto object-fill" />}
-                                            </span>
-                                        );
-                                    })
+                                    .map(s => <SetBadge key={s} set={s} />)
                                 }
                             </div>
                         </div>

@@ -22,7 +22,8 @@ import { type ShowdownBotCardAPIResponse } from "../../api/showdownBotCard";
 import type { CardStyleOverrides } from "./cardStyleOverrides";
 import { Modal } from "../shared/Modal";
 import PinnedFooterScrollArea from "../shared/PinnedFooterScrollArea";
-import { useSiteSettings, showdownSets, imageForSet } from "../shared/SiteSettingsContext";
+import { useSiteSettings, showdownSets } from "../shared/SiteSettingsContext";
+import { SetBadge, setSelectOption } from "../shared/SetBadge";
 import {
     FaFilter, FaBaseballBall, FaArrowUp, FaArrowDown, FaHashtag,
     FaDollarSign, FaMitten, FaCalendarAlt, FaChevronCircleRight, FaChevronCircleLeft,
@@ -791,7 +792,6 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
     const [showdownSetOverride, setShowdownSetOverride] = useState<string | null>(null);
     const showSetOverride = enableSetOverride && !isFilterAvailable('showdown_set', source);
     const effectiveShowdownSet = (showSetOverride ? showdownSetOverride : null) ?? userShowdownSet;
-    const userDefaultSetImage = showdownSets.find(set => set.value === userShowdownSet)?.image;
     const { session } = useAuth();
     // Only My Customs (and Release cards, where owners also see their draft editions) need auth —
     // derived so other sources see a stable `undefined` and don't treat an unrelated session
@@ -1481,13 +1481,13 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
                         {isFilterAvailable('showdown_set', source) && !isFilterLocked('showdown_set') && (
                             <SetMultiSelect
                                 className="shrink-0"
-                                options={showdownSets.filter(set => WOTC_SET_VALUES.includes(set.value)).map(set => ({ value: set.value, image: set.image }))}
+                                options={WOTC_SET_VALUES.map(set => ({ value: set, icon: <SetBadge set={set} /> }))}
                                 selections={wotcSetSelections}
                                 onChange={(values) => {
                                     setFilters(prev => ({ ...prev, showdown_set: values }));
                                     setFiltersForEditing(prev => ({ ...prev, showdown_set: values }));
                                 }}
-                                defaultImage={userDefaultSetImage}
+                                defaultIcon={<SetBadge set={userShowdownSet} />}
                             />
                         )}
 
@@ -1500,15 +1500,13 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
                                     className="shrink-0"
                                     size="lg"
                                     dropdownClassName="text-xs sm:text-sm"
-                                    imageClassName="object-contain object-center h-6 w-16 mr-1"
-                                    compactImageClassName="object-contain object-center h-5 w-auto mr-1"
                                     align="auto"
                                     labelClassName="hidden @2xl:inline text-xs text-secondary whitespace-nowrap"
                                     value={showdownSetOverride ?? ''}
                                     onChange={(v) => setShowdownSetOverride(v === '' ? null : v)}
                                     options={[
-                                        { value: '', label: ' (Default)', image: userDefaultSetImage, imageCompact: imageForSet(userShowdownSet, true) },
-                                        ...showdownSets.map(set => ({ ...set, imageCompact: set.imageAbbr })),
+                                        { ...setSelectOption(userShowdownSet, { label: ' (Default)', compact: true }), value: '' },
+                                        ...showdownSets.map(set => setSelectOption(set.value, { compact: true })),
                                     ]}
                                     showDropdownArrow={true}
                                 />

@@ -10,7 +10,7 @@
 import React, { useState } from 'react';
 import { FaCheck, FaCheckCircle, FaCopy, FaExclamationTriangle, FaSpinner } from 'react-icons/fa';
 import { Modal } from '../shared/Modal';
-import { imageForSet } from '../shared/SiteSettingsContext';
+import { SetBadge } from '../shared/SetBadge';
 import FormInput from '../customs/FormInput';
 import ImageLibraryGuideLink from './ImageLibraryGuideLink';
 import { saveImageLibrary, testImageLibrary } from '../../api/imageLibraries';
@@ -261,15 +261,7 @@ export const DriveLibrarySetupModal: React.FC<DriveLibrarySetupModalProps> = ({ 
                                         <tr key={row.files} className="border-t border-form-element first:border-t-0">
                                             <td className="py-2 pr-3">
                                                 <div className="flex flex-wrap items-center gap-2">
-                                                    {row.sets.map(set => (
-                                                        <img
-                                                            key={set}
-                                                            src={imageForSet(set)}
-                                                            alt={set}
-                                                            title={set}
-                                                            className="h-6 w-14 object-contain object-left"
-                                                        />
-                                                    ))}
+                                                    {row.sets.map(set => <SetBadge key={set} set={set} />)}
                                                 </div>
                                             </td>
                                             <td className="py-2 font-semibold whitespace-nowrap text-right">{row.files}</td>

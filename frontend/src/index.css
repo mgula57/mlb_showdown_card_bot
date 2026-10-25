@@ -54,6 +54,8 @@
     --background-quaternary: #d6dbe1;
     --divider: #d3d8de;
     --rule-strong: #9aa3ad;
+    /* Outline around set badge lettering (SetBadge): dark gray in light, white in dark. */
+    --set-outline: #3a4149;
     --background-gradient: linear-gradient(to bottom right, rgb(228, 232, 236), rgb(247, 248, 250), rgb(221, 226, 231));
 
     /* Stat plates: a silver step off the white card in light mode, a raised gray in dark mode, so
@@ -143,6 +145,7 @@
 
     --divider: #2f3844;
     --rule-strong: #4a5461;
+    --set-outline: #ffffff;
 
     /* A raised gray rather than a white plate, so stat plates don't glare on dark cards. */
     --plate: #343e4b;
@@ -272,6 +275,32 @@
             2px 0 0 #000000,
             0 -2px 0 #000000,
             0 2px 0 #000000;
+    }
+
+    /* Set badge lettering outline (SetBadge): 16 shadows spaced evenly around a circle of radius
+       `--o`, so the outline is the same width on the sides, top, bottom and diagonals (8 offsets at
+       ±x/±y run ~40% thicker on the diagonals). Scales with the font size; `--set-badge-outline`
+       overrides the theme color (e.g. on team-color fields). */
+    .text-outline-set {
+        --o: 0.06em;
+        --c: var(--set-badge-outline, var(--set-outline));
+        text-shadow:
+            calc(var(--o) * 1) 0 0 var(--c),
+            calc(var(--o) * 0.924) calc(var(--o) * 0.383) 0 var(--c),
+            calc(var(--o) * 0.707) calc(var(--o) * 0.707) 0 var(--c),
+            calc(var(--o) * 0.383) calc(var(--o) * 0.924) 0 var(--c),
+            0 calc(var(--o) * 1) 0 var(--c),
+            calc(var(--o) * -0.383) calc(var(--o) * 0.924) 0 var(--c),
+            calc(var(--o) * -0.707) calc(var(--o) * 0.707) 0 var(--c),
+            calc(var(--o) * -0.924) calc(var(--o) * 0.383) 0 var(--c),
+            calc(var(--o) * -1) 0 0 var(--c),
+            calc(var(--o) * -0.924) calc(var(--o) * -0.383) 0 var(--c),
+            calc(var(--o) * -0.707) calc(var(--o) * -0.707) 0 var(--c),
+            calc(var(--o) * -0.383) calc(var(--o) * -0.924) 0 var(--c),
+            0 calc(var(--o) * -1) 0 var(--c),
+            calc(var(--o) * 0.383) calc(var(--o) * -0.924) 0 var(--c),
+            calc(var(--o) * 0.707) calc(var(--o) * -0.707) 0 var(--c),
+            calc(var(--o) * 0.924) calc(var(--o) * -0.383) 0 var(--c);
     }
 
     .bg-table-header {

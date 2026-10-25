@@ -23,7 +23,7 @@ import { CardSource } from '../../types/cardSource';
 import CustomSelect from '../shared/CustomSelect';
 import ShowdownBotLogo from '../shared/ShowdownBotLogo';
 import { useCustomizeCard } from '../customs/customizeCard';
-import { imageForSet, showdownSets } from "../shared/SiteSettingsContext";
+import { SetBadge, SET_SELECT_OPTIONS } from "../shared/SetBadge";
 
 
 // Chart accuracy table (kept as table — compact and precise)
@@ -596,10 +596,9 @@ export const CardDetail = memo(function CardDetail({ showdownBotCardData: showdo
                         <CustomSelect
                             className="w-28"
                             size="sm"
-                            imageClassName="object-contain object-center h-6"
                             value={activeCardData.card.set}
                             onChange={handleSetSwitch}
-                            options={showdownSets}
+                            options={SET_SELECT_OPTIONS}
                             showDropdownArrow={true}
                             disabled={isSwitchingSet}
                         />
@@ -608,13 +607,7 @@ export const CardDetail = memo(function CardDetail({ showdownBotCardData: showdo
                         )}
                     </div>
                 ) : (
-                    imageForSet(activeCardData?.card?.set || '') && (
-                        <img
-                            src={imageForSet(activeCardData?.card?.set || '') || ''}
-                            alt={activeCardData?.card?.set || ''}
-                            className="inline object-contain align-middle h-7"
-                        />
-                    )
+                    activeCardData?.card?.set && <SetBadge set={activeCardData.card.set} />
                 )}
 
                 {/* Iterate through attributes */}
