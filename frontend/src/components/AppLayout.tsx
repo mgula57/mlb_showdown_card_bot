@@ -331,8 +331,8 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
                     // Ensure header respects device notch and status bar on iOS
                     style={isIOSSafari ? { boxSizing: 'border-box' } : undefined}
                 >
-                    {/* Left Section: Menu Button, Logo, and Page Title */}
-                    <div className="flex items-center space-x-4">
+                    {/* Left Section: Menu Button, Logo, and Page Title. Fills up to the right section so the title can fit itself to what's left. */}
+                    <div className="flex-1 min-w-0 flex items-center gap-x-4">
 
                         {/* Mobile Menu Button - Only visible on mobile */}
                         <button
@@ -351,22 +351,22 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
                         
                         {/* Logo Display Logic */}
                         {/* Always show on mobile */}
-                        <ShowdownBotLogo className="max-w-42 md:hidden" />
+                        <ShowdownBotLogo className="max-w-42 shrink-0 md:hidden" />
                         {/* Show on desktop only when sidebar is collapsed */}
-                        {!isSideMenuOpen && <ShowdownBotLogo className="max-w-42 hidden md:block" />}
+                        {!isSideMenuOpen && <ShowdownBotLogo className="max-w-42 shrink-0 hidden md:block" />}
                         
                         {/* Page Title with Icon - Route-based content */}
                         {(selectedMenuItem?.text || 'Home') !== 'Home' && (
-                            <Heading level="section" as="h1" className="hidden sm:flex items-center">
-                                {selectedMenuItem?.icon && <selectedMenuItem.icon className="w-4 h-4 mr-2 text-(--text-tertiary)" />}
-                                {selectedMenuItem?.text || 'Home'}
-                            </Heading>
+                            <div className="hidden sm:flex flex-1 min-w-0 items-center gap-2">
+                                {selectedMenuItem?.icon && <selectedMenuItem.icon className="w-4 h-4 shrink-0 text-(--text-tertiary)" />}
+                                <Heading level="section" as="h1" fit>{selectedMenuItem?.text || 'Home'}</Heading>
+                            </div>
                         )}
                     </div>
 
                     
                     {/* Right Section: Showdown Set Selector and Account Icon */}
-                    <div className="flex items-center space-x-2">
+                    <div className="flex items-center space-x-2 shrink-0 ml-4">
                         <CustomSelect
                             className="w-22 text-lg"
                             // design-ok: set-logo picker, not a form field

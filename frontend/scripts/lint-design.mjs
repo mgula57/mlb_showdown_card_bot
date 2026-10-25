@@ -94,6 +94,12 @@ const RULES = [
         message: 'Hand-built filled button. Use buttonClass("primary" | "danger") from shared/buttonStyles.',
     },
     {
+        id: 'clipped-display',
+        pattern: /(?:\bfont-display(?![\w-])|<Heading[^>]*level="(?:page|section)")[^>]*\b(?:truncate|line-clamp-\d)\b|\b(?:truncate|line-clamp-\d)\b[^>]*\bfont-display(?![\w-])/,
+        unless: /SLANT_ROOM_CLASS/,
+        message: 'Truncated display face. The italic leans past its box, so the clip shaves names and the last letter. Use <Heading fit> or FitText for one line; add SLANT_ROOM_CLASS to a multi-line clamp.',
+    },
+    {
         id: 'custom-toggle',
         pattern: /role="switch"|type="checkbox"/,
         message: 'Hand-built toggle. Use FormEnabler (the checklist box) so every boolean looks the same.',

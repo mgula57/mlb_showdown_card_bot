@@ -22,6 +22,8 @@ import FieldMarker from "./FieldMarker";
 import type { AdvantageSide } from "../../domain/play";
 import { usePresenceList } from "../../hooks/usePresenceList";
 import type { PlayPhase } from "../../hooks/useGamePlayback";
+import { SLANT_ROOM_CLASS } from "../shared/headingStyles";
+import { FitText } from "../shared/FitText";
 
 type CardMap = Record<string, ShowdownBotCardAPIResponse>;
 
@@ -354,7 +356,7 @@ function useRunnerMovement(
 
 const FLASH_SHELL = `
     absolute left-1/2 top-[6%] z-30 -translate-x-1/2
-    pointer-events-none select-none whitespace-nowrap
+    pointer-events-none select-none whitespace-nowrap max-w-[calc(100%-1rem)]
     rounded-control border font-display uppercase shadow-overlay
     transition-[opacity,transform] duration-300 ease-out
 `;
@@ -388,7 +390,7 @@ function HalfInningFlash({ brk, phase, visible }: {
                 className="text-(--live) transition-transform duration-500 ease-out"
                 style={{ transform: isTop ? "rotate(0deg)" : "rotate(180deg)" }}
             />
-            <span className="inline-block h-[1.15em] overflow-hidden tabular-nums">
+            <span className={`inline-block h-[1.15em] overflow-hidden tabular-nums ${SLANT_ROOM_CLASS}`}>
                 <span
                     className="block transition-transform duration-500 ease-out"
                     style={{ transform: flipped && inningChanges ? "translateY(-50%)" : "translateY(0)" }}
@@ -441,7 +443,7 @@ function ResultFlash({ play, phase, transition }: { play: PlayEntry | undefined;
                     : `bg-(--background-secondary)/95 text-(--primary) text-xs px-3.5 py-1.5 ${negativeBeat ? "border-(--live)" : "border-(--divider)"}`}
             `}
         >
-            {label}
+            <FitText as="span" className="block" minScale={0.7}>{label}</FitText>
         </div>
     );
 }
