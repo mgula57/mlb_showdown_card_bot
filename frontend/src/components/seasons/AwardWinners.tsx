@@ -12,7 +12,8 @@ import { CardNotFoundOverlay } from "../shared/CardNotFoundOverlay";
 import { defenseAtPosition } from "../shared/DefenseUtils";
 import { FieldView } from "../team_builder/FieldView";
 import { CAPS_LABEL_CLASS } from "../shared/fieldStyles";
-import { headingClass } from "../shared/headingStyles";
+import { Heading } from "../shared/Heading";
+import { Eyebrow } from "../shared/Eyebrow";
 
 // =============================================================================
 // MARK: - Award Definitions
@@ -254,9 +255,7 @@ export default function AwardWinners({ seasonId, season, showdownSet, isActive }
             {/* Header */}
             <div className="flex items-center gap-2 mb-5 lg:pr-6">
                 <FaMedal className={`text-sm text-(--gold)`} />
-                <span className={headingClass('panel')}>
-                    Award Winners
-                </span>
+                <Heading level="section">Award Winners</Heading>
             </div>
 
             {isLoadingAwards && !awards ? (
@@ -271,9 +270,7 @@ export default function AwardWinners({ seasonId, season, showdownSet, isActive }
                     {filteredSingleWinnerAwards.map(({ key, label }) => (
                         <div key={key}>
                             <div className="mb-3 lg:pr-6">
-                                <span className={`${CAPS_LABEL_CLASS} text-(--text-tertiary)`}>
-                                    {label}
-                                </span>
+                                <Eyebrow>{label}</Eyebrow>
                             </div>
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 lg:pr-6">
                                 {LEAGUES.map(league => {
@@ -317,9 +314,7 @@ export default function AwardWinners({ seasonId, season, showdownSet, isActive }
                     {showGoldGlove && (
                         <div>
                             <div className="mb-3 lg:pr-6">
-                                <span className={`${CAPS_LABEL_CLASS} text-(--text-tertiary)`}>
-                                    Gold Glove
-                                </span>
+                                <Eyebrow>Gold Glove</Eyebrow>
                             </div>
                             <div className="grid grid-cols-1 md:grid-cols-[repeat(auto-fit,minmax(450px,1fr))] gap-6 lg:pr-6">
                                 {LEAGUES.map(league => (
@@ -348,9 +343,7 @@ export default function AwardWinners({ seasonId, season, showdownSet, isActive }
                     {showSilverSlugger && (
                         <div>
                             <div className="mb-3 lg:pr-6">
-                                <span className={`${CAPS_LABEL_CLASS} text-(--text-tertiary)`}>
-                                    Silver Slugger
-                                </span>
+                                <Eyebrow>Silver Slugger</Eyebrow>
                             </div>
                             <div className="grid grid-cols-[repeat(auto-fit,minmax(450px,1fr))] gap-6 lg:pr-6">
                                 {LEAGUES.map(league => (

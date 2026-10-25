@@ -8,7 +8,9 @@ import { CardItemFromCardDatabaseRecord, CardItemSkeleton } from "../cards/CardI
 import { CardDetail } from "../cards/CardDetail";
 import { Modal } from "../shared/Modal";
 import { CAPS_LABEL_CLASS } from "../shared/fieldStyles";
-import { headingClass } from "../shared/headingStyles";
+import { Heading } from "../shared/Heading";
+import { Eyebrow } from "../shared/Eyebrow";
+import { Tabs, type TabItem } from "../shared/Tabs";
 import { Plate } from '../shared/Plate';
 
 // =============================================================================
@@ -254,10 +256,10 @@ export default function SeasonLeaders({ seasonId, season, showdownSet, sportId, 
     // MARK: - Render
     // ==========================================================================
 
-    const filterOptions: { value: FilterGroup; label: string }[] = [
-        // { value: 'all', label: 'All' },
-        { value: 'hitting', label: 'Batting' },
-        { value: 'pitching', label: 'Pitching' },
+    const filterOptions: TabItem<FilterGroup>[] = [
+        // { id: 'all', label: 'All' },
+        { id: 'hitting', label: 'Batting' },
+        { id: 'pitching', label: 'Pitching' },
     ];
 
     return (
@@ -266,29 +268,10 @@ export default function SeasonLeaders({ seasonId, season, showdownSet, sportId, 
             <div className="flex items-center justify-between gap-4 mb-5 flex-wrap lg:pr-6">
                 <div className="flex items-center gap-2">
                     <FaTrophy className={`text-sm text-(--gold)`} />
-                    <span className={headingClass('panel')}>
-                        Season Leaders
-                    </span>
+                    <Heading level="section">Season Leaders</Heading>
                 </div>
 
-                {/* Filter pills */}
-                <div className={`flex items-center gap-1 p-1 rounded-control bg-(--background-tertiary)`}>
-                    {filterOptions.map(opt => (
-                        <button
-                            key={opt.value}
-                            type="button"
-                            onClick={() => setFilterGroup(opt.value)}
-                            className={[
-                                'px-3 py-1 text-xs font-semibold rounded-control transition cursor-pointer',
-                                filterGroup === opt.value
-                                    ? 'bg-(--background-primary) text-(--text-primary) shadow-raised'
-                                    : 'text-(--text-tertiary) hover:text-(--text-secondary)',
-                            ].join(' ')}
-                        >
-                            {opt.label}
-                        </button>
-                    ))}
-                </div>
+                <Tabs size="sm" tabs={filterOptions} value={filterGroup} onChange={setFilterGroup} />
             </div>
 
             {/* Loading state (first load, no data yet) */}
@@ -327,9 +310,7 @@ export default function SeasonLeaders({ seasonId, season, showdownSet, sportId, 
                             <div key={catDef.id}>
                                 {/* Category header */}
                                 <div className="flex items-center gap-2 mb-3 lg:pr-6">
-                                    <span className={`${CAPS_LABEL_CLASS} text-(--text-tertiary)`}>
-                                        {catDef.label}
-                                    </span>
+                                    <Eyebrow>{catDef.label}</Eyebrow>
                                     <Plate size="sm">{catDef.abbrev}</Plate>
                                 </div>
 

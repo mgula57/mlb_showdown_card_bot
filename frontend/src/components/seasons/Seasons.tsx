@@ -51,7 +51,6 @@ import { Eyebrow } from '../shared/Eyebrow';
 import { Heading } from '../shared/Heading';
 import { radixVerticalTabTriggerClass } from '../shared/tabStyles';
 import { CAPS_LABEL_CLASS } from '../shared/fieldStyles';
-import { headingClass } from '../shared/headingStyles';
 import { buttonClass } from "../shared/buttonStyles";
 const formatScheduleDate = (date?: string): string => {
     if (!date) {
@@ -1199,9 +1198,7 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
                                     >
                                         <div className="px-3 lg:px-0 space-y-2 pb-24 lg:pt-6 lg:pr-6">
                                             <div className="space-y-2 flex justify-between items-top">
-                                                <p className={headingClass('panel')}>
-                                                    Standings
-                                                </p>
+                                                <Heading level="section" as="h2">Standings</Heading>
                                                 <p className="px-1 text-xs text-(--text-secondary)">
                                                     Select a team to view its Showdown roster below.
                                                 </p>
@@ -1371,9 +1368,7 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
                                         <div className="px-3 lg:px-0 lg:pt-6 lg:pr-6 space-y-4 pb-24">
                                             <div className="flex flex-wrap items-start justify-between gap-3">
                                                 <div>
-                                                    <p className={headingClass('panel')}>
-                                                        Simulations
-                                                    </p>
+                                                    <Heading level="section" as="h2">Simulations</Heading>
                                                     <p className="text-xs text-(--text-secondary) mt-1">
                                                         Play out any MLB season, then jump back to your past runs here.
                                                     </p>
