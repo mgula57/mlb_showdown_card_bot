@@ -63,7 +63,7 @@ export default function GameFinalSummary({ game, cardMap, onCardSelect, isLoadin
     const decisions = [
         winner && recapPlayer("W", "W", "text-(--green)", "var(--green)", winner, "P", pitchingLine(winner)?.note),
         loser && recapPlayer("L", "L", "text-(--red)", "var(--red)", loser, "P", pitchingLine(loser)?.note),
-        save && recapPlayer("SV", "SV", "text-(--showdown-blue)", "#60a5fa", save, "P", pitchingLine(save)?.note),
+        save && recapPlayer("SV", "SV", "text-(--showdown-blue)", "var(--showdown-blue)", save, "P", pitchingLine(save)?.note),
     ].filter(Boolean);
 
     return (

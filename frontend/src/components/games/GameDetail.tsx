@@ -24,6 +24,7 @@ import GameDetailPlayback from "./GameDetailPlayback";
 import GameDetailSkeleton from "./GameDetailSkeleton";
 import BackButton from "../shared/BackButton";
 import { BetaBadge } from "../shared/BetaBadge";
+import { Heading } from "../shared/Heading";
 import ScoreHeader from "./detail/ScoreHeader";
 import GameFinalSummary from "./detail/GameFinalSummary";
 import ProbableStartingPitchers from "./detail/ProbableStartingPitchers";
@@ -246,8 +247,8 @@ export default function GameDetail({ gamePk, sportId, season, showdownSet, isAct
                 user is watching the replay we hide it outright rather than spoil the result. */}
             {hideResult ? (
                 <div className="rounded-card border border-(--divider) bg-(--background-secondary)/30 p-6 text-center">
-                    <div className="text-xs font-semibold text-(--primary)">Box score hidden during replay</div>
-                    <div className="mt-1 text-[11px] text-(--secondary)">
+                    <Heading level="panel" as="div">Box score hidden during replay</Heading>
+                    <div className="mt-1 text-[12px] text-(--text-secondary)">
                         The full line reveals when the replay reaches the end — or use “Skip to result” to jump ahead.
                     </div>
                 </div>
@@ -353,7 +354,7 @@ export default function GameDetail({ gamePk, sportId, season, showdownSet, isAct
                     <button
                         type="button"
                         onClick={() => setIsRecapDismissed((dismissed) => !dismissed)}
-                        className="flex items-center gap-1 cursor-pointer rounded-control border border-(--divider) bg-(--background-primary)/60 backdrop-blur px-2.5 py-1 text-[10px] font-bold text-(--secondary) hover:text-(--primary) transition-colors"
+                        className={`flex items-center gap-1.5 rounded-control px-2.5 py-1 text-[11px] font-semibold ${buttonVariantClass('secondary')}`}
                     >
                         {showRecap ? <FaRing size={10} /> : <FaStar size={10} />}
                         {showRecap ? 'Show Field' : 'Recap'}
@@ -443,7 +444,7 @@ export default function GameDetail({ gamePk, sportId, season, showdownSet, isAct
                         >
                             <BackButton onBack={onBack} />
                             <div className="flex items-center gap-2">
-                                <h1 className={`hidden sm:inline font-display uppercase text-[20px] leading-none ${isModeBar ? '' : 'text-(--text-primary)'}`} style={isModeBar ? { color: simLeftTokens.fill } : undefined}>Showdown Live</h1>
+                                <Heading level="section" as="h1" className="hidden sm:inline" style={isModeBar ? { color: simLeftTokens.fill } : undefined}>Showdown Live</Heading>
                                 <BetaBadge />
                             </div>
                             {modeLabel && (

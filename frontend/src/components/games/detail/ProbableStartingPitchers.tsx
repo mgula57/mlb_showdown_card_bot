@@ -2,6 +2,7 @@ import type { GameBoxscoreDetail, BoxscoreTeamData } from "../../../api/mlbAPI";
 import type { ShowdownBotCardAPIResponse } from "../../../api/showdownBotCard";
 import { cardKey } from "../../../domain/players";
 import { getReadableTextColor } from "../../../functions/colors";
+import { Plate } from "../../shared/Plate";
 import { CardItemFromCard, CardItemSkeleton } from "../../cards/CardItem";
 import { headingClass } from "../../shared/headingStyles";
 
@@ -24,13 +25,10 @@ export default function ProbableStartingPitchers({
         return (
             <div className="space-y-1.5">
                 <div className="flex items-center gap-1.5">
-                    <span
-                        className="inline-flex items-center justify-center rounded font-bold text-[11px] px-1.5 py-0.5"
-                        style={{ backgroundColor: badgeBg, color: badgeText }}
-                    >{team.team.abbreviation}</span>
-                    <span className="font-semibold text-(--primary) text-sm">{pitcher?.full_name ?? 'TBD'}</span>
+                    <Plate variant="custom" size="sm" style={{ backgroundColor: badgeBg, color: badgeText }}>{team.team.abbreviation}</Plate>
+                    <span className="font-display-upright uppercase text-sm leading-none text-(--text-primary)">{pitcher?.full_name ?? 'TBD'}</span>
                     {card && card.in_season_trends?.pts_change.day != null && card.in_season_trends.pts_change.day !== 0 && (
-                        <span className={`text-[9px] font-bold leading-none ${card.in_season_trends.pts_change.day > 0 ? 'text-(--green)' : 'text-(--red)'}`}>
+                        <span className={`text-[10px] font-semibold tabular-nums leading-none ${card.in_season_trends.pts_change.day > 0 ? 'text-(--green)' : 'text-(--red)'}`}>
                             {card.in_season_trends.pts_change.day > 0 ? '▲' : '▼'}{Math.abs(card.in_season_trends.pts_change.day)} PTS
                         </span>
                     )}

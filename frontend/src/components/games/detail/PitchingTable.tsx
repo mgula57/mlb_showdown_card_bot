@@ -1,5 +1,4 @@
 import { useState } from "react";
-import ReactCountryFlag from "react-country-flag";
 import {
     useFloating, useHover, useInteractions, offset, flip, shift, autoUpdate, FloatingPortal
 } from "@floating-ui/react";
@@ -7,20 +6,17 @@ import {
 import type { BoxscoreTeamData, BoxscorePitcher } from "../../../api/mlbAPI";
 import type { ShowdownBotCardAPIResponse } from "../../../api/showdownBotCard";
 import { cardKey } from "../../../domain/players";
-import { countryCodeForTeam } from "../../../functions/flags";
-import { getReadableTextColor } from "../../../functions/colors";
 import { useIsSmallScreen } from "../../../hooks/useIsSmallScreen";
 import { CardItemCompactFromCard } from "../../cards/CardItemCompact";
 import CardIdentityCell from "../../cards/card_elements/CardIdentityCell";
+import { CAPS_LABEL_CLASS } from "../../shared/fieldStyles";
 import TablePointsSummary from "./TablePointsSummary";
+import TeamTableHeader from "./TeamTableHeader";
 
 type CardMap = Record<string, ShowdownBotCardAPIResponse>;
 
 export default function PitchingTable({ team, sportId, cardMap, onCardSelect, isShowingModal, isLoadingCards, hasGameStarted }: { team: BoxscoreTeamData; sportId?: number; cardMap: CardMap; onCardSelect?: (card: ShowdownBotCardAPIResponse) => void; isShowingModal?: boolean; isLoadingCards?: boolean; hasGameStarted?: boolean }) {
-    const countryCode = countryCodeForTeam(sportId ?? 0, team.team.abbreviation);
-    const badgeBg = team.team.primary_color ?? '#374151';
     const badgeBgSecondary = team.team.secondary_color ?? '#4b5563';
-    const badgeText = getReadableTextColor(badgeBg, '#ffffff');
 
     const hasCards = Object.keys(cardMap).length > 0;
 
@@ -33,24 +29,16 @@ export default function PitchingTable({ team, sportId, cardMap, onCardSelect, is
 
     return (
         <div className="rounded-card border border-(--divider) bg-(--background-secondary) overflow-hidden">
-            <div className="px-3 py-2 border-b border-(--divider) flex items-center gap-2">
-                {sportId === 51 && countryCode && (
-                    <ReactCountryFlag countryCode={countryCode} svg style={{ width: '1.25em', height: '1.25em' }} />
-                )}
-                <span
-                    className="inline-flex items-center justify-center rounded font-bold text-[11px] px-1.5 py-0.5"
-                    style={{ backgroundColor: badgeBg, color: badgeText }}
-                >{team.team.abbreviation}</span>
-                <span className="text-xs text-(--secondary) font-semibold">Pitching</span>
+            <TeamTableHeader team={team.team} sportId={sportId} title="Pitching">
                 {hasCards && totalPoints > 0 && (
                     <TablePointsSummary totalPoints={totalPoints} pointsChange={totalPointsChange} backgroundColor={badgeBgSecondary} />
                 )}
-            </div>
+            </TeamTableHeader>
 
             <div className="overflow-x-auto scrollbar-hide">
-                <table className="w-full text-xs">
+                <table className="w-full text-xs tabular-nums">
                     <thead>
-                        <tr className="border-b border-(--divider) text-(--secondary) font-semibold text-[10px] tracking-[0.5px] uppercase">
+                        <tr className={`border-b border-(--divider) text-(--text-tertiary) ${CAPS_LABEL_CLASS}`}>
                             <th className="pl-3 pr-2 py-2 text-left min-w-36">Pitchers</th>
                             <th className="px-2 py-2 text-right">IP</th>
                             <th className="px-2 py-2 text-right">H</th>
@@ -69,24 +57,24 @@ export default function PitchingTable({ team, sportId, cardMap, onCardSelect, is
                         ))}
                         {team.pitching.length === 0 && (
                             <tr>
-                                <td colSpan={10} className="px-3 py-4 text-center text-(--secondary)">
+                                <td colSpan={10} className="px-3 py-4 text-center text-(--text-secondary)">
                                     No pitching data available.
                                 </td>
                             </tr>
                         )}
                         <tr className="border-t border-(--divider) font-bold">
-                            <td className="pl-3 pr-2 py-2 text-left text-(--primary)">Totals</td>
-                            <td className="px-2 py-2 text-right text-(--primary)">{team.pitching_totals.innings_pitched}</td>
-                            <td className="px-2 py-2 text-right text-(--primary)">{team.pitching_totals.hits}</td>
-                            <td className="px-2 py-2 text-right text-(--primary)">{team.pitching_totals.runs}</td>
-                            <td className="px-2 py-2 text-right text-(--primary)">{team.pitching_totals.earned_runs}</td>
-                            <td className="px-2 py-2 text-right text-(--primary)">{team.pitching_totals.base_on_balls}</td>
-                            <td className="px-2 py-2 text-right text-(--primary)">{team.pitching_totals.strike_outs}</td>
-                            <td className="px-2 py-2 text-right text-(--primary)">{team.pitching_totals.home_runs}</td>
-                            <td className="px-2 py-2 text-right text-(--primary)">
+                            <td className="pl-3 pr-2 py-2 text-left text-(--text-primary)">Totals</td>
+                            <td className="px-2 py-2 text-right text-(--text-primary)">{team.pitching_totals.innings_pitched}</td>
+                            <td className="px-2 py-2 text-right text-(--text-primary)">{team.pitching_totals.hits}</td>
+                            <td className="px-2 py-2 text-right text-(--text-primary)">{team.pitching_totals.runs}</td>
+                            <td className="px-2 py-2 text-right text-(--text-primary)">{team.pitching_totals.earned_runs}</td>
+                            <td className="px-2 py-2 text-right text-(--text-primary)">{team.pitching_totals.base_on_balls}</td>
+                            <td className="px-2 py-2 text-right text-(--text-primary)">{team.pitching_totals.strike_outs}</td>
+                            <td className="px-2 py-2 text-right text-(--text-primary)">{team.pitching_totals.home_runs}</td>
+                            <td className="px-2 py-2 text-right text-(--text-primary)">
                                 {team.pitching_totals.pitches_thrown}-{team.pitching_totals.strikes}
                             </td>
-                            <td className="px-2 py-2 text-right pr-3 text-(--primary)" />
+                            <td className="px-2 py-2 text-right pr-3 text-(--text-primary)" />
                         </tr>
                     </tbody>
                 </table>
@@ -112,7 +100,7 @@ function PitcherRow({ pitcher, cardResponse, onCardSelect, isShowingModal, isLoa
     const card = cardResponse?.card ?? undefined;
     return (
         <tr
-            className={`border-b border-(--divider)/50 hover:bg-(--background-primary)/50 ${cardResponse ? 'cursor-pointer' : ''}`}
+            className={`border-b border-(--divider)/50 hover:bg-(--background-tertiary) ${cardResponse ? 'cursor-pointer' : ''}`}
             onClick={cardResponse ? () => onCardSelect?.(cardResponse) : undefined}
         >
             <td ref={refs.setReference} {...getReferenceProps()} className="pl-3 pr-2 py-1.5 text-left" >
@@ -123,17 +111,17 @@ function PitcherRow({ pitcher, cardResponse, onCardSelect, isShowingModal, isLoa
                     ptsChange={cardResponse?.in_season_trends?.pts_change.day} isLoadingCard={isLoadingCards && !cardResponse}
                 />
             </td>
-            <td className="px-2 py-1.5 text-right text-(--primary)">{pitcher.stats.innings_pitched}</td>
-            <td className="px-2 py-1.5 text-right text-(--primary)">{pitcher.stats.hits}</td>
-            <td className="px-2 py-1.5 text-right text-(--primary)">{pitcher.stats.runs}</td>
-            <td className="px-2 py-1.5 text-right text-(--primary)">{pitcher.stats.earned_runs}</td>
-            <td className="px-2 py-1.5 text-right text-(--primary)">{pitcher.stats.base_on_balls}</td>
-            <td className="px-2 py-1.5 text-right text-(--primary)">{pitcher.stats.strike_outs}</td>
-            <td className="px-2 py-1.5 text-right text-(--primary)">{pitcher.stats.home_runs}</td>
-            <td className="px-2 py-1.5 text-right text-(--primary)">
+            <td className="px-2 py-1.5 text-right text-(--text-primary)">{pitcher.stats.innings_pitched}</td>
+            <td className="px-2 py-1.5 text-right text-(--text-primary)">{pitcher.stats.hits}</td>
+            <td className="px-2 py-1.5 text-right text-(--text-primary)">{pitcher.stats.runs}</td>
+            <td className="px-2 py-1.5 text-right text-(--text-primary)">{pitcher.stats.earned_runs}</td>
+            <td className="px-2 py-1.5 text-right text-(--text-primary)">{pitcher.stats.base_on_balls}</td>
+            <td className="px-2 py-1.5 text-right text-(--text-primary)">{pitcher.stats.strike_outs}</td>
+            <td className="px-2 py-1.5 text-right text-(--text-primary)">{pitcher.stats.home_runs}</td>
+            <td className="px-2 py-1.5 text-right text-(--text-primary)">
                 {pitcher.stats.pitches_thrown}-{pitcher.stats.strikes}
             </td>
-            <td className="px-2 py-1.5 text-right pr-3 text-(--secondary)">{pitcher.season_stats.era}</td>
+            <td className="px-2 py-1.5 text-right pr-3 text-(--text-secondary)">{pitcher.season_stats.era}</td>
             {isOpen && card && !isShowingModal && !isSmallScreen && (
                 <FloatingPortal>
                     <div

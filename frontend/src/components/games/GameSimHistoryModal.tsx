@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { FaSpinner, FaTerminal } from 'react-icons/fa6';
 import { Modal } from '../shared/Modal';
+import { InlineError } from '../shared/InlineError';
 import { UserAvatar } from '../shared/UserAvatar';
 import { ordinal } from '../../functions/formatters';
 import { fetchGameSimHistory, fetchGameSimResult, type SimGameRecord } from '../../api/simGame';
@@ -66,9 +67,7 @@ export default function GameSimHistoryModal({ gamePk, onClose, onSelect }: Props
                 )}
 
                 {error && (
-                    <div className="rounded-card border border-(--red)/30 bg-(--red)/5 px-3 py-2 text-[12px] text-(--red)">
-                        {error}
-                    </div>
+                    <InlineError size="md">{error}</InlineError>
                 )}
 
                 {!loading && games?.length === 0 && (
@@ -86,7 +85,7 @@ export default function GameSimHistoryModal({ gamePk, onClose, onSelect }: Props
                         className="flex w-full cursor-pointer items-center justify-between gap-3 rounded-control border border-(--divider) px-3 py-2.5 text-left transition-colors hover:bg-(--background-secondary) disabled:cursor-not-allowed disabled:opacity-60"
                     >
                         <div className="min-w-0">
-                            <div className="text-sm font-semibold text-(--primary)">
+                            <div className="font-display-upright uppercase text-[15px] leading-5 tabular-nums text-(--text-primary)">
                                 {row.away_abbr} {row.away_score} – {row.home_abbr} {row.home_score}
                             </div>
                             {row.creator_username && (

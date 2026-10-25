@@ -33,10 +33,10 @@ function NameCell({
                 type="button"
                 disabled={!card}
                 onClick={card ? () => onCardSelect?.(card) : undefined}
-                className="max-w-full truncate text-left text-xs font-semibold text-(--primary) enabled:cursor-pointer enabled:hover:underline disabled:cursor-default"
+                className="max-w-full truncate text-left text-xs font-semibold text-(--text-primary) enabled:cursor-pointer enabled:hover:underline disabled:cursor-default"
             >
                 {name}
-                {detail && <span className="ml-1 font-normal text-(--secondary)">{detail}</span>}
+                {detail && <span className="ml-1 font-normal text-(--text-secondary)">{detail}</span>}
             </button>
         </td>
     );
@@ -50,7 +50,7 @@ export default function SimBoxScoreTable({
     onCardSelect?: (card: ShowdownBotCardAPIResponse) => void;
 }) {
     const headerClass = `py-1 px-1 text-right ${CAPS_LABEL_CLASS} text-(--text-tertiary)`;
-    const cellClass = "py-1.5 px-1 text-right text-xs tabular-nums text-(--primary)";
+    const cellClass = "py-1.5 px-1 text-right text-xs tabular-nums text-(--text-primary)";
 
     return (
         <div className="space-y-4">
@@ -58,7 +58,7 @@ export default function SimBoxScoreTable({
                 <table className="w-full min-w-[20rem]">
                     <thead>
                         <tr className="border-b border-(--divider)">
-                            <th className="py-1 pr-2 text-left text-[10px] font-bold uppercase tracking-wide text-(--secondary)">
+                            <th className={`py-1 pr-2 text-left ${CAPS_LABEL_CLASS} text-(--text-secondary)`}>
                                 {boxscore.team.abbreviation} Batting
                             </th>
                             {BATTING_COLUMNS.map((column) => (
@@ -90,7 +90,7 @@ export default function SimBoxScoreTable({
                 <table className="w-full min-w-[20rem]">
                     <thead>
                         <tr className="border-b border-(--divider)">
-                            <th className="py-1 pr-2 text-left text-[10px] font-bold uppercase tracking-wide text-(--secondary)">
+                            <th className={`py-1 pr-2 text-left ${CAPS_LABEL_CLASS} text-(--text-secondary)`}>
                                 {boxscore.team.abbreviation} Pitching
                             </th>
                             {PITCHING_COLUMNS.map((column) => (

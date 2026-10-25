@@ -1,5 +1,4 @@
 import { useState } from "react";
-import ReactCountryFlag from "react-country-flag";
 import {
     useFloating, useHover, useInteractions, offset, flip, shift, autoUpdate, FloatingPortal
 } from "@floating-ui/react";
@@ -7,13 +6,13 @@ import {
 import type { BoxscoreTeamData, BoxscoreBatter } from "../../../api/mlbAPI";
 import type { ShowdownBotCardAPIResponse } from "../../../api/showdownBotCard";
 import { cardKey } from "../../../domain/players";
-import { countryCodeForTeam } from "../../../functions/flags";
-import { getReadableTextColor } from "../../../functions/colors";
 import { useIsSmallScreen } from "../../../hooks/useIsSmallScreen";
 import { defenseAtPosition } from "../../shared/DefenseUtils";
 import { CardItemCompactFromCard } from "../../cards/CardItemCompact";
 import CardIdentityCell from "../../cards/card_elements/CardIdentityCell";
+import { CAPS_LABEL_CLASS } from "../../shared/fieldStyles";
 import TablePointsSummary from "./TablePointsSummary";
+import TeamTableHeader from "./TeamTableHeader";
 
 type CardMap = Record<string, ShowdownBotCardAPIResponse>;
 
@@ -21,10 +20,7 @@ const cardDefenseForPosition = (card: ShowdownBotCardAPIResponse["card"] | undef
     defenseAtPosition(card?.positions_and_defense, position);
 
 export default function BattingTable({ team, sportId, cardMap, onCardSelect, isShowingModal, isLoadingCards, hasGameStarted }: { team: BoxscoreTeamData; sportId?: number; cardMap: CardMap; onCardSelect?: (card: ShowdownBotCardAPIResponse) => void; isShowingModal?: boolean; isLoadingCards?: boolean; hasGameStarted?: boolean }) {
-    const countryCode = countryCodeForTeam(sportId ?? 0, team.team.abbreviation);
-    const badgeBg = team.team.primary_color ?? '#374151';
     const badgeBgSecondary = team.team.secondary_color ?? '#4b5563';
-    const badgeText = getReadableTextColor(badgeBg, '#ffffff');
     const hasCards = Object.keys(cardMap).length > 0;
 
     const sortedBatters = [...team.batting]
@@ -64,31 +60,23 @@ export default function BattingTable({ team, sportId, cardMap, onCardSelect, isS
 
     return (
         <div className="rounded-card border border-(--divider) bg-(--background-secondary) overflow-hidden">
-            <div className="px-3 py-2 border-b border-(--divider) flex items-center gap-2">
-                {sportId === 51 && countryCode && (
-                    <ReactCountryFlag countryCode={countryCode} svg style={{ width: '1.25em', height: '1.25em' }} />
-                )}
-                <span
-                    className="inline-flex items-center justify-center rounded font-bold text-[11px] px-1.5 py-0.5"
-                    style={{ backgroundColor: badgeBg, color: badgeText }}
-                >{team.team.abbreviation}</span>
-                <span className="text-xs text-(--secondary) font-semibold">Batting</span>
+            <TeamTableHeader team={team.team} sportId={sportId} title="Batting">
                 {defTotals && (
-                    <div className="ml-auto flex items-center gap-x-3">
-                        <span className="text-[10px] text-(--secondary)">C {defTotals.catcher >= 0 ? '+' : ''}{defTotals.catcher}</span>
-                        <span className="text-[10px] text-(--secondary)">IF {defTotals.infield >= 0 ? '+' : ''}{defTotals.infield}</span>
-                        <span className="text-[10px] text-(--secondary)">OF {defTotals.outfield >= 0 ? '+' : ''}{defTotals.outfield}</span>
+                    <div className="ml-auto flex items-center gap-x-3 text-[11px] font-semibold tabular-nums text-(--text-secondary)">
+                        <span>C {defTotals.catcher >= 0 ? '+' : ''}{defTotals.catcher}</span>
+                        <span>IF {defTotals.infield >= 0 ? '+' : ''}{defTotals.infield}</span>
+                        <span>OF {defTotals.outfield >= 0 ? '+' : ''}{defTotals.outfield}</span>
                     </div>
                 )}
                 {hasCards && totalPoints > 0 && (
                     <TablePointsSummary totalPoints={totalPoints} pointsChange={totalPointsChange} backgroundColor={badgeBgSecondary} />
                 )}
-            </div>
+            </TeamTableHeader>
 
             <div className="overflow-x-auto scrollbar-hide">
-                <table className="w-full text-xs">
+                <table className="w-full text-xs tabular-nums">
                     <thead>
-                        <tr className="border-b border-(--divider) text-(--secondary) font-semibold text-[10px] tracking-[0.5px] uppercase">
+                        <tr className={`border-b border-(--divider) text-(--text-tertiary) ${CAPS_LABEL_CLASS}`}>
                             <th className="pl-3 pr-2 py-2 text-left min-w-36">Batters</th>
                             <th className="px-2 py-2 text-right">AB</th>
                             <th className="px-2 py-2 text-right">R</th>
@@ -106,21 +94,21 @@ export default function BattingTable({ team, sportId, cardMap, onCardSelect, isS
                         ))}
                         {sortedBatters.length === 0 && (
                             <tr>
-                                <td colSpan={9} className="px-3 py-4 text-center text-(--secondary)">
+                                <td colSpan={9} className="px-3 py-4 text-center text-(--text-secondary)">
                                     No batting data available.
                                 </td>
                             </tr>
                         )}
                         <tr className="border-t border-(--divider) font-bold">
-                            <td className="pl-3 pr-2 py-2 text-left text-(--primary)">Totals</td>
-                            <td className="px-2 py-2 text-right text-(--primary)">{team.batting_totals.at_bats}</td>
-                            <td className="px-2 py-2 text-right text-(--primary)">{team.batting_totals.runs}</td>
-                            <td className="px-2 py-2 text-right text-(--primary)">{team.batting_totals.hits}</td>
-                            <td className="px-2 py-2 text-right text-(--primary)">{team.batting_totals.rbi}</td>
-                            <td className="px-2 py-2 text-right text-(--primary)">{team.batting_totals.base_on_balls}</td>
-                            <td className="px-2 py-2 text-right text-(--primary)">{team.batting_totals.home_runs}</td>
-                            <td className="px-2 py-2 text-right text-(--primary)" />
-                            <td className="px-2 py-2 text-right pr-3 text-(--primary)" />
+                            <td className="pl-3 pr-2 py-2 text-left text-(--text-primary)">Totals</td>
+                            <td className="px-2 py-2 text-right text-(--text-primary)">{team.batting_totals.at_bats}</td>
+                            <td className="px-2 py-2 text-right text-(--text-primary)">{team.batting_totals.runs}</td>
+                            <td className="px-2 py-2 text-right text-(--text-primary)">{team.batting_totals.hits}</td>
+                            <td className="px-2 py-2 text-right text-(--text-primary)">{team.batting_totals.rbi}</td>
+                            <td className="px-2 py-2 text-right text-(--text-primary)">{team.batting_totals.base_on_balls}</td>
+                            <td className="px-2 py-2 text-right text-(--text-primary)">{team.batting_totals.home_runs}</td>
+                            <td className="px-2 py-2 text-right text-(--text-primary)" />
+                            <td className="px-2 py-2 text-right pr-3 text-(--text-primary)" />
                         </tr>
                     </tbody>
                 </table>
@@ -149,7 +137,7 @@ function BatterRow({ batter, cardResponse, onCardSelect, isShowingModal, isLoadi
     return (
         <tr
             className={`
-                border-b border-(--divider)/50 hover:bg-(--background-primary)/50
+                border-b border-(--divider)/50 hover:bg-(--background-tertiary)
                 ${cardResponse ? 'cursor-pointer' : ''}
             `}
             onClick={cardResponse ? () => onCardSelect?.(cardResponse) : undefined}
@@ -168,14 +156,14 @@ function BatterRow({ batter, cardResponse, onCardSelect, isShowingModal, isLoadi
                         ptsChange={cardResponse?.in_season_trends?.pts_change.day} isLoadingCard={isLoadingCards && !cardResponse}
                     />
             </td>
-            <td className="px-2 py-1.5 text-right text-(--primary)">{batter.stats.at_bats}</td>
-            <td className="px-2 py-1.5 text-right text-(--primary)">{batter.stats.runs}</td>
-            <td className={`px-2 py-1.5 text-right font-semibold ${hasHit ? 'text-(--primary)' : 'text-(--secondary)'}`}>{batter.stats.hits}</td>
-            <td className="px-2 py-1.5 text-right text-(--primary)">{batter.stats.rbi}</td>
-            <td className="px-2 py-1.5 text-right text-(--primary)">{batter.stats.base_on_balls}</td>
-            <td className="px-2 py-1.5 text-right text-(--primary)">{batter.stats.home_runs}</td>
-            <td className="px-2 py-1.5 text-right text-(--secondary)">{batter.season_stats.avg}</td>
-            <td className="px-2 py-1.5 text-right pr-3 text-(--secondary)">{batter.season_stats.ops}</td>
+            <td className="px-2 py-1.5 text-right text-(--text-primary)">{batter.stats.at_bats}</td>
+            <td className="px-2 py-1.5 text-right text-(--text-primary)">{batter.stats.runs}</td>
+            <td className={`px-2 py-1.5 text-right font-semibold ${hasHit ? 'text-(--text-primary)' : 'text-(--text-secondary)'}`}>{batter.stats.hits}</td>
+            <td className="px-2 py-1.5 text-right text-(--text-primary)">{batter.stats.rbi}</td>
+            <td className="px-2 py-1.5 text-right text-(--text-primary)">{batter.stats.base_on_balls}</td>
+            <td className="px-2 py-1.5 text-right text-(--text-primary)">{batter.stats.home_runs}</td>
+            <td className="px-2 py-1.5 text-right text-(--text-secondary)">{batter.season_stats.avg}</td>
+            <td className="px-2 py-1.5 text-right pr-3 text-(--text-secondary)">{batter.season_stats.ops}</td>
             {isOpen && card && !isShowingModal && !isSmallScreen && (
                 <FloatingPortal>
                     <div

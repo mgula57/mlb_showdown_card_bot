@@ -8,6 +8,7 @@ import type { ShowdownBotCardAPIResponse } from "../../api/showdownBotCard";
 import { headingClass } from "../shared/headingStyles";
 import { choiceClass } from "../shared/choiceStyles";
 import { CAPS_LABEL_CLASS } from "../shared/fieldStyles";
+import { Plate } from "../shared/Plate";
 
 type CardMap = Record<string, ShowdownBotCardAPIResponse>;
 
@@ -86,17 +87,11 @@ function CurrentMatchupRow({
                 </div>
                 <div className="min-w-0 flex-1 pt-0.5">
                     <div className="flex flex-wrap items-center gap-1.5">
-                        <span className="inline-block rounded-plate border border-(--green)/40 px-2 py-0.5 text-[11px] font-bold text-(--green)">
-                            At Bat
-                        </span>
+                        <Plate variant="success" size="sm">At Bat</Plate>
                         {hasCount && (
-                            <span className="rounded-plate bg-(--background-tertiary) px-2 py-0.5 text-[10px] font-bold tracking-wide text-(--secondary)">
-                                {situation.balls}-{situation.strikes}
-                            </span>
+                            <Plate size="sm">{situation.balls}-{situation.strikes}</Plate>
                         )}
-                        <span className="rounded-plate bg-(--background-tertiary) px-2 py-0.5 text-[10px] font-bold tracking-wide text-(--secondary)">
-                            {situation.outs} out{situation.outs !== 1 ? 's' : ''}
-                        </span>
+                        <Plate size="sm">{situation.outs} out{situation.outs !== 1 ? 's' : ''}</Plate>
                     </div>
                     <p className="text-sm text-(--primary) mt-1">
                         <span className="font-bold">{situation.pitcher?.name ?? 'Unknown'}</span>
@@ -204,18 +199,12 @@ export default function PlayByPlayLog({ plays, cardMap, onCardSelect, isLoadingC
                                 </div>
                                 <div className="min-w-0 flex-1 pt-0.5">
                                     <div className="flex flex-wrap items-center gap-1.5">
-                                        <span className={`inline-block rounded-plate border px-2 py-0.5 text-[11px] font-bold ${
-                                            play.isScoringPlay
-                                                ? 'border-(--green)/40 text-(--green)'
-                                                : 'border-(--divider) text-(--secondary)'
-                                        }`}>
+                                        <Plate variant={play.isScoringPlay ? 'success' : 'outline'} size="sm">
                                             {play.event}
-                                        </span>
+                                        </Plate>
                                         {/* Sim games resolve a plate appearance with two d20s instead of a pitch count. */}
                                         {play.roll && (
-                                            <span className="rounded-plate bg-(--background-tertiary) px-2 py-0.5 text-[10px] font-bold tracking-wide text-(--secondary)">
-                                                P {play.roll.pitchRoll} · S {play.roll.swingRoll}
-                                            </span>
+                                            <Plate size="sm">P {play.roll.pitchRoll} · S {play.roll.swingRoll}</Plate>
                                         )}
                                     </div>
                                     <p className="text-sm text-(--primary) mt-1">

@@ -48,7 +48,7 @@ function PointsTrend({ card }: { card?: ShowdownBotCardAPIResponse }) {
     const change = card?.in_season_trends?.pts_change.day;
     if (change == null || change === 0) return null;
     return (
-        <span className={`text-[10px] font-semibold ${change >= 0 ? "text-(--green)" : "text-(--red)"}`}>
+        <span className={`text-[10px] font-semibold tabular-nums ${change >= 0 ? "text-(--green)" : "text-(--red)"}`}>
             {change >= 0 ? "+" : ""}{change} PTS
         </span>
     );
@@ -73,13 +73,13 @@ function MatchupSide({
         <div className="min-w-0 space-y-1.5">
             <div className="flex w-full items-baseline justify-between gap-1.5">
                 <div className="flex min-w-0 items-center gap-2">
-                    <span className="text-[10px] font-semibold uppercase tracking-[1px] text-(--secondary)">{label}</span>
-                    {summary && <span className="truncate text-[10px] text-(--secondary)">{summary}</span>}
+                    <span className={`${CAPS_LABEL_CLASS} text-(--text-tertiary)`}>{label}</span>
+                    {summary && <span className="truncate text-[11px] tabular-nums text-(--text-secondary)">{summary}</span>}
                     {!hideTrend && <PointsTrend card={response} />}
                 </div>
                 {advantage != null && (
-                    <div className="text-[11px] font-bold text-(--secondary) text-nowrap">
-                        <span className="text-(--primary)">{advantage}%</span> advantage
+                    <div className="text-[11px] font-semibold text-(--text-tertiary) text-nowrap">
+                        <span className="tabular-nums text-(--text-primary)">{advantage}%</span> advantage
                     </div>
                 )}
                 

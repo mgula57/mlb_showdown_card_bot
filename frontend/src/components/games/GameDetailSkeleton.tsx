@@ -8,7 +8,7 @@ import BackButton from "../shared/BackButton";
 /** One pulsing placeholder block. Lives inside an `animate-pulse` ancestor, so it doesn't animate
  * on its own — that keeps every block in a group in phase. */
 function Bar({ className = "" }: { className?: string }) {
-    return <div className={`rounded bg-(--background-quaternary) ${className}`} />;
+    return <div className={`rounded-plate bg-(--background-tertiary) ${className}`} />;
 }
 
 /** Scoreboard placeholder — two team rows and a state line, matching `ScoreHeader`. */

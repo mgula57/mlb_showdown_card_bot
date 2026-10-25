@@ -10,6 +10,7 @@ import type { GameView } from "../../../domain/game";
 import { getReadableTextColor } from "../../../functions/colors";
 import { BasesDiamond } from "../BasesDiamond";
 import { GameStatePlate } from "../GameStatePlate";
+import { CAPS_LABEL_CLASS } from "../../shared/fieldStyles";
 
 type ScoreHeaderProps = {
     game: GameView;
@@ -71,9 +72,9 @@ export default function ScoreHeader({ game, className = "", compact = false, cen
                         >{away.team.abbreviation}</div>
                         <span className={`${scoreSize} font-display-upright leading-none tabular-nums text-(--text-primary)`}>{awayRuns}</span>
                     </div>
-                    <div className={`${nameSize} hidden sm:block font-semibold text-(--primary) leading-snug`}>{away.team.name}</div>
+                    <div className={`${nameSize} hidden sm:block font-semibold text-(--text-primary) leading-snug`}>{away.team.name}</div>
                     {!compact && awayRecord && (
-                        <div className="text-[12px] text-(--secondary)">{awayRecord.wins ?? 0}-{awayRecord.losses ?? 0}</div>
+                        <div className="text-[12px] tabular-nums text-(--text-secondary)">{awayRecord.wins ?? 0}-{awayRecord.losses ?? 0}</div>
                     )}
                 </div>
 
@@ -92,8 +93,8 @@ export default function ScoreHeader({ game, className = "", compact = false, cen
                         <div className={`flex items-center ${compact ? "gap-2.5" : "gap-3"}`}>
                             {hasCount && (
                                 <div className="text-center">
-                                    <div className="text-[9px] uppercase tracking-wide text-(--secondary)">Count</div>
-                                    <div className={`font-bold leading-none text-(--primary) ${compact ? "text-[14px]" : "text-[16px]"}`}>{situation?.balls}–{situation?.strikes}</div>
+                                    <div className={`${CAPS_LABEL_CLASS} text-(--text-tertiary)`}>Count</div>
+                                    <div className={`font-display-upright leading-none tabular-nums text-(--text-primary) ${compact ? "text-[15px]" : "text-[18px]"}`}>{situation?.balls}–{situation?.strikes}</div>
                                 </div>
                             )}
                             <BasesDiamond bases={bases} outs={situation?.outs} size={compact ? 30 : "sm"} />
@@ -116,9 +117,9 @@ export default function ScoreHeader({ game, className = "", compact = false, cen
                             style={{ backgroundColor: homeBadgeBg, color: homeBadgeText }}
                         >{home.team.abbreviation}</div>
                     </div>
-                    <div className={`${nameSize} hidden sm:block font-semibold text-(--primary) leading-snug text-right`}>{home.team.name}</div>
+                    <div className={`${nameSize} hidden sm:block font-semibold text-(--text-primary) leading-snug text-right`}>{home.team.name}</div>
                     {!compact && homeRecord && (
-                        <div className="text-[12px] text-(--secondary)">{homeRecord.wins ?? 0}-{homeRecord.losses ?? 0}</div>
+                        <div className="text-[12px] tabular-nums text-(--text-secondary)">{homeRecord.wins ?? 0}-{homeRecord.losses ?? 0}</div>
                     )}
                 </div>
             </div>
