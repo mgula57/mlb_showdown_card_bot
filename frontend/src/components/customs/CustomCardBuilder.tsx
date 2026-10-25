@@ -1449,7 +1449,7 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
                         ${activePreviewTab === 'gallery' ? 'pb-0 min-h-[calc(100dvh-2.75rem)]' : 'pb-64'} @2xl:pb-0 @2xl:min-h-0
                         scroll-mt-21
                         @2xl:scroll-mt-0
-                        gradient-page
+                        bg-(--background-primary)
                     `}
                 >
                     <div className="flex flex-col h-full">

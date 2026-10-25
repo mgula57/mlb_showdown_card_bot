@@ -59,7 +59,6 @@
     /* Outline around set badge lettering (SetBadge): white in both themes, like the printed set
        logos. A dark outline smeared into the navy and red letters on light surfaces. */
     --set-outline: #ffffff;
-    --background-gradient: linear-gradient(to bottom right, rgb(228, 232, 236), rgb(247, 248, 250), rgb(221, 226, 231));
 
     /* Stat plates: a silver step off the white card in light mode, a raised gray in dark mode, so
        they read as plates without being the loudest thing on the card. */
@@ -156,7 +155,6 @@
     --background-secondary: #161b22;
     --background-tertiary: #212833;
     --background-quaternary: #2b333e;
-    --background-gradient: linear-gradient(to bottom right, rgb(10, 13, 17), rgb(22, 27, 34), rgb(16, 21, 27));
 
     --divider: #2f3844;
     --rule-strong: #4a5461;
@@ -200,14 +198,6 @@
 
 /* Custom Fonts */
 @font-face {
-    font-family: 'ShowdownSetItalic';
-    src: url('./assets/fonts/HelveticaNeueCondensedHeavyOblique.otf') format('truetype');
-    font-weight: 400;
-    font-style: italic;
-    font-display: swap;
-}
-
-@font-face {
     font-family: 'ShowdownDisplay';
     src: url('./assets/fonts/HelveticaNeueCondensedHeavyOblique.otf') format('opentype');
     font-weight: 400 900;
@@ -249,14 +239,6 @@
         background-color: var(--background-tertiary);
     }
 
-    .bg-quaternary {
-        background-color: var(--background-quaternary);
-    }
-
-    .gradient-page {
-        background-image: var(--background-gradient);
-    }
-
     .text-primary {
         color: var(--primary);
     }
@@ -271,15 +253,6 @@
 
     .border-form-element {
         border-color: var(--divider);
-    }
-
-    .text-form-element {
-        color: var(--divider);
-    }
-
-    .font-showdown-set-italic {
-        font-family: 'ShowdownSetItalic', serif;
-        font-style: italic;
     }
 
     .text-outline-double {
@@ -357,21 +330,6 @@
 @keyframes fadeIn {
   from { opacity: 0; }
   to { opacity: 1; }
-}
-
-@keyframes slideInFade {
-  from {
-    opacity: 0;
-    transform: translateX(-300px);
-  }
-  to {
-    opacity: 1;
-    transform: translateX(0);
-  }
-}
-
-.slide-in-animation {
-  animation: slideInFade 0.5s ease-out;
 }
 
 /* Slide in/out */
@@ -566,15 +524,6 @@
     animation: live-pulse 1.6s ease-in-out infinite;
 }
 
-@keyframes live-border-glow {
-    0%, 100% { box-shadow: 0 0 6px color-mix(in srgb, var(--live) 12%, transparent); border-color: color-mix(in srgb, var(--live) 25%, transparent); }
-    50%      { box-shadow: 0 0 18px color-mix(in srgb, var(--live) 35%, transparent); border-color: color-mix(in srgb, var(--live) 60%, transparent); }
-}
-
-.live-border-glow {
-    animation: live-border-glow 2s ease-in-out infinite;
-}
-
 /* Game playback tempo. `--motion-scale` is the one dial: playback speed divides it, reduced
    motion collapses it. Every animated duration inside the game view is a multiple of these three
    custom properties rather than a hardcoded duration, so speed and accessibility stay centralized.
@@ -617,50 +566,6 @@
     100% { opacity: 1; transform: scale(1); }
 }
 .result-pop { animation: result-pop var(--motion-base, 300ms) ease-out; }
-
-/* Build Card button — the blue/red Showdown gradient drifts continuously so the
-   primary CTA stays alive. Wide background-size + panning background-position. */
-@keyframes showdown-gradient-pan {
-    0%   { background-position:   0% 50%; }
-    50%  { background-position: 100% 50%; }
-    100% { background-position:   0% 50%; }
-}
-
-.animated-showdown-gradient {
-    background-image: linear-gradient(
-        115deg,
-        #3b82f6,            /* blue-500 */
-        var(--showdown-blue),
-        #9a362f,
-        #ef4444,            /* red-500 */
-        var(--showdown-red),
-        #3b82f6
-    );
-    background-size: 300% 300%;
-    animation: showdown-gradient-pan 6s ease-in-out infinite;
-}
-
-@media (prefers-reduced-motion: reduce) {
-    .animated-showdown-gradient { animation: none; }
-}
-
-/* Same drifting gradient as .animated-showdown-gradient, but reading its two stops from
-   --team-gradient-from/--team-gradient-to instead of the fixed brand palette — set those inline
-   per element (e.g. a team's primary/secondary colors) to reuse the animation anywhere. */
-.animated-team-gradient {
-    background-image: linear-gradient(
-        115deg,
-        var(--team-gradient-from),
-        var(--team-gradient-to),
-        var(--team-gradient-from)
-    );
-    background-size: 300% 300%;
-    animation: showdown-gradient-pan 6s ease-in-out infinite;
-}
-
-@media (prefers-reduced-motion: reduce) {
-    .animated-team-gradient { animation: none; }
-}
 
 /* Card highlight for the side that won the advantage on a sim plate appearance (see
    `AdvantageBadge`). Unlayered on purpose: it has to beat the card's own `shadow-xl` utility. */

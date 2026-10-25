@@ -152,7 +152,7 @@ Layout, controls, body type, the palette and the display face never change betwe
 
 **Don't**
 - Use raw Tailwind palette colors or hex values in components.
-- Add decorative gradients, glows, glassmorphism or purple accents. That includes the legacy `animated-showdown-gradient` / `animated-team-gradient` CTA classes: primary actions use `buttonClass('primary')`.
+- Add decorative gradients, glows, glassmorphism or purple accents. The old drifting-gradient CTA classes (`animated-showdown-gradient`, `animated-team-gradient`) and the diagonal page gradient (`gradient-page`) are gone from `index.css`: primary actions use `buttonClass('primary')`, and pages sit on the flat `--background-primary`.
 - Use `rounded-md`/`rounded-lg` (between the control and card corners), `rounded-xl` or larger, or pills for status and counts.
 - Write a raw `<h1>`–`<h6>`, or style a title with large bold body text. Use `<Heading>`.
 - Restyle a `CustomSelect` with `buttonClassName`. Use its `size`.

@@ -381,7 +381,7 @@ export default function Home() {
                 md:px-8
                 space-y-6
                 md:space-y-10
-                gradient-page
+                bg-(--background-primary)
                 pb-24
                 pt-3 sm:pt-5 lg:pt-8
             `}>
