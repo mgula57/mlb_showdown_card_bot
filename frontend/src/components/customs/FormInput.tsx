@@ -137,7 +137,7 @@ const FormInput: React.FC<FormInputProps> = ({ label, value, onChange, onBlur, c
                             text-sm
                             file:mr-3 file:py-1 file:px-3
                             file:rounded-control file:border-0
-                            file:bg-tertiary file:text-secondary
+                            file:bg-(--background-tertiary) file:text-(--text-secondary)
                             file:cursor-pointer
                         "
                         autoComplete="off"

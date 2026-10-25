@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { PinnedFooterSlotContext } from './pinnedFooterSlot';
 
-/** Translucent + blurred so the scrolling content bleeds through behind it. */
-const FOOTER_LAYER_CLASS = 'border-t border-form-element bg-(--background-primary)/60 backdrop-blur-md p-3';
+/** A flat page-colored bar with a hairline, over the scrolling content. */
+const FOOTER_LAYER_CLASS = 'border-t border-(--divider) bg-(--background-primary) p-3';
 
 type PinnedFooterScrollAreaProps = {
     children: React.ReactNode;
@@ -13,7 +13,7 @@ type PinnedFooterScrollAreaProps = {
     className?: string;
 };
 
-/** A scrolling content area with translucent footers pinned over its bottom edge: the caller's
+/** A scrolling content area with footers pinned over its bottom edge: the caller's
  * `footer`, plus a slot descendants fill via `PinnedFooterPortal` (hidden while empty). The content
  * pads by the footers' live height so nothing ends up stuck underneath. */
 export default function PinnedFooterScrollArea({ children, footer, className = '' }: PinnedFooterScrollAreaProps) {

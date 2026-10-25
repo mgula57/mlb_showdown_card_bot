@@ -13,6 +13,7 @@ import {
     type StartGameSimPayload,
 } from '../../api/simGame';
 import { buttonClass } from '../shared/buttonStyles';
+import { choiceClass } from '../shared/choiceStyles';
 import { CAPS_LABEL_CLASS } from '../shared/fieldStyles';
 import { headingClass } from '../shared/headingStyles';
 
@@ -219,14 +220,12 @@ export default function GameSimSetupModal({ gamePk, showdownSet, onCancel, onSta
                 {canOfferTakeover && (
                     <div className="flex items-center gap-2">
                         <span className={`${CAPS_LABEL_CLASS} text-(--text-tertiary)`}>Start from</span>
-                        <div className="inline-flex rounded-control border border-(--divider) bg-(--background-secondary) p-0.5">
+                        <div className="inline-flex gap-1.5">
                             <button
                                 type="button"
                                 onClick={() => setFromBeginning(false)}
                                 disabled={loading}
-                                className={`cursor-pointer rounded-control px-3 py-1 text-[12px] font-semibold transition-colors disabled:cursor-not-allowed ${
-                                    !fromBeginning ? 'bg-(--showdown-blue) text-white' : 'text-(--secondary) hover:text-(--primary)'
-                                }`}
+                                className={choiceClass(!fromBeginning, 'sm')}
                             >
                                 Current State
                             </button>
@@ -234,9 +233,7 @@ export default function GameSimSetupModal({ gamePk, showdownSet, onCancel, onSta
                                 type="button"
                                 onClick={() => setFromBeginning(true)}
                                 disabled={loading}
-                                className={`cursor-pointer rounded-control px-3 py-1 text-[12px] font-semibold transition-colors disabled:cursor-not-allowed ${
-                                    fromBeginning ? 'bg-(--showdown-blue) text-white' : 'text-(--secondary) hover:text-(--primary)'
-                                }`}
+                                className={choiceClass(fromBeginning, 'sm')}
                             >
                                 Beginning of Game
                             </button>
@@ -246,8 +243,13 @@ export default function GameSimSetupModal({ gamePk, showdownSet, onCancel, onSta
                 )}
 
                 {loading && !setup && (
-                    <div className="flex items-center justify-center gap-2 py-10 text-(--secondary)">
-                        <FaSpinner className="animate-spin" /> Loading lineups…
+                    <div className="grid grid-cols-2 gap-4 animate-pulse" aria-label="Loading lineups">
+                        {[0, 1].map(side => (
+                            <div key={side} className="space-y-1.5">
+                                <div className="h-4 w-24 rounded-plate bg-(--background-tertiary)" />
+                                {Array.from({ length: 9 }, (_, i) => <div key={i} className="h-7 rounded-control bg-(--background-tertiary)" />)}
+                            </div>
+                        ))}
                     </div>
                 )}
 

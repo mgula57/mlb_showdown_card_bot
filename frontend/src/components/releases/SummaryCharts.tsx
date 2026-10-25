@@ -3,7 +3,7 @@ import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Toolti
 import { fetchWotcBaseSet, WOTC_BASE_SETS, type ReleaseCard, type WotcBaseSet } from '../../api/releases';
 import type { CardDatabaseRecord } from '../../api/card_db/cardDatabase';
 import { defenseAtPosition } from '../shared/DefenseUtils';
-import CompactSelect from '../shared/CompactSelect';
+import CustomSelect from '../shared/CustomSelect';
 import FormEnabler from '../customs/FormEnabler';
 import { headingClass } from '../shared/headingStyles';
 import { CAPS_LABEL_CLASS } from '../shared/fieldStyles';
@@ -758,8 +758,9 @@ export function SummaryCharts({ cards, editionId }: SummaryChartsProps) {
         <div className="flex flex-col gap-6 p-4">
             <div className="flex flex-wrap items-end justify-between gap-3">
                 <SubsetFilterBar value={subsetFilter} onChange={setSubsetFilter} />
-                <CompactSelect
-                    label="Compare to WOTC"
+                <CustomSelect
+                    size="sm"
+                    prefix="Compare to WOTC"
                     options={COMPARISON_OPTIONS}
                     value={comparisonSet ?? NO_COMPARISON}
                     onChange={value => setComparisonSet(value === NO_COMPARISON ? null : value as WotcBaseSet)}
@@ -767,7 +768,7 @@ export function SummaryCharts({ cards, editionId }: SummaryChartsProps) {
             </div>
 
             {wotc.loading && (
-                <div className="h-4 w-64 rounded bg-(--divider) animate-pulse" />
+                <div className="h-4 w-64 rounded-plate bg-(--background-tertiary) animate-pulse" />
             )}
             {wotc.error && (
                 <div className="text-[12px] text-(--red)">{wotc.error}</div>

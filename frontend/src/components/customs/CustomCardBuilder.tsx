@@ -40,7 +40,7 @@ import { WhatsNewBanner } from '../shared/WhatsNewBanner';
 import { InfoTooltip } from '../shared/InfoTooltip';
 
 // Popovers
-import { ToastMessage } from '../shared/ToastMessage';
+import { ToastMessage, type ToastStatus } from '../shared/ToastMessage';
 import { Plate } from '../shared/Plate';
 import { CardDetail } from '../cards/CardDetail';
 import { GalleryTabContent } from '../gallery/GalleryTabContent';
@@ -60,7 +60,8 @@ import {
 import CardBuildIcon from './CardBuildIcon';
 import ImageLibraryOrderHint from './ImageLibraryOrderHint';
 import Set2026Notice from './Set2026Notice';
-import { SetStyleFields, ImageStyleFields, NewBadge } from './CardStyleFields';
+import { SetStyleFields, ImageStyleFields } from './CardStyleFields';
+import { NewBadge } from '../shared/NewBadge';
 import { setStyleSummary, imageStyleSummary, chartVersionOptions } from './cardStyle';
 import { formSectionSummary } from './FormSectionSummary';
 import { formInputsFromCard, type CustomizeCardRouteState } from './customizeCard';
@@ -165,14 +166,6 @@ const isMultiYearInput = (year: string): boolean => {
     return trimmed.toUpperCase() === 'CAREER' || trimmed.includes('-') || trimmed.includes('+');
 };
 
-type loadingStatusContent = {
-    message: string;
-    subMessage?: string;
-    icon?: React.ReactNode;
-    backgroundColor?: string;
-    removeAfterSeconds?: number;
-}
-
 // ----------------------------------
 // MARK: - Local Storage
 // ----------------------------------
@@ -254,7 +247,7 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
     const navigate = useNavigate();
 
     // Loading Status
-    const [loadingStatus, setLoadingStatus] = useState<loadingStatusContent | null>(null);
+    const [loadingStatus, setLoadingStatus] = useState<ToastStatus | null>(null);
     const [, setIsLoadingStatusVisible] = useState(false);
     const [isLoadingStatusExiting, setIsLoadingStatusExiting] = useState(false);
 
@@ -518,7 +511,7 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
                     message: "Error",
                     subMessage: cardData.error_for_user,
                     icon: <FaExclamationCircle className="text-sm"/>,
-                    backgroundColor: "rgb(255, 155, 155)", // Red
+                    tone: "error",
                     removeAfterSeconds: 5,
                 });
                 return;
@@ -535,7 +528,7 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
                 ...prevStatus, // Keep all existing values
                 message: "Done!",
                 icon: <FaCircleCheck className="text-sm"/>,
-                backgroundColor: "var(--success)",
+                tone: "success",
                 removeAfterSeconds: 2,
             }));
             setIsProcessingCard(false);
@@ -569,7 +562,7 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
                             animationIterationCount: 'infinite'
                         }}
                     />,
-            backgroundColor: "rgb(255, 193, 7)", // Amber
+            tone: "loading",
         });
 
         // Scroll to preview on mobile after a short delay to allow loading status to appear
@@ -614,7 +607,7 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
                             animationIterationCount: 'infinite'
                         }}
                     />,
-            backgroundColor: "rgb(255, 193, 7)", // Amber
+            tone: "loading",
         });
 
         // Use form data but replace name with shuffle key
@@ -831,7 +824,7 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
             message: statusMessage,
             subMessage: `${userInputs.name} | ${userInputs.year}`,
             icon: <FaRotateLeft className="text-sm" />,
-            backgroundColor: "var(--success)",
+            tone: "success",
             removeAfterSeconds: 3,
         });
     };
@@ -959,7 +952,7 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
             />
 
             {/* Mobile tab bar — fixed below the app header, hidden on @2xl */}
-            <div className={`flex @2xl:hidden fixed top-10 inset-x-0 z-30 border-b border-form-element bg-background-secondary/95 backdrop-blur`}>
+            <div className={`flex @2xl:hidden fixed top-10 inset-x-0 z-30 border-b border-(--divider) bg-(--background-secondary)`}>
                 {([
                     { tab: 'preview' as PreviewTab, icon: <CardBuildIcon size="1.5em" />, label: 'Card' },
                     { tab: 'gallery' as PreviewTab, icon: <FaImages />, label: 'Gallery' },
@@ -972,7 +965,7 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
                             border-b-2 transition-colors cursor-pointer
                             ${activePreviewTab === tab
                                 ? 'border-(--showdown-blue) text-primary'
-                                : 'border-transparent text-secondary hover:text-primary'}
+                                : 'border-transparent text-secondary hover:text-(--text-primary)'}
                         `}
                     >
                         {icon} {label}
@@ -998,7 +991,7 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
                     ${isFormCollapsed ? '@2xl:w-16' : '@2xl:w-84'}
                     ${isFormSettled ? '' : '@2xl:overflow-hidden'}
                     border-b-2 @2xl:border-r border-form-element
-                    bg-background-secondary
+                    bg-(--background-secondary)
                     ${activePreviewTab === 'gallery' ? 'hidden @2xl:flex @2xl:flex-col' : 'flex flex-col'}
                     h-full
                     ${formPanelTransitionTw} transition-[width]
@@ -1161,7 +1154,7 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
                                                         <FaXmark />
                                                     </button>
                                                 </div>
-                                                <div className="text-md font-bold overflow-scroll scrollbar-hide">
+                                                <div className="text-sm font-bold overflow-scroll scrollbar-hide">
                                                     {errorMessage}
                                                 </div>
                                             </div>
@@ -1387,8 +1380,8 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
                             @2xl:sticky @2xl:inset-x-0 @2xl:bottom-0 @2xl:z-20
                             @2xl:-mx-4 @2xl:px-10 @2xl:py-3 @2xl:pb-3
                             @2xl:pointer-events-auto
-                            @2xl:bg-background-secondary/95 @2xl:backdrop-blur
-                            @2xl:border-t @2xl:border-form-element
+                            @2xl:bg-(--background-secondary)
+                            @2xl:border-t @2xl:border-(--divider)
                             ${isFormCollapsed ? '@2xl:hidden' : ''}
                         `}>
 
@@ -1406,7 +1399,7 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
                                         pointer-events-auto @2xl:hidden
                                         flex items-center justify-center
                                         h-12 w-12 rounded-full shadow-overlay
-                                        bg-background-secondary border border-form-element text-(--primary) text-lg
+                                        bg-(--background-secondary) border border-form-element text-(--primary) text-lg
                                         cursor-pointer hover:brightness-110 active:scale-95 transition-transform
                                     "
                                     onClick={scrollToPreview}
@@ -1462,7 +1455,7 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
                     <div className="flex flex-col h-full">
 
                         {/* Tab bar — desktop only */}
-                        <div className="hidden @2xl:flex shrink-0 border-b border-form-element bg-background-secondary/80 backdrop-blur sticky top-0 z-10">
+                        <div className="hidden @2xl:flex shrink-0 border-b border-(--divider) bg-(--background-secondary) sticky top-0 z-10">
                             {([
                                 { tab: 'preview' as PreviewTab, icon: <CardBuildIcon size="1.5em" />, label: 'Preview' },
                                 { tab: 'gallery' as PreviewTab, icon: <FaImages />, label: 'Gallery' },
@@ -1475,7 +1468,7 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
                                         border-b-2 transition-colors cursor-pointer
                                         ${activePreviewTab === tab
                                             ? 'border-(--showdown-blue) text-primary'
-                                            : 'border-transparent text-secondary hover:text-primary'}
+                                            : 'border-transparent text-secondary hover:text-(--text-primary)'}
                                     `}
                                 >
                                     {icon} {label}

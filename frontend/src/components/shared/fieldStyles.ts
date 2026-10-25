@@ -30,6 +30,14 @@ export const FIELD_FRAME_CLASS =
     'rounded-control border border-(--divider) bg-(--background-secondary) text-(--text-primary) ' +
     'hover:border-(--rule-strong) focus-within:border-(--showdown-blue) transition-colors';
 
+/** The square checklist box (`FormEnabler`, `MultiSelect` options): empty with a strong rule when
+ *  off, navy with a white check when on. The caller adds the size (`w-4 h-4 text-[9px]`). */
+export function checkBoxClass(checked: boolean): string {
+    return `shrink-0 flex items-center justify-center rounded-plate border-2 transition-colors ${
+        checked ? 'bg-(--showdown-blue) border-(--showdown-blue) text-white' : 'border-(--rule-strong)'
+    }`;
+}
+
 export function fieldClass(size: FieldSize = 'md', className = ''): string {
     return `${FIELD_FRAME_CLASS} ${SIZE_CLASSES[size]} disabled:opacity-40 disabled:cursor-not-allowed ${className}`;
 }

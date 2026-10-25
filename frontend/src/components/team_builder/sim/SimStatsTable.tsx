@@ -36,6 +36,7 @@ function sortValue(row: SimStatLine, key: SortKey): string | number {
 
 // SHARED WITH THE FIRST BODY CELL BELOW SO THE FROZEN PLAYER COLUMN STAYS OPAQUE OVER WHATEVER
 // SCROLLS UNDERNEATH IT, WITH A SHADOW MARKING WHERE THE SCROLLABLE PART BEGINS.
+// design-ok: a short fade marks the pinned column's scroll edge
 const STICKY_COL_CLASS = 'sticky left-0 bg-(--background-secondary) shadow-[2px_0_4px_-2px_rgba(0,0,0,0.15)]';
 
 function SortHeader({ label, active, dir, onClick, align = 'right', sticky = false }: { label: string; active: boolean; dir?: 'asc' | 'desc'; onClick: () => void; align?: 'left' | 'right'; sticky?: boolean }) {

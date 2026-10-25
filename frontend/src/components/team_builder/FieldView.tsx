@@ -260,7 +260,7 @@ export function FieldView({
 
                 {showDefenseSummary && (
                     <div
-                        className="absolute -translate-x-1/2 grid grid-cols-[auto_auto] items-center gap-x-2 gap-y-1.5 px-2.5 py-1 border border-(--divider) rounded-card bg-primary backdrop-blur-xs pointer-events-none select-none"
+                        className="absolute -translate-x-1/2 grid grid-cols-[auto_auto] items-center gap-x-2 gap-y-1.5 px-2.5 py-1 border border-(--divider) rounded-card bg-primary pointer-events-none select-none"
                         style={{ top: '80%', left: '15%' }}
                     >
                         {([
@@ -327,7 +327,7 @@ export function FieldView({
                             onMouseEnter={card ? () => onCardHover?.(card.card_id) : undefined}
                             onMouseLeave={() => onCardHover?.(null)}
                         >
-                            <div className={`relative ${isActive ? 'rounded-control ring-2 ring-(--secondary) shadow-[0_0_14px_4px_color-mix(in_srgb,var(--secondary)_50%,transparent)] animate-pulse' : ''}`}>
+                            <div className={`relative ${isActive ? 'rounded-control ring-2 ring-(--card-edge) animate-pulse' : ''}`}>
                                 {card ? (
                                     <CardItemCompactFromCardDatabaseRecord
                                         card={card}
@@ -456,17 +456,16 @@ function PositionSlotPlaceholder({ position, onClick, isActive }: PlaceholderPro
                 w-full flex items-center justify-between gap-1
                 rounded-control px-2 h-12 @[340px]:h-16
                 border-2 border-dashed
-                backdrop-blur-[2px]
                 ${isActive
-                    ? 'border-(--secondary) bg-black/30'
+                    ? 'border-(--card-edge) bg-black/30'
                     : 'border-white/30 bg-black/20 hover:bg-black/30 hover:border-white/50'
                 }
                 ${onClick ? 'cursor-pointer' : 'cursor-default'}
                 transition-colors
             `}
         >
-            <span className={`text-[11px] font-bold ${isActive ? 'text-(--secondary)' : 'text-white/70'}`}>{position}</span>
-            {onClick && <FaPlus className={`text-[9px] shrink-0 ${isActive ? 'text-(--secondary)' : 'text-white/50'}`} />}
+            <span className={`text-[11px] font-bold ${isActive ? 'text-(--card-edge)' : 'text-white/70'}`}>{position}</span>
+            {onClick && <FaPlus className={`text-[9px] shrink-0 ${isActive ? 'text-(--card-edge)' : 'text-white/50'}`} />}
         </button>
     );
 }
@@ -481,7 +480,7 @@ const LoadingDots = ({ dotClassName }: { dotClassName: string }) => (
 
 function PositionSlotLoadingPlaceholder({ position }: { position: string }) {
     return (
-        <div className="w-full flex items-center justify-between gap-1 rounded-card px-2 h-12 border-2 border-dashed border-white/30 bg-black/20 backdrop-blur-[2px]">
+        <div className="w-full flex items-center justify-between gap-1 rounded-card px-2 h-12 border-2 border-dashed border-white/30 bg-black/20">
             <span className="text-[11px] font-bold text-white/70">{position}</span>
             <LoadingDots dotClassName="bg-white/60" />
         </div>

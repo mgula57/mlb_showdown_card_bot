@@ -5,7 +5,9 @@ import { supabase } from '../../api/supabase';
 import { FaLock, FaCheckCircle } from 'react-icons/fa';
 
 import { Heading } from '../shared/Heading';
-import { FIELD_LABEL_CLASS } from '../shared/fieldStyles';
+import { FIELD_LABEL_CLASS, fieldClass } from '../shared/fieldStyles';
+import { buttonClass } from '../shared/buttonStyles';
+import { InlineError } from '../shared/InlineError';
 type PageState = 'loading' | 'ready' | 'success' | 'invalid';
 
 export const ResetPasswordPage: React.FC = () => {
@@ -56,26 +58,19 @@ export const ResetPasswordPage: React.FC = () => {
         setPageState('success');
     };
 
-    const inputCls = `
-        w-full px-3 py-2
-        bg-background-primary
-        border border-form-element
-        rounded-control text-secondary
-        focus:outline-none focus:ring-2 focus:ring-accent
-        disabled:opacity-50 disabled:cursor-not-allowed
-    `;
+    const inputCls = fieldClass('md', 'w-full focus:outline-none');
 
     return (
         <div className="min-h-screen bg-primary flex items-center justify-center p-4">
             <div className="w-full max-w-sm">
 
                 {/* Card */}
-                <div className="rounded-card border border-form-element bg-background-secondary p-8 shadow-overlay">
+                <div className="rounded-card border border-form-element bg-(--background-secondary) p-8 shadow-overlay">
 
                     {/* Loading */}
                     {pageState === 'loading' && (
                         <div className="text-center space-y-3">
-                            <div className="w-8 h-8 border-2 border-accent border-t-transparent rounded-full animate-spin mx-auto" />
+                            <div className="w-8 h-8 border-2 border-(--showdown-blue) border-t-transparent rounded-full animate-spin mx-auto" />
                             <p className="text-sm text-secondary">Verifying reset link…</p>
                         </div>
                     )}
@@ -94,7 +89,7 @@ export const ResetPasswordPage: React.FC = () => {
                             </div>
                             <button
                                 onClick={() => navigate('/')}
-                                className="w-full py-2.5 bg-tertiary text-primary rounded-control hover:bg-quaternary cursor-pointer transition-colors font-semibold">
+                                className={buttonClass('primary', 'md', 'w-full')}>
                                 Back to Sign In
                             </button>
                         </div>
@@ -104,17 +99,15 @@ export const ResetPasswordPage: React.FC = () => {
                     {pageState === 'ready' && (
                         <>
                             <div className="text-center mb-6">
-                                <div className="w-12 h-12 rounded-full bg-accent/20 flex items-center justify-center mx-auto mb-3">
-                                    <FaLock className="text-accent text-xl" />
+                                <div className="w-12 h-12 rounded-full bg-(--showdown-blue)/15 flex items-center justify-center mx-auto mb-3">
+                                    <FaLock className="text-(--showdown-blue) text-xl" />
                                 </div>
                                 <Heading level="page">Set new password</Heading>
                                 <p className="text-sm text-secondary opacity-70 mt-1">Choose a strong password for your account.</p>
                             </div>
 
                             {error && (
-                                <div className="mb-4 p-3 bg-(--red)/10 border border-(--red)/40 text-(--red) rounded-control text-sm">
-                                    {error}
-                                </div>
+                                <InlineError size="md" className="mb-4">{error}</InlineError>
                             )}
 
                             <form onSubmit={handleSubmit} className="space-y-4">
@@ -144,7 +137,7 @@ export const ResetPasswordPage: React.FC = () => {
                                 </div>
                                 <button
                                     type="submit" disabled={loading || !password || !confirmPassword}
-                                    className="w-full py-2.5 bg-tertiary text-primary rounded-control hover:bg-quaternary cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-semibold">
+                                    className={buttonClass('primary', 'md', 'w-full')}>
                                     {loading ? 'Updating…' : 'Update Password'}
                                 </button>
                             </form>
@@ -163,7 +156,7 @@ export const ResetPasswordPage: React.FC = () => {
                             </div>
                             <button
                                 onClick={() => navigate('/account')}
-                                className="w-full py-2.5 bg-tertiary text-primary rounded-control hover:bg-quaternary cursor-pointer transition-colors font-semibold">
+                                className={buttonClass('primary', 'md', 'w-full')}>
                                 Go to Account
                             </button>
                         </div>

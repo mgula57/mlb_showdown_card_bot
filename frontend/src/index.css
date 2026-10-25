@@ -24,9 +24,11 @@
     --radius-plate: 2px;
 
     /* `shadow-raised` is the hard bottom edge for raised controls; `shadow-overlay` is the only
-       soft shadow, reserved for modals, menus and sheets. */
+       soft shadow, reserved for modals, menus and sheets. `shadow-sheet` is the same overlay cast
+       upward, for sheets anchored to the bottom edge (BottomSheet, SlideOver). */
     --shadow-raised: 0 2px 0 var(--rule-strong);
     --shadow-overlay: 0 12px 32px rgb(0 0 0 / 0.18);
+    --shadow-sheet: 0 -12px 32px rgb(0 0 0 / 0.18);
 }
 
 :root {
@@ -101,6 +103,18 @@
     --green: #287c22;
     --red: #ca443d;
 
+    /* Grade scale for percentile and match-quality readouts, best (a) to worst (d): the points
+       breakdown, percentile gauges and card comps. Data only, never decorative. */
+    --grade-a: #287c22;
+    --grade-b: #6f9417;
+    --grade-c: #c08a0c;
+    --grade-d: #ca443d;
+    /* Hot/cold scale for real-vs-league percentiles, Statcast style. The middle is --rule-strong. */
+    --heat-hot: #c8372d;
+    --heat-warm: #d9752b;
+    --heat-cool: #5f7fae;
+    --heat-cold: #2f5fa8;
+
     /* In-progress games: occupied bases, out pips, the LIVE dot. Previously split between
        yellow-400 (GameItem, Home ticker) and red-500 (GameDetail header). */
     --live: #d92d20;
@@ -171,6 +185,15 @@
 
     --green: #5cc46f;
     --red: #f0675c;
+
+    --grade-a: #5cc46f;
+    --grade-b: #a5cf4f;
+    --grade-c: #e6c13e;
+    --grade-d: #f0675c;
+    --heat-hot: #f0675c;
+    --heat-warm: #f0a05a;
+    --heat-cool: #8aa6d6;
+    --heat-cold: #5b93e8;
 
     --live: #f04438;
 }

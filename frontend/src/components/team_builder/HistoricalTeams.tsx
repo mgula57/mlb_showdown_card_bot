@@ -6,10 +6,10 @@ import {
 } from '../../api/mlbAPI';
 import { useSiteSettings } from '../shared/SiteSettingsContext';
 import { TeamPreviewCard, TeamPreviewCardSkeleton, type TeamPreviewData } from './TeamPreviewCard';
-import { TeamShelf } from './TeamShelf';
+import { TeamShelf, TeamShelfSkeleton } from './TeamShelf';
 import { TeamGridPage } from './TeamGridPage';
 import CustomSelect, { type SelectOption } from '../shared/CustomSelect';
-import { FaSpinner, FaChevronRight } from 'react-icons/fa6';
+import { FaChevronRight } from 'react-icons/fa6';
 import { TeamSearchInput } from './TeamSearchInput';
 
 import { InlineError } from '../shared/InlineError';
@@ -343,7 +343,9 @@ export function HistoricalTeams({ horizontalPadding, hideSearch = false, externa
                 {searchQuery ? (
                     /* Search results — a flat grid spanning every season */
                     searching ? (
-                        <div className="flex justify-center py-12"><FaSpinner className="animate-spin text-(--text-tertiary) text-xl" /></div>
+                        <div className={`flex flex-wrap gap-3 ${horizontalPadding ?? ''}`}>
+                            {Array.from({ length: 6 }, (_, i) => <TeamPreviewCardSkeleton key={i} />)}
+                        </div>
                     ) : searchResults.length === 0 ? (
                         <p className="text-[13px] text-(--text-tertiary) py-8 text-center">No teams match “{searchQuery}”.</p>
                     ) : (
@@ -371,7 +373,7 @@ export function HistoricalTeams({ horizontalPadding, hideSearch = false, externa
                         </div>
                     )
                 ) : loadingSeasons ? (
-                    <div className="flex justify-center py-12"><FaSpinner className="animate-spin text-(--text-tertiary) text-xl" /></div>
+                    <TeamShelfSkeleton shelves={2} className={horizontalPadding} />
                 ) : seasons.length === 0 ? (
                     <p className="text-[13px] text-(--text-tertiary) py-8 text-center">No historical teams have been processed yet.</p>
                 ) : filteredSeasons.length === 0 ? (

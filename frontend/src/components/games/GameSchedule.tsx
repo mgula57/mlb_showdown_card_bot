@@ -9,6 +9,7 @@ import type { GameState } from "../../domain/game";
 import GameItem from "./GameItem";
 
 import { Heading } from '../shared/Heading';
+import { buttonClass } from '../shared/buttonStyles';
 type CardMap = Record<string, CardDatabaseRecord>;
 
 type GameScheduleProps = {
@@ -32,18 +33,18 @@ function GameItemSkeleton() {
         <div className="rounded-card border-2 border-(--divider) bg-(--background-secondary) overflow-hidden p-3 animate-pulse">
             <div className="w-full space-y-2 py-2">
                 <div className="flex items-center justify-between gap-3">
-                    <div className="h-3.5 w-24 rounded bg-(--background-quaternary)" />
-                    <div className="h-4 w-6 rounded bg-(--background-quaternary)" />
+                    <div className="h-3.5 w-24 rounded-plate bg-(--background-tertiary)" />
+                    <div className="h-4 w-6 rounded-plate bg-(--background-tertiary)" />
                 </div>
                 <div className="flex items-center justify-between gap-3">
-                    <div className="h-3.5 w-24 rounded bg-(--background-quaternary)" />
-                    <div className="h-4 w-6 rounded bg-(--background-quaternary)" />
+                    <div className="h-3.5 w-24 rounded-plate bg-(--background-tertiary)" />
+                    <div className="h-4 w-6 rounded-plate bg-(--background-tertiary)" />
                 </div>
                 <div className="border-t border-(--divider) my-1" />
                 <div className="pt-1 flex gap-2 items-center">
-                    <div className="h-8 flex-1 rounded bg-(--background-quaternary)" />
-                    <div className="h-3 w-6 rounded bg-(--background-quaternary)" />
-                    <div className="h-8 flex-1 rounded bg-(--background-quaternary)" />
+                    <div className="h-8 flex-1 rounded-plate bg-(--background-tertiary)" />
+                    <div className="h-3 w-6 rounded-plate bg-(--background-tertiary)" />
+                    <div className="h-8 flex-1 rounded-plate bg-(--background-tertiary)" />
                 </div>
             </div>
         </div>
@@ -69,12 +70,8 @@ function GameScheduleHeader({ dateLabel, description, onRefresh }: GameScheduleH
             {/* Refresh button */}
             {onRefresh && (
                 <button
-                    className="
-                        hidden md:flex ml-4 px-4 py-2 items-center gap-1
-                        bg-secondary text-white rounded-control
-                        hover:bg-(--showdown-blue)/50 transition-colors
-                        cursor-pointer
-                    "
+                    type="button"
+                    className={buttonClass('primary', 'md', 'max-md:hidden ml-4')}
                     onClick={onRefresh}
                 >
                     <FaArrowsRotate className="inline-block mr-1" />

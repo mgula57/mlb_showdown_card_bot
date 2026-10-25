@@ -69,7 +69,7 @@ export function TeamShelfSkeleton({ shelves = 1, tiles = 6, className }: { shelv
             {Array.from({ length: shelves }, (_, s) => (
                 <section key={s} className="flex flex-col" aria-hidden>
                     <div className={`mb-1.5 ${className ?? ''}`}>
-                        <div className="h-4 w-32 rounded bg-(--background-secondary) animate-pulse" />
+                        <div className="h-4 w-32 rounded-plate bg-(--background-tertiary) animate-pulse" />
                     </div>
                     <div className={`flex gap-3 overflow-hidden pb-1 py-2 ${className ?? ''}`}>
                         {Array.from({ length: tiles }, (_, i) => <TeamPreviewCardSkeleton key={i} />)}

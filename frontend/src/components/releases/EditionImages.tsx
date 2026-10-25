@@ -20,7 +20,7 @@ const TILE_GRID_CLASS = 'grid grid-cols-[repeat(auto-fill,minmax(140px,1fr))] ga
 
 const STATUS_META: Record<ReleaseCardImageStatus, { label: string; badgeClass: string }> = {
     rendered: { label: 'Rendered', badgeClass: 'bg-(--green) text-white' },
-    stale: { label: 'Out of date', badgeClass: 'bg-(--gold) text-black' },
+    stale: { label: 'Out of date', badgeClass: 'bg-(--gold) text-(--field-ink)' },
     failed: { label: 'Failed', badgeClass: 'bg-(--red) text-white' },
     missing: { label: 'Not rendered', badgeClass: 'bg-(--background-quaternary) text-(--text-secondary)' },
 };
@@ -393,8 +393,8 @@ function CardImageWithSkeleton({ src, alt, dimmed = false, className = '' }: { s
 function ReleaseImageTileSkeleton() {
     return (
         <div className="flex flex-col gap-1.5 animate-pulse">
-            <div className="aspect-5/7 rounded-card bg-(--background-quaternary)" />
-            <div className="h-3 w-3/4 rounded bg-(--background-quaternary)" />
+            <div className="aspect-5/7 rounded-card bg-(--background-tertiary)" />
+            <div className="h-3 w-3/4 rounded-plate bg-(--background-tertiary)" />
         </div>
     );
 }

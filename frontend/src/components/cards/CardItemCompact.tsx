@@ -279,7 +279,7 @@ export const CardItemCompact = ({
 
             {/* Absolute positioned elements */}
             {!hideDetails && !isRedacted && !hideCommand && !statBadge && (
-                <div className="hidden @[95px]:block absolute bottom-1.5 left-0.5 bg-(--background-secondary)/70 backdrop-blur-[1px] rounded-plate">
+                <div className="hidden @[95px]:block absolute bottom-1.5 left-0.5 bg-(--background-secondary)/80 rounded-plate">
                     <SetBadge set={card?.set || ''} abbreviated size="sm" />
                 </div>
             )}
@@ -317,7 +317,7 @@ export const CardItemCompact = ({
                         transition-colors
                         ${actionButton.disabled
                             ? 'opacity-40 cursor-not-allowed'
-                            : 'hover:bg-(--background-quaternary) hover:text-(--text-primary)'}
+                            : 'cursor-pointer hover:bg-(--background-quaternary) hover:text-(--text-primary)'}
                     `}
                 >
                     {actionButton.icon}
@@ -325,7 +325,7 @@ export const CardItemCompact = ({
             )}
 
             {isLoading && (
-                <div className="absolute inset-0 flex items-center justify-center gap-1 rounded-card bg-(--background-secondary)/70 backdrop-blur-[1px]">
+                <div className="absolute inset-0 flex items-center justify-center gap-1 rounded-card bg-(--background-secondary)/80">
                     <span className="w-1.5 h-1.5 rounded-full bg-(--secondary) animate-bounce" style={{ animationDelay: '0ms' }} />
                     <span className="w-1.5 h-1.5 rounded-full bg-(--secondary) animate-bounce" style={{ animationDelay: '150ms' }} />
                     <span className="w-1.5 h-1.5 rounded-full bg-(--secondary) animate-bounce" style={{ animationDelay: '300ms' }} />

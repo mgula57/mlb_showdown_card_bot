@@ -117,7 +117,7 @@ export function CardChart({ chartRanges, showdownSet, primaryColor, secondaryCol
     const hasHighlight = !!highlightKey && Object.keys(chartDataToRender).some((key) => key.toLowerCase() === highlightKey);
 
     return (
-        <div className={`inline-flex rounded-[3px] overflow-hidden text-xs font-semibold border border-(--divider) ${className || ''}`}>
+        <div className={`inline-flex rounded-control overflow-hidden text-xs font-semibold border border-(--divider) ${className || ''}`}>
             {Object.entries(chartDataToRender).map(([key, value], index) => {
                 const colorInfo = getColorClass(key, index);
                 const isHighlighted = hasHighlight && key.toLowerCase() === highlightKey;

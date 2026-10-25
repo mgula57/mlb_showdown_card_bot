@@ -57,6 +57,7 @@ import { useIsSmallScreen } from '../../hooks/useIsSmallScreen';
 
 import { fieldClass, FIELD_LABEL_CLASS } from '../shared/fieldStyles';
 import { Heading } from '../shared/Heading';
+import { buttonClass } from '../shared/buttonStyles';
 /**
  * Props for the ShowdownCardSearch component
  */
@@ -1418,9 +1419,9 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
 
     const renderResetButton = (targets: String[]) => {
         return (
-            <button onClick={() => resetFilters(targets)} className="text-black font-bold flex items-center bg-(--warning) rounded-control px-2 mx-1 gap-1 py-1 cursor-pointer">
+            <button type="button" onClick={() => resetFilters(targets)} className={buttonClass('secondary', 'sm', 'mx-1')}>
                 <FaArrowRotateRight />
-                <span className="text-sm">Reset</span>
+                Reset
             </button>
         );
     };
@@ -1440,7 +1441,7 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
 
             {/* Search Bar and Filters */}
             <div
-                className="@container sticky top-0 z-10 flex flex-col gap-2 w-full bg-background-secondary/95 backdrop-blur py-3 transition-[width] duration-300 ease-in-out"
+                className="@container sticky top-0 z-10 flex flex-col gap-2 w-full bg-(--background-secondary) py-3 transition-[width] duration-300 ease-in-out"
                 style={{ width: `calc(100% - ${showPlayerDetailSidebar ? sidebarWidth : 0}px)` }}
             >
 
@@ -1520,7 +1521,7 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
                         <button
                             onClick={() => setShowPlayerDetailSidebar(true)}
                             className={`
-                                items-center gap-2
+                                items-center gap-2 cursor-pointer
                                 hover:bg-(--background-secondary-hover)
                                 ${showPlayerDetailSidebar ? 'hidden' : 'hidden @2xl:flex'}
                             `}>
@@ -1695,7 +1696,7 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
                         onPointerDown={handleSidebarResizeStart}
                         className="absolute left-0 top-0 bottom-0 w-4 cursor-ew-resize touch-none flex items-center justify-center z-10 group"
                     >
-                        <FaGripVertical className={`${showPlayerDetailSidebar ? 'block' : 'hidden'} group-hover:text-tertiary transition-colors text-2xl -translate-x-2 text-secondary bg-(--divider) p-1 rounded-control`} />
+                        <FaGripVertical className={`${showPlayerDetailSidebar ? 'block' : 'hidden'} group-hover:text-(--tertiary) transition-colors text-2xl -translate-x-2 text-secondary bg-(--divider) p-1 rounded-control`} />
                     </div>
 
                     {/* Sidebar Content */}
@@ -1703,7 +1704,10 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
 
                         {/* Stick header with close button */}
                         <div className="py-8 h-12 flex items-center space-x-2 p-2 border-b border-form-element">
-                            <button 
+                            <button
+                                type="button"
+                                aria-label="Close card detail"
+                                className="cursor-pointer"
                                 onClick={handleCloseSidebar}>
                                 <FaChevronCircleRight className="text-(--tertiary) w-7 h-7" />
                             </button>
@@ -1738,7 +1742,7 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
             {isLoading && !showSkeletons && (
                 <div className="
                     absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2
-                    bg-(--primary)/10 backdrop-blur
+                    bg-(--background-secondary) border border-(--divider) shadow-overlay
                     p-4 rounded-card
                     flex items-center space-x-2
                     z-10
@@ -1779,7 +1783,7 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
                                 sticky top-0 flex flex-col
                                 gap-y-1 mb-4 px-4 pb-3 pt-4 z-10
                                 border-b-2 border-form-element 
-                                bg-background-secondary/95 backdrop-blur
+                                bg-(--background-secondary)
                             ">
                             
                             <div className="flex items-center gap-2">

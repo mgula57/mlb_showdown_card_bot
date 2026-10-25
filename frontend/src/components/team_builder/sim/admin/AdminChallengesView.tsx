@@ -245,7 +245,9 @@ export function AdminChallengesView({ token, onBack }: Props) {
             )}
 
             {groupedTemplates === null ? (
-                <div className="flex justify-center py-10"><FaSpinner className="animate-spin text-(--text-tertiary) text-xl" /></div>
+                <div className="flex flex-col gap-2 animate-pulse" aria-label="Loading templates">
+                    {Array.from({ length: 4 }, (_, i) => <div key={i} className="h-12 rounded-card bg-(--background-tertiary)" />)}
+                </div>
             ) : groupedTemplates.length === 0 ? (
                 <p className="text-[13px] text-(--text-tertiary) py-8 text-center">No templates yet — create one to get started.</p>
             ) : (

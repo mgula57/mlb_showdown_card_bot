@@ -30,7 +30,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { FaChevronDown, FaCheck } from 'react-icons/fa6';
 import { createPortal } from 'react-dom';
-import { fieldClass, type FieldSize } from './fieldStyles';
+import { fieldClass, INLINE_FIELD_LABEL_CLASS, type FieldSize } from './fieldStyles';
 
 /**
  * Represents a single option in the custom select dropdown
@@ -89,6 +89,9 @@ export type CustomSelectProps = {
     dropdownClassName?: string;
     /** Optional text to display after the selected value */
     suffix?: string;
+    /** Inline label inside the field, before the value ("Group Team", "Sort Points"), for toolbars
+     *  where a stacked label is too tall. Same treatment as `SetMultiSelect`'s `prefix`. */
+    prefix?: string;
     /** Whether the select is disabled */
     disabled?: boolean;
     /** Placeholder text shown in muted style when no option is selected */
@@ -116,7 +119,7 @@ export type CustomSelectProps = {
  * @param props - Component props
  * @returns A customizable select dropdown component
  */
-const CustomSelect: React.FC<CustomSelectProps> = ({ value, onChange, options, className = "", suffix = null, size = 'md', buttonClassName = "", imageClassName = "", compactImageClassName = "", labelClassName = "", dropdownClassName = "", disabled = false, placeholder, showDropdownArrow = true, dropdownArrowSize = 11, align = 'left' }) => {
+const CustomSelect: React.FC<CustomSelectProps> = ({ value, onChange, options, className = "", suffix = null, prefix, size = 'md', buttonClassName = "", imageClassName = "", compactImageClassName = "", labelClassName = "", dropdownClassName = "", disabled = false, placeholder, showDropdownArrow = true, dropdownArrowSize = 11, align = 'left' }) => {
 
     // State management for dropdown behavior and positioning
     /** Controls whether the dropdown menu is visible */
@@ -325,6 +328,7 @@ const CustomSelect: React.FC<CustomSelectProps> = ({ value, onChange, options, c
                 disabled={disabled}
             >
                 <div className="flex flex-1 min-w-0 items-center overflow-clip">
+                    {prefix && <span className={`${INLINE_FIELD_LABEL_CLASS} mr-1`}>{prefix}</span>}
                     { renderSelectedImage(options.find(option => option.value === value)) }
                     { renderSymbol(options.find(option => option.value === value)?.symbol) }
                     { renderSelectedIcon(options.find(option => option.value === value)) }

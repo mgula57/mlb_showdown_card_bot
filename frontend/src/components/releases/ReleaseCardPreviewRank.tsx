@@ -14,7 +14,7 @@ const RANKS = Array.from({ length: MAX_PREVIEW_RANK }, (_, i) => i + 1);
 
 export function ReleaseCardPreviewRankBadge({ rank }: { rank: number }) {
     return (
-        <Plate variant="navy" size="sm" title={`Release preview #${rank}`} className="gap-0.5 ring-1 ring-black/20">
+        <Plate variant="navy" size="sm" title={`Release preview #${rank}`} className="gap-0.5">
             <FaStar className="text-[8px]" />
             {rank}
         </Plate>

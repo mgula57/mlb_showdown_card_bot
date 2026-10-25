@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { InfoTooltip } from './InfoTooltip';
+import { FIELD_FRAME_CLASS } from './fieldStyles';
 
 type PercentageSliderProps = {
     label: string;
@@ -43,7 +44,7 @@ export default function PercentageSlider({ label, info, value, onChange, fillCla
                 />
             </div>
 
-            <div className="flex items-center shrink-0 rounded-control border border-(--divider) bg-(--background-secondary) pr-2 focus-within:border-(--text-tertiary)">
+            <div className={`flex items-center shrink-0 pr-2 ${FIELD_FRAME_CLASS}`}>
                 <input
                     type="number"
                     inputMode="numeric"
@@ -57,7 +58,7 @@ export default function PercentageSlider({ label, info, value, onChange, fillCla
                         if (e.target.value !== '') onChange(clampPercent(Number(e.target.value)));
                     }}
                     onBlur={() => setDraft(null)}
-                    className="w-11 bg-transparent py-1 pl-2 text-right text-[12px] font-bold text-(--text-primary) outline-none
+                    className="w-11 bg-transparent py-1 pl-2 text-right text-[12px] font-bold tabular-nums text-(--text-primary) outline-none
                         [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none
                         disabled:cursor-not-allowed"
                 />

@@ -5,7 +5,7 @@
 
 import { useState } from 'react';
 import { FaPlus, FaXmark } from 'react-icons/fa6';
-import { FIELD_LABEL_CLASS } from '../shared/fieldStyles';
+import { FIELD_LABEL_CLASS, fieldClass } from '../shared/fieldStyles';
 import { choiceClass } from '../shared/choiceStyles';
 
 /** Always offered in the editor, even before any card in the edition uses them. */
@@ -18,14 +18,14 @@ function normalizeReleaseCardTag(value: string): string {
     return value.trim().toUpperCase().slice(0, TAG_MAX_LENGTH);
 }
 
-const CHIP_CLASS = 'inline-flex items-center gap-1 rounded-plate bg-(--warning) text-black font-semibold uppercase leading-none';
+const CHIP_CLASS = 'inline-flex items-center gap-1 rounded-plate bg-(--warning) text-(--field-ink) font-semibold uppercase leading-none';
 
 export function ReleaseCardTagChips({ tags, onRemove }: { tags: string[]; onRemove?: (tag: string) => void }) {
     if (tags.length === 0) return null;
     return (
         <div className="flex flex-wrap gap-1">
             {tags.map(tag => (
-                <span key={tag} className={`${CHIP_CLASS} ${onRemove ? 'text-[11px] py-1 pl-2 pr-1' : 'text-[9px] py-0.5 px-1.5 ring-1 ring-black/20'}`}>
+                <span key={tag} className={`${CHIP_CLASS} ${onRemove ? 'text-[11px] py-1 pl-2 pr-1' : 'text-[9px] py-0.5 px-1.5'}`}>
                     {tag}
                     {onRemove && (
                         <button
@@ -79,7 +79,7 @@ export function ReleaseCardTagsEditor({ tags, editionTags, readOnly, onChange }:
                     onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addTag(draft); } }}
                     maxLength={TAG_MAX_LENGTH}
                     placeholder="Add tag…"
-                    className="w-28 min-h-8 text-[12px] uppercase bg-transparent border border-(--divider) rounded-control px-2 py-1 text-(--text-primary) focus:outline-none focus:border-(--secondary)"
+                    className={fieldClass('sm', 'w-28 uppercase focus:outline-none')}
                 />
             </div>
             {suggestions.length > 0 && (

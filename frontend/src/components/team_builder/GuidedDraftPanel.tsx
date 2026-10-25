@@ -14,7 +14,7 @@ import type { ShowdownBotCardAPIResponse } from '../../api/showdownBotCard';
 import { ProgressRing } from './ProgressRing';
 
 import { Heading } from '../shared/Heading';
-import { FIELD_LABEL_CLASS, CAPS_LABEL_CLASS } from '../shared/fieldStyles';
+import { FIELD_LABEL_CLASS, CAPS_LABEL_CLASS, fieldClass } from '../shared/fieldStyles';
 import { buttonClass } from '../shared/buttonStyles';
 import { headingClass } from '../shared/headingStyles';
 type BucketProgress = { filled: number; target: number };
@@ -98,7 +98,7 @@ export function GuidedDraftPanel(props: Props) {
             ~{round.target_points} PTS <span className="font-semibold text-(--text-tertiary)">±{round.window}</span>
         </span>
     ) : (
-        <span className="h-3.5 w-24 rounded bg-(--background-quaternary) animate-pulse" />
+        <span className="h-3.5 w-24 rounded-plate bg-(--background-tertiary) animate-pulse" />
     );
 
     return (
@@ -111,7 +111,7 @@ export function GuidedDraftPanel(props: Props) {
                         <span className="text-[11px] font-bold tabular-nums text-(--text-tertiary) shrink-0">{roundIndex}/{rosterSize}</span>
                         {round
                             ? <span className={`${headingClass('panel')} truncate`}>{round.round.label}</span>
-                            : <span className="h-4 w-28 rounded bg-(--background-quaternary) animate-pulse" />}
+                            : <span className="h-4 w-28 rounded-plate bg-(--background-tertiary) animate-pulse" />}
                         <span className="ml-auto flex items-center gap-1.5 shrink-0 text-[10px] font-bold text-(--text-secondary)">
                             {target}
                             <OrderToggle order={order} onChange={onOrderChange} compact />
@@ -132,7 +132,7 @@ export function GuidedDraftPanel(props: Props) {
                             {round ? (
                                 <Heading level="section" as="div" fit>{round.round.label}</Heading>
                             ) : (
-                                <div className="h-6 w-40 mt-1 rounded bg-(--background-quaternary) animate-pulse" />
+                                <div className="h-6 w-40 mt-1 rounded-plate bg-(--background-tertiary) animate-pulse" />
                             )}
                         </div>
                         <div className="flex flex-col items-end gap-0.5 shrink-0 text-[11px] font-bold text-(--text-secondary)">
@@ -410,7 +410,7 @@ function GuidedTargetPrompt({ onSetTarget }: { onSetTarget: (target: number) => 
                     step={50}
                     value={target}
                     onChange={e => setTarget(Math.max(0, Number(e.target.value)))}
-                    className="mt-1 w-full rounded-card border border-(--divider) bg-(--background-secondary) px-3 py-2 text-[13px] font-bold text-(--text-primary) normal-case"
+                    className={fieldClass('md', 'mt-1 w-full font-bold tabular-nums normal-case focus:outline-none')}
                 />
             </label>
             <button

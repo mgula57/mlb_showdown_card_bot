@@ -3,7 +3,9 @@ import { useAuth } from './AuthContext';
 import { FaDiscord, FaArrowLeft } from 'react-icons/fa';
 import { Modal } from '../shared/Modal';
 
-import { FIELD_LABEL_CLASS } from '../shared/fieldStyles';
+import { FIELD_LABEL_CLASS, fieldClass } from '../shared/fieldStyles';
+import { buttonClass } from '../shared/buttonStyles';
+import { InlineError } from '../shared/InlineError';
 interface LoginModalProps {
     onClose: () => void;
     onSuccess?: () => void;
@@ -120,14 +122,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({ onClose, onSuccess }) =>
         forgot: 'Reset password',
     };
 
-    const inputCls = `
-        w-full px-3 py-2
-        bg-background-primary
-        border border-form-element
-        rounded-control text-secondary
-        focus:outline-none focus:ring-2 focus:ring-accent
-        disabled:opacity-50 disabled:cursor-not-allowed
-    `;
+    const inputCls = fieldClass('md', 'w-full focus:outline-none');
 
     return (
         <Modal onClose={onClose} size='sm' title={titles[step]}>
@@ -135,9 +130,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({ onClose, onSuccess }) =>
 
                 {/* Error */}
                 {error && (
-                    <div className="mb-4 p-3 bg-(--red)/10 border border-(--red)/40 text-(--red) rounded-control text-sm">
-                        {error}
-                    </div>
+                    <InlineError size="md" className="mb-4">{error}</InlineError>
                 )}
 
                 {/* ── Step: email ── */}
@@ -169,7 +162,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({ onClose, onSuccess }) =>
                                 <div className="w-full border-t border-form-element" />
                             </div>
                             <div className="relative flex justify-center text-sm">
-                                <span className="px-2 bg-background-secondary text-(--text-tertiary)">Or continue with email</span>
+                                <span className="px-2 bg-(--background-secondary) text-(--text-tertiary)">Or continue with email</span>
                             </div>
                         </div>
 
@@ -185,7 +178,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({ onClose, onSuccess }) =>
                                 />
                             </div>
                             <button type="submit" disabled={loading || !email}
-                                className="w-full py-2.5 bg-tertiary text-primary rounded-control hover:bg-quaternary cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-semibold">
+                                className={buttonClass('primary', 'md', 'w-full')}>
                                 {loading ? 'Checking...' : 'Continue'}
                             </button>
                         </form>
@@ -201,7 +194,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({ onClose, onSuccess }) =>
                                 <div className="flex items-center justify-between mb-1">
                                     <label htmlFor="password" className={FIELD_LABEL_CLASS}>Password</label>
                                     <button type="button" onClick={() => { setStep('forgot'); setError(null); }}
-                                        className="text-xs text-accent hover:underline cursor-pointer">
+                                        className="text-xs text-(--showdown-blue) hover:underline cursor-pointer">
                                         Forgot password?
                                     </button>
                                 </div>
@@ -214,12 +207,12 @@ export const LoginModal: React.FC<LoginModalProps> = ({ onClose, onSuccess }) =>
                                 />
                             </div>
                             <button type="submit" disabled={loading}
-                                className="w-full py-2.5 bg-tertiary text-primary rounded-control hover:bg-quaternary cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-semibold">
+                                className={buttonClass('primary', 'md', 'w-full')}>
                                 {loading ? 'Signing in...' : 'Sign In'}
                             </button>
                         </form>
                         <button onClick={goBack} disabled={loading}
-                            className="mt-4 w-full flex items-center justify-center gap-2 py-2 text-sm text-secondary hover:text-primary transition-colors cursor-pointer disabled:opacity-50">
+                            className="mt-4 w-full flex items-center justify-center gap-2 py-2 text-sm text-secondary hover:text-(--text-primary) transition-colors cursor-pointer disabled:opacity-50">
                             <FaArrowLeft className="text-xs" /> Use a different email
                         </button>
                     </>
@@ -235,7 +228,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({ onClose, onSuccess }) =>
                                     Check your inbox and follow the link to reset your password.
                                 </p>
                                 <button onClick={goBack}
-                                    className="w-full py-2.5 bg-tertiary text-primary rounded-control hover:bg-quaternary cursor-pointer transition-colors font-semibold">
+                                    className={buttonClass('primary', 'md', 'w-full')}>
                                     Back to Sign In
                                 </button>
                             </div>
@@ -256,12 +249,12 @@ export const LoginModal: React.FC<LoginModalProps> = ({ onClose, onSuccess }) =>
                                         />
                                     </div>
                                     <button type="submit" disabled={loading || !email}
-                                        className="w-full py-2.5 bg-tertiary text-primary rounded-control hover:bg-quaternary cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-semibold">
+                                        className={buttonClass('primary', 'md', 'w-full')}>
                                         {loading ? 'Sending...' : 'Send Reset Link'}
                                     </button>
                                 </form>
                                 <button onClick={() => { setStep('signin'); setError(null); }} disabled={loading}
-                                    className="mt-4 w-full flex items-center justify-center gap-2 py-2 text-sm text-secondary hover:text-primary transition-colors cursor-pointer disabled:opacity-50">
+                                    className="mt-4 w-full flex items-center justify-center gap-2 py-2 text-sm text-secondary hover:text-(--text-primary) transition-colors cursor-pointer disabled:opacity-50">
                                     <FaArrowLeft className="text-xs" /> Back to Sign In
                                 </button>
                             </>
@@ -311,12 +304,12 @@ export const LoginModal: React.FC<LoginModalProps> = ({ onClose, onSuccess }) =>
                                 />
                             </div>
                             <button type="submit" disabled={loading || !!usernameError || checkingUsername}
-                                className="w-full py-2.5 bg-tertiary text-primary rounded-control hover:bg-quaternary cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-semibold">
+                                className={buttonClass('primary', 'md', 'w-full')}>
                                 {loading ? 'Creating account...' : 'Create Account'}
                             </button>
                         </form>
                         <button onClick={goBack} disabled={loading}
-                            className="mt-4 w-full flex items-center justify-center gap-2 py-2 text-sm text-secondary hover:text-primary transition-colors cursor-pointer disabled:opacity-50">
+                            className="mt-4 w-full flex items-center justify-center gap-2 py-2 text-sm text-secondary hover:text-(--text-primary) transition-colors cursor-pointer disabled:opacity-50">
                             <FaArrowLeft className="text-xs" /> Use a different email
                         </button>
                     </>

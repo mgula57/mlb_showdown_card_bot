@@ -16,6 +16,9 @@ interface WhatsNewBannerProps {
     version?: string;
 }
 
+// Full class strings so Tailwind can see them (see DESIGN.md, "Don't build class names from variables").
+const TEXT_SIZE_CLASSES = { xs: 'text-xs', sm: 'text-sm', base: 'text-base' } as const;
+
 export const WhatsNewBanner: React.FC<WhatsNewBannerProps> = ({ storageKey, features, onLoginClick, textSize = 'sm', version }) => {
     const { user } = useAuth();
     const [isVisible, setIsVisible] = useState(() => localStorage.getItem(storageKey) !== 'true');
@@ -42,7 +45,7 @@ export const WhatsNewBanner: React.FC<WhatsNewBannerProps> = ({ storageKey, feat
 
             <div className="px-3 pb-2 flex flex-col gap-2">
                 {features.map(({ icon, text }) => (
-                    <span key={text} className={`flex items-center gap-1.5 text-${textSize} leading-tight text-white/90`}>
+                    <span key={text} className={`flex items-center gap-1.5 ${TEXT_SIZE_CLASSES[textSize]} leading-tight text-white/90`}>
                         <span className="opacity-75">{icon}</span> {text}
                     </span>
                 ))}

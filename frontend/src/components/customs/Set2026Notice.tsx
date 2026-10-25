@@ -26,7 +26,7 @@ const PhaseStep: React.FC<{ phase: typeof PHASES[number]; isLast: boolean }> = (
             <span
                 // design-ok: numbered step marker on a timeline, a circle by design
                 className={`
-                    relative z-10 flex items-center justify-center h-6 min-w-6 px-1 rounded-full text-[10px] font-black
+                    relative z-10 flex items-center justify-center h-6 min-w-6 px-1 rounded-full text-[10px] font-bold
                     ${isComplete
                         ? 'bg-(--success) text-white'
                         : 'bg-secondary text-(--warning) border-2 border-dotted border-(--warning)'}
@@ -53,11 +53,11 @@ const PhaseStep: React.FC<{ phase: typeof PHASES[number]; isLast: boolean }> = (
 
 /** Dismissible notice on the Custom Card Builder covering 2026 set balancing progress and new features. */
 export const Set2026Notice: React.FC<{ onDismiss: () => void }> = ({ onDismiss }) => (
-    <div className="relative rounded-card border border-(--success)/50 bg-background-secondary px-3 py-2.5 text-xs leading-snug">
+    <div className="relative rounded-card border border-(--success)/50 bg-(--background-secondary) px-3 py-2.5 text-xs leading-snug">
         <button
             onClick={onDismiss}
             aria-label="Dismiss"
-            className="absolute top-2 right-2 text-(--text-tertiary) hover:text-primary transition-colors cursor-pointer"
+            className="absolute top-2 right-2 text-(--text-tertiary) hover:text-(--text-primary) transition-colors cursor-pointer"
         >
             <FaXmark size={18} />
         </button>

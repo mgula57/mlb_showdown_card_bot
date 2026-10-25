@@ -602,7 +602,7 @@ export default function GameField({ game, cardMap, onCardSelect, expanded = fals
                             if (!player) return null;
                             const isBattery = slot === "pitcher";
                             const isVisible = expanded || isBattery;
-                            const backgroundSettings = isBattery ? `bg-secondary` : 'backdrop-blur';
+                            const backgroundSettings = isBattery ? 'bg-secondary' : '';
                             return (
                                 <div
                                     key={slot}
@@ -757,15 +757,9 @@ export default function GameField({ game, cardMap, onCardSelect, expanded = fals
                     {/* Big, unmissable play prompt — a finished sim otherwise just sits parked on
                         the first pitch with nothing on the field itself hinting that pressing play
                         is what reveals the game. Centered over the diamond, above every marker
-                        (z-40), with a soft radial backdrop so it reads clearly regardless of what's
-                        behind it. */}
+                        (z-40); its overlay shadow keeps it legible over whatever is behind it. */}
                     {onPlayClick && (
-                        <div
-                            className="absolute inset-0 z-40 flex items-center justify-center pointer-events-none"
-                            style={{
-                                background: 'radial-gradient(circle, rgba(0,0,0,0.35) 0%, rgba(0,0,0,0.15) 45%, rgba(0,0,0,0) 72%)',
-                            }}
-                        >
+                        <div className="absolute inset-0 z-40 flex items-center justify-center pointer-events-none">
                             <button
                                 type="button"
                                 onClick={onPlayClick}

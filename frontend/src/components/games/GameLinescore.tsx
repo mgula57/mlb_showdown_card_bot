@@ -3,7 +3,7 @@
  * converted to domain types so a sim game's line score renders through the same component.
  */
 import type { GameView } from "../../domain/game";
-import { getReadableTextColor } from "../../functions/colors";
+import { getReadableTextColor, NEUTRAL_TEAM_COLOR } from '../../functions/colors';
 import { Plate } from "../shared/Plate";
 import { CAPS_LABEL_CLASS } from "../shared/fieldStyles";
 
@@ -60,7 +60,7 @@ export default function GameLinescore({ game, className = "" }: GameLinescorePro
                 </thead>
                 <tbody>
                     {rows.map(({ side, totals, runsFor }, rowIndex) => {
-                        const badgeBg = side.team.primaryColor ?? "#374151";
+                        const badgeBg = side.team.primaryColor ?? NEUTRAL_TEAM_COLOR;
                         return (
                             <tr key={side.team.key} className={rowIndex < rows.length - 1 ? "border-b border-(--divider)" : ""}>
                                 <td className="pl-3 pr-2 py-2 text-left">

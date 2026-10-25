@@ -102,7 +102,7 @@ export default function RangeFilter({
                     <button
                         type="button"
                         onClick={clear}
-                        className="h-5 px-1 rounded-control border border-form-element text-secondary hover:text-primary hover:border-primary"
+                        className="h-5 px-1 rounded-control border border-(--divider) text-secondary hover:text-(--text-primary) hover:border-(--rule-strong) cursor-pointer"
                         title={`Clear ${label}`}
                     >
                         <FaTimes />

@@ -90,11 +90,6 @@ export function ChallengeCard({ challenge, token, onNewTeam, onUseExistingTeam, 
             className="relative isolate flex flex-col gap-4 overflow-hidden rounded-card border border-(--divider) border-l-5 bg-(--background-secondary) p-5"
             style={{ borderLeftColor: `var(${category.cssVar})` }}
         >
-            {/* Category-tinted glow bleeding from the corner — purely decorative, sits behind all content. */}
-            <div
-                className="pointer-events-none absolute -top-12 -left-12 -z-10 h-40 w-40 rounded-full blur-3xl opacity-25"
-                style={{ backgroundColor: `var(${category.cssVar})` }}
-            />
             {/* Top accent wrapping the left-edge stripe around the corner to meet the ribbon's tip. */}
             <div
                 className="pointer-events-none absolute -left-1 -top-1 h-1 w-9"
@@ -203,8 +198,8 @@ export function ChallengeCard({ challenge, token, onNewTeam, onUseExistingTeam, 
                                         <div key={i} className="flex items-center gap-3 rounded-card p-3 border-3 border-transparent bg-(--background-tertiary) animate-pulse">
                                             <div className="w-10 h-10 rounded-card bg-(--background-primary) shrink-0" />
                                             <div className="min-w-0 flex-1 flex flex-col gap-1.5">
-                                                <div className="h-3 w-2/5 rounded bg-(--background-primary)" />
-                                                <div className="h-2.5 w-3/5 rounded bg-(--background-primary)" />
+                                                <div className="h-3 w-2/5 rounded-plate bg-(--background-primary)" />
+                                                <div className="h-2.5 w-3/5 rounded-plate bg-(--background-primary)" />
                                             </div>
                                         </div>
                                     ))}
@@ -235,13 +230,13 @@ export function ChallengeCardSkeleton() {
     return (
         <div aria-hidden className="flex flex-col gap-4 rounded-card border border-(--divider) border-l-4 border-l-(--divider) bg-(--background-secondary) p-5 animate-pulse">
             <div className="flex flex-col gap-2 items-start">
-                <div className="h-5 w-24 rounded-full bg-(--background-tertiary)" />
+                <div className="h-5 w-24 rounded-plate bg-(--background-tertiary)" />
                 <div className="flex items-center gap-2">
-                    <div className="h-4 w-36 rounded bg-(--background-tertiary)" />
-                    <div className="h-5 w-16 rounded-full bg-(--background-tertiary)" />
+                    <div className="h-4 w-36 rounded-plate bg-(--background-tertiary)" />
+                    <div className="h-5 w-16 rounded-plate bg-(--background-tertiary)" />
                 </div>
-                <div className="h-3 w-full rounded bg-(--background-tertiary)" />
-                <div className="h-3 w-2/3 rounded bg-(--background-tertiary)" />
+                <div className="h-3 w-full rounded-plate bg-(--background-tertiary)" />
+                <div className="h-3 w-2/3 rounded-plate bg-(--background-tertiary)" />
             </div>
 
             <div className="grid grid-cols-2 gap-2">
@@ -251,7 +246,7 @@ export function ChallengeCardSkeleton() {
             </div>
 
             <div className="flex flex-col gap-2">
-                <div className="h-3 w-24 rounded bg-(--background-tertiary)" />
+                <div className="h-3 w-24 rounded-plate bg-(--background-tertiary)" />
                 <div className="grid grid-cols-2 gap-2">
                     <div className="h-9 rounded-card bg-(--background-tertiary)" />
                     <div className="h-9 rounded-card bg-(--background-tertiary)" />

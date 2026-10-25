@@ -37,6 +37,7 @@ import { sideMenuItems, sideMenuSections, accountMenuItem } from "./sideMenuConf
 import { type SideMenuItem as SideMenuItemType } from "../../types/SideMenuItem";
 import ShowdownBotLogo from "../shared/ShowdownBotLogo";
 import ThemeToggleButton from "./ThemeToggleButton";
+import { CAPS_LABEL_CLASS } from '../shared/fieldStyles';
 
 /**
  * Props for the SideMenu component
@@ -314,7 +315,7 @@ const SideMenu: React.FC<SideMenuProps> = ({ isOpen, setIsOpen, className, isMob
                                         aria-hidden={!isOpen}
                                         className={`
                                             absolute inset-0 flex items-center pl-3 whitespace-nowrap overflow-hidden
-                                            text-[10px] font-semibold uppercase tracking-wider text-(--quaternary)
+                                            ${CAPS_LABEL_CLASS} text-(--text-tertiary)
                                             transition-opacity duration-300 ease-(--side-menu-ease) motion-reduce:transition-none
                                             ${isOpen ? 'opacity-100 delay-100' : 'opacity-0 duration-100!'}
                                         `}

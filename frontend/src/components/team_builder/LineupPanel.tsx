@@ -153,10 +153,10 @@ export function LineupPanel({ lineups, cardMap, onLineupsChange, readOnly = fals
                     return (
                         <div
                             key={`${ln.name}-${i}`}
-                            className={`flex items-center shrink-0 min-h-8 rounded-card border transition-colors
+                            className={`flex items-center shrink-0 min-h-8 rounded-control border bg-(--background-secondary) transition-colors
                                 ${isActiveTab
-                                    ? 'border-(--secondary)'
-                                    : 'border-(--divider) hover:border-(--secondary)/50'
+                                    ? 'border-(--showdown-blue) ring-1 ring-(--showdown-blue)'
+                                    : 'border-(--divider) hover:border-(--rule-strong)'
                                 }`}
                         >
                             {editingTabIndex === i ? (
@@ -172,7 +172,7 @@ export function LineupPanel({ lineups, cardMap, onLineupsChange, readOnly = fals
                                     type="button"
                                     onClick={() => setActiveIndex(i)}
                                     className={`text-[13px] font-semibold px-3 py-1.5 cursor-pointer whitespace-nowrap
-                                        ${isActiveTab ? 'text-(--secondary)' : 'text-(--text-secondary)'}`}
+                                        ${isActiveTab ? 'text-(--text-primary)' : 'text-(--text-secondary)'}`}
                                 >
                                     {ln.name}
                                     {ln === simLn && allTabs.length > 1 && (
@@ -181,14 +181,14 @@ export function LineupPanel({ lineups, cardMap, onLineupsChange, readOnly = fals
                                 </button>
                             )}
                             {showActions && (
-                                <div className="flex items-center gap-0.5 pr-1 pl-1 border-l border-(--secondary)/30 self-stretch">
+                                <div className="flex items-center gap-0.5 pr-1 pl-1 border-l border-(--divider) self-stretch">
                                     {editingTabIndex === i ? (
-                                        <button type="button" onClick={() => commitRename(i)} aria-label="Save name" className="flex items-center justify-center w-7 h-7 rounded-control text-(--secondary) hover:bg-(--secondary)/10 cursor-pointer">
+                                        <button type="button" onClick={() => commitRename(i)} aria-label="Save name" className="flex items-center justify-center w-7 h-7 rounded-control text-(--showdown-blue) hover:bg-(--background-tertiary) cursor-pointer">
                                             <FaCheck className="text-[12px]" />
                                         </button>
                                     ) : (
                                         <>
-                                            <button type="button" onClick={() => startRename(i)} aria-label="Rename lineup" className="flex items-center justify-center w-7 h-7 rounded-control text-(--text-tertiary) hover:text-(--text-secondary) hover:bg-(--background-secondary) cursor-pointer">
+                                            <button type="button" onClick={() => startRename(i)} aria-label="Rename lineup" className="flex items-center justify-center w-7 h-7 rounded-control text-(--text-tertiary) hover:text-(--text-secondary) hover:bg-(--background-tertiary) cursor-pointer">
                                                 <FaPencil className="text-[11px]" />
                                             </button>
                                             <button type="button" onClick={() => removeLineup(i)} aria-label="Delete lineup" className="flex items-center justify-center w-7 h-7 rounded-control text-(--text-tertiary) hover:text-(--red) hover:bg-(--red)/10 cursor-pointer">

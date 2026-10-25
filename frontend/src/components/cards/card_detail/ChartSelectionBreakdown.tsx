@@ -29,13 +29,18 @@ type ChartRow = ChartAccuracyCategoryBreakdown & { chart: string; rank: number; 
 
 
 const MAX_RANKED_ROWS = 5;
-const PICKED_COLOR = 'rgb(96,165,250)';
-const OUTLIER_COLOR = 'rgb(234,179,8)';
+const PICKED_COLOR = 'var(--showdown-blue)';
+
+// Full class strings per badge (see DESIGN.md: never build class names from variables).
+const BAR_BADGE_CLASSES = {
+    curated: 'bg-(--showdown-blue) text-white',
+    outlier: 'bg-(--warning) text-(--field-ink)',
+} as const;
 
 /** Small label pinned inside an accuracy bar. Collapses to `shortLabel` in narrow bars */
-function BarBadge({ label, shortLabel, color }: { label: string; shortLabel: string; color: string }) {
+function BarBadge({ label, shortLabel, kind }: { label: string; shortLabel: string; kind: keyof typeof BAR_BADGE_CLASSES }) {
     return (
-        <span className="flex items-center text-[8px] h-3.5 font-bold uppercase tracking-wide leading-none px-1 rounded-plate" style={{ color, background: 'rgba(0,0,0,0.45)' }}>
+        <span className={`flex items-center text-[8px] h-3.5 font-bold uppercase tracking-wide leading-none px-1 rounded-plate ${BAR_BADGE_CLASSES[kind]}`}>
             <span className="@max-[60px]:hidden">{label}</span>
             <span className="@[60px]:hidden">{shortLabel}</span>
         </span>
@@ -50,18 +55,18 @@ function AccuracyBar({ row, blurred, isSelected, isPicked, barFloor }: { row: Ch
     return (
         <div className={`flex items-center gap-2.5 rounded-card transition-colors ${isSelected ? '-mx-1.5 px-1.5 py-0.5' : ''}`} style={isSelected ? { background: 'color-mix(in srgb, var(--form-element) 25%, transparent)' } : undefined}>
             <div className="flex items-center gap-0.5">
-                <div className="w-1.5 h-1.5 rounded-full shrink-0 translate-x-0.5" style={{ backgroundColor: isSelected ? 'rgb(34,197,94)' : 'transparent' }} />
+                <div className="w-1.5 h-1.5 rounded-full shrink-0 translate-x-0.5" style={{ backgroundColor: isSelected ? 'var(--green)' : 'transparent' }} />
                 <span className={`text-[12px] font-bold w-14 text-right shrink-0 tabular-nums ${isSelected ? 'opacity-100' : 'opacity-60'}`}>{row.rank}. {label}</span>
             </div>
             <div className="@container relative flex-1 h-3.5 rounded-full overflow-hidden" style={{ background: 'color-mix(in srgb, var(--form-element) 30%, transparent)' }}>
                 <div
                     className="absolute inset-y-0 left-0 rounded-full transition-all duration-500"
-                    style={{ width: `${barPct}%`, backgroundColor: 'rgb(156,163,175)', opacity: 0.85 }}
+                    style={{ width: `${barPct}%`, backgroundColor: 'var(--rule-strong)' }}
                 />
                 {(isPicked || isOutlier) && (
                     <div className="absolute inset-y-0 left-0 flex items-center gap-1 pointer-events-none">
-                        {isPicked && <BarBadge label="curated" shortLabel="cu" color={PICKED_COLOR} />}
-                        {isOutlier && <BarBadge label="outlier" shortLabel="ol" color={OUTLIER_COLOR} />}
+                        {isPicked && <BarBadge label="curated" shortLabel="cu" kind="curated" />}
+                        {isOutlier && <BarBadge label="outlier" shortLabel="ol" kind="outlier" />}
                     </div>
                 )}
             </div>
@@ -148,7 +153,7 @@ export function ChartSelectionBreakdown({ chartAccuracyData, commandOutAccuracie
             )}
             {isPicked && (
                 <div className="flex items-center gap-2 rounded-card px-2.5 py-2 text-[11px] leading-snug" style={{ background: `color-mix(in srgb, ${PICKED_COLOR} 12%, transparent)` }}>
-                    <span className="shrink-0 text-[9px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded-plate" style={{ color: PICKED_COLOR, background: 'rgba(0,0,0,0.35)' }}>
+                    <span className={`shrink-0 text-[9px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded-plate ${BAR_BADGE_CLASSES.curated}`}>
                         Curated
                     </span>
                     <span className="opacity-70">
@@ -157,7 +162,7 @@ export function ChartSelectionBreakdown({ chartAccuracyData, commandOutAccuracie
                 </div>
             )}
             <div className="space-y-1.5">
-                <div className="flex items-center gap-2.5 pb-0.5  border-opacity-10">
+                <div className="flex items-center gap-2.5 pb-0.5">
                     <span className={`opacity-40 w-16 text-right shrink-0 ${CAPS_LABEL_CLASS}`}>Chart</span>
                     <div className="flex-1" />
                     {['SCORE', 'CARD', 'REAL'].map(label => (

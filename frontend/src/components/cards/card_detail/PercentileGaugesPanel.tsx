@@ -1,6 +1,7 @@
 import { type PointsCategoryBreakdown } from '../../../api/showdownBotCard';
 import { formatStatValue } from '../../../functions/formatters';
 import { CAPS_LABEL_CLASS } from '../../shared/fieldStyles';
+import { gradeColor } from '../../../functions/colors';
 
 const METRIC_ALIAS: Record<string, string> = {
     "AVERAGE": "BA",
@@ -21,13 +22,6 @@ const PLACEHOLDER_BREAKDOWNS: Record<string, PointsCategoryBreakdown> = {
     SPEED:            { metric: 'SPEED',            value: 15,    points: 5,  percentile: 0.45 },
     OUT_DISTRIBUTION: { metric: 'OUT_DISTRIBUTION', value: 0.62,  points: 8,  percentile: 0.55 },
 };
-
-function percentileColor(pct: number): string {
-    if (pct >= 0.75) return '#22c55e';
-    if (pct >= 0.50) return '#84cc16';
-    if (pct >= 0.25) return '#eab308';
-    return '#ef4444';
-}
 
 type PercentileGaugesPanelProps = {
     breakdowns?: Record<string, PointsCategoryBreakdown>;
@@ -64,9 +58,9 @@ export default function PercentileGaugesPanel({ breakdowns }: PercentileGaugesPa
                     {items.map(bd => {
                         const label = METRIC_ALIAS[bd.metric] || bd.metric;
                         const pct = bd.percentile as number;
-                        const color = percentileColor(pct);
+                        const color = gradeColor(pct);
                         return (
-                            <tr key={bd.metric} className="border-b border-current border-opacity-10 last:border-0">
+                            <tr key={bd.metric} className="border-b border-(--divider) last:border-0">
                                 <td className={`py-1.5 pr-2 opacity-60 ${CAPS_LABEL_CLASS}`}>{label}</td>
                                 <td className={`py-1.5 px-2 text-right font-bold ${isEmpty ? 'blur-xs' : ''}`}>
                                     {formatStatValue(bd.value, bd.metric)}

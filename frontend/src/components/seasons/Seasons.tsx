@@ -52,6 +52,7 @@ import { Heading } from '../shared/Heading';
 import { radixVerticalTabTriggerClass } from '../shared/tabStyles';
 import { CAPS_LABEL_CLASS } from '../shared/fieldStyles';
 import { headingClass } from '../shared/headingStyles';
+import { buttonClass } from "../shared/buttonStyles";
 const formatScheduleDate = (date?: string): string => {
     if (!date) {
         return "Today's Games";
@@ -924,12 +925,7 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
                         <button
                             type="button"
                             onClick={() => setIsSimModalOpen(true)}
-                            className="
-                                w-full flex items-center justify-center gap-1.5 px-3 py-2
-                                rounded-control bg-(--showdown-blue) shadow-raised active:translate-y-px active:shadow-none
-                                text-[12px] font-semibold text-white
-                                hover:brightness-110 transition cursor-pointer
-                            "
+                            className={buttonClass('primary', 'sm', 'w-full')}
                         >
                             <FaDice className="text-[11px]" />
                             Simulate this season
@@ -993,7 +989,7 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
                                                                 setSelectedTeam(team);
                                                                 setActiveTab("teams");
                                                             }}
-                                                            className={`w-full text-left px-2 py-1.5 rounded-control text-xs transition-colors ${
+                                                            className={`w-full text-left px-2 py-1.5 rounded-control text-xs transition-colors cursor-pointer ${
                                                                 isSelected
                                                                     ? "bg-(--background-quaternary) font-semibold"
                                                                         : "text-(--text-primary) hover:bg-(--team-primary-color) hover:text-(--team-hover-text-color)"
@@ -1151,12 +1147,7 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
                                                             <button
                                                                 type="button"
                                                                 onClick={() => setIsSimModalOpen(true)}
-                                                                className="
-                                                                    flex items-center gap-1.5 px-2.5 py-1.5
-                                                                    rounded-control bg-(--showdown-blue) shadow-raised active:translate-y-px active:shadow-none
-                                                                    text-[12px] font-semibold text-white
-                                                                    hover:brightness-110 transition cursor-pointer whitespace-nowrap
-                                                                "
+                                                                className={buttonClass('primary', 'sm', 'whitespace-nowrap')}
                                                             >
                                                                 <FaDice className="text-[11px]" />
                                                                 Simulate
@@ -1404,12 +1395,7 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
                                                     <button
                                                         type="button"
                                                         onClick={() => setIsSimModalOpen(true)}
-                                                        className="
-                                                            flex items-center gap-1.5 px-3 py-2
-                                                            rounded-control bg-(--showdown-blue) shadow-raised active:translate-y-px active:shadow-none
-                                                            text-[12px] font-semibold text-white
-                                                            hover:brightness-110 transition cursor-pointer whitespace-nowrap
-                                                        "
+                                                        className={buttonClass('primary', 'sm', 'whitespace-nowrap')}
                                                     >
                                                         <FaDice className="text-[11px]" />
                                                         New simulation

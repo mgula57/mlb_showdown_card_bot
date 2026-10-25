@@ -235,7 +235,7 @@ export default function Releases() {
 
             {loading ? (
                 <section className={px}>
-                    <div className="h-3 w-24 rounded bg-(--background-secondary) animate-pulse mb-2" />
+                    <div className="h-3 w-24 rounded-plate bg-(--background-tertiary) animate-pulse mb-2" />
                     <div className={RELEASE_GRID}>
                         {Array.from({ length: 6 }, (_, i) => <ReleaseItemSkeleton key={i} />)}
                     </div>
@@ -303,16 +303,16 @@ function ReleaseDetailSkeleton() {
     return (
         <div className="flex flex-col md:h-[calc(100dvh-2.5rem)] md:overflow-hidden animate-pulse">
             <div className="flex items-start gap-3 px-4 py-2.5 border-b border-(--divider)">
-                <div className="h-4 w-4 rounded bg-(--background-secondary) mt-1" />
+                <div className="h-4 w-4 rounded-plate bg-(--background-tertiary) mt-1" />
                 <div className="flex-1 space-y-2">
-                    <div className="h-6 w-56 rounded bg-(--background-secondary)" />
-                    <div className="h-3 w-80 max-w-full rounded bg-(--background-secondary)" />
+                    <div className="h-6 w-56 rounded-plate bg-(--background-tertiary)" />
+                    <div className="h-3 w-80 max-w-full rounded-plate bg-(--background-tertiary)" />
                 </div>
             </div>
             <div className="flex items-center gap-3 px-4 py-3 bg-(--background-secondary)">
-                <div className="h-3 w-14 rounded bg-(--background-primary)" />
-                <div className="h-4 w-20 rounded bg-(--background-primary)" />
-                <div className="h-4 w-20 rounded bg-(--background-primary)" />
+                <div className="h-3 w-14 rounded-plate bg-(--background-tertiary)" />
+                <div className="h-4 w-20 rounded-plate bg-(--background-tertiary)" />
+                <div className="h-4 w-20 rounded-plate bg-(--background-tertiary)" />
             </div>
             <div className="flex-1 p-4">
                 <div className="h-full rounded-card bg-(--background-secondary)" />

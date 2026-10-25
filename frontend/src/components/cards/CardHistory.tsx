@@ -210,7 +210,7 @@ export const CardHistory = ({ history, onSelectCard }: CardHistoryProps) => {
                                                         key={idx}
                                                         onClick={() => timestamp.user_inputs && onSelectCard?.(timestamp.user_inputs)}
                                                         disabled={!timestamp.user_inputs}
-                                                        className={`text-[10px] flex justify-between items-center gap-1.5 overflow-hidden w-full text-left rounded px-1.5 py-1 transition-colors ${
+                                                        className={`text-[10px] flex justify-between items-center gap-1.5 overflow-hidden w-full text-left rounded-control px-1.5 py-1 transition-colors ${
                                                             timestamp.user_inputs ? 'hover:bg-(--background-tertiary) cursor-pointer' : 'cursor-default'
                                                         } ${timestamp.error_for_user ? 'text-(--red)' : 'text-(--green)'}`}
                                                     >
@@ -250,11 +250,13 @@ export const CardHistory = ({ history, onSelectCard }: CardHistoryProps) => {
             {/* Lightbox */}
             {modalImageUrl && createPortal(
                 <div
-                    className="fixed inset-0 z-9999 flex items-center justify-center bg-black/80 backdrop-blur-sm"
+                    className="fixed inset-0 z-9999 flex items-center justify-center bg-black/80"
                     onClick={() => setModalImageUrl(null)}
                 >
                     <button
-                        className="absolute top-4 right-4 text-white/70 hover:text-white transition-colors text-xl"
+                        type="button"
+                        aria-label="Close"
+                        className="absolute top-4 right-4 text-white/70 hover:text-white transition-colors text-xl cursor-pointer"
                         onClick={() => setModalImageUrl(null)}
                     >
                         <FaXmark />

@@ -1,7 +1,7 @@
 import type { GameBoxscoreDetail, BoxscoreTeamData } from "../../../api/mlbAPI";
 import type { ShowdownBotCardAPIResponse } from "../../../api/showdownBotCard";
 import { cardKey } from "../../../domain/players";
-import { getReadableTextColor } from "../../../functions/colors";
+import { getReadableTextColor, NEUTRAL_TEAM_COLOR } from '../../../functions/colors';
 import { Plate } from "../../shared/Plate";
 import { CardItemFromCard, CardItemSkeleton } from "../../cards/CardItem";
 import { headingClass } from "../../shared/headingStyles";
@@ -20,7 +20,7 @@ export default function ProbableStartingPitchers({
 }) {
     const pitcherItem = (team: BoxscoreTeamData, pitcher?: { id?: number; full_name?: string }) => {
         const card = pitcher?.id ? cardMap[cardKey(pitcher.id, 'P')] : undefined;
-        const badgeBg = team.team.primary_color ?? '#374151';
+        const badgeBg = team.team.primary_color ?? NEUTRAL_TEAM_COLOR;
         const badgeText = getReadableTextColor(badgeBg, '#ffffff');
         return (
             <div className="space-y-1.5">
@@ -44,7 +44,7 @@ export default function ProbableStartingPitchers({
 
     return (
         <div className="@container">
-            <div className="flex flex-col @[500px]:grid @[500px]:grid-cols-2 p-3 gap-x-6 gap-y-2 rounded-card border border-(--divider) backdrop-blur bg-(--background-secondary)/50 text-sm">
+            <div className="flex flex-col @[500px]:grid @[500px]:grid-cols-2 p-3 gap-x-6 gap-y-2 rounded-card border border-(--divider) bg-(--background-secondary) text-sm">
                 <div className="col-span-full mb-1">
                     <span className={headingClass('panel')}>Probable Starting Pitchers</span>
                 </div>

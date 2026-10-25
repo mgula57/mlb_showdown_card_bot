@@ -27,7 +27,7 @@ export function StandingsSkeleton() {
 		<div className="grid grid-cols-[repeat(auto-fill,minmax(300px,1fr))] gap-4 sm:mt-0 animate-pulse">
 			{Array.from({ length: 4 }).map((_, cardIndex) => (
 				<div key={cardIndex} className="rounded-card border border-(--divider) bg-(--background-secondary) p-3">
-					<div className="h-3.5 w-28 rounded bg-(--background-quaternary) mb-3" />
+					<div className="h-3.5 w-28 rounded-plate bg-(--background-tertiary) mb-3" />
 					<div className="space-y-1.5">
 						{Array.from({ length: 5 }).map((_, rowIndex) => (
 							<div key={rowIndex} className="h-9 rounded-card bg-(--background-quaternary)" />
@@ -93,7 +93,7 @@ export default function Standings({ standingsEntries, selectedSportId, selectedT
 										title="View team roster below"
 										className={`
 											grid ${rowTemplate} gap-x-2 items-center
-											rounded-control border border-black/70 px-3 py-2
+											rounded-control border border-(--field-ink)/70 px-3 py-2
 											${onTeamSelect ? 'cursor-pointer transition-[filter] hover:brightness-60' : ''}
 											${isSelected ? 'ring-2 ring-(--text-primary)' : ''}
 										`}

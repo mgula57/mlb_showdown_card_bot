@@ -1,75 +1,63 @@
 /**
  * @fileoverview ToastMessage Component
- * 
- * A toast notification component for displaying loading status, success, and error messages.
- * Displays at the top-right corner with custom background colors and icons.
- * 
- * **Features:**
- * - Animated slide-in/slide-out transitions
- * - Customizable background color
- * - Optional submessage
- * - Icon support
- * - Auto-dismiss after configurable duration
- * 
- * @component
+ *
+ * The app's one toast: a status message pinned top-right (building a card, a login, a saved
+ * filter). A flat panel with an overlay shadow and a 3px edge in the tone's color (see
+ * frontend/DESIGN.md), sliding in and out.
  */
 
 import React from 'react';
 
-/**
- * Props for ToastMessage component
- */
+/** `loading`: work in progress; `success`, `error`: the outcome; `neutral`: a quiet notice. */
+export type ToastTone = 'loading' | 'success' | 'error' | 'neutral';
+
+export type ToastStatus = {
+    message: string;
+    subMessage?: string;
+    icon?: React.ReactNode;
+    tone?: ToastTone;
+    /** Read by the caller's dismiss timer. */
+    removeAfterSeconds?: number;
+};
+
+const TONE_CLASSES: Record<ToastTone, { edge: string; icon: string }> = {
+    loading: { edge: 'border-l-(--showdown-blue)', icon: 'text-(--showdown-blue)' },
+    success: { edge: 'border-l-(--success)', icon: 'text-(--success)' },
+    error: { edge: 'border-l-(--error)', icon: 'text-(--error)' },
+    neutral: { edge: 'border-l-(--rule-strong)', icon: 'text-(--text-tertiary)' },
+};
+
 interface ToastMessageProps {
-    /** Status content to display */
-    loadingStatus: {
-        message: string;
-        subMessage?: string;
-        icon?: React.ReactNode;
-        backgroundColor?: string;
-        removeAfterSeconds?: number;
-    } | null;
-    /** Whether the toast is currently exiting */
+    loadingStatus: ToastStatus | null;
+    /** Whether the toast is currently exiting (plays the slide-out) */
     isExiting?: boolean;
 }
 
-/**
- * Loading Status Toast Component
- * 
- * Displays a floating toast notification in the top-right corner with
- * loading, success, or error status. Supports custom icons, colors, and messages.
- * 
- * @param props - Component props
- * @returns Toast notification element
- */
-export const ToastMessage: React.FC<ToastMessageProps> = ({ 
-    loadingStatus, 
-    isExiting = false 
-}) => {
+export const ToastMessage: React.FC<ToastMessageProps> = ({ loadingStatus, isExiting = false }) => {
     if (!loadingStatus) return null;
+    const tone = TONE_CLASSES[loadingStatus.tone ?? 'success'];
 
     return (
         <div
+            role="status"
             className={`
-                fixed top-15 right-5 z-50 rounded-card px-4 py-3 text-sm
-                text-black shadow-overlay
-                max-w-56
+                fixed top-15 right-5 z-50 max-w-56 px-4 py-3 text-sm
+                rounded-card border border-(--divider) border-l-3 ${tone.edge}
+                bg-(--background-secondary) text-(--text-primary) shadow-overlay
                 ${isExiting ? 'slide-out' : 'slide-in'}
             `}
-            style={{
-                backgroundColor: loadingStatus.backgroundColor || 'rgb(255, 193, 7)', // Default Amber
-            }}
         >
-            <button className="flex flex-col gap-1 items-center">
-                <div className='flex items-center gap-1'>
-                    {loadingStatus.icon}
-                    <b className='inline font-bold'>{loadingStatus.message}</b>
+            <div className="flex flex-col gap-1 items-center">
+                <div className="flex items-center gap-1.5">
+                    {loadingStatus.icon && <span className={tone.icon}>{loadingStatus.icon}</span>}
+                    <b className="font-bold">{loadingStatus.message}</b>
                 </div>
                 {loadingStatus.subMessage && (
-                    <span className='text-xs' style={{ textTransform: 'capitalize' }}>
+                    <span className="text-xs text-(--text-secondary) capitalize">
                         {loadingStatus.subMessage}
                     </span>
                 )}
-            </button>
+            </div>
         </div>
     );
 };

@@ -44,6 +44,7 @@ import { FaCompass, FaDesktop, FaExclamationCircle } from 'react-icons/fa';
 import { FaGear } from 'react-icons/fa6';
 
 import { Heading } from '../shared/Heading';
+import { buttonClass } from '../shared/buttonStyles';
 /**
  * Props for the WhatsNewModal component
  */
@@ -96,17 +97,17 @@ export const WhatsNewModal: React.FC<WhatsNewModalProps> = ({ isOpen, onClose })
      */
     const features = [
         {
-            icon: <FaDesktop className="text-accent" />,
+            icon: <FaDesktop className="text-(--showdown-blue)" />,
             title: "New UI",
             description: "The entire app has been redesigned with a fresh new look, improved navigation, and a more intuitive user experience."
         },
         {
-            icon: <FaCompass className="text-accent" />,
+            icon: <FaCompass className="text-(--showdown-blue)" />,
             title: "Built in Explore Page", 
             description: "The new Explore page makes it easy to find cards with advanced search, filtering, sorting. It's brand new UI is built from the ground up for speed and usability."
         },
         {
-            icon: <FaGear className="text-accent" />,
+            icon: <FaGear className="text-(--showdown-blue)" />,
             title: "Enhanced Custom Card Builder",
             description: "The Custom Card Builder has been revamped with a new interface, built in search, and additional customization options to create your perfect card."
         }
@@ -132,7 +133,7 @@ export const WhatsNewModal: React.FC<WhatsNewModalProps> = ({ isOpen, onClose })
                             {/* Feature Content */}
                             <div>
                                 <Heading level="panel" className="mb-1">{feature.title}</Heading>
-                                <p className="text-sm text-secondary/80">{feature.description}</p>
+                                <p className="text-sm text-(--text-secondary)/80">{feature.description}</p>
                             </div>
                         </div>
                     ))}
@@ -140,10 +141,10 @@ export const WhatsNewModal: React.FC<WhatsNewModalProps> = ({ isOpen, onClose })
 
                 {/* Footer with Version Info and Dismissal Button */}
                 <div className="flex justify-between items-center pt-4 border-t border-form-element">
-                    <p className="text-sm text-secondary/60">Version {WHATS_NEW_VERSION}</p>
+                    <p className="text-sm text-(--text-secondary)/60">Version {WHATS_NEW_VERSION}</p>
                     <button
                         onClick={onClose}
-                        className="px-6 py-2 bg-secondary text-primary font-semibold rounded-control hover:bg-secondary/50 transition-colors cursor-pointer"
+                        className={buttonClass('primary')}
                         aria-label="Acknowledge new features and close modal"
                     >
                         Got it!

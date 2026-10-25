@@ -356,7 +356,9 @@ export function PlayModal({
                                 />
                             ))}
                             {challenges === null && !challengesError && (
-                                <div className="flex justify-center py-4"><FaSpinner className="animate-spin text-(--text-tertiary) text-[13px]" /></div>
+                                <div className="flex flex-col gap-2 animate-pulse" aria-label="Loading challenges">
+                                    {Array.from({ length: 3 }, (_, i) => <div key={i} className="h-14 rounded-card bg-(--background-tertiary)" />)}
+                                </div>
                             )}
                             {challenges !== null && challengeOptions.length === 0 && (
                                 <p className="text-[12px] text-(--text-tertiary) py-4 text-center">

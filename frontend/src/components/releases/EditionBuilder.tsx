@@ -12,7 +12,7 @@ import { CardItemCompactFromCardDatabaseRecord } from '../cards/CardItemCompact'
 import { CardItemFromCardDatabaseRecord } from '../cards/CardItem';
 import { CardDetail } from '../cards/CardDetail';
 import { Modal } from '../shared/Modal';
-import CompactSelect from '../shared/CompactSelect';
+import CustomSelect from '../shared/CustomSelect';
 import { SetBadgeRow } from '../shared/SetBadge';
 import type { ShowdownBotCardAPIResponse } from '../../api/showdownBotCard';
 import type { FilterSelections } from '../cards/ShowdownCardSearch';
@@ -1001,14 +1001,16 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
                                 <div className={`flex flex-wrap items-center gap-x-2 gap-y-2 px-3 py-2 border-b border-(--divider) shrink-0 ${CHROME_SURFACE_CLASS}`}>
                                     {displayCards.length > 0 && (
                                         <div className="flex flex-wrap items-center gap-2">
-                                            <CompactSelect
-                                                label="Group"
+                                            <CustomSelect
+                                                size="sm"
+                                                prefix="Group"
                                                 options={POOL_GROUP_OPTIONS}
                                                 value={groupBy}
                                                 onChange={value => setGroupBy(value as PoolGroupBy)}
                                             />
-                                            <CompactSelect
-                                                label="Sort"
+                                            <CustomSelect
+                                                size="sm"
+                                                prefix="Sort"
                                                 options={POOL_SORT_OPTIONS}
                                                 value={sortBy}
                                                 onChange={value => {
@@ -1134,20 +1136,18 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
                                                                         {numbering.sortLayers.map((layer, index) => (
                                                                             <div key={index} className="flex items-center gap-1.5">
                                                                                 <span className="text-[11px] font-mono text-(--text-tertiary) w-3 shrink-0">{index + 1}</span>
-                                                                                <select
+                                                                                <CustomSelect
+                                                                                    size="md"
+                                                                                    className="flex-1 min-w-0"
                                                                                     value={layer.category}
-                                                                                    onChange={e => updateSortLayer(index, { category: e.target.value as SortCategory })}
-                                                                                    className={fieldClass('md', 'flex-1 min-w-0 h-9! focus:outline-none')}
-                                                                                >
-                                                                                    {availableCategoriesFor(layer.category).map(opt => (
-                                                                                        <option key={opt.value} value={opt.value}>{opt.label}</option>
-                                                                                    ))}
-                                                                                </select>
+                                                                                    onChange={value => updateSortLayer(index, { category: value as SortCategory })}
+                                                                                    options={availableCategoriesFor(layer.category)}
+                                                                                />
                                                                                 <button
                                                                                     type="button"
                                                                                     onClick={() => updateSortLayer(index, { direction: layer.direction === 'asc' ? 'desc' : 'asc' })}
                                                                                     title={layer.direction === 'asc' ? 'Ascending' : 'Descending'}
-                                                                                    className="flex items-center justify-center w-9 h-9 rounded-control border border-(--divider) text-(--text-secondary) hover:border-(--text-tertiary) transition-colors shrink-0"
+                                                                                    className="flex items-center justify-center w-10 h-10 rounded-control border border-(--divider) text-(--text-secondary) hover:border-(--rule-strong) transition-colors shrink-0 cursor-pointer"
                                                                                 >
                                                                                     {layer.direction === 'asc' ? <FaArrowUp className="text-[13px]" /> : <FaArrowDown className="text-[13px]" />}
                                                                                 </button>
@@ -1155,7 +1155,7 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
                                                                                     type="button"
                                                                                     onClick={() => moveSortLayer(index, -1)}
                                                                                     disabled={index === 0}
-                                                                                    className="flex items-center justify-center w-8 h-9 text-[13px] text-(--text-tertiary) hover:text-(--text-primary) disabled:opacity-30 disabled:cursor-not-allowed shrink-0"
+                                                                                    className="flex items-center justify-center w-8 h-10 text-[13px] text-(--text-tertiary) hover:text-(--text-primary) cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed shrink-0"
                                                                                 >
                                                                                     ▲
                                                                                 </button>
@@ -1163,7 +1163,7 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
                                                                                     type="button"
                                                                                     onClick={() => moveSortLayer(index, 1)}
                                                                                     disabled={index === numbering.sortLayers.length - 1}
-                                                                                    className="flex items-center justify-center w-8 h-9 text-[13px] text-(--text-tertiary) hover:text-(--text-primary) disabled:opacity-30 disabled:cursor-not-allowed shrink-0"
+                                                                                    className="flex items-center justify-center w-8 h-10 text-[13px] text-(--text-tertiary) hover:text-(--text-primary) cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed shrink-0"
                                                                                 >
                                                                                     ▼
                                                                                 </button>
@@ -1171,7 +1171,8 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
                                                                                     <button
                                                                                         type="button"
                                                                                         onClick={() => removeSortLayer(index)}
-                                                                                        className="flex items-center justify-center w-8 h-9 text-(--text-tertiary) hover:text-(--red) transition-colors shrink-0"
+                                                                                        aria-label="Remove sort level"
+                                                                                        className="flex items-center justify-center w-8 h-10 text-(--text-tertiary) hover:text-(--red) transition-colors shrink-0 cursor-pointer"
                                                                                     >
                                                                                         <FaXmark className="text-[13px]" />
                                                                                     </button>
@@ -1182,7 +1183,7 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
                                                                             <button
                                                                                 type="button"
                                                                                 onClick={addSortLayer}
-                                                                                className="flex items-center gap-1.5 min-h-9 px-2 text-[13px] font-semibold text-secondary hover:bg-(--background-quaternary) rounded-control transition-colors self-start"
+                                                                                className={buttonClass('ghost', 'sm', 'self-start')}
                                                                             >
                                                                                 <FaPlus className="text-[11px]" /> Add sort level
                                                                             </button>
@@ -1214,7 +1215,7 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
                                                                     onBlur={handlePrefixInputBlur}
                                                                     maxLength={3}
                                                                     placeholder="e.g. AS"
-                                                                    className="w-24 min-h-9 text-[13px] font-mono uppercase bg-transparent border border-(--divider) rounded-control px-2 py-1.5 text-(--text-primary) focus:outline-none focus:border-(--secondary)"
+                                                                    className={fieldClass('md', 'w-24 font-mono uppercase focus:outline-none')}
                                                                 />
                                                             </div>
                                                         </div>
@@ -1288,7 +1289,7 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
                                                                             onChange={e => handleNumberInputChange(card.id, e.target.value)}
                                                                             onBlur={() => handleNumberInputBlur(card.id)}
                                                                             placeholder="—"
-                                                                            className="w-14 min-h-9 text-[13px] font-mono text-right bg-transparent border border-(--divider) rounded-control px-2 py-1.5 text-(--text-primary) focus:outline-none focus:border-(--secondary)"
+                                                                            className={fieldClass('md', 'w-14 font-mono text-right tabular-nums focus:outline-none')}
                                                                         />
                                                                     </div>
                                                                 ) : (

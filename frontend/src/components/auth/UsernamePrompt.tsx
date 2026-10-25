@@ -18,7 +18,8 @@ import { useAuth } from './AuthContext';
 import { supabase } from '../../api/supabase';
 import { Modal } from '../shared/Modal';
 
-import { FIELD_LABEL_CLASS } from '../shared/fieldStyles';
+import { FIELD_LABEL_CLASS, fieldClass } from '../shared/fieldStyles';
+import { buttonClass } from '../shared/buttonStyles';
 /**
  * Props for UsernamePrompt component
  */
@@ -143,16 +144,7 @@ export const UsernamePrompt: React.FC<UsernamePromptProps> = ({ userId, onComple
                             minLength={3}
                             pattern="[a-zA-Z0-9_]+"
                             autoFocus
-                            className={`
-                                w-full px-3 py-2
-                                bg-background-primary
-                                border
-                                rounded-control
-                                text-secondary
-                                focus:outline-none focus:ring-2 focus:ring-accent
-                                disabled:opacity-50 disabled:cursor-not-allowed
-                                ${error ? 'border-(--red)' : 'border-form-element'}
-                            `}
+                            className={fieldClass('md', `w-full focus:outline-none ${error ? 'border-(--red)!' : ''}`)}
                             placeholder="e.g. brianjordangoat"
                         />
                         
@@ -180,16 +172,7 @@ export const UsernamePrompt: React.FC<UsernamePromptProps> = ({ userId, onComple
                     <button
                         type="submit"
                         disabled={saving || checking || !!error || !username}
-                        className="
-                            w-full py-2.5
-                            bg-accent text-primary
-                            rounded-control
-                            bg-(--background-tertiary) hover:bg-(--background-quaternary)
-                            disabled:opacity-50 disabled:cursor-not-allowed
-                            cursor-pointer
-                            transition-colors duration-150
-                            font-semibold
-                        "
+                        className={buttonClass('primary', 'md', 'w-full')}
                     >
                         {saving ? 'Saving...' : 'Continue'}
                     </button>

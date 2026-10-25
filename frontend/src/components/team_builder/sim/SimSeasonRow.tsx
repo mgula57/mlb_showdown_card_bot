@@ -116,15 +116,15 @@ export function SimSeasonRow({ entry, onOpen, rank, attempts, showTime, disabled
 export function SimSeasonRowSkeleton({ showRank = false }: { showRank?: boolean }) {
     return (
         <div aria-hidden className="w-full flex items-center gap-3 px-3 py-2 rounded-card bg-(--background-tertiary) animate-pulse">
-            {showRank && <span className="w-6 h-3.5 rounded bg-(--background-primary) shrink-0" />}
+            {showRank && <span className="w-6 h-3.5 rounded-plate bg-(--background-primary) shrink-0" />}
             <span className="w-1.5 h-7 rounded-full shrink-0 bg-(--background-primary)" />
             <span className="min-w-0 flex-1 flex flex-col gap-1.5 py-0.5">
-                <span className="h-3 w-2/5 rounded bg-(--background-primary)" />
-                <span className="h-2.5 w-3/5 rounded bg-(--background-primary)" />
+                <span className="h-3 w-2/5 rounded-plate bg-(--background-primary)" />
+                <span className="h-2.5 w-3/5 rounded-plate bg-(--background-primary)" />
             </span>
             <span className="flex flex-col items-end gap-1.5 shrink-0 py-0.5">
-                <span className="h-3.5 w-10 rounded bg-(--background-primary)" />
-                <span className="h-2.5 w-8 rounded bg-(--background-primary)" />
+                <span className="h-3.5 w-10 rounded-plate bg-(--background-primary)" />
+                <span className="h-2.5 w-8 rounded-plate bg-(--background-primary)" />
             </span>
         </div>
     );

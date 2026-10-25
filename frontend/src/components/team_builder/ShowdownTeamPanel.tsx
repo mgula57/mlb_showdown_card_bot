@@ -20,18 +20,18 @@ export const ShowdownTeamPanel = ({ showdownTeam, isStarred, onToggleStar }: Sho
         return (
             <div className="rounded-card border border-(--divider) overflow-hidden animate-pulse">
                 <div className="h-20 md:h-24 bg-(--background-secondary) flex items-center gap-3 px-4">
-                    <div className="w-12 h-12 rounded-full bg-(--background-quaternary) shrink-0" />
+                    <div className="w-12 h-12 rounded-full bg-(--background-tertiary) shrink-0" />
                     <div className="flex flex-col gap-2">
-                        <div className="h-4 w-40 rounded bg-(--background-quaternary)" />
-                        <div className="h-3 w-24 rounded bg-(--background-quaternary)" />
+                        <div className="h-4 w-40 rounded-plate bg-(--background-tertiary)" />
+                        <div className="h-3 w-24 rounded-plate bg-(--background-tertiary)" />
                     </div>
                 </div>
                 <div className="flex flex-col gap-1.5 p-3">
                     {Array.from({ length: 9 }).map((_, index) => (
                         <div key={index} className="flex items-center gap-3 rounded-card border border-(--divider) px-3 py-2">
-                            <div className="w-6 h-6 rounded bg-(--background-quaternary) shrink-0" />
-                            <div className="flex-1 h-3 rounded bg-(--background-quaternary)" />
-                            <div className="w-8 h-3 rounded bg-(--background-quaternary)" />
+                            <div className="w-6 h-6 rounded-plate bg-(--background-tertiary) shrink-0" />
+                            <div className="flex-1 h-3 rounded-plate bg-(--background-tertiary)" />
+                            <div className="w-8 h-3 rounded-plate bg-(--background-tertiary)" />
                         </div>
                     ))}
                 </div>

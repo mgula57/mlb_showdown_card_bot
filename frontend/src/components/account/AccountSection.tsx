@@ -1,5 +1,4 @@
 import React from 'react';
-import { useTheme } from '../shared/SiteSettingsContext';
 
 import { Heading } from '../shared/Heading';
 type AccountSectionProps = {
@@ -17,9 +16,8 @@ type AccountSectionProps = {
 
 /** Bordered card used for each block on the Account page. */
 export const AccountSection: React.FC<AccountSectionProps> = ({ id, title, icon, description, action, children }) => {
-    const { isDark } = useTheme();
     return (
-        <div id={id} className={`scroll-mt-4 rounded-card border border-form-element p-6 ${isDark ? 'bg-background-secondary' : 'bg-white'}`}>
+        <div id={id} className="scroll-mt-4 rounded-card border border-(--divider) bg-(--background-secondary) p-6">
             {title && (
                 <div className="flex items-start justify-between gap-4 mb-4">
                     <div>

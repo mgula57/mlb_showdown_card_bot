@@ -41,7 +41,7 @@ export function TeamChip({ team, record, size = "md", isStarred, onToggleStar, c
                 <ReactCountryFlag countryCode={team.countryCode} svg style={{ width: sizing.flag, height: sizing.flag }} />
             )}
             <span
-                className={`${sizing.badge} ${badgeBg ? "px-1.5 py-0.5 rounded" : "text-(--text-primary)"}`}
+                className={`${sizing.badge} ${badgeBg ? "px-1.5 py-0.5 rounded-plate" : "text-(--text-primary)"}`}
                 style={badgeBg ? { backgroundColor: badgeBg, color: badgeText } : undefined}
             >
                 {team.abbreviation}

@@ -355,7 +355,7 @@ export const CardItem = ({
                         {cardLeague && cardEdition === 'WBC' && (() => {
                             const leagueGrouped = ['AL', 'NL'].includes(cardLeague) ? 'MLB' : cardLeague;
                             return (
-                                <div className="font-semibold italic text-(--text-secondary)">
+                                <div className="font-semibold text-(--text-secondary)">
                                     {leagueGrouped}
                                 </div>
                             )
@@ -376,7 +376,7 @@ export const CardItem = ({
                             </div>
                         )}
                         {cardStatsPeriod?.type === 'REPLACEMENT' ? (
-                            <div className="font-semibold italic text-(--text-secondary)">
+                            <div className="font-semibold text-(--text-secondary)">
                                 Showing Replacement Level Stats
                             </div>
                         ) : (
@@ -398,20 +398,19 @@ export const CardItem = ({
                 </div>
 
                 {/* Source, Set Number, Expansion, and Showdown Set badge — pinned to the bottom-right corner,
-                    blurring any highlights that scroll beneath */}
+                    on the panel surface so highlights that scroll beneath don't show through */}
                 {hasSetBadge && (
                     <div
                         className="
                             absolute bottom-0 right-0
                             flex flex-row items-center gap-x-1
-                            px-0.5 py-0.5 rounded-card rounded-br-[9px]
+                            px-0.5 py-0.5 rounded-card
                             text-[9px] text-nowrap tracking-tight text-primary font-bold
-                            bg-(--background-secondary)/10 backdrop-blur-sm
+                            bg-(--background-secondary)
                         "
                     >
                         {cardStatus === 'live' && (
-                            // <span className="text-red-500 text-[8px] mr-0.5">LIVE</span>
-                            <LiveIcon size={7} color="red" title="This card live updates daily" />
+                            <LiveIcon size={7} color="var(--live)" title="This card live updates daily" />
                         )}
                         {cardSource === 'WOTC' && (
                             <FaHatWizard className="inline-block w-3 h-3" title="Wizards of the Coast" />
@@ -618,19 +617,14 @@ export function CardItemSkeleton({ className }: { className?: string }) {
     return (
         <div className={`${className ?? ''} relative flex flex-col p-2 gap-1.5 rounded-card border border-(--divider) animate-pulse`}>
             <div className="flex flex-row gap-2 items-center">
-                <div className="w-9 h-9 rounded-full bg-(--background-quaternary) shrink-0" />
+                <div className="w-9 h-9 rounded-full bg-(--background-tertiary) shrink-0" />
                 <div className="flex flex-col gap-1.5 flex-1 min-w-0">
-                    <div className="h-3 w-20 rounded bg-(--background-quaternary)" />
-                    <div className="h-2.5 w-14 rounded bg-(--background-quaternary)" />
+                    <div className="h-3 w-20 rounded-plate bg-(--background-tertiary)" />
+                    <div className="h-2.5 w-14 rounded-plate bg-(--background-tertiary)" />
                 </div>
             </div>
-            <div className="h-8 w-full rounded bg-(--background-quaternary)" />
-            <div className="h-2.5 w-full rounded bg-(--background-quaternary)" />
-            <div className="absolute inset-0 flex items-center justify-center gap-1.5 rounded-card bg-(--background-secondary)/60 backdrop-blur-[1px]">
-                <span className="w-1.5 h-1.5 rounded-full bg-(--secondary) animate-bounce [animation-delay:0ms]" />
-                <span className="w-1.5 h-1.5 rounded-full bg-(--secondary) animate-bounce [animation-delay:150ms]" />
-                <span className="w-1.5 h-1.5 rounded-full bg-(--secondary) animate-bounce [animation-delay:300ms]" />
-            </div>
+            <div className="h-8 w-full rounded-plate bg-(--background-tertiary)" />
+            <div className="h-2.5 w-full rounded-plate bg-(--background-tertiary)" />
         </div>
     );
 }

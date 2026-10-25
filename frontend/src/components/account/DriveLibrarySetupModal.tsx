@@ -15,6 +15,7 @@ import FormInput from '../customs/FormInput';
 import ImageLibraryGuideLink from './ImageLibraryGuideLink';
 import { saveImageLibrary, testImageLibrary } from '../../api/imageLibraries';
 import type { ImageLibrariesOverview, ImageLibraryTestResult } from '../../api/imageLibraries';
+import { buttonClass } from '../shared/buttonStyles';
 
 type DriveLibrarySetupModalProps = {
     token: string;
@@ -34,12 +35,11 @@ const SET_IMAGE_REQUIREMENTS: { sets: string[]; files: string }[] = [
     { sets: ['CLASSIC', 'EXPANDED'], files: 'BG + CUT' },
 ];
 
-const buttonBase = 'px-4 py-2 rounded-control text-sm font-semibold cursor-pointer disabled:cursor-not-allowed disabled:opacity-50 transition-colors';
-const primaryButton = `${buttonBase} bg-accent text-primary hover:opacity-90`;
-const secondaryButton = `${buttonBase} border border-form-element text-secondary hover:bg-background-tertiary`;
+const primaryButton = buttonClass('primary');
+const secondaryButton = buttonClass('secondary');
 
 const Code: React.FC<{ children: React.ReactNode }> = ({ children }) => (
-    <code className="px-1.5 py-0.5 rounded bg-background-tertiary text-secondary text-[13px] break-all">{children}</code>
+    <code className="px-1.5 py-0.5 rounded-plate bg-(--background-tertiary) text-secondary text-[13px] break-all">{children}</code>
 );
 
 const StepList: React.FC<{ children: React.ReactNode }> = ({ children }) => (
@@ -58,11 +58,11 @@ const StepIndicator: React.FC<{ step: number }> = ({ step }) => (
             const isActive = index === step;
             return (
                 <React.Fragment key={label}>
-                    {index > 0 && <div className={`flex-1 h-px ${isDone || isActive ? 'bg-accent' : 'bg-form-element'}`} />}
+                    {index > 0 && <div className={`flex-1 h-px ${isDone || isActive ? 'bg-(--showdown-blue)' : 'bg-(--divider)'}`} />}
                     <div className="flex items-center gap-1.5 shrink-0">
                         <span className={`
                             w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold
-                            ${isDone || isActive ? 'bg-accent text-primary border border-form-element' : 'border border-form-element text-(--text-tertiary)'}
+                            ${isDone || isActive ? 'bg-(--showdown-blue) text-white border border-(--showdown-blue)' : 'border border-(--divider) text-(--text-tertiary)'}
                         `}>
                             {isDone ? <FaCheck className="w-2.5 h-2.5" /> : index + 1}
                         </span>
@@ -84,7 +84,7 @@ const CopyableEmail: React.FC<{ email: string }> = ({ email }) => {
         }).catch(() => {});
     };
     return (
-        <div className="flex items-center gap-2 rounded-control border border-form-element bg-background-primary px-3 py-2">
+        <div className="flex items-center gap-2 rounded-control border border-form-element bg-(--background-primary) px-3 py-2">
             <span className="flex-1 text-sm text-secondary font-mono break-all">{email}</span>
             <button type="button" onClick={copy} className="shrink-0 flex items-center gap-1 text-xs text-tertiary cursor-pointer hover:underline">
                 {copied ? <FaCheck /> : <FaCopy />}
@@ -269,7 +269,7 @@ export const DriveLibrarySetupModal: React.FC<DriveLibrarySetupModalProps> = ({ 
                                     ))}
                                 </tbody>
                             </table>
-                            <div className="flex gap-2 rounded-card bg-background-tertiary p-2 my-2 text-xs">
+                            <div className="flex gap-2 rounded-card bg-(--background-tertiary) p-2 my-2 text-xs">
                                 <FaExclamationTriangle className="shrink-0 mt-0.5 text-(--gold)" />
                                 <p>
                                     Special editions like <b>Super Season</b> and <b>Cooperstown Collection</b>, plus <b>parallels</b> (Rainbow Foil, Gold, Moonlight, etc.), need <b>both BG and CUT</b> images, even on sets that normally use just one. Add both for a player to cover every option.
@@ -309,7 +309,7 @@ export const DriveLibrarySetupModal: React.FC<DriveLibrarySetupModalProps> = ({ 
                         />
                         <button
                             type="button"
-                            className={`${secondaryButton} flex items-center gap-2`}
+                            className={secondaryButton}
                             onClick={handleTest}
                             disabled={!folder.trim() || isTesting}
                         >
@@ -317,7 +317,7 @@ export const DriveLibrarySetupModal: React.FC<DriveLibrarySetupModalProps> = ({ 
                             {isTesting ? 'Testing…' : 'Test connection'}
                         </button>
 
-                        {isTesting && <div className="h-28 rounded-card bg-background-tertiary animate-pulse" />}
+                        {isTesting && <div className="h-28 rounded-card bg-(--background-tertiary) animate-pulse" />}
                         {!isTesting && testResult && testedFolder === folder.trim() && <ImageLibraryTestResultPanel result={testResult} />}
                         {!isTesting && error && <ErrorPanel message={error} />}
                     </div>

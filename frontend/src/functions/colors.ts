@@ -102,7 +102,14 @@ export const getContrastTextColor = (bg: string): string => {
 /** Contrast-aware translucent tokens for content sitting on a solid identity color — the mode
  *  banners in the team builder and on the game page. `getContrastTextColor` returns '#000000'
  *  (black text) for light backgrounds, which is the signal for which set to use. */
-export const bannerTokens = (baseColor: string) => {
+/** Stand-in team color when a club has none (a neutral slate), for team-colored badges and bars.
+ *  A real color rather than a token because it feeds the contrast helpers above. */
+export const NEUTRAL_TEAM_COLOR = '#374151';
+export const NEUTRAL_TEAM_COLOR_SECONDARY = '#4b5563';
+
+export type BannerTokens = { fill: string; track: string; dot: string; btnClass: string };
+
+export const bannerTokens = (baseColor: string): BannerTokens => {
     const isLight = getContrastTextColor(baseColor) === '#000000';
     return {
         fill:  isLight ? 'rgba(0,0,0,0.80)' : 'rgba(255,255,255,0.92)',
@@ -113,6 +120,9 @@ export const bannerTokens = (baseColor: string) => {
             : 'bg-white/15 hover:bg-white/25 border border-white/30 text-white',
     };
 };
+
+/** Light ink for the brand-filled mode bars (navy, red), which are dark in both themes. */
+export const BANNER_TOKENS_ON_DARK: BannerTokens = bannerTokens('#000000');
 
 /**
  * Darken a color only when it is too bright against a white background.
@@ -147,3 +157,23 @@ export const darkenIfLowContrastOnWhite = (
     return `rgb(${fallback[0]}, ${fallback[1]}, ${fallback[2]})`;
 };
 
+
+/** Grade-scale token for a 0–1 score, best (a) to worst (d); `cutoffs` are the a/b/c floors. Tertiary
+ *  ink when there's no score. See DESIGN.md (grade scale). */
+export const gradeColor = (score: number | null | undefined, cutoffs: [number, number, number] = [0.75, 0.5, 0.25]): string => {
+    if (score == null) return 'var(--text-tertiary)';
+    if (score >= cutoffs[0]) return 'var(--grade-a)';
+    if (score >= cutoffs[1]) return 'var(--grade-b)';
+    if (score >= cutoffs[2]) return 'var(--grade-c)';
+    return 'var(--grade-d)';
+};
+
+/** Hot/cold token for a 0–100 percentile against the league: hot at the top, cold at the bottom,
+ *  neutral in the middle. See DESIGN.md (heat scale). */
+export const heatColor = (percentile: number): string => {
+    if (percentile >= 80) return 'var(--heat-hot)';
+    if (percentile >= 60) return 'var(--heat-warm)';
+    if (percentile >= 40) return 'var(--rule-strong)';
+    if (percentile >= 20) return 'var(--heat-cool)';
+    return 'var(--heat-cold)';
+};

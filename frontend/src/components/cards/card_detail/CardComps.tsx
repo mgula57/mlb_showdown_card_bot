@@ -3,22 +3,16 @@ import { type ShowdownBotCard } from '../../../api/showdownBotCard';
 import { fetchCardComps, type WotcCompCard } from '../../../api/card_db/cardDatabase';
 import { CardItem, CardItemFromCard, CardItemSkeleton } from '../CardItem';
 import { CAPS_LABEL_CLASS } from '../../shared/fieldStyles';
+import { gradeColor } from '../../../functions/colors';
 
 type CardCompsProps = {
     card: ShowdownBotCard | null | undefined;
     isLoading: boolean;
 };
 
-function similarityColor(pct: number): string {
-    if (pct >= 92) return '#22c55e';
-    if (pct >= 75) return '#eab308';
-    if (pct >= 60) return '#f97316';
-    return '#ef4444';
-}
-
 function CompCardItem({ comp }: { comp: WotcCompCard }) {
     const pct = Math.round(comp.similarity_score * 100);
-    const barColor = similarityColor(pct);
+    const barColor = gradeColor(pct / 100, [0.92, 0.75, 0.6]);
 
     const primaryColor = (['NYM', 'SDP'].includes(comp.team)
         ? comp.color_secondary
@@ -31,7 +25,7 @@ function CompCardItem({ comp }: { comp: WotcCompCard }) {
         <div className="relative">
             {/* Similarity badge overlaid on the card */}
             <div
-                className="absolute top-2 right-2 z-10 flex items-center gap-1 rounded-plate px-2 py-0.5 opacity-80 backdrop-blur-lg"
+                className="absolute top-2 right-2 z-10 flex items-center gap-1 rounded-plate px-2 py-0.5 bg-(--background-secondary) border border-(--divider)"
             >
                 <div className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: barColor }} />
                 <span className="text-[10px] font-bold tabular-nums" style={{ color: barColor }}>{pct}%</span>
@@ -117,7 +111,7 @@ export function CardComps({ card, isLoading }: CardCompsProps) {
 
     if (isEmpty) {
         return (
-            <p className="text-xs opacity-40 text-center py-6 italic">
+            <p className="text-xs text-(--text-tertiary) text-center py-6">
                 No WOTC comps found for this set.
             </p>
         );
@@ -128,7 +122,7 @@ export function CardComps({ card, isLoading }: CardCompsProps) {
             <CardItemFromCard card={card} />
 
             {/* Divider */}
-            <div className="border-t-3 border-form-element rounded my-2" />
+            <div className="border-t-3 border-(--divider) my-2" />
             <span className={`opacity-40 text-center block ${CAPS_LABEL_CLASS}`}>WOTC Comps</span>
 
             {comps.map(comp => (

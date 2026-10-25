@@ -13,7 +13,8 @@ import {
 } from '../../api/userTeams';
 
 import FormEnabler from '../customs/FormEnabler';
-import { FIELD_LABEL_CLASS, CAPS_LABEL_CLASS } from '../shared/fieldStyles';
+import { FIELD_LABEL_CLASS, CAPS_LABEL_CLASS, fieldClass } from '../shared/fieldStyles';
+import { choiceClass } from '../shared/choiceStyles';
 type BucketSizes = {
     offense: number;   // always 9
     rotation: number;  // num_starters
@@ -68,12 +69,7 @@ function StrategyPill({ label, active, onClick }: { label: string; active: boole
         <button
             type="button"
             onClick={onClick}
-            className={[
-                'px-2.5 py-1 rounded-control text-[11px] font-semibold border transition-colors',
-                active
-                    ? 'bg-(--showdown-red) border-(--showdown-red) text-white'
-                    : 'bg-transparent border-(--divider) text-(--text-secondary) hover:border-(--text-tertiary)',
-            ].join(' ')}
+            className={choiceClass(active, 'sm')}
         >
             {label}
         </button>
@@ -195,7 +191,7 @@ export function AutofillPanel({ ptsLimit, bucketSizes, existingPts, existingPick
 
     return (
         <div
-            className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
             onClick={onClose}
         >
             <div
@@ -255,7 +251,7 @@ export function AutofillPanel({ ptsLimit, bucketSizes, existingPts, existingPick
                                 step={50}
                                 value={customTarget}
                                 onChange={e => setCustomTarget(Math.max(0, Number(e.target.value)))}
-                                className="w-full rounded-card border border-(--divider) bg-(--background-secondary) px-3 py-2 text-[13px] font-bold text-(--text-primary)"
+                                className={fieldClass('md', 'w-full font-bold tabular-nums focus:outline-none')}
                             />
                             {totalFloors > 0 && (
                                 <div className="text-[10px] text-(--text-tertiary) mt-1">

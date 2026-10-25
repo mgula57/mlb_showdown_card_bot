@@ -7,7 +7,7 @@ import type { ReactNode } from "react";
 import ReactCountryFlag from "react-country-flag";
 
 import type { GameView } from "../../../domain/game";
-import { getReadableTextColor } from "../../../functions/colors";
+import { getReadableTextColor, NEUTRAL_TEAM_COLOR } from '../../../functions/colors';
 import { BasesDiamond } from "../BasesDiamond";
 import { GameStatePlate } from "../GameStatePlate";
 import { CAPS_LABEL_CLASS } from "../../shared/fieldStyles";
@@ -34,9 +34,9 @@ export default function ScoreHeader({ game, className = "", compact = false, cen
     const awayRecord = away.record;
     const homeRecord = home.record;
 
-    const awayBadgeBg = away.team.primaryColor ?? '#374151';
+    const awayBadgeBg = away.team.primaryColor ?? NEUTRAL_TEAM_COLOR;
     const awayBadgeText = getReadableTextColor(awayBadgeBg, '#ffffff');
-    const homeBadgeBg = home.team.primaryColor ?? '#374151';
+    const homeBadgeBg = home.team.primaryColor ?? NEUTRAL_TEAM_COLOR;
     const homeBadgeText = getReadableTextColor(homeBadgeBg, '#ffffff');
 
     const awayRuns = away.score ?? 0;

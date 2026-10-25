@@ -8,7 +8,7 @@
 
 import React from 'react';
 import { FaCheck } from 'react-icons/fa6';
-import { FIELD_FRAME_CLASS } from '../shared/fieldStyles';
+import { FIELD_FRAME_CLASS, checkBoxClass } from '../shared/fieldStyles';
 
 /**
  * Props for the FormEnabler component
@@ -74,10 +74,7 @@ const FormEnabler: React.FC<FormEnablerProps> = ({ label, description, isEnabled
             {/* Checklist box */}
             <span
                 aria-hidden
-                className={`
-                    ${BOX_SIZE_CLASSES[size]} shrink-0 flex items-center justify-center rounded-plate border-2 transition-colors
-                    ${isEnabled ? 'bg-(--showdown-blue) border-(--showdown-blue) text-white' : 'border-(--rule-strong)'}
-                `}
+                className={`${BOX_SIZE_CLASSES[size]} ${checkBoxClass(isEnabled)}`}
             >
                 {isEnabled && <FaCheck />}
             </span>

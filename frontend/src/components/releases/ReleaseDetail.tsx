@@ -4,8 +4,7 @@ import type { Release, ReleaseEdition } from '../../api/releases';
 import { fetchEdition, createEdition, updateEdition } from '../../api/releases';
 import { EditionBuilder } from './EditionBuilder';
 import FormInput from '../customs/FormInput';
-import { ModeBanner } from '../shared/ModeBanner';
-import { bannerTokens } from '../../functions/colors';
+import { ModeBanner, ModeBannerButton } from '../shared/ModeBanner';
 import { FaArrowLeft, FaCheck, FaEye, FaEyeSlash, FaGlobe, FaPen, FaPlus, FaSpinner, FaXmark } from 'react-icons/fa6';
 
 import { InlineError } from '../shared/InlineError';
@@ -27,13 +26,13 @@ type ReleaseDetailProps = {
  *  `edit` while it's still a draft. Browsing a draft is the pre-publish preview. */
 type ViewMode = 'browse' | 'edit';
 
+// The tab strip's red active bar, in the body face rather than the display italic because each tab
+// carries upright count and Draft plates (same reasoning as radixVerticalTabTriggerClass).
 const EDITION_TAB_CLASS =
-    'relative flex items-center px-3 py-2.5 text-[13px] font-bold transition-colors border-b-2 shrink-0 ' +
-    'data-[state=active]:border-(--secondary) data-[state=active]:text-(--text-primary) ' +
+    'relative flex items-center px-3 py-2.5 text-[13px] font-bold transition-colors border-b-[3px] shrink-0 cursor-pointer ' +
+    'data-[state=active]:border-(--showdown-red) data-[state=active]:text-(--text-primary) ' +
     'data-[state=inactive]:border-transparent data-[state=inactive]:text-(--text-tertiary) data-[state=inactive]:hover:text-(--text-secondary)';
 
-const PREVIEW_BANNER = { primary: '#1e3a8a', secondary: '#2563eb' };
-const LIVE_EDIT_BANNER = { primary: '#92400e', secondary: '#d97706' };
 
 export function ReleaseDetail({ release, readOnly, editionSlug, onEditionChange, onBack, onReleaseUpdated, token }: ReleaseDetailProps) {
     const isOwner = !readOnly;
@@ -163,9 +162,6 @@ export function ReleaseDetail({ release, readOnly, editionSlug, onEditionChange,
         setPublishing(false);
     }
 
-    const previewBannerButton = bannerTokens(PREVIEW_BANNER.secondary).btnClass;
-    const liveEditBannerButton = bannerTokens(LIVE_EDIT_BANNER.secondary).btnClass;
-
     return (
         // Height-locked from md up only — on phones the page scrolls naturally so Safari's URL bar can
         // collapse (a dvh-locked shell leaves a black bar at the bottom as the bar animates).
@@ -247,32 +243,30 @@ export function ReleaseDetail({ release, readOnly, editionSlug, onEditionChange,
 
                 {isOwner && !isEditing && hasDrafts && (
                     <ModeBanner
-                        primaryColor={PREVIEW_BANNER.primary}
-                        secondaryColor={PREVIEW_BANNER.secondary}
+                        tone="navy"
                         label="PREVIEW"
                         detail={isPublished
                             ? '— editions marked DRAFT are only visible to you until published'
                             : '— this is how your release will look to others once published'}
                     >
-                        <BannerButton className={previewBannerButton} onClick={() => changeMode('edit')}>
+                        <ModeBannerButton onClick={() => changeMode('edit')}>
                             Back to Editing
-                        </BannerButton>
-                        <BannerButton className={previewBannerButton} onClick={() => handleSetPublished(true)} disabled={publishing}>
+                        </ModeBannerButton>
+                        <ModeBannerButton onClick={() => handleSetPublished(true)} disabled={publishing}>
                             {publishing ? <FaSpinner className="animate-spin" /> : <FaGlobe />} Publish
-                        </BannerButton>
+                        </ModeBannerButton>
                     </ModeBanner>
                 )}
 
                 {isEditing && isPublished && (
                     <ModeBanner
-                        primaryColor={LIVE_EDIT_BANNER.primary}
-                        secondaryColor={LIVE_EDIT_BANNER.secondary}
+                        tone="red"
                         label="EDITING"
                         detail="— this release is published, so changes are live as soon as they save"
                     >
-                        <BannerButton className={liveEditBannerButton} onClick={() => changeMode('browse')}>
+                        <ModeBannerButton onClick={() => changeMode('browse')}>
                             <FaCheck /> Done
-                        </BannerButton>
+                        </ModeBannerButton>
                     </ModeBanner>
                 )}
 
@@ -380,19 +374,6 @@ function HeaderButton({ icon, label, onClick, tone = 'neutral', busy = false, co
         >
             <span className="text-[12px]">{busy ? <FaSpinner className="animate-spin" /> : icon}</span>
             <span className={collapseLabel ? 'hidden sm:inline' : ''}>{label}</span>
-        </button>
-    );
-}
-
-function BannerButton({ className, onClick, disabled, children }: { className: string; onClick: () => void; disabled?: boolean; children: ReactNode }) {
-    return (
-        <button
-            type="button"
-            onClick={onClick}
-            disabled={disabled}
-            className={`flex items-center gap-1 rounded-control px-2 py-1 h-7 text-[11px] font-bold whitespace-nowrap cursor-pointer transition-colors disabled:opacity-60 disabled:cursor-not-allowed ${className}`}
-        >
-            {children}
         </button>
     );
 }

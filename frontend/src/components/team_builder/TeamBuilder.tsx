@@ -23,7 +23,7 @@ import { TeamCard } from './TeamCard';
 import { TeamSearchInput } from './TeamSearchInput';
 import { matchesTeamQuery } from './teamSearch';
 import { TeamPreviewCard } from './TeamPreviewCard';
-import { TeamShelf } from './TeamShelf';
+import { TeamShelf, TeamShelfSkeleton } from './TeamShelf';
 import { TeamDetail } from './TeamDetail';
 import { TeamBuilderWelcome } from './TeamBuilderWelcome';
 import { BrowseTeams } from './BrowseTeams';
@@ -656,8 +656,8 @@ export default function TeamBuilder() {
                 )}
 
                 {loading ? (
-                    <div className="flex justify-center py-12">
-                        <FaSpinner className="animate-spin text-(--text-tertiary) text-xl" />
+                    <div className={`grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-2 animate-pulse ${px}`} aria-label="Loading teams">
+                        {Array.from({ length: 6 }, (_, i) => <div key={i} className="h-16 rounded-control bg-(--background-tertiary)" />)}
                     </div>
                 ) : !token ? (
                     <p className="text-[13px] text-(--text-tertiary) py-8 text-center">
@@ -808,9 +808,7 @@ export default function TeamBuilder() {
                         </div>
                     )}
                     {loading ? (
-                        <div className="flex justify-center py-12">
-                            <FaSpinner className="animate-spin text-(--text-tertiary) text-xl" />
-                        </div>
+                        <TeamShelfSkeleton shelves={2} className={px} />
                     ) : (
                         <section className={`${px}`}>
                             {!token || userTeams.length === 0 ? (

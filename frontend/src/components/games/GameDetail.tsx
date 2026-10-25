@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 
-import { bannerTokens } from "../../functions/colors";
+import { bannerTokens, NEUTRAL_TEAM_COLOR } from "../../functions/colors";
 import { ordinal } from "../../functions/formatters";
 import { Modal } from "../shared/Modal";
 import type { ShowdownBotCardAPIResponse } from "../../api/showdownBotCard";
@@ -217,11 +217,11 @@ export default function GameDetail({ gamePk, sportId, season, showdownSet, isAct
         setShowPlaybackControls(true);
     }
 
-    /* Mode strip in the team builder's idiom, coloured by the two clubs so it reads as this
-       game's own. Full-bleed at the top of the page rather than inside a panel — it is a
-       statement about the whole view, not about the box score. */
-    const simBannerTokens = bannerTokens(home.team.secondary_color ?? '#374151');
-    const simLeftTokens = bannerTokens(away.team.primary_color ?? '#374151');
+    /* Mode strip in the team builder's idiom: a flat fill in the away club's color (the side
+       the title sits on) so it reads as this game's own. Full-bleed at the top of the page
+       rather than inside a panel — it is a statement about the whole view, not the box score. */
+    const modeBarColor = away.team.primary_color ?? NEUTRAL_TEAM_COLOR;
+    const simBarTokens = bannerTokens(modeBarColor);
 
     // The field is the mobile backdrop, so it only leads the layout once there's a live
     // situation to put on it. Before first pitch and after the final out, the panels are the page.
@@ -398,7 +398,7 @@ export default function GameDetail({ gamePk, sportId, season, showdownSet, isAct
                                 ? '— live updates paused while you scrub'
                                 : '— playback controls open')
                         : null;
-                const modeButtonClass = `rounded-card px-2 py-1 h-7 ${simBannerTokens.btnClass}`;
+                const modeButtonClass = `rounded-control px-2 py-1 h-7 ${simBarTokens.btnClass}`;
                 const simControls = simResult ? (
                         <div className="flex min-w-0 items-center gap-2">
                             {/* The sim already opens parked on the first pitch, so this is a
@@ -440,15 +440,15 @@ export default function GameDetail({ gamePk, sportId, season, showdownSet, isAct
                     <div className={`flex flex-col md:h-[calc(100dvh-2.5rem)] overflow-hidden ${className ?? ''}`}>
                         <div
                             className={`relative z-50 px-4 py-2 border-b border-(--divider) shrink-0 flex items-center gap-3 ${isModeBar ? '' : 'bg-(--background-primary)'}`}
-                            style={isModeBar ? { background: `linear-gradient(to right, ${away.team.primary_color ?? '#374151'}, ${home.team.secondary_color ?? '#374151'})` } : undefined}
+                            style={isModeBar ? { backgroundColor: modeBarColor } : undefined}
                         >
                             <BackButton onBack={onBack} />
                             <div className="flex items-center gap-2">
-                                <Heading level="section" as="h1" className="hidden sm:inline" style={isModeBar ? { color: simLeftTokens.fill } : undefined}>Showdown Live</Heading>
+                                <Heading level="section" as="h1" className="hidden sm:inline" style={isModeBar ? { color: simBarTokens.fill } : undefined}>Showdown Live</Heading>
                                 <BetaBadge />
                             </div>
                             {modeLabel && (
-                                <span className="hidden min-w-0 truncate whitespace-nowrap text-[11px] font-bold" style={{ color: simLeftTokens.fill }}>
+                                <span className="hidden min-w-0 truncate whitespace-nowrap text-[11px] font-bold" style={{ color: simBarTokens.fill }}>
                                     {modeLabel}
                                     <span className="hidden md:inline font-normal ml-4">{modeDetail}</span>
                                 </span>

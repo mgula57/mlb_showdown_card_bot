@@ -431,7 +431,7 @@ export function SeasonSimSetupForm(props: Props) {
                 </div>
             )}
 
-            <div className="sticky bottom-0 z-10 -mx-4 -mb-4 flex flex-col gap-2 border-t border-form-element backdrop-blur-2xl px-4 py-3">
+            <div className="sticky bottom-0 z-10 -mx-4 -mb-4 flex flex-col gap-2 border-t border-(--divider) bg-(--background-primary) px-4 py-3">
                 {busy && (
                     <div className="text-[12px] text-(--gold) px-3 py-2 rounded-card border border-(--gold)/30 bg-(--gold)/5">
                         The simulator is busy running other seasons right now — wait about a minute and try again.

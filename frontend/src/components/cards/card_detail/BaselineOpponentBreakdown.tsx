@@ -14,12 +14,9 @@ const PLACEHOLDER_CHART: ShowdownBotCardChart = {
 };
 
 function outcomeColor(key: string, primaryColor?: string, secondaryColor?: string): string {
-    if (OUTS.has(key.toUpperCase())) return secondaryColor ?? 'rgb(239,68,68)';
-    if (key.toUpperCase() === 'BB') return primaryColor ?? 'rgb(59,130,246)';
-    if (key.toUpperCase() === '1B' || key.toUpperCase() === '1B+') return primaryColor ?? 'rgb(34,197,94)';
-    if (key.toUpperCase() === '2B' || key.toUpperCase() === '3B') return primaryColor ?? 'rgb(16,185,129)';
-    if (key.toUpperCase() === 'HR') return primaryColor ?? 'rgb(168,85,247)';
-    return 'rgb(156,163,175)';
+    if (OUTS.has(key.toUpperCase())) return secondaryColor ?? 'var(--showdown-red)';
+    if (['BB', '1B', '1B+', '2B', '3B', 'HR'].includes(key.toUpperCase())) return primaryColor ?? 'var(--showdown-blue)';
+    return 'var(--rule-strong)';
 }
 
 function KpiTile({ label, value, blurred }: { label: string; value: number; blurred: boolean }) {

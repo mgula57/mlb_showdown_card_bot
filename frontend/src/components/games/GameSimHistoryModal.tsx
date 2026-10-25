@@ -61,8 +61,14 @@ export default function GameSimHistoryModal({ gamePk, onClose, onSelect }: Props
         <Modal title="Previous Simulations" size="sm" onClose={onClose}>
             <div className="max-h-[70vh] space-y-2 overflow-y-auto p-4">
                 {loading && (
-                    <div className="flex items-center justify-center gap-2 py-10 text-(--secondary)">
-                        <FaSpinner className="animate-spin" /> Loading simulations…
+                    <div className="space-y-2 animate-pulse" aria-label="Loading simulations">
+                        {[0, 1, 2].map(i => (
+                            <div key={i} className="space-y-1.5 rounded-control border border-(--divider) px-3 py-2.5">
+                                <div className="h-4 w-32 rounded-plate bg-(--background-tertiary)" />
+                                <div className="h-3 w-20 rounded-plate bg-(--background-tertiary)" />
+                                <div className="h-3 w-48 rounded-plate bg-(--background-tertiary)" />
+                            </div>
+                        ))}
                     </div>
                 )}
 
@@ -94,7 +100,6 @@ export default function GameSimHistoryModal({ gamePk, onClose, onSelect }: Props
                                         name={row.creator_username}
                                         avatarUrl={row.creator_avatar_url}
                                         primaryColor={row.creator_primary_color}
-                                        secondaryColor={row.creator_secondary_color}
                                         size={18}
                                     />
                                     <span className="truncate">{row.is_own ? 'You' : `@${row.creator_username}`}</span>

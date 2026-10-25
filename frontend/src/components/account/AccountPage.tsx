@@ -36,7 +36,8 @@ import ImageLibrarySettings from './ImageLibrarySettings';
 
 import { buttonClass } from '../shared/buttonStyles';
 import { Heading } from '../shared/Heading';
-import { FIELD_LABEL_CLASS } from '../shared/fieldStyles';
+import { FIELD_LABEL_CLASS, fieldClass } from '../shared/fieldStyles';
+import { choiceClass } from '../shared/choiceStyles';
 /**
  * Account Page Component
  * 
@@ -74,8 +75,16 @@ const AccountPage: React.FC = () => {
     // Loading state
     if (loading) {
         return (
-            <div className="flex items-center justify-center min-h-screen">
-                <div className="text-secondary text-xl">Loading...</div>
+            <div className="min-h-screen bg-primary p-4 md:p-8">
+                <div className="max-w-4xl mx-auto space-y-6 animate-pulse" aria-label="Loading account">
+                    <div className="mb-8 space-y-2">
+                        <div className="h-7 w-64 rounded-plate bg-(--background-tertiary)" />
+                        <div className="h-4 w-80 rounded-plate bg-(--background-tertiary)" />
+                    </div>
+                    {[160, 280, 200].map(height => (
+                        <div key={height} className="rounded-card border border-(--divider) bg-(--background-secondary)" style={{ height }} />
+                    ))}
+                </div>
             </div>
         );
     }
@@ -219,7 +228,7 @@ const AccountPage: React.FC = () => {
                         <div className="shrink-0">
                             <label
                                 htmlFor="avatar-upload"
-                                className={`relative group block w-20 h-20 rounded-full focus-within:ring-2 focus-within:ring-accent ${isUploadingAvatar ? 'cursor-not-allowed' : 'cursor-pointer'}`}
+                                className={`relative group block w-20 h-20 rounded-full focus-within:ring-2 focus-within:ring-(--showdown-blue) ${isUploadingAvatar ? 'cursor-not-allowed' : 'cursor-pointer'}`}
                                 title="Change profile photo"
                             >
                                 <AccountAvatar
@@ -246,11 +255,11 @@ const AccountPage: React.FC = () => {
                                     <span className="
                                         absolute bottom-0 right-0
                                         w-6 h-6 rounded-full
-                                        bg-accent border-2 border-background-secondary
+                                        bg-(--showdown-blue) border-2 border-(--background-secondary)
                                         flex items-center justify-center
                                         group-hover:opacity-0 transition-opacity duration-200
                                     ">
-                                        <FaCamera className="w-2.5 h-2.5 text-primary" />
+                                        <FaCamera className="w-2.5 h-2.5 text-white" />
                                     </span>
                                 )}
                             </label>
@@ -267,7 +276,7 @@ const AccountPage: React.FC = () => {
                                     <button
                                         type="button"
                                         onClick={handleRemoveAvatar}
-                                        className="text-xs text-tertiary hover:underline block w-full"
+                                        className="text-xs text-tertiary hover:underline block w-full cursor-pointer"
                                     >
                                         Remove
                                     </button>
@@ -298,7 +307,7 @@ const AccountPage: React.FC = () => {
                                     <div className="flex-1">
                                         <div className="flex items-end gap-5">
                                             <div>
-                                                <p className="text-sm text-(--text-tertiary)">Username</p>
+                                                <p className={FIELD_LABEL_CLASS}>Username</p>
                                                 <p className="text-secondary font-medium">{username ?? 'Not set'}</p>
                                             </div>
                                             <button
@@ -307,7 +316,7 @@ const AccountPage: React.FC = () => {
                                                     setIsEditingUsername(true);
                                                     setUsernameError(null);
                                                 }}
-                                                className="text-xs mb-1 text-tertiary hover:underline"
+                                                className="text-xs mb-1 text-tertiary hover:underline cursor-pointer"
                                             >
                                                 {username ? 'Change' : 'Set'}
                                             </button>
@@ -324,14 +333,7 @@ const AccountPage: React.FC = () => {
                                                     }}
                                                     minLength={3}
                                                     pattern="[a-zA-Z0-9_]+"
-                                                    className={`
-                                                        w-full px-3 py-2
-                                                        bg-background-primary
-                                                        border rounded-control
-                                                        text-secondary
-                                                        focus:outline-none focus:ring-2 focus:ring-accent
-                                                        ${usernameError ? 'border-(--red)' : 'border-form-element'}
-                                                    `}
+                                                    className={fieldClass('md', `w-full focus:outline-none ${usernameError ? 'border-(--red)!' : ''}`)}
                                                     placeholder="e.g. brianjordangoat"
                                                 />
                                                 {isCheckingUsername && (
@@ -345,14 +347,14 @@ const AccountPage: React.FC = () => {
                                                         type="button"
                                                         onClick={handleSaveUsername}
                                                         disabled={isSavingUsername || isCheckingUsername}
-                                                        className="px-3 py-1.5 rounded-control bg-accent text-primary text-xs font-semibold disabled:opacity-50"
+                                                        className={buttonClass('primary', 'sm')}
                                                     >
                                                         {isSavingUsername ? 'Saving...' : 'Save'}
                                                     </button>
                                                     <button
                                                         type="button"
                                                         onClick={() => setIsEditingUsername(false)}
-                                                        className="px-3 py-1.5 rounded-control border border-form-element text-xs text-secondary"
+                                                        className={buttonClass('secondary', 'sm')}
                                                     >
                                                         Cancel
                                                     </button>
@@ -366,7 +368,7 @@ const AccountPage: React.FC = () => {
                                 <div className="flex items-center space-x-3">
                                     <FaEnvelope className="text-(--text-tertiary) shrink-0" />
                                     <div>
-                                        <p className="text-sm text-(--text-tertiary)">Email</p>
+                                        <p className={FIELD_LABEL_CLASS}>Email</p>
                                         <p className="text-secondary font-medium">{user.email}</p>
                                     </div>
                                 </div>
@@ -375,7 +377,7 @@ const AccountPage: React.FC = () => {
                                 <div className="flex items-center space-x-3">
                                     <FaClock className="text-(--text-tertiary) shrink-0" />
                                     <div>
-                                        <p className="text-sm text-(--text-tertiary)">Member Since</p>
+                                        <p className={FIELD_LABEL_CLASS}>Member Since</p>
                                         <p className="text-secondary font-medium">
                                             {user.created_at ? formatDate(user.created_at) : 'Unknown'}
                                         </p>
@@ -395,46 +397,17 @@ const AccountPage: React.FC = () => {
                                 <FaPalette className="text-(--text-tertiary)" />
                                 <label className={FIELD_LABEL_CLASS}>Theme</label>
                             </div>
-                            <div className="flex space-x-3">
-                                <button
-                                    onClick={() => setTheme('light')}
-                                    className={`
-                                        px-4 py-2 rounded-control border
-                                        transition-colors duration-150
-                                        ${theme === 'light'
-                                            ? 'bg-accent text-primary border-accent-dark font-semibold'
-                                            : 'bg-background-primary text-secondary border-form-element hover:bg-background-tertiary'
-                                        }
-                                    `}
-                                >
-                                    Light
-                                </button>
-                                <button
-                                    onClick={() => setTheme('dark')}
-                                    className={`
-                                        px-4 py-2 rounded-control border
-                                        transition-colors duration-150
-                                        ${theme === 'dark'
-                                            ? 'bg-accent text-primary border-accent-dark font-semibold'
-                                            : 'bg-background-primary text-secondary border-form-element hover:bg-background-tertiary'
-                                        }
-                                    `}
-                                >
-                                    Dark
-                                </button>
-                                <button
-                                    onClick={() => setTheme('system')}
-                                    className={`
-                                        px-4 py-2 rounded-control border
-                                        transition-colors duration-150
-                                        ${theme === 'system'
-                                            ? 'bg-accent text-primary border-accent-dark font-semibold'
-                                            : 'bg-background-primary text-secondary border-form-element hover:bg-background-tertiary'
-                                        }
-                                    `}
-                                >
-                                    System
-                                </button>
+                            <div className="flex gap-2">
+                                {(['light', 'dark', 'system'] as const).map(option => (
+                                    <button
+                                        key={option}
+                                        type="button"
+                                        onClick={() => setTheme(option)}
+                                        className={choiceClass(theme === option, 'md', 'capitalize')}
+                                    >
+                                        {option}
+                                    </button>
+                                ))}
                             </div>
                             <p className="text-xs text-(--text-tertiary) mt-2">
                                 Choose how the application appears to you
@@ -443,6 +416,7 @@ const AccountPage: React.FC = () => {
 
                         {/* Default Showdown Set */}
                         <div>
+                            <label className={`${FIELD_LABEL_CLASS} mb-2`}>Default Set</label>
                             <CustomSelect
                                 className="w-44"
                                 size="lg"

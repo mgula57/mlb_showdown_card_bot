@@ -529,7 +529,7 @@ export default function Home() {
                 {/* Leaders rows */}
                 <div className="relative border-t border-(--divider) px-4 md:px-6 py-4 space-y-4">
                     {isLoadingLeaders && (
-                        <div className="absolute inset-0 z-10 flex items-center justify-center gap-2 backdrop-blur-[2px] bg-(--background-secondary)/60">
+                        <div className="absolute inset-0 z-10 flex items-center justify-center gap-2 bg-(--background-secondary)/70">
                             <span className="w-2 h-2 rounded-full animate-bounce [animation-delay:0ms] bg-(--text-tertiary)" />
                             <span className="w-2 h-2 rounded-full animate-bounce [animation-delay:150ms] bg-(--text-tertiary)" />
                             <span className="w-2 h-2 rounded-full animate-bounce [animation-delay:300ms] bg-(--text-tertiary)" />
@@ -614,7 +614,7 @@ export default function Home() {
             {/* Recent card lightbox */}
             {recentCardModal && createPortal(
                 <div
-                    className="fixed inset-0 z-9999 flex items-center justify-center bg-black/80 backdrop-blur-sm"
+                    className="fixed inset-0 z-9999 flex items-center justify-center bg-black/80"
                     onClick={() => setRecentCardModal(null)}
                 >
                     <button
@@ -771,7 +771,7 @@ export default function Home() {
                                 {cardOfTheDay ? (
                                     <><span className="font-semibold">{cardOfTheDay.card_data.name}</span> - {cardOfTheDay.card_data.team} ({cardOfTheDay.card_data.year})</>
                                 ) : (
-                                    'Loading...'
+                                    <div className="h-3 w-40 mx-auto rounded-plate bg-(--background-tertiary) animate-pulse" />
                                 )}
                             </div>
                         </div>

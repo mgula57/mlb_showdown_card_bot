@@ -54,7 +54,7 @@ import { AccountIcon } from "./auth/AccountIcon";
 import { LoginModal } from "./auth/LoginModal";
 import { UsernamePrompt } from "./auth/UsernamePrompt";
 import { useAuth } from "./auth/AuthContext";
-import { LoadingStatusToast } from "../components/shared/LoadingStatusToast";
+import { ToastMessage } from "../components/shared/ToastMessage";
 import { FaCircleCheck } from 'react-icons/fa6';
 
 import { Heading } from './shared/Heading';
@@ -327,7 +327,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
                     className={`
                         ${isIOSSafari ? 'fixed left-0 right-0 top-0' : 'sticky top-0'}
                         z-30 flex h-10 p-4 w-full items-center justify-between
-                        border-b border-(--divider) bg-primary/95 backdrop-blur
+                        border-b border-(--divider) bg-(--background-primary)
                     `}
                     // Ensure header respects device notch and status bar on iOS
                     style={isIOSSafari ? { boxSizing: 'border-box' } : undefined}
@@ -341,7 +341,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
                             className="
                                 md:hidden inline-flex items-center justify-center p-1.5
                                 rounded-control border border-form-element 
-                                text-secondary hover:bg-background-secondary
+                                text-secondary hover:bg-(--background-secondary)
                                 cursor-pointer
                             "
                             aria-label="Open navigation menu"
@@ -418,12 +418,12 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
             )}
             
             {/* Login Success Toast */}
-            <LoadingStatusToast
+            <ToastMessage
                 loadingStatus={loginSuccess ? {
                     message: 'Welcome!',
                     subMessage: 'Successfully logged in',
                     icon: <FaCircleCheck className="w-5 h-5" />,
-                    backgroundColor: 'rgb(34, 197, 94)', // green-500
+                    tone: 'success',
                     removeAfterSeconds: 3
                 } : null}
                 isExiting={isLoginSuccessExiting}

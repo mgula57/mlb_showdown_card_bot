@@ -19,7 +19,7 @@ const PALETTE = 'slate|gray|zinc|neutral|stone|red|orange|amber|yellow|lime|gree
 const RULES = [
     {
         id: 'raw-palette-color',
-        pattern: new RegExp(`\\b(?:bg|text|border|ring|from|via|to|fill|stroke|outline|divide|decoration|accent|caret|shadow)-(?:${PALETTE})-\\d{2,3}\\b`),
+        pattern: new RegExp(`\\b(?:bg|text|border|ring|from|via|to|fill|stroke|outline|divide|decoration|accent|caret|shadow|placeholder)-(?:${PALETTE})-\\d{2,3}\\b`),
         message: 'Raw Tailwind palette color. Use a theme token, e.g. text-(--text-secondary) or bg-(--showdown-blue).',
     },
     {

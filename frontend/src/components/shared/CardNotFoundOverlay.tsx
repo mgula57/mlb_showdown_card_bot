@@ -21,7 +21,7 @@ export function CardNotFoundOverlay({ variant = 'field', playerName, playerId }:
 
     return (
         <div
-            className={`absolute inset-0 z-20 flex flex-col items-center justify-center gap-1 rounded-card px-1.5 text-center backdrop-blur-[1px] pointer-events-none ${
+            className={`absolute inset-0 z-20 flex flex-col items-center justify-center gap-1 rounded-card px-1.5 text-center pointer-events-none ${
                 variant === 'field' ? 'bg-black/55' : 'bg-(--background-primary)/75'
             }`}
             title={detail ? `Card not found: ${detail}` : 'Card not found'}

@@ -1,11 +1,11 @@
 import { useEffect, useState } from 'react';
-import { FaSpinner, FaTrophy } from 'react-icons/fa6';
+import { FaTrophy } from 'react-icons/fa6';
 import {
     fetchChallengeInstance, fetchSimLeaderboard,
     type ChallengeInstance, type SimLeaderboardEntry, type SimLeaderboardSort,
 } from '../../../api/sim';
-import { ChallengeCard } from './ChallengeCard';
-import { OutcomeDivider, SimSeasonRow } from './SimSeasonRow';
+import { ChallengeCard, ChallengeCardSkeleton } from './ChallengeCard';
+import { OutcomeDivider, SimSeasonRow, SimSeasonRowSkeleton } from './SimSeasonRow';
 import { challengeSuccessRate } from './challengeStats';
 import BackButton from '../../shared/BackButton';
 import { Tabs, type TabItem } from '../../shared/Tabs';
@@ -111,9 +111,7 @@ export function ChallengeDetail({ instanceId, token, initialChallenge, onBack, o
         return (
             <div className="flex flex-col gap-4">
                 {backButton}
-                <div className="flex justify-center py-12">
-                    <FaSpinner className="animate-spin text-(--text-tertiary) text-xl" />
-                </div>
+                <ChallengeCardSkeleton />
             </div>
         );
     }
@@ -151,8 +149,8 @@ export function ChallengeDetail({ instanceId, token, initialChallenge, onBack, o
                     </InlineError>
                 )}
                 {!entriesError && entries === null && (
-                    <div className="flex justify-center py-8">
-                        <FaSpinner className="animate-spin text-(--text-tertiary) text-lg" />
+                    <div className="flex flex-col gap-1.5">
+                        {Array.from({ length: 4 }, (_, i) => <SimSeasonRowSkeleton key={i} showRank />)}
                     </div>
                 )}
                 {!entriesError && entries !== null && entries.length === 0 && (

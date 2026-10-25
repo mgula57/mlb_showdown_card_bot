@@ -36,7 +36,8 @@ import { useState, useRef, useEffect, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { FaChevronDown, FaCheck, FaTimes } from 'react-icons/fa';
 
-import { FIELD_LABEL_CLASS } from './fieldStyles';
+import { FIELD_FRAME_CLASS, FIELD_LABEL_CLASS, checkBoxClass } from './fieldStyles';
+import { Plate } from './Plate';
 type MultiSelectOption = { value: string; label: string; icon?: ReactNode; iconCompact?: ReactNode };
 
 /** Renders an option's icon when it has one (e.g. a set badge), otherwise its label (falling back to the raw value). */
@@ -237,7 +238,7 @@ const MultiSelect = ({ label, labelDescription, options, selections, onChange, p
                 <label className={FIELD_LABEL_CLASS}>{label}</label>
                 {labelDescription && <p className="text-[9px] text-(--text-secondary)">{labelDescription}</p>}
             </div>
-            
+
             {/* Dropdown Button */}
             <div className="relative">
                 <button
@@ -246,41 +247,37 @@ const MultiSelect = ({ label, labelDescription, options, selections, onChange, p
                     onClick={() => !disabled && setIsOpen(o => !o)}  // re-click closes
                     disabled={disabled}
                     className={`
-                        w-full flex items-center justify-between px-3 py-2 min-h-10
-                        border border-form-element rounded-control 
-                        bg-(--background-primary) text-(--text-primary)
-                        hover:border-(--tertiary) focus:outline-none focus:ring-2 focus:ring-primary/20
-                        ${isOpen ? 'border-primary' : ''}
-                        ${disabled ? 'opacity-60 cursor-not-allowed' : ''}
+                        w-full flex items-center justify-between px-3 py-1.5 min-h-10 text-sm text-left
+                        ${FIELD_FRAME_CLASS}
+                        ${isOpen ? 'border-(--showdown-blue)' : ''}
+                        ${disabled ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'}
                     `}
                 >
                     <div className="flex flex-wrap gap-1 flex-1 mr-2">
                         {selectedValues.length === 0 ? (
-                            <span className="text-(--tertiary)">{placeholder}</span>
+                            <span className="text-(--text-tertiary)">{placeholder}</span>
                         ) : (
                             selectedValues.map(value => {
                                 const option = options.find(opt => opt.value === value);
                                 return (
-                                    <span
-                                        key={value}
-                                        className="inline-flex items-center px-2 py-1 bg-primary/20 text-primary text-xs rounded-card"
-                                    >
+                                    <Plate key={value} size="sm">
                                         <OptionContent option={option} value={value} isTag={true} />
                                         <span
                                             role="button"
                                             tabIndex={0}
+                                            aria-label={`Remove ${option?.label ?? value}`}
                                             onClick={(e) => removeOption(value, e)}
                                             onKeyDown={(e) => e.key === 'Enter' && removeOption(value, e as unknown as React.MouseEvent)}
-                                            className="ml-1 hover:text-primary-dark"
+                                            className="cursor-pointer opacity-60 hover:opacity-100"
                                         >
-                                            <FaTimes className="h-3 w-3" />
+                                            <FaTimes className="h-2.5 w-2.5" />
                                         </span>
-                                    </span>
+                                    </Plate>
                                 );
                             })
                         )}
                     </div>
-                    
+
                     <div className="flex items-center space-x-1">
                         {selectedValues.length > 1 && !disabled && (
                             <span
@@ -288,40 +285,42 @@ const MultiSelect = ({ label, labelDescription, options, selections, onChange, p
                                 tabIndex={0}
                                 onClick={clearAll}
                                 onKeyDown={(e) => e.key === 'Enter' && clearAll(e as unknown as React.MouseEvent)}
-                                className="text-xs text-(--text-secondary) hover:text-(--text-primary) p-1"
+                                className="text-xs text-(--text-tertiary) hover:text-(--text-primary) p-1 cursor-pointer"
                                 title="Clear all"
                             >
                                 <FaTimes className="h-3 w-3" />
                             </span>
                         )}
-                        <FaChevronDown 
-                            className={`h-4 w-4 transition-transform text-(--text-secondary) ${isOpen ? 'rotate-180' : ''}`} 
+                        <FaChevronDown
+                            className={`h-3 w-3 transition-transform text-(--text-tertiary) ${isOpen ? 'rotate-180' : ''}`}
                         />
                     </div>
                 </button>
 
-                {/* Dropdown dropdown */}
+                {/* Dropdown menu, styled like CustomSelect's */}
                 {isOpen && !disabled && createPortal(
                     <div
                         ref={menuRef}
                         style={dropdownStyle}
-                        className={`bg-(--background-primary) border border-(--border-primary) rounded-card shadow-overlay overflow-y-auto scrollbar-hide
+                        className={`bg-(--background-secondary) border border-(--rule-strong) rounded-card shadow-overlay overflow-y-auto scrollbar-hide
                                     transform ${openAbove ? '-translate-y-full -mt-1' : 'mt-1'}`}
                     >
                         {/* Header with select all / clear all */}
-                        <div className="px-3 py-2 border-b border-(--border-secondary) bg-(--background-secondary)">
-                            <div className="flex justify-between text-xs">
+                        <div className="px-3 py-2 border-b border-(--divider)">
+                            <div className="flex justify-between text-xs font-semibold">
                                 <button
+                                    type="button"
                                     onClick={() => onChange(options.map(opt => opt.value))}
                                     disabled={disabled}
-                                    className="text-primary hover:text-primary-dark"
+                                    className="cursor-pointer text-(--showdown-blue) hover:underline"
                                 >
                                     Select All
                                 </button>
                                 <button
+                                    type="button"
                                     onClick={() => onChange([])}
                                     disabled={disabled}
-                                    className="text-(--text-secondary) hover:text-(--text-primary)"
+                                    className="cursor-pointer text-(--text-tertiary) hover:text-(--text-primary)"
                                 >
                                     Clear All
                                 </button>
@@ -334,29 +333,25 @@ const MultiSelect = ({ label, labelDescription, options, selections, onChange, p
                             return (
                                 <div
                                     key={option.value}
+                                    role="checkbox"
+                                    aria-checked={isSelected}
                                     onClick={() => toggleOption(option.value)}
                                     className={`
-                                        flex items-center px-3 py-2 cursor-pointer hover:bg-(--background-secondary)
-                                        ${isSelected ? 'bg-primary/10' : ''}
+                                        flex items-center gap-3 px-3 py-2 text-sm cursor-pointer hover:bg-(--background-tertiary)
+                                        ${isSelected ? 'font-semibold' : ''}
                                     `}
                                 >
-                                    <div className={`
-                                        flex items-center justify-center w-4 h-4 mr-3 border rounded
-                                        ${isSelected 
-                                            ? 'bg-primary border-primary'
-                                            : 'border-(--border-primary)'
-                                        }
-                                    `}>
-                                        {isSelected && <FaCheck className="h-2 w-2" />}
-                                    </div>
-                                    <span className="text-sm"><OptionContent option={option} value={option.value} isTag={false} /></span>
+                                    <span aria-hidden className={`w-4 h-4 text-[9px] ${checkBoxClass(isSelected)}`}>
+                                        {isSelected && <FaCheck />}
+                                    </span>
+                                    <OptionContent option={option} value={option.value} isTag={false} />
                                 </div>
                             );
                         })}
 
                         {/* No options message */}
                         {options.length === 0 && (
-                            <div className="px-3 py-4 text-center text-(--text-secondary) text-sm">
+                            <div className="px-3 py-4 text-center text-(--text-tertiary) text-sm">
                                 No options available
                             </div>
                         )}

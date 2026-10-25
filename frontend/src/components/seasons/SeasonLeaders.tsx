@@ -9,6 +9,7 @@ import { CardDetail } from "../cards/CardDetail";
 import { Modal } from "../shared/Modal";
 import { CAPS_LABEL_CLASS } from "../shared/fieldStyles";
 import { headingClass } from "../shared/headingStyles";
+import { Plate } from '../shared/Plate';
 
 // =============================================================================
 // MARK: - Category Definitions
@@ -295,7 +296,7 @@ export default function SeasonLeaders({ seasonId, season, showdownSet, sportId, 
                 <div className="space-y-8">
                     {visibleCategories.slice(0, 6).map((cat) => (
                         <div key={cat.id}>
-                            <div className={`h-4 w-32 rounded mb-3 animate-pulse bg-(--background-quaternary)`} />
+                            <div className="h-4 w-32 rounded-plate mb-3 animate-pulse bg-(--background-tertiary)" />
                             <div className="flex gap-3 overflow-x-auto scrollbar-hide -mx-6 px-6 lg:mx-0 lg:px-0 lg:grid lg:grid-cols-3">
                                 {[0, 1, 2].map(i => (
                                     <div
@@ -329,9 +330,7 @@ export default function SeasonLeaders({ seasonId, season, showdownSet, sportId, 
                                     <span className={`${CAPS_LABEL_CLASS} text-(--text-tertiary)`}>
                                         {catDef.label}
                                     </span>
-                                    <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded bg-(--plate) text-(--text-secondary)`}>
-                                        {catDef.abbrev}
-                                    </span>
+                                    <Plate size="sm">{catDef.abbrev}</Plate>
                                 </div>
 
                                 {/* 3 cards */}

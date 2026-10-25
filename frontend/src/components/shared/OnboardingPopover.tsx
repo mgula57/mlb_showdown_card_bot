@@ -15,6 +15,8 @@
  * @component
  */
 import React from 'react';
+import { buttonClass } from './buttonStyles';
+import { Heading } from './Heading';
 
 interface OnboardingPopoverProps {
     /** Title of the popover */
@@ -35,26 +37,20 @@ export const OnboardingPopover: React.FC<OnboardingPopoverProps> = ({
             absolute bottom-full left-0 mb-3
             w-56 p-3
             bg-(--background-secondary)
-            border border-form-element
+            border border-(--divider)
             rounded-card shadow-overlay
             text-left z-50
             animate-fade-in
         ">
 
-            <p className="text-sm font-semibold text-primary mb-1">{title}</p>
+            <Heading level="panel" as="div" className="mb-1">{title}</Heading>
             <p className="text-xs text-secondary mb-3">
                 {content}
             </p>
             <button
                 type="button"
                 onClick={onClose}
-                className="
-                    w-full py-1.5 px-3
-                    bg-(--showdown-red) hover:bg-(--showdown-red)/80
-                    text-white text-xs font-semibold
-                    rounded-control cursor-pointer
-                    transition-colors duration-150
-                "
+                className={buttonClass('primary', 'sm', 'w-full')}
             >
                 Got it
             </button>

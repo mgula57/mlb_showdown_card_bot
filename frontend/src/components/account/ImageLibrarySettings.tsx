@@ -17,9 +17,10 @@ import type { OrderedImageLibrary } from './useImageLibraries';
 import { deleteImageLibrary, saveImageLibrary, updateImageLibraryOrder } from '../../api/imageLibraries';
 
 import { FIELD_LABEL_CLASS } from '../shared/fieldStyles';
+import { buttonClass } from '../shared/buttonStyles';
 const MAX_LIBRARIES = 5; // Matches UserImageLibraries.MAX_LIBRARIES
 
-const iconButton = 'p-1.5 rounded-control text-(--text-tertiary) hover:text-secondary hover:bg-background-tertiary cursor-pointer disabled:cursor-not-allowed disabled:opacity-30';
+const iconButton = 'p-1.5 rounded-control text-(--text-tertiary) hover:text-(--text-secondary) hover:bg-(--background-tertiary) cursor-pointer disabled:cursor-not-allowed disabled:opacity-30';
 
 const formatDate = (iso: string | null) => iso
     ? new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
@@ -27,10 +28,10 @@ const formatDate = (iso: string | null) => iso
 
 const LibraryRowSkeleton: React.FC = () => (
     <div className="flex items-center gap-3 rounded-card border border-form-element p-3 animate-pulse">
-        <div className="w-6 h-6 rounded-full bg-background-tertiary" />
+        <div className="w-6 h-6 rounded-plate bg-(--background-tertiary)" />
         <div className="flex-1 space-y-1.5">
-            <div className="h-4 w-40 rounded bg-background-tertiary" />
-            <div className="h-3 w-56 rounded bg-background-tertiary" />
+            <div className="h-4 w-40 rounded-plate bg-(--background-tertiary)" />
+            <div className="h-3 w-56 rounded-plate bg-(--background-tertiary)" />
         </div>
     </div>
 );
@@ -55,7 +56,7 @@ const LibraryRow: React.FC<LibraryRowProps> = ({ entry, rank, isFirst, isLast, i
     return (
         <div className="rounded-card border border-form-element p-3">
             <div className="flex items-center gap-3">
-                <span className="w-6 h-6 shrink-0 rounded-full bg-accent text-primary text-xs font-bold flex items-center justify-center">{rank}</span>
+                <span className="w-6 h-6 shrink-0 rounded-plate bg-(--showdown-blue) text-white text-xs font-bold tabular-nums flex items-center justify-center">{rank}</span>
                 {entry.isShowdownBot
                     ? <FaRobot className="shrink-0 text-(--text-tertiary)" />
                     : <FaGoogleDrive className="shrink-0 text-(--text-tertiary)" />}
@@ -161,7 +162,7 @@ export const ImageLibrarySettings: React.FC = () => {
             onClick={() => setIsSetupOpen(true)}
             disabled={isLoading || isUnavailable || libraryCount >= MAX_LIBRARIES}
             title={libraryCount >= MAX_LIBRARIES ? `You can connect up to ${MAX_LIBRARIES} folders` : undefined}
-            className="shrink-0 flex items-center gap-2 px-3 py-2 rounded-control bg-accent text-primary text-sm font-semibold cursor-pointer disabled:cursor-not-allowed disabled:opacity-50"
+            className={buttonClass('primary')}
         >
             <FaPlus className="w-3 h-3" />
             <span className="hidden sm:inline">Connect Google Drive</span>

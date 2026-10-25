@@ -3,9 +3,8 @@ import { FaUserCircle, FaSignOutAlt, FaSpinner, FaCog } from 'react-icons/fa';
 import { FaCircleCheck } from 'react-icons/fa6';
 import { useAuth } from './AuthContext';
 import { useNavigate } from 'react-router-dom';
-import { LoadingStatusToast } from '../shared/LoadingStatusToast';
-import { DEFAULT_PRIMARY_COLOR, DEFAULT_SECONDARY_COLOR } from '../../api/userSettings';
-import { userInitials } from '../../functions/formatters';
+import { ToastMessage } from '../shared/ToastMessage';
+import { UserAvatar } from '../shared/UserAvatar';
 
 // ---------------------------------------------------------------------------
 // AccountAvatar — reusable avatar image / initials / fallback icon
@@ -13,7 +12,7 @@ import { userInitials } from '../../functions/formatters';
 
 interface AccountAvatarProps {
     className?: string;
-    /** Button size in Tailwind units (applied as w-{size} h-{size}) */
+    /** Diameter in Tailwind spacing units (9 = 36px) */
     size?: number;
     showStatus?: boolean;
     onClick?: () => void;
@@ -29,43 +28,31 @@ export const AccountAvatar: React.FC<AccountAvatarProps> = ({
     label,
 }) => {
     const { user, username, userSettings } = useAuth();
+    const px = size * 4;
 
     return (
         <div className={`relative inline-flex ${className}`}>
             <button
+                type="button"
                 onClick={onClick}
-                style={user && !userSettings?.avatar_url ? {
-                    background: `linear-gradient(to right, ${userSettings?.default_primary_color ?? DEFAULT_PRIMARY_COLOR} 15%, ${userSettings?.default_secondary_color ?? DEFAULT_SECONDARY_COLOR} 85%)`,
-                } : undefined}
+                style={{ width: px, height: px }}
                 className={`
-                    flex items-center justify-center
-                    w-${size} h-${size} rounded-full
-                    transition-colors duration-200
-                    cursor-pointer
+                    flex items-center justify-center rounded-full
+                    transition-colors duration-200 cursor-pointer
                     ${user
-                        ? userSettings?.avatar_url
-                            ? 'border-2 bg-transparent border-transparent hover:border-(--showdown-blue) overflow-hidden'
-                            : 'border-0'
-                        : 'border-2 bg-transparent border-(--tertiary) hover:border-secondary opacity-60 hover:opacity-100'
+                        ? 'border-2 border-transparent hover:border-(--showdown-blue)'
+                        : 'border-2 border-(--tertiary) hover:border-(--rule-strong) opacity-60 hover:opacity-100'
                     }
                 `}
                 aria-label={label ?? (user ? (username || 'Account') : 'Sign in')}
             >
                 {user ? (
-                    userSettings?.avatar_url ? (
-                        <img
-                            src={userSettings.avatar_url}
-                            alt="avatar"
-                            className="w-full h-full rounded-full object-cover"
-                        />
-                    ) : (
-                        <span
-                            className="font-semibold text-white select-none"
-                            style={{ fontSize: `${Math.round(size * 6 * 0.35)}px` }}
-                        >
-                            {userInitials(username || user.email)}
-                        </span>
-                    )
+                    <UserAvatar
+                        name={username || user.email}
+                        avatarUrl={userSettings?.avatar_url}
+                        primaryColor={userSettings?.default_primary_color}
+                        size={px - 4}
+                    />
                 ) : (
                     <FaUserCircle className="w-full h-full text-secondary" />
                 )}
@@ -77,7 +64,7 @@ export const AccountAvatar: React.FC<AccountAvatarProps> = ({
                     w-2 h-2
                     bg-(--green)
                     rounded-full
-                    ring-2 ring-primary
+                    ring-2 ring-(--background-primary)
                     pointer-events-none
                 " />
             )}
@@ -149,11 +136,11 @@ export const AccountIcon: React.FC<AccountIconProps> = ({
                 label={user ? 'Open account menu' : 'Sign in'}
             />
 
-            <LoadingStatusToast
+            <ToastMessage
                 loadingStatus={hasSignedOut ? {
                     message: 'Logged Out!',
                     icon: <FaCircleCheck className="w-5 h-5" />,
-                    backgroundColor: 'rgb(34, 197, 94)',
+                    tone: 'success',
                     removeAfterSeconds: 3,
                 } : null}
                 isExiting={isSignOutExiting}
@@ -172,7 +159,7 @@ export const AccountIcon: React.FC<AccountIconProps> = ({
                     <div className='flex space-x-3 px-2 py-3 border-b border-form-element'>
                         <AccountAvatar size={10} showStatus={false} />
                         <div>
-                            <p className="text-md font-bold text-primary truncate">{username}</p>
+                            <p className="text-base font-bold text-primary truncate">{username}</p>
                             <p className="text-[11px] text-secondary truncate">{user.email}</p>
                         </div>
                     </div>

@@ -184,7 +184,7 @@ export default function SimRunnerRolls({ rolls, beatId, phase, speed = 1, cardMa
     if (!rolls?.length) return null;
 
     return (
-        <div className="flex flex-col divide-y divide-(--divider) rounded-card border border-(--divider) bg-(--background-secondary)/80 shadow-overlay backdrop-blur-sm">
+        <div className="flex flex-col divide-y divide-(--divider) rounded-card border border-(--divider) bg-(--background-secondary) shadow-overlay">
             {rolls.map((attempt, index) => (
                 <RunnerRollRow
                     // Keyed on the beat too, so a new beat remounts the row and replays the whole sequence.

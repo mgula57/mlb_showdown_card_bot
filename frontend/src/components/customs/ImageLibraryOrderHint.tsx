@@ -37,8 +37,8 @@ export const ImageLibraryOrderHint: React.FC<{ className?: string }> = ({ classN
     if (isLoading) {
         return (
             <div className={`space-y-1.5 animate-pulse ${className}`}>
-                <div className="h-3 w-28 rounded bg-background-tertiary" />
-                <div className="h-3 w-36 rounded bg-background-tertiary" />
+                <div className="h-3 w-28 rounded-plate bg-(--background-tertiary)" />
+                <div className="h-3 w-36 rounded-plate bg-(--background-tertiary)" />
             </div>
         );
     }

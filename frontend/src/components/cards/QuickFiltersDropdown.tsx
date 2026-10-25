@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback, type ReactNode } from 'react'
 import { createPortal } from 'react-dom';
 import { FaBolt, FaTrash, FaCheck, FaTimes, FaPlus, FaLock, FaPencilAlt } from 'react-icons/fa';
 import { FaFloppyDisk } from 'react-icons/fa6';
-import { LoadingStatusToast } from '../shared/LoadingStatusToast';
+import { ToastMessage, type ToastTone } from '../shared/ToastMessage';
 import { CardSource } from '../../types/cardSource';
 import {
     type QuickFilter,
@@ -14,6 +14,7 @@ import {
 import { LoginModal } from '../auth/LoginModal';
 
 import { fieldClass, CAPS_LABEL_CLASS } from '../shared/fieldStyles';
+import { buttonVariantClass } from '../shared/buttonStyles';
 function Tip({ label, children }: { label: string; children: ReactNode }) {
     return (
         <div className="relative group/tip shrink-0">
@@ -45,7 +46,7 @@ export function QuickFiltersDropdown({ source, defaultPresets, currentFilters, o
     const [isSaving, setIsSaving] = useState(false);
     const [renamingId, setRenamingId] = useState<string | null>(null);
     const [renameValue, setRenameValue] = useState('');
-    const [toast, setToast] = useState<{ message: string; color: string } | null>(null);
+    const [toast, setToast] = useState<{ message: string; tone: ToastTone } | null>(null);
     const [toastExiting, setToastExiting] = useState(false);
     const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const [showLoginModal, setShowLoginModal] = useState(false);
@@ -74,9 +75,9 @@ export function QuickFiltersDropdown({ source, defaultPresets, currentFilters, o
         appliedSnapshotRef.current !== null &&
         JSON.stringify(currentFilters) === JSON.stringify(appliedSnapshotRef.current);
 
-    const showToast = (message: string, color: string) => {
+    const showToast = (message: string, tone: ToastTone) => {
         if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
-        setToast({ message, color });
+        setToast({ message, tone });
         setToastExiting(false);
         toastTimerRef.current = setTimeout(() => {
             setToastExiting(true);
@@ -154,14 +155,14 @@ export function QuickFiltersDropdown({ source, defaultPresets, currentFilters, o
         setSaveMode(false);
         setSaveName('');
         setIsSaving(false);
-        showToast('Filter saved!', 'rgb(34, 197, 94)');
+        showToast('Filter saved!', 'success');
     };
 
     const handleDelete = async (id: string) => {
         if (!token) return;
         setUserFilters(prev => prev.filter(f => f.id !== id));
         await deleteUserQuickFilter(token, id);
-        showToast('Filter deleted', 'rgb(156, 163, 175)');
+        showToast('Filter deleted', 'neutral');
     };
 
     const handleRenameCommit = async () => {
@@ -170,7 +171,7 @@ export function QuickFiltersDropdown({ source, defaultPresets, currentFilters, o
         setUserFilters(prev => prev.map(f => f.id === renamingId ? { ...f, name: trimmed } : f));
         setRenamingId(null);
         await updateUserQuickFilter(token, renamingId, { name: trimmed });
-        showToast('Filter renamed!', 'rgb(34, 197, 94)');
+        showToast('Filter renamed!', 'success');
     };
 
     const handleRenameCancel = () => {
@@ -182,7 +183,7 @@ export function QuickFiltersDropdown({ source, defaultPresets, currentFilters, o
         if (!token) return;
         setUserFilters(prev => prev.map(f => f.id === id ? { ...f, filters: currentFilters } : f));
         await updateUserQuickFilter(token, id, { filters: currentFilters });
-        showToast('Preset updated!', 'rgb(34, 197, 94)');
+        showToast('Preset updated!', 'success');
     };
 
     return (
@@ -204,7 +205,7 @@ export function QuickFiltersDropdown({ source, defaultPresets, currentFilters, o
                     absolute top-full mt-1 z-50
                     ${alignRight ? 'right-0' : 'left-0'}
                     min-w-64 w-max max-w-80
-                    bg-(--background-secondary)/95 backdrop-blur-2xl border border-form-element
+                    bg-(--background-secondary) border border-(--rule-strong)
                     rounded-card shadow-overlay
                 `}>
                     {/* Defaults */}
@@ -227,7 +228,7 @@ export function QuickFiltersDropdown({ source, defaultPresets, currentFilters, o
                         </section>
                     )}
 
-                    <div className="border-t border-form-element" />
+                    <div className="border-t border-(--divider)" />
 
                     {/* My Filters */}
                     <section className="px-3 pt-2 pb-3">
@@ -236,13 +237,15 @@ export function QuickFiltersDropdown({ source, defaultPresets, currentFilters, o
                         {!isLoggedIn ? (
                             <button
                                 onClick={() => { setIsOpen(false); setShowLoginModal(true); }}
-                                className="flex items-center gap-2 text-sm text-secondary hover:text-primary transition-colors py-1 cursor-pointer"
+                                className="flex items-center gap-2 text-sm text-secondary hover:text-(--text-primary) transition-colors py-1 cursor-pointer"
                             >
                                 <FaLock className="text-xs" />
                                 <span>Sign in to save filters</span>
                             </button>
                         ) : isLoadingFilters ? (
-                            <p className="text-xs text-secondary py-1">Loading...</p>
+                            <ul className="flex flex-col gap-1 mb-2 animate-pulse" aria-label="Loading filters">
+                                {[0, 1].map(i => <li key={i} className="h-8 rounded-control bg-(--background-tertiary)" />)}
+                            </ul>
                         ) : userFilters.length === 0 ? (
                             <p className="text-xs text-secondary py-1">No saved filters yet.</p>
                         ) : (
@@ -260,14 +263,14 @@ export function QuickFiltersDropdown({ source, defaultPresets, currentFilters, o
                                                         if (e.key === 'Enter') handleRenameCommit();
                                                         if (e.key === 'Escape') handleRenameCancel();
                                                     }}
-                                                    className="flex-1 text-sm px-2 py-1 rounded-control border border-form-element bg-(--background-primary) focus:outline-none focus:border-(--showdown-blue) min-w-0"
+                                                    className={fieldClass('sm', 'flex-1 min-w-0 focus:outline-none')}
                                                     maxLength={40}
                                                 />
                                                 <Tip label="Save rename">
                                                     <button
                                                         onClick={handleRenameCommit}
                                                         disabled={!renameValue.trim()}
-                                                        className="p-1.5 rounded-control bg-(--success) text-white disabled:opacity-40 cursor-pointer"
+                                                        className={`p-1.5 rounded-control ${buttonVariantClass('primary')}`}
                                                         aria-label="Confirm rename"
                                                     >
                                                         <FaCheck className="text-xs" />
@@ -296,7 +299,7 @@ export function QuickFiltersDropdown({ source, defaultPresets, currentFilters, o
                                                     <Tip label="Update with current filters">
                                                         <button
                                                             onClick={() => handleUpdateFilters(f.id)}
-                                                            className="p-1.5 rounded-control hover:bg-(--background-secondary-hover) text-secondary hover:text-primary transition-colors cursor-pointer"
+                                                            className="p-1.5 rounded-control hover:bg-(--background-secondary-hover) text-secondary hover:text-(--text-primary) transition-colors cursor-pointer"
                                                             aria-label={`Update ${f.name} with current filters`}
                                                         >
                                                             <FaFloppyDisk className="text-xs" />
@@ -306,7 +309,7 @@ export function QuickFiltersDropdown({ source, defaultPresets, currentFilters, o
                                                 <Tip label="Rename">
                                                     <button
                                                         onClick={() => { setRenamingId(f.id); setRenameValue(f.name); }}
-                                                        className="p-1.5 rounded-control hover:bg-(--background-secondary-hover) text-secondary hover:text-primary transition-colors cursor-pointer"
+                                                        className="p-1.5 rounded-control hover:bg-(--background-secondary-hover) text-secondary hover:text-(--text-primary) transition-colors cursor-pointer"
                                                         aria-label={`Rename ${f.name}`}
                                                     >
                                                         <FaPencilAlt className="text-xs" />
@@ -332,7 +335,7 @@ export function QuickFiltersDropdown({ source, defaultPresets, currentFilters, o
                         {isLoggedIn && !saveMode && (
                             <button
                                 onClick={() => setSaveMode(true)}
-                                className="flex items-center gap-1.5 text-sm text-secondary hover:text-primary transition-colors mt-1 cursor-pointer"
+                                className="flex items-center gap-1.5 text-sm text-secondary hover:text-(--text-primary) transition-colors mt-1 cursor-pointer"
                             >
                                 <FaPlus className="text-xs" />
                                 <span>Save current filters</span>
@@ -351,14 +354,14 @@ export function QuickFiltersDropdown({ source, defaultPresets, currentFilters, o
                                         if (e.key === 'Enter') handleSave();
                                         if (e.key === 'Escape') { setSaveMode(false); setSaveName(''); }
                                     }}
-                                    className="flex-1 text-sm px-2 py-1 rounded-control border border-form-element bg-(--background-primary) focus:outline-none focus:border-(--showdown-blue) min-w-0"
+                                    className={fieldClass('sm', 'flex-1 min-w-0 focus:outline-none')}
                                     maxLength={40}
                                 />
                                 <Tip label="Save">
                                     <button
                                         onClick={handleSave}
                                         disabled={!saveName.trim() || isSaving}
-                                        className="p-1.5 rounded-control bg-(--success) text-white disabled:opacity-40 transition-opacity cursor-pointer"
+                                        className={`p-1.5 rounded-control ${buttonVariantClass('primary')}`}
                                         aria-label="Save"
                                     >
                                         <FaCheck className="text-xs" />
@@ -382,8 +385,8 @@ export function QuickFiltersDropdown({ source, defaultPresets, currentFilters, o
             {showLoginModal && <LoginModal onClose={() => setShowLoginModal(false)} />}
 
             {createPortal(
-                <LoadingStatusToast
-                    loadingStatus={toast ? { message: toast.message, backgroundColor: toast.color } : null}
+                <ToastMessage
+                    loadingStatus={toast}
                     isExiting={toastExiting}
                 />,
                 document.body

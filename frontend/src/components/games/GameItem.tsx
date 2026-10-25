@@ -13,6 +13,7 @@ import { GameStatePlate } from "./GameStatePlate";
 import { Plate } from "../shared/Plate";
 import { buttonClass } from "../shared/buttonStyles";
 import { FIELD_LABEL_CLASS } from "../shared/fieldStyles";
+import { NEUTRAL_TEAM_COLOR, NEUTRAL_TEAM_COLOR_SECONDARY } from '../../functions/colors';
 
 type GameItemProps = {
     game: GameView;
@@ -108,8 +109,8 @@ export default function GameItem({ game, isStarred, showMatchupDetails, playerId
         points: 0,
         command: 0,
         is_pitcher: true,
-        color_primary: '#1f2937',
-        color_secondary: '#374151',
+        color_primary: NEUTRAL_TEAM_COLOR,
+        color_secondary: NEUTRAL_TEAM_COLOR_SECONDARY,
         team: team || 'N/A',
         positions_and_defense_string: detail,
         ip: null,

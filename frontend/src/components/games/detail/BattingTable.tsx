@@ -13,6 +13,7 @@ import CardIdentityCell from "../../cards/card_elements/CardIdentityCell";
 import { CAPS_LABEL_CLASS } from "../../shared/fieldStyles";
 import TablePointsSummary from "./TablePointsSummary";
 import TeamTableHeader from "./TeamTableHeader";
+import { NEUTRAL_TEAM_COLOR_SECONDARY } from '../../../functions/colors';
 
 type CardMap = Record<string, ShowdownBotCardAPIResponse>;
 
@@ -20,7 +21,7 @@ const cardDefenseForPosition = (card: ShowdownBotCardAPIResponse["card"] | undef
     defenseAtPosition(card?.positions_and_defense, position);
 
 export default function BattingTable({ team, sportId, cardMap, onCardSelect, isShowingModal, isLoadingCards, hasGameStarted }: { team: BoxscoreTeamData; sportId?: number; cardMap: CardMap; onCardSelect?: (card: ShowdownBotCardAPIResponse) => void; isShowingModal?: boolean; isLoadingCards?: boolean; hasGameStarted?: boolean }) {
-    const badgeBgSecondary = team.team.secondary_color ?? '#4b5563';
+    const badgeBgSecondary = team.team.secondary_color ?? NEUTRAL_TEAM_COLOR_SECONDARY;
     const hasCards = Object.keys(cardMap).length > 0;
 
     const sortedBatters = [...team.batting]

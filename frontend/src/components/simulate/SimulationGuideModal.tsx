@@ -30,7 +30,7 @@ const markdownComponents: Components = {
     strong: ({ children }) => <strong className="font-bold text-(--text-primary)">{children}</strong>,
     hr: () => <hr className="border-(--divider) my-1" />,
     code: ({ children }) => (
-        <code className="px-1 py-0.5 rounded bg-(--background-secondary) text-(--showdown-blue) text-[12px] font-mono">{children}</code>
+        <code className="px-1 py-0.5 rounded-plate bg-(--background-secondary) text-(--showdown-blue) text-[12px] font-mono">{children}</code>
     ),
     a: ({ href, children }) => {
         // Only absolute links resolve outside the app - everything else in the guide is a
@@ -49,13 +49,13 @@ const markdownComponents: Components = {
 function GuideSkeleton() {
     return (
         <div className="flex flex-col gap-3 animate-pulse">
-            <div className="h-3 w-3/4 rounded bg-(--background-secondary)" />
-            <div className="h-3 w-full rounded bg-(--background-secondary)" />
-            <div className="h-3 w-5/6 rounded bg-(--background-secondary)" />
-            <div className="h-4 w-1/3 rounded bg-(--background-secondary) mt-3" />
-            <div className="h-3 w-full rounded bg-(--background-secondary)" />
-            <div className="h-3 w-full rounded bg-(--background-secondary)" />
-            <div className="h-3 w-2/3 rounded bg-(--background-secondary)" />
+            <div className="h-3 w-3/4 rounded-plate bg-(--background-tertiary)" />
+            <div className="h-3 w-full rounded-plate bg-(--background-tertiary)" />
+            <div className="h-3 w-5/6 rounded-plate bg-(--background-tertiary)" />
+            <div className="h-4 w-1/3 rounded-plate bg-(--background-tertiary) mt-3" />
+            <div className="h-3 w-full rounded-plate bg-(--background-tertiary)" />
+            <div className="h-3 w-full rounded-plate bg-(--background-tertiary)" />
+            <div className="h-3 w-2/3 rounded-plate bg-(--background-tertiary)" />
         </div>
     );
 }

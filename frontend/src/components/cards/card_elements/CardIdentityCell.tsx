@@ -34,7 +34,7 @@ export default function CardIdentityCell({
     return (
         <div className="flex items-center space-x-1.5">
             {isLoadingCard ? (
-                <div className="w-6 h-6 rounded-full bg-(--background-quaternary) animate-pulse shrink-0" />
+                <div className="w-6 h-6 rounded-full bg-(--background-tertiary) animate-pulse shrink-0" />
             ) : (
                 <CardCommand
                     isPitcher={isPitcher ?? true}
@@ -48,7 +48,7 @@ export default function CardIdentityCell({
             <div className="space-y-0.5">
                 <div className="font-semibold text-(--primary) text-[11px] text-nowrap">{name}</div>
                 <div className="flex items-center gap-1">
-                    {isLoadingCard && <div className="h-4 w-10 rounded-full bg-(--background-quaternary) animate-pulse" />}
+                    {isLoadingCard && <div className="h-4 w-10 rounded-plate bg-(--background-tertiary) animate-pulse" />}
                     {hasCard && points != null && <PointsBadge points={points} bg_color={secondaryColor} />}
                     {hasCard && ptsChange != null && ptsChange !== 0 && (
                         <span className={`text-[9px] font-bold leading-none ${ptsChange > 0 ? 'text-(--green)' : 'text-(--red)'}`}>

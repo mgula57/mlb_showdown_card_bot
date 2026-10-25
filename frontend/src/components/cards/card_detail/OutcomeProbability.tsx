@@ -6,6 +6,7 @@ import { buildChartRangesFromValues } from '../card_elements/CardChart';
 import { FaMinus } from 'react-icons/fa';
 import { FaMagnifyingGlass } from 'react-icons/fa6';
 import { CAPS_LABEL_CLASS } from '../../shared/fieldStyles';
+import { choiceClass } from '../../shared/choiceStyles';
 
 const OUTCOME_ORDER = ['PU', 'SO', 'GB', 'FB', 'BB', '1B', '1B+', '2B', '3B', 'HR'];
 const TOTAL = 20;
@@ -20,9 +21,9 @@ const PLACEHOLDER_CHART: ShowdownBotCardChart = {
 
 function outcomeColor(key: string, primaryColor?: string, secondaryColor?: string): string {
     const k = key.toUpperCase();
-    if (['PU','SO','GB','FB'].includes(k)) return primaryColor || 'rgb(239,68,68)';
-    if (k === 'HR') return secondaryColor || 'rgb(168,85,247)';
-    return 'rgb(70,70,70)';
+    if (['PU','SO','GB','FB'].includes(k)) return primaryColor || 'var(--showdown-red)';
+    if (k === 'HR') return secondaryColor || 'var(--showdown-blue)';
+    return 'var(--field-ink)';
 }
 
 function calcProbabilities(
@@ -245,7 +246,7 @@ export default function OutcomeProbability({ chart, primaryColor, secondaryColor
         <div className={`space-y-3 ${isEmpty ? 'opacity-25 pointer-events-none select-none' : ''}`}>
 
             {/* Mode toggle */}
-            <div className="flex items-center gap-1 p-0.5 rounded-card self-start" style={{ background: 'color-mix(in srgb, var(--form-element) 30%, transparent)' }}>
+            <div className="flex items-center gap-1.5 self-start">
                 {(
                     [
                         { label: 'Baseline', value: 'slider', symbol: <FaMinus /> },
@@ -258,16 +259,7 @@ export default function OutcomeProbability({ chart, primaryColor, secondaryColor
                             setOpponentMode(mode.value);
                             if (mode.value === 'slider') handleClearOpponent();
                         }}
-                        className={`
-                            flex items-center gap-1
-                            px-3 py-1 rounded-control 
-                            text-[10px] font-semibold uppercase tracking-wide 
-                            transition-colors cursor-pointer
-                            ${
-                                opponentMode === mode.value
-                                    ? 'bg-(--background-primary) text-secondary ring-1 ring-(--divider)'
-                                    : 'text-secondary opacity-40 hover:opacity-60'
-                            }`}
+                        className={choiceClass(opponentMode === mode.value, 'sm')}
                     >
                         {mode.symbol}
                         {mode.label}
@@ -348,6 +340,7 @@ export default function OutcomeProbability({ chart, primaryColor, secondaryColor
                         >
                             {showLabel && (
                                 <div className="flex flex-col items-center leading-none gap-0.5">
+                                    {/* design-ok: drop-shadow keeps white labels legible on light team colors */}
                                     <span className="text-[10px] font-bold text-white drop-shadow">{key}</span>
                                     <span className="text-[9px] font-semibold text-white/80 drop-shadow tabular-nums">
                                         {(prob * 100).toFixed(1)}%

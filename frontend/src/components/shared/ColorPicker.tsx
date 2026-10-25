@@ -42,7 +42,7 @@ export default function ColorPicker({ label, value, onChange }: ColorPickerProps
                     type="color"
                     value={toInputHex(value)}
                     onChange={handleChange}
-                    className="w-8 h-8 rounded border border-(--divider) cursor-pointer p-0"
+                    className="w-8 h-8 rounded-control border border-(--divider) cursor-pointer p-0"
                 />
                 <span className="text-[12px] text-(--text-secondary) font-mono">{value}</span>
             </div>

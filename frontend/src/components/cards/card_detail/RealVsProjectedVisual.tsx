@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { type RealVsProjectedStat } from '../../../api/showdownBotCard';
 import { formatStatValue } from '../../../functions/formatters';
+import { heatColor } from '../../../functions/colors';
 
 type StatRanges = Record<string, { min: number; max: number }>;
 
@@ -44,20 +45,12 @@ function simStatValue(stat: string, simStats?: Record<string, number>): number |
     return simStats[STAT_TO_SIM_KEY[stat] ?? stat.toLowerCase()];
 }
 
-function percentileColor(p: number): string {
-    if (p >= 80) return 'rgb(220,38,38)';
-    if (p >= 60) return 'rgb(249,115,22)';
-    if (p >= 40) return 'rgb(148,163,184)';
-    if (p >= 20) return 'rgb(100,116,139)';
-    return 'rgb(59,130,246)';
-}
-
 function diffColor(diffStr: string): string {
     if (!diffStr || diffStr === '0' || diffStr === '+0') return 'opacity-40';
     return diffStr.startsWith('+') ? 'text-(--green)' : 'text-(--red)';
 }
 
-const GHOST_COLOR = 'rgb(148,163,184)';
+const GHOST_COLOR = 'var(--rule-strong)';
 
 // Stats where a lower value is better, keyed by player type
 const INVERTED_STATS: Record<'HITTER' | 'PITCHER', Set<string>> = {
@@ -71,8 +64,8 @@ const INVERTED_STATS: Record<'HITTER' | 'PITCHER', Set<string>> = {
 function PercentileBar({ stat, real, statRanges, hasRanges, isLoading, playerType, className }: { stat: string; real: number | null; statRanges: StatRanges; hasRanges: boolean; isLoading?: boolean; playerType?: 'HITTER' | 'PITCHER'; className?: string }) {
     if (isLoading) return (
         <div className={`flex-1 relative h-5 flex items-center ${className || ''}`}>
-            <div className="absolute inset-x-0 h-1 rounded-full animate-pulse" style={{ background: 'rgba(148,163,184,0.35)' }} />
-            <div className="absolute h-5 w-5 rounded-full animate-pulse" style={{ left: '0%', background: 'rgba(148,163,184,0.35)' }} />
+            <div className="absolute inset-x-0 h-1 rounded-full animate-pulse bg-(--background-tertiary)" />
+            <div className="absolute left-0 h-5 w-5 rounded-full animate-pulse bg-(--background-tertiary)" />
         </div>
     );
     // Compute target pct unconditionally so hooks are always called in the same order
@@ -109,7 +102,7 @@ function PercentileBar({ stat, real, statRanges, hasRanges, isLoading, playerTyp
         return <div className={`flex-1 h-1 rounded-full opacity-10 ${className || ''}`} style={{ background: 'var(--form-element)' }} />;
     }
 
-    const color = percentileColor(targetPct);
+    const color = heatColor(targetPct);
     const badgeOffset = Math.max(0, Math.min(animatedPct, 96));
 
     return (

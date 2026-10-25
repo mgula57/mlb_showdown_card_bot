@@ -409,10 +409,10 @@ export function PlayerSearchInput({
                             w-full pl-8 py-2
                             text-primary
                             focus:outline-none
-                            placeholder-gray-500
+                            placeholder:text-(--text-tertiary)
                             transition-opacity duration-300 ease-in-out
                             font-bold
-                            ${isFocused || query ? 'opacity-100' : 'animate-pulse // Optional: adds subtle pulse effect'}
+                            ${isFocused || query ? 'opacity-100' : 'animate-pulse'}
                         `}
                     />
                     
@@ -428,11 +428,12 @@ export function PlayerSearchInput({
                         <button
                             type="button"
                             onClick={handleClear}
+                            aria-label="Clear search"
                             className="
                                 absolute right-0 top-1/2 transform -translate-y-1/2
-                                text-secondary hover:text-secondary/80
+                                text-secondary hover:text-(--text-secondary)/80
                                 w-6 h-10 flex items-center justify-center
-                                backdrop-blur-xs rounded-r-control p-1
+                                rounded-r-control p-1 cursor-pointer
                                 text-lg
                             "
                         >
@@ -478,7 +479,7 @@ export function PlayerSearchInput({
                                             {option.award_summary?.includes('AS') && option.year.toString().length < 5 && <div className="text-xs">★</div>}
                                         </div>
                                         
-                                        {option.is_hof && <Plate variant="custom" size="sm" className="bg-(--gold) text-black">HOF</Plate>}
+                                        {option.is_hof && <Plate variant="custom" size="sm" className="bg-(--gold) text-(--field-ink)">HOF</Plate>}
                                     </div>
                                     {/* Contextual info */}
                                     <div className="text-xs text-(--text-tertiary)">

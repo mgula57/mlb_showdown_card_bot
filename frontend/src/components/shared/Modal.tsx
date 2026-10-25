@@ -47,7 +47,7 @@ type ModalProps = {
     title?: React.ReactNode;
     /** Optional subtitle shown under the title, e.g. a short description of the modal's purpose */
     subtitle?: string;
-    /** Optional footer content (e.g. action buttons), pinned translucently over the bottom of the scrollable body */
+    /** Optional footer content (e.g. action buttons), pinned over the bottom of the scrollable body */
     footer?: React.ReactNode;
     /** Size preset for the modal width - defaults to 'lg' */
     size?: 'sm' | 'md' | 'lg' | 'xl';
@@ -240,7 +240,7 @@ export function Modal({ children, onClose, title, subtitle, footer, size = 'lg',
                 )}
 
                 {/* Scrollable modal content area. The optional `footer` (and anything children pin via
-                    PinnedFooterPortal) floats translucently over its bottom edge. */}
+                    PinnedFooterPortal) is pinned over its bottom edge. */}
                 <PinnedFooterScrollArea className="flex-1" footer={footer}>
                     {children}
                 </PinnedFooterScrollArea>

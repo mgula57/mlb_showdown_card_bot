@@ -780,7 +780,7 @@ export const CardDetail = memo(function CardDetail({ showdownBotCardData: showdo
                                         flex items-center gap-2
                                         px-4 py-2
                                         rounded-control whitespace-nowrap
-                                        bg-(--background-secondary)/70 backdrop-blur-md
+                                        bg-(--background-secondary)
                                         border border-(--divider)
                                         shadow-overlay
                                     ">

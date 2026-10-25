@@ -19,7 +19,7 @@ type PublishToFeaturedModalProps = {
 
 const NEW = '__new__';
 
-const inputClass = fieldClass('md', 'w-full placeholder:text-(--text-tertiary) focus:outline-none focus:border-(--showdown-blue)');
+const inputClass = fieldClass('md', 'w-full placeholder:text-(--text-tertiary) focus:outline-none');
 
 export function PublishToFeaturedModal({ token, team, onClose, onPublished }: PublishToFeaturedModalProps) {
     const [collections, setCollections] = useState<TeamCollection[] | null>(null);
@@ -114,7 +114,14 @@ export function PublishToFeaturedModal({ token, team, onClose, onPublished }: Pu
             }
         >
             {collections === null ? (
-                <div className="flex justify-center py-8"><FaSpinner className="animate-spin text-(--text-tertiary)" /></div>
+                <div className="flex flex-col gap-3 p-4 animate-pulse" aria-label="Loading collections">
+                    {Array.from({ length: 4 }, (_, i) => (
+                        <div key={i} className="space-y-1">
+                            <div className="h-3 w-24 rounded-plate bg-(--background-tertiary)" />
+                            <div className="h-10 rounded-control bg-(--background-tertiary)" />
+                        </div>
+                    ))}
+                </div>
             ) : (
                 <div className="flex flex-col gap-3 p-4">
                     <label className="flex flex-col gap-1">

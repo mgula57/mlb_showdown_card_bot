@@ -33,7 +33,7 @@ export default function GameFinalSummary({ game, cardMap, onCardSelect, isLoadin
         ref ? [...(game.away.boxscore?.pitching ?? []), ...(game.home.boxscore?.pitching ?? [])].find((p) => String(p.id) === String(ref.id)) : undefined;
 
     const winningTeam = potg ? game[potg.side].team : undefined;
-    const accent = winningTeam?.primaryColor ?? "#eab308";
+    const accent = winningTeam?.primaryColor ?? "var(--gold)";
 
     /* Every entry — Player of the Game and each decision — sits in the same tile, so they share
        one padding and read as a set; only the left accent and an optional heading differ. */
@@ -43,7 +43,7 @@ export default function GameFinalSummary({ game, cardMap, onCardSelect, isLoadin
             <div
                 key={key}
                 style={{ borderLeftColor: accentColor }}
-                className="min-w-0 space-y-1 rounded-card border border-l-4 border-white/10 bg-(--background-secondary)/30 p-2.5"
+                className="min-w-0 space-y-1 rounded-card border border-l-4 border-(--divider) bg-(--background-secondary) p-2.5"
             >
                 {heading}
                 <div className="flex items-baseline gap-1.5 text-sm min-w-0">
@@ -68,7 +68,7 @@ export default function GameFinalSummary({ game, cardMap, onCardSelect, isLoadin
 
     return (
         <div
-            className={`@container mx-2 rounded-card border border-white/10 bg-(--background-primary)/35 backdrop-blur-xl backdrop-saturate-150 shadow-overlay p-3 space-y-3 ${className}`}
+            className={`@container mx-2 rounded-card border border-(--divider) bg-(--background-primary) shadow-overlay p-3 space-y-3 ${className}`}
         >
             <Eyebrow className="block">Game Recap</Eyebrow>
 

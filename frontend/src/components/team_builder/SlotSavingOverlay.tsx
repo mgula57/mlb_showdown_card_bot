@@ -11,7 +11,7 @@ import { FaSpinner } from 'react-icons/fa6';
 export function SlotSavingOverlay({ variant = 'field' }: { variant?: 'field' | 'row' }) {
     return (
         <div
-            className={`absolute inset-0 z-30 flex items-center justify-center rounded-card backdrop-blur-[1px] animate-pulse ${
+            className={`absolute inset-0 z-30 flex items-center justify-center rounded-card animate-pulse ${
                 variant === 'field' ? 'bg-black/45' : 'bg-(--background-primary)/65'
             }`}
         >

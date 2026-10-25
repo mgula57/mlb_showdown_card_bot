@@ -9,6 +9,7 @@ import { AutofillPanel } from './AutofillPanel';
 import { GuidedDraftPanel, GUIDED_DOCK_HEIGHT_CLASS } from './GuidedDraftPanel';
 import { NewBadge } from '../shared/NewBadge';
 import { DraftModeChooser, DraftModeBannerToggle } from './DraftModeChooser';
+import { ModeBannerButton } from '../shared/ModeBanner';
 import type { DraftMode, DraftStartChoice } from './DraftModeChooser';
 import { useGuidedDraft } from '../../hooks/useGuidedDraft';
 import { TeamLogo } from './TeamLogo';
@@ -800,14 +801,11 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
 
     const defaultLineup = draft.lineups[0] ?? { name: 'Default', slots: [] };
     const primary = draft.primary_color || 'rgb(0,0,0)';
-    const secondary = draft.secondary_color || 'rgb(100,100,100)';
 
-    // Banner color tokens derived from team colors. The banner is a left→right
-    // primary→secondary gradient, so the left side (dot + message) contrasts against
-    // primary while the right side (progress + controls) contrasts against secondary.
-    const bannerLeft  = bannerTokens(primary);
-    const bannerRight = bannerTokens(secondary);
-    const bannerStyle = { background: `linear-gradient(to right, ${primary}, ${secondary})` };
+    // The mode banner is a flat fill in the team's primary color (see ModeBanner); one set of
+    // contrast-aware ink tokens covers its message, progress and controls.
+    const bannerInk = bannerTokens(primary);
+    const bannerStyle = { backgroundColor: primary };
 
     const effectiveBucketMins = useMemo(() => effectiveBenchBullpenMinimums(draft), [draft]);
 
@@ -1400,7 +1398,7 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                     name still truncates instead of shoving the toolbar off toward the edge. */}
                 <div className="flex items-center gap-3 min-w-0 ">
                     {onBack && (
-                        <button type="button" onClick={handleBack} className="text-(--text-tertiary) opacity-70 hover:text-(--text-primary) transition-colors shrink-0 mt-0.5 h-full">
+                        <button type="button" onClick={handleBack} aria-label="Back" className="text-(--text-tertiary) opacity-70 hover:text-(--text-primary) transition-colors shrink-0 mt-0.5 h-full cursor-pointer">
                             <FaArrowLeft />
                         </button>
                     )}
@@ -1634,15 +1632,15 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                 // step chips squeeze under them on narrow screens.
                 <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 px-2 py-2.5 shrink-0" style={bannerStyle}>
                     <div className="flex items-center gap-1 min-w-0">
-                        <span className={`hidden md:block w-2 h-2 rounded-full shrink-0 ${teamMode === 'drafting' ? 'animate-pulse' : ''}`} style={{ backgroundColor: bannerLeft.dot }} />
-                        <span className="text-[10px] md:text-[11px] font-bold flex items-center gap-2 min-w-0" style={{ color: bannerLeft.fill }}>
+                        <span className={`hidden md:block w-2 h-2 rounded-full shrink-0 ${teamMode === 'drafting' ? 'animate-pulse' : ''}`} style={{ backgroundColor: bannerInk.dot }} />
+                        <span className="text-[10px] md:text-[11px] font-bold flex items-center gap-2 min-w-0" style={{ color: bannerInk.fill }}>
                             {teamMode === 'drafting'
                                 ? <>
                                     <SetupStepChips
                                         step={setupStep}
                                         onStep={setSetupStep}
                                         settingsDone={draft.roster.length > 0}
-                                        color={bannerLeft.fill}
+                                        color={bannerInk.fill}
                                     />
                                     {guidedActive && (
                                         <span className="hidden md:flex items-center gap-1 px-2 py-1 rounded-control bg-black/20 font-bold tabular-nums whitespace-nowrap" title="Guided Draft round">
@@ -1657,7 +1655,7 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                     {/* Fills the dead space between the step chips and the progress/controls on
                         wide screens with a draft pace readout — points left under budget and
                         roughly what that leaves per remaining pick. */}
-                    <div className="hidden sm:flex items-center gap-x-1.5 gap-y-0.5 text-[11px] font-bold" style={{ color: bannerLeft.fill }}>
+                    <div className="hidden sm:flex items-center gap-x-1.5 gap-y-0.5 text-[11px] font-bold" style={{ color: bannerInk.fill }}>
                         {/* Guided Draft shows its own round progress and points left, so the banner drops both. */}
                         {teamMode === 'drafting' && setupStep === 'draft' && !guidedActive && runRate && (
                             runRate.remaining < 0 ? (
@@ -1684,20 +1682,20 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                         {teamMode === 'drafting' && setupStep === 'draft' && !guidedActive && (
                             <div className="flex flex-col gap-0">
                                 <div className="flex items-center gap-2">
-                                    <div className="w-14 xs:w-20 sm:w-20 md:w-28 h-1.5 rounded-full overflow-hidden" style={{ backgroundColor: bannerRight.track }}>
+                                    <div className="w-14 xs:w-20 sm:w-20 md:w-28 h-1.5 rounded-full overflow-hidden" style={{ backgroundColor: bannerInk.track }}>
                                         <div
                                             className="h-full rounded-full transition-all"
-                                            style={{ width: `${draft.roster_size > 0 ? Math.min(100, (draft.roster.length / draft.roster_size) * 100) : 0}%`, backgroundColor: bannerRight.fill }}
+                                            style={{ width: `${draft.roster_size > 0 ? Math.min(100, (draft.roster.length / draft.roster_size) * 100) : 0}%`, backgroundColor: bannerInk.fill }}
                                         />
                                     </div>
-                                    <span className="text-[11px] font-bold" style={{ color: bannerRight.fill }}>
+                                    <span className="text-[11px] font-bold" style={{ color: bannerInk.fill }}>
                                         {draft.roster.length}/{draft.roster_size}
                                     </span>
                                 </div>
                                 {runRate && (
                                     <span
                                         className="sm:hidden self-end text-[9px] font-bold whitespace-nowrap"
-                                        style={{ color: runRate.remaining < 0 ? '#fca5a5' : bannerLeft.fill }}
+                                        style={{ color: runRate.remaining < 0 ? 'var(--field-live)' : bannerInk.fill }}
                                     >
                                         {runRate.remaining < 0
                                             ? `${Math.abs(runRate.remaining)} PTS OVER BUDGET`
@@ -1711,15 +1709,13 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                                 {teamMode === 'editing' && (
                                     <>
                                         {!isMlbTeam && editMode && (
-                                            <button
-                                                type="button"
+                                            <ModeBannerButton
                                                 onClick={() => setShowSettingsModal(true)}
-                                                className={`flex items-center gap-1 px-2 py-1 h-7 rounded-control text-[11px] font-bold cursor-pointer transition-colors ${bannerRight.btnClass}`}
-                                                aria-label="Team settings"
                                                 title="Team settings"
+                                                tokens={bannerInk}
                                             >
                                                 <FaGear /> Settings
-                                            </button>
+                                            </ModeBannerButton>
                                         )}
                                     </>
                                 )}
@@ -1727,42 +1723,38 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                                     <DraftModeBannerToggle
                                         mode={draftMode}
                                         onChange={handleDraftModeChange}
-                                        btnClass={bannerRight.btnClass}
+                                        btnClass={bannerInk.btnClass}
                                         // Guided hides the banner's progress / PTS readouts, freeing room for the labels.
                                         alwaysShowLabels={guidedActive}
                                     />
                                 )}
                                 {lastAutofillStrategy && (
-                                    <button
-                                        type="button"
+                                    <ModeBannerButton
                                         onClick={handleReshuffle}
                                         disabled={reshuffling}
-                                        className={`flex items-center gap-1 px-2 py-1 h-7 rounded-control text-[11px] font-bold disabled:opacity-50 cursor-pointer transition-colors ${bannerRight.btnClass}`}
                                         title="Reshuffle with same strategy"
+                                        tokens={bannerInk}
                                     >
                                         <FaShuffle className={reshuffling ? 'animate-spin' : ''} />
-                                    </button>
+                                    </ModeBannerButton>
                                 )}
-                                <button
-                                    type="button"
+                                <ModeBannerButton
                                     onClick={() => setShowAutofill(true)}
-                                    className={`flex items-center gap-1 px-2 py-1 h-7 rounded-control text-[11px] font-bold cursor-pointer transition-colors ${bannerRight.btnClass}`}
-                                    aria-label="Autofill"
                                     title="Autofill"
+                                    tokens={bannerInk}
                                 >
                                     <FaWandMagicSparkles className="text-[9px]" /> <span className="hidden sm:inline">Autofill</span>
-                                </button>
+                                </ModeBannerButton>
                             </>
                         )}
                         {teamMode === 'editing' && (
                             <>
-                                <button
-                                    type="button"
+                                <ModeBannerButton
                                     onClick={() => setEditMode(false)}
-                                    className={`flex items-center gap-1 px-2 py-1 h-7 rounded-control text-[11px] font-bold cursor-pointer transition-colors ${bannerRight.btnClass}`}
+                                    tokens={bannerInk}
                                 >
                                     <FaCircleCheck className="text-[9px]" /> Done
-                                </button>
+                                </ModeBannerButton>
                             </>
                         )}
                     </div>
@@ -1900,20 +1892,10 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
             {showEditControls && !isLg && setupStep === 'draft' && (
                 <>
                     {/* Search FAB — hidden while the slideover is open, since the slideover's
-                        own dismiss button occupies the same corner. A larger halo sits behind
-                        it (same treatment as SlideOver's dismiss button) so it stays legible
-                        over busy content, fading out via a radial mask rather than a hard edge. */}
+                        own dismiss button occupies the same corner. The overlay shadow keeps it
+                        legible over busy content (same treatment as SlideOver's dismiss button). */}
                     {!pendingSlot && !guidedDocked && (
-                        <div
-                            className="lg:hidden fixed bottom-0 right-0 z-50 w-24 h-24 flex items-center justify-center pointer-events-none"
-                            style={{
-                                background: 'radial-gradient(circle, rgba(0,0,0,0.4) 0%, rgba(0,0,0,0.2) 40%, rgba(0,0,0,0) 72%)',
-                                backdropFilter: 'blur(16px)',
-                                WebkitBackdropFilter: 'blur(16px)',
-                                maskImage: 'radial-gradient(circle, black 40%, transparent 72%)',
-                                WebkitMaskImage: 'radial-gradient(circle, black 40%, transparent 72%)',
-                            }}
-                        >
+                        <div className="lg:hidden fixed bottom-0 right-0 z-50 w-24 h-24 flex items-center justify-center pointer-events-none">
                             <SearchFrame rounded="rounded-full" className="pointer-events-auto shadow-overlay">
                                 <button
                                     type="button"
@@ -1935,7 +1917,7 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                         <>
                             {/* Clears the docked strip so the bottom of the field view stays reachable. */}
                             <div className={`${GUIDED_DOCK_HEIGHT_CLASS} shrink-0`} />
-                            <div className="lg:hidden fixed inset-x-0 md:left-(--side-menu-width) bottom-0 z-40 transition-[left] duration-300 border-t border-(--divider) shadow-[0_-8px_24px_rgba(0,0,0,0.25)] pb-[env(safe-area-inset-bottom)] bg-(--background-primary)/70 backdrop-blur-xl backdrop-saturate-150">
+                            <div className="lg:hidden fixed inset-x-0 md:left-(--side-menu-width) bottom-0 z-40 transition-[left] duration-300 border-t border-(--divider) shadow-sheet pb-[env(safe-area-inset-bottom)] bg-(--background-primary)">
                                 {renderGuidedPanel('docked')}
                             </div>
                         </>
@@ -1970,7 +1952,7 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                     message: draftToast.name,
                     subMessage: draftToast.position,
                     icon: <FaCircleCheck />,
-                    backgroundColor: 'rgb(34, 197, 94)',
+                    tone: 'success',
                 } : null}
                 isExiting={draftToastExiting}
             />
@@ -1981,7 +1963,7 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                     // `pointer-events-auto` is required: this modal renders as a sibling of the
                     // draft-search SlideOver, which pins `body { pointer-events: none }` while
                     // open. Without it, touches on mobile fall through to the panel underneath.
-                    className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 pointer-events-auto"
+                    className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 pointer-events-auto"
                     onClick={() => setConfirmCard(null)}
                 >
                     <div
@@ -1991,13 +1973,14 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                         {/* Header */}
                         <div className="flex items-start justify-between px-4 pt-4 pb-3 border-b border-(--divider)">
                             <div>
-                                <div className="text-[13px] font-bold text-(--text-primary)">Choose a position</div>
+                                <Heading level="section">Choose a position</Heading>
                                 <div className="text-[11px] text-(--text-secondary) mt-0.5">Where should this card be placed?</div>
                             </div>
                             <button
                                 type="button"
                                 onClick={() => setConfirmCard(null)}
-                                className="text-(--text-tertiary) hover:text-(--text-primary) transition-colors mt-0.5"
+                                aria-label="Close"
+                                className="text-(--text-tertiary) hover:text-(--text-primary) transition-colors mt-0.5 cursor-pointer"
                             >
                                 <FaXmark className="text-[13px]" />
                             </button>
@@ -2385,8 +2368,8 @@ function PositionButton({ label, onClick, currentPts, projectedPts, overLimit, r
             onClick={onClick}
             className="flex flex-col items-center justify-between gap-0.5 px-3 py-2 rounded-control text-[12px] font-bold
                 bg-(--background-secondary) border border-(--divider)
-                text-(--text-primary) hover:border-(--secondary) hover:text-(--secondary)
-                transition-colors"
+                text-(--text-primary) hover:border-(--rule-strong)
+                transition-colors cursor-pointer"
         >
             {label}
             {replacingName && (
