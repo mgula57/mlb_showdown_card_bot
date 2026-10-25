@@ -73,7 +73,7 @@ function PickSourceBadge({ source }: { source: PickSource }) {
     const meta = PICK_SOURCE_META[source] ?? PICK_SOURCE_META.MANUAL;
     const Icon = meta.icon;
     return (
-        <div className={`flex items-center gap-1 rounded-[2px] px-1.5 py-0.5 font-semibold ${meta.className}`}>
+        <div className={`flex items-center gap-1 rounded-plate px-1.5 py-0.5 font-semibold ${meta.className}`}>
             <Icon className="text-[9px] shrink-0" />
             {meta.label}
         </div>

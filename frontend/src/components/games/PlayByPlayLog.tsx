@@ -83,15 +83,15 @@ function CurrentMatchupRow({
                 </div>
                 <div className="min-w-0 flex-1 pt-0.5">
                     <div className="flex flex-wrap items-center gap-1.5">
-                        <span className="inline-block rounded-[2px] border border-(--green)/40 px-2 py-0.5 text-[11px] font-bold text-(--green)">
+                        <span className="inline-block rounded-plate border border-(--green)/40 px-2 py-0.5 text-[11px] font-bold text-(--green)">
                             At Bat
                         </span>
                         {hasCount && (
-                            <span className="rounded-[2px] bg-(--background-tertiary) px-2 py-0.5 text-[10px] font-bold tracking-wide text-(--secondary)">
+                            <span className="rounded-plate bg-(--background-tertiary) px-2 py-0.5 text-[10px] font-bold tracking-wide text-(--secondary)">
                                 {situation.balls}-{situation.strikes}
                             </span>
                         )}
-                        <span className="rounded-[2px] bg-(--background-tertiary) px-2 py-0.5 text-[10px] font-bold tracking-wide text-(--secondary)">
+                        <span className="rounded-plate bg-(--background-tertiary) px-2 py-0.5 text-[10px] font-bold tracking-wide text-(--secondary)">
                             {situation.outs} out{situation.outs !== 1 ? 's' : ''}
                         </span>
                     </div>
@@ -205,7 +205,7 @@ export default function PlayByPlayLog({ plays, cardMap, onCardSelect, isLoadingC
                                 </div>
                                 <div className="min-w-0 flex-1 pt-0.5">
                                     <div className="flex flex-wrap items-center gap-1.5">
-                                        <span className={`inline-block rounded-[2px] border px-2 py-0.5 text-[11px] font-bold ${
+                                        <span className={`inline-block rounded-plate border px-2 py-0.5 text-[11px] font-bold ${
                                             play.isScoringPlay
                                                 ? 'border-(--green)/40 text-(--green)'
                                                 : 'border-(--divider) text-(--secondary)'
@@ -214,7 +214,7 @@ export default function PlayByPlayLog({ plays, cardMap, onCardSelect, isLoadingC
                                         </span>
                                         {/* Sim games resolve a plate appearance with two d20s instead of a pitch count. */}
                                         {play.roll && (
-                                            <span className="rounded-[2px] bg-(--background-tertiary) px-2 py-0.5 text-[10px] font-bold tracking-wide text-(--secondary)">
+                                            <span className="rounded-plate bg-(--background-tertiary) px-2 py-0.5 text-[10px] font-bold tracking-wide text-(--secondary)">
                                                 P {play.roll.pitchRoll} · S {play.roll.swingRoll}
                                             </span>
                                         )}

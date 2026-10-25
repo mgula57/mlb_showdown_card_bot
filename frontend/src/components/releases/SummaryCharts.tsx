@@ -387,7 +387,7 @@ function makeChartTooltip(compareLabel: string | null) {
 function LegendEntry({ color, label }: { color: string; label: string }) {
     return (
         <div className="flex items-center gap-1.5 text-(--text-secondary)">
-            <span className="inline-block size-2.5 rounded-sm shrink-0" style={{ backgroundColor: color }} />
+            <span className="inline-block size-2.5 rounded-control shrink-0" style={{ backgroundColor: color }} />
             {label}
         </div>
     );

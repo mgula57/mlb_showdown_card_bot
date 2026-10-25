@@ -343,9 +343,9 @@ function OrderToggle({ order, onChange, compact = false }: { order: GuidedFillOr
 
 function PhasePill({ phase }: { phase: GuidedRound['round']['phase'] }) {
     return phase === 'cornerstone' ? (
-        <span className="rounded-[2px] px-1.5 py-px bg-(--gold)/15 text-(--gold)">Cornerstone</span>
+        <span className="rounded-plate px-1.5 py-px bg-(--gold)/15 text-(--gold)">Cornerstone</span>
     ) : (
-        <span className="rounded-[2px] px-1.5 py-px bg-(--showdown-blue)/15 text-(--showdown-blue)">Fill</span>
+        <span className="rounded-plate px-1.5 py-px bg-(--showdown-blue)/15 text-(--showdown-blue)">Fill</span>
     );
 }
 

@@ -17,9 +17,11 @@
     --font-display-upright: 'ShowdownDisplayUpright', 'Helvetica Neue', 'Arial Narrow', sans-serif;
     --font-display-black: 'ShowdownDisplayBlack', 'Helvetica Neue', 'Arial Narrow', sans-serif;
 
-    /* `rounded-card` for panels and tiles, `rounded-control` for buttons and inputs. */
+    /* `rounded-card` for panels and tiles, `rounded-control` for buttons and inputs, `rounded-plate`
+       for plates, badges and skeleton bars. */
     --radius-card: 5px;
     --radius-control: 4px;
+    --radius-plate: 2px;
 
     /* `shadow-raised` is the hard bottom edge for raised controls; `shadow-overlay` is the only
        soft shadow, reserved for modals, menus and sheets. */

@@ -133,7 +133,7 @@ export function TeamPreviewCard({ team, onClick, size = 'md', className = '' }: 
                     </Plate>
                 )}
                 {showSetGrid && (
-                    <div className="rounded-[2px] p-1 flex flex-wrap items-center justify-end gap-0.5 max-w-24 bg-(--field-ink)/60">
+                    <div className="rounded-plate p-1 flex flex-wrap items-center justify-end gap-0.5 max-w-24 bg-(--field-ink)/60">
                         {allowedSets.map(set => {
                             const useAbbreviated = allowedSets.length >= 2;
                             const image = imageForSet(set, useAbbreviated);

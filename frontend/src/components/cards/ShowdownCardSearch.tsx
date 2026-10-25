@@ -1574,7 +1574,7 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
                                 if (!displayText) return null;
                                 const locked = isFilterLocked(key as keyof FilterSelections);
                                 return (
-                                    <div key={key} className={`flex items-center rounded-[2px] px-2 py-1 ${locked ? 'bg-(--background-tertiary) text-(--text-secondary)' : 'bg-(--background-secondary)'}`}>
+                                    <div key={key} className={`flex items-center rounded-plate px-2 py-1 ${locked ? 'bg-(--background-tertiary) text-(--text-secondary)' : 'bg-(--background-secondary)'}`}>
                                         <span className="text-sm max-w-84 overflow-x-clip text-nowrap">{displayText}</span>
                                         {locked ? (
                                             <FaLock className="ml-1 shrink-0 text-[10px] opacity-50" title="Locked by team settings" />
@@ -1850,7 +1850,7 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
                                         if (!displayText) return null;
                                         const locked = isFilterLocked(key as keyof FilterSelections);
                                         return (
-                                            <div key={key} className={`flex items-center rounded-[2px] px-2 py-1 ${locked ? 'bg-(--background-tertiary) text-(--text-secondary)' : 'bg-(--background-secondary)'}`}>
+                                            <div key={key} className={`flex items-center rounded-plate px-2 py-1 ${locked ? 'bg-(--background-tertiary) text-(--text-secondary)' : 'bg-(--background-secondary)'}`}>
                                                 <span className="text-sm max-w-84 overflow-x-clip text-nowrap">{displayText}</span>
                                                 {locked ? (
                                                     <FaLock className="ml-1 shrink-0 text-[10px] opacity-50" title="Locked by team settings" />

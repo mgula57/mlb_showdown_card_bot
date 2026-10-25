@@ -96,7 +96,7 @@ export const SideMenuItem: React.FC<SideMenuItemProps> = ({ item, isSideMenuOpen
                 isSideMenuOpen={isSideMenuOpen}
                 isSelected={isSelected}
                 badge={isNew && (
-                    <span className={`absolute text-[6px] font-bold leading-none px-1 py-0.5 rounded-[2px] bg-(--showdown-blue) text-white ${isSideMenuOpen ? '-top-2 left-0' : '-top-1 -right-1'}`}>
+                    <span className={`absolute text-[6px] font-bold leading-none px-1 py-0.5 rounded-plate bg-(--showdown-blue) text-white ${isSideMenuOpen ? '-top-2 left-0' : '-top-1 -right-1'}`}>
                         NEW
                     </span>
                 )}

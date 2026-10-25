@@ -79,7 +79,7 @@ export function NewReleaseModal({ onConfirm, onCancel }: NewReleaseModalProps) {
                             value={draft.default_showdown_set ?? userShowdownSet}
                             onChange={v => setDraft(prev => ({ ...prev, default_showdown_set: v }))}
                             options={showdownSets}
-                            imageClassName="object-contain w-18 rounded-sm"
+                            imageClassName="object-contain w-18 rounded-control"
                         />
                         <span className="text-[11px] text-(--text-tertiary)">
                             This is just a starting point — you can add cards from other sets too.

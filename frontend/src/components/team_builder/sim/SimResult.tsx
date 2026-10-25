@@ -313,7 +313,7 @@ export function SimResult({ summary, challengeResult, challengeStanding, onOpenC
                             <div
                                 key={i}
                                 title={`${game.date} ${game.is_home ? 'vs' : '@'} ${label(identityFor(game.opponent), game.opponent)} — ${game.runs_scored}-${game.runs_allowed}`}
-                                className={`h-4 w-4 rounded-sm ${game.is_win ? 'bg-(--showdown-blue)' : 'bg-(--background-quaternary)'}`}
+                                className={`h-4 w-4 rounded-control ${game.is_win ? 'bg-(--showdown-blue)' : 'bg-(--background-quaternary)'}`}
                             />
                         ))}
                     </div>

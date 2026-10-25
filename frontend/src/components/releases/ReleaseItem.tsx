@@ -57,7 +57,7 @@ export function ReleaseItem({ release, onClick, showPublishStatus = false }: Rel
             type="button"
             onClick={onClick}
             className={`
-                ${TILE_FRAME} group relative p-[3px] text-left
+                ${TILE_FRAME} group relative p-0.75 text-left
                 border-2 border-(--rule-strong) bg-(--background-secondary)
                 [@media(hover:hover)]:hover:scale-[1.025] [@media(hover:hover)]:active:scale-[0.975]
                 [@media(hover:hover)]:transition-transform [@media(hover:hover)]:duration-150
@@ -65,7 +65,7 @@ export function ReleaseItem({ release, onClick, showPublishStatus = false }: Rel
             `}
         >
             {/* Double-rule frame from the 2001 card back: outer rule on the button, hairline here */}
-            <div className="relative h-full flex flex-col overflow-hidden rounded-[2px] border border-(--divider)">
+            <div className="relative h-full flex flex-col overflow-hidden rounded-plate border border-(--divider)">
                 {/* Official plate + every included set, wrapping onto a second row when there are many */}
                 <div className="absolute top-1.5 inset-x-1.5 z-30 flex items-start justify-between gap-1 pointer-events-none">
                     {release.is_official ? <Plate variant="navy" size="sm">Official</Plate> : <span />}
@@ -73,7 +73,7 @@ export function ReleaseItem({ release, onClick, showPublishStatus = false }: Rel
                         sets={sets}
                         heightClass="h-5"
                         abbreviatedHeightClass="h-4"
-                        className="flex flex-wrap items-center justify-end gap-1 rounded-[2px] p-0.5 bg-(--background-secondary)"
+                        className="flex flex-wrap items-center justify-end gap-1 rounded-plate p-0.5 bg-(--background-secondary)"
                     />
                 </div>
 
@@ -139,8 +139,8 @@ function FannedCardImage({ image, index, cardCount }: { image: ReleasePreviewIma
             draggable={false}
             className="
                 absolute left-1/2 top-[8%] w-[48%] h-auto select-none drop-shadow-[0_2px_0_rgb(0_0_0/0.25)]
-                [transform:var(--fan-rest)] transition-transform duration-300 ease-out motion-reduce:transition-none
-                [@media(hover:hover)]:motion-safe:group-hover:[transform:var(--fan-hover)]
+                transform-(--fan-rest) transition-transform duration-300 ease-out motion-reduce:transition-none
+                [@media(hover:hover)]:motion-safe:group-hover:transform-(--fan-hover)
             "
             style={style}
         />

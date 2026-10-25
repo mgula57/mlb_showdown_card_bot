@@ -214,7 +214,7 @@ const BUILD_PANEL_HIDDEN_STORAGE_KEY = 'releaseBuilder.buildPanelHidden';
 /** Labels the right panel as an unsaved Algorithm preview or the edition's saved pool. */
 function PoolStatusBadge({ isPreview }: { isPreview: boolean }) {
     return isPreview ? (
-        <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide leading-none px-1.5 py-1 rounded-[2px] border border-(--preview-accent)/35 bg-(--preview-accent)/12 text-(--preview-accent)">
+        <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide leading-none px-1.5 py-1 rounded-plate border border-(--preview-accent)/35 bg-(--preview-accent)/12 text-(--preview-accent)">
             <FaWandMagicSparkles className="text-[9px]" /> Preview · Unsaved
         </span>
     ) : (

@@ -48,7 +48,7 @@ export function Plate({ children, variant = 'ink', size = 'md', className = '', 
         <span
             title={title}
             style={style}
-            className={`inline-flex items-center shrink-0 rounded-[2px] font-semibold uppercase leading-none whitespace-nowrap tabular-nums ${SIZE_CLASSES[size]} ${VARIANT_CLASSES[variant]} ${className}`}
+            className={`inline-flex items-center shrink-0 rounded-plate font-semibold uppercase leading-none whitespace-nowrap tabular-nums ${SIZE_CLASSES[size]} ${VARIANT_CLASSES[variant]} ${className}`}
         >
             {children}
         </span>

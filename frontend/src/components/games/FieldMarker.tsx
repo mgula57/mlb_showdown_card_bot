@@ -44,7 +44,7 @@ export default function FieldMarker({
     showSpeedBadge?: boolean;
 }) {
     if (!player.name) {
-        return <span className="block h-3 w-3 rotate-45 rounded-xs bg-(--live)" />;
+        return <span className="block h-3 w-3 rotate-45 rounded-plate bg-(--live)" />;
     }
 
     const response = cardMap[resolveCardKey(player.id, role) ?? ""];

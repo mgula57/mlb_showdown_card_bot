@@ -75,7 +75,7 @@ const FormEnabler: React.FC<FormEnablerProps> = ({ label, description, isEnabled
             <span
                 aria-hidden
                 className={`
-                    ${BOX_SIZE_CLASSES[size]} shrink-0 flex items-center justify-center rounded-[2px] border-2 transition-colors
+                    ${BOX_SIZE_CLASSES[size]} shrink-0 flex items-center justify-center rounded-plate border-2 transition-colors
                     ${isEnabled ? 'bg-(--showdown-blue) border-(--showdown-blue) text-white' : 'border-(--rule-strong)'}
                 `}
             >

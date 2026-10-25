@@ -219,7 +219,7 @@ export function AdminChallengesView({ token, onBack }: Props) {
                         return (
                             <span
                                 key={inst.instance_id}
-                                className="flex items-center gap-1.5 text-[11px] px-2 py-1 rounded-[2px] bg-(--background-tertiary)"
+                                className="flex items-center gap-1.5 text-[11px] px-2 py-1 rounded-plate bg-(--background-tertiary)"
                                 style={{ color: `var(${meta.cssVar})` }}
                             >
                                 {meta.label}: {inst.year} {inst.replaces_abbr}

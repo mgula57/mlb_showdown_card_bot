@@ -108,7 +108,7 @@ export default function GamePlaybackBar({
                 <span className="flex items-center gap-2 shrink-0">
                     <span className="tabular-nums">{state.cursor + 1} / {frameCount}</span>
                     {!!bufferedCount && bufferedCount > 0 && (
-                        <span className="inline-flex items-center gap-1 rounded-[2px] bg-(--background-tertiary) px-2 py-0.5 font-bold text-(--primary)">
+                        <span className="inline-flex items-center gap-1 rounded-plate bg-(--background-tertiary) px-2 py-0.5 font-bold text-(--primary)">
                             <span className="live-pulse h-1.5 w-1.5 rounded-full bg-(--live)" />
                             +{bufferedCount} new
                         </span>

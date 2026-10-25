@@ -22,7 +22,7 @@ import {
 import { Eyebrow } from '../shared/Eyebrow';
 /** Small pill badge used to flag newly added options/fields */
 export const NewBadge = () => (
-    <span className="text-[9px] font-bold leading-none px-1.5 py-0.5 rounded-[2px] bg-(--red) text-white uppercase tracking-wide">
+    <span className="text-[9px] font-bold leading-none px-1.5 py-0.5 rounded-plate bg-(--red) text-white uppercase tracking-wide">
         New
     </span>
 );

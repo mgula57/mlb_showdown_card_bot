@@ -171,7 +171,7 @@ export const CardItemCompact = ({
             {hasAdvantage && <AdvantageBadge />}
             {/* A stat badge takes the command's slot — e.g. the runner's tested speed on a sim steal. */}
             {statBadge ? (
-                <div className="self-center shrink-0 flex flex-col items-center gap-0.5 rounded-[2px] bg-(--background-primary)/60 px-1.5 py-1">
+                <div className="self-center shrink-0 flex flex-col items-center gap-0.5 rounded-plate bg-(--background-primary)/60 px-1.5 py-1">
                     <span className="text-[7px] font-bold uppercase leading-none tracking-wider text-(--tertiary)">{statBadge.label}</span>
                     <span className="font-display-upright text-[13px] leading-none tabular-nums text-(--text-primary)">{statBadge.value}</span>
                 </div>
@@ -182,11 +182,11 @@ export const CardItemCompact = ({
                     secondaryColor={secondaryColor}
                     command={card?.command}
                     team={card?.team || 'N/A'}
-                    className={`w-5 h-5 @[75px]:w-6 @[75px]:h-6 shrink-0 mt-1 ${hideDetails ? '' : '@[70px]:mt-1.5'}`}
+                    className={`w-5 h-5 @[75px]:w-6 @[75px]:h-6 shrink-0 ${hideDetails ? '' : '@[70px]:mt-0.5'}`}
                 />
             )}
 
-            <div className="min-w-0 items-center flex-1 space-y-0.5 text-left">
+            <div className="min-w-0 flex-1 flex flex-col justify-center gap-1 text-left">
                 <div className={`flex gap-x-0.5 font-display-upright uppercase text-[13px] leading-none text-(--text-primary) overflow-x-scroll scrollbar-hide truncate ${isRedacted ? 'redacted' : ''}`}>
                     {isRedacted 
                         ? 'REDACTED NAME' 
@@ -215,7 +215,7 @@ export const CardItemCompact = ({
                 {!hideTeamPoints && (
                     <div className="hidden @[75px]:flex items-center gap-1 min-w-0 overflow-x-scroll scrollbar-hide">
                         <div
-                            className={`flex font-display-upright uppercase text-[10px] leading-none shrink-0 rounded-[2px] px-[3px] py-0.5 ${isRedacted ? 'redacted' : ''}`}
+                            className={`flex font-display-upright uppercase text-[10px] leading-none shrink-0 rounded-plate px-0.75 py-0.5 ${isRedacted ? 'redacted' : ''}`}
                             style={isRedacted ? undefined : teamStyle}
                         >
                             {card?.team || 'N/A'}
@@ -223,7 +223,7 @@ export const CardItemCompact = ({
                             <span className="hidden @[130px]:block ml-0.5"> {formatYear(card?.year || '-')}</span>
                         </div>
                         <div
-                            className={`hidden @[80px]:flex text-[9px] leading-none font-semibold uppercase tracking-tight tabular-nums text-nowrap rounded-[2px] px-[3px] py-0.5 ${isRedacted ? 'redacted' : ''}`}
+                            className={`hidden @[80px]:flex text-[9px] leading-none font-semibold uppercase tracking-tight tabular-nums text-nowrap rounded-plate px-0.75 py-0.5 ${isRedacted ? 'redacted' : ''}`}
                             style={isRedacted ? undefined : pointsBadgeStyle}
                         >
                             {hasPtsMultiplier ? (
@@ -236,7 +236,7 @@ export const CardItemCompact = ({
                             )}
                             <span className="hidden @[120px]:block">S</span>
                         </div>
-                        <ChartVersionBadge chartVersion={card?.chart_version} className="hidden @[110px]:flex text-[8px] px-0.5 rounded-[2px]" />
+                        <ChartVersionBadge chartVersion={card?.chart_version} className="hidden @[110px]:flex text-[8px] px-0.5 rounded-plate" />
                     </div>
                 )}
                 {!hideDetails && (
@@ -246,7 +246,7 @@ export const CardItemCompact = ({
                                 {(detailStat1Category === undefined || detailStat1Category === 'defense') && getDefenseDisplay(card, fieldPosition, liveIp)}
                             </div>
                         )}
-                        <div className={`hidden @[95px]:flex ${hideTeamPoints ? 'py-0': 'py-0.5'} text-[9px] tracking-tight w-full font-bold text-(--text-tertiary) truncate text-nowrap overflow-x-scroll scrollbar-hide ${isRedacted ? 'redacted' : ''}`}>
+                        <div className={`hidden @[95px]:flex text-[9px] tracking-tight w-full font-bold text-(--text-tertiary) truncate text-nowrap overflow-x-scroll scrollbar-hide ${isRedacted ? 'redacted' : ''}`}>
                             {isRedacted ? '--- • ---' : (
                                 <>
                                     {/* STAT 1 */}
@@ -275,7 +275,7 @@ export const CardItemCompact = ({
 
             {/* Absolute positioned elements */}
             {!hideDetails && !isRedacted && !hideCommand && !statBadge && (
-                <div className="hidden @[95px]:block absolute bottom-1.5 left-0.5 bg-(--background-secondary)/70 backdrop-blur-[1px] rounded-[2px]">
+                <div className="hidden @[95px]:block absolute bottom-1.5 left-0.5 bg-(--background-secondary)/70 backdrop-blur-[1px] rounded-plate">
                     <img src={imageForSet(card?.set || '', true)} alt={card?.set ?? 'N/A'} loading="lazy" className="h-3.5 object-contain object-center" />
                 </div>
             )}

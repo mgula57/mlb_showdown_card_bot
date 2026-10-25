@@ -298,7 +298,7 @@ const GalleryCard: React.FC<{
                 {badges.length > 0 && (
                     <div className="flex flex-wrap justify-center">
                         {badges.map(badge => (
-                            <span key={badge} className="text-[10px] leading-tight px-1 rounded-[2px] bg-(--background-secondary) text-secondary truncate max-w-full">
+                            <span key={badge} className="text-[10px] leading-tight px-1 rounded-plate bg-(--background-secondary) text-secondary truncate max-w-full">
                                 {badge}
                             </span>
                         ))}

@@ -10,7 +10,7 @@ export function PinstripeBackdrop({ heightClass = 'h-[720px]' }: { heightClass?:
             className={`
                 pointer-events-none absolute inset-x-0 top-0 -z-10 ${heightClass}
                 bg-pinstripe
-                [mask-image:linear-gradient(to_bottom,black_40%,transparent)]
+                mask-[linear-gradient(to_bottom,black_40%,transparent)]
             `}
         />
     );

@@ -38,6 +38,16 @@ const RULES = [
         message: 'In-between corner radius. Use rounded-control (4px: buttons, inputs, chips) or rounded-card (5px: panels, tiles, menus).',
     },
     {
+        id: 'plate-radius',
+        pattern: /(?<![\w-])rounded(?:-[tblrsexy]{1,2})?-(?:\[2px\]|xs)(?![\w-])/,
+        message: 'Use rounded-plate for the 2px plate, badge and skeleton-bar corner.',
+    },
+    {
+        id: 'control-radius',
+        pattern: /(?<![\w-])rounded(?:-[tblrsexy]{1,2})?-(?:\[4px\]|sm)(?![\w-])/,
+        message: 'Use rounded-control for the 4px corner.',
+    },
+    {
         id: 'pill',
         pattern: /\brounded-full\b(?=[^"'`]*\bpx-[\d.]+)|\bpx-[\d.]+\b(?=[^"'`]*\brounded-full\b)/,
         unless: /\b(?:w-\d+ h-\d+|h-[\d.]+ w-[\d.]+|size-\d)/,

@@ -53,7 +53,7 @@ function SectionSummary({ items }: { items: SummaryItem[] }) {
     return (
         <div className="text-xs font-bold flex flex-wrap items-center gap-x-1.5 gap-y-1 text-(--tertiary)">
             {items.map((item, i) => (
-                <div key={`${item.label ?? ''}-${item.value}-${i}`} className="flex shrink-0 items-center whitespace-nowrap rounded-[2px] px-1.5 border border-(--divider)">
+                <div key={`${item.label ?? ''}-${item.value}-${i}`} className="flex shrink-0 items-center whitespace-nowrap rounded-plate px-1.5 border border-(--divider)">
                     {item.image
                         ? <img src={item.image} alt={item.value} className="h-5 w-auto object-contain" />
                         : <span>{item.label ? `${item.label}: ` : ''}{item.value}</span>

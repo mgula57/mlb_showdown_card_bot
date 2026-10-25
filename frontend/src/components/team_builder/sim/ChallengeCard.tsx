@@ -110,7 +110,7 @@ export function ChallengeCard({ challenge, token, onNewTeam, onUseExistingTeam, 
                     <div className="flex justify-between items-start " >
                         <div className='space-y-1 flex flex-col' >
                             <span
-                                className="inline-flex self-start items-center gap-1 text-[10px] font-bold uppercase tracking-wide px-2 py-1 rounded-[2px]"
+                                className="inline-flex self-start items-center gap-1 text-[10px] font-bold uppercase tracking-wide px-2 py-1 rounded-plate"
                                 style={{ color: `var(${category.cssVar})`, backgroundColor: `color-mix(in srgb, var(${category.cssVar}) 15%, transparent)` }}
                             >
                                 {category.icon} {category.label}
@@ -118,7 +118,7 @@ export function ChallengeCard({ challenge, token, onNewTeam, onUseExistingTeam, 
                             <div className="flex gap-y-1 gap-x-2 items-center flex-wrap">
                                 
                                 <Heading level="panel">{challenge.title}</Heading>
-                                <span className="flex items-center gap-1 text-[11px] text-(--text-tertiary) bg-(--background-tertiary) px-2 py-1 rounded-[2px]">
+                                <span className="flex items-center gap-1 text-[11px] text-(--text-tertiary) bg-(--background-tertiary) px-2 py-1 rounded-plate">
                                     <FaClock className="text-[10px]" />
                                     {left > 0 ? `${left}d left` : 'Expires today'}
                                 </span>

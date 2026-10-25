@@ -169,7 +169,7 @@ export default function GameItem({ game, isStarred, showMatchupDetails, playerId
                     {isStarred && <FaStar className="text-(--gold) h-3 w-3 shrink-0" />}
                 </div>
                 <div className="flex items-center gap-1.5 shrink-0">
-                    <span className={`rounded-[2px] border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${stateBadgeClasses}`}>
+                    <span className={`rounded-plate border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${stateBadgeClasses}`}>
                         {stateBadgeLabel}
                     </span>
                 </div>

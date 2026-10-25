@@ -26,7 +26,7 @@ export const ImageSourceBadge: React.FC<{ source?: ShowdownBotCardImageSource | 
             title={description.title}
             className="
                 flex items-center gap-1.5 max-w-56
-                py-1 px-3 rounded-[2px]
+                py-1 px-3 rounded-plate
                 border border-(--divider)
                 text-xs font-semibold text-(--text-secondary)
             "

@@ -458,9 +458,9 @@ export default function Home() {
                         {isLoadingGames && (
                             [...Array(6)].map((_, i) => (
                                 <div key={i} className="w-36 shrink-0 px-4 py-3 border-r border-(--divider) animate-pulse">
-                                    <div className="h-3 w-16 rounded-[2px] mb-2 bg-(--background-tertiary)" />
-                                    <div className="h-3 w-20 rounded-[2px] mb-1 bg-(--background-tertiary)" />
-                                    <div className="h-3 w-20 rounded-[2px] bg-(--background-tertiary)" />
+                                    <div className="h-3 w-16 rounded-plate mb-2 bg-(--background-tertiary)" />
+                                    <div className="h-3 w-20 rounded-plate mb-1 bg-(--background-tertiary)" />
+                                    <div className="h-3 w-20 rounded-plate bg-(--background-tertiary)" />
                                 </div>
                             ))
                         )}
@@ -494,7 +494,7 @@ export default function Home() {
                                     className="w-36 shrink-0 px-4 py-3 border-r border-(--divider) transition-colors hover:bg-(--background-tertiary)"
                                 >
                                     {/* Status */}
-                                    <div className="mb-2 flex items-center justify-between gap-1.5 min-h-[17px]">
+                                    <div className="mb-2 flex items-center justify-between gap-1.5 min-h-4.25">
                                         {isLive ? (
                                             <Plate variant="red" size="sm">Live</Plate>
                                         ) : isFinal ? (
@@ -579,8 +579,8 @@ export default function Home() {
                                         className="w-full rounded-card bg-(--background-tertiary)"
                                         style={{ aspectRatio: '2.5 / 3.5' }}
                                     />
-                                    <div className="mt-1.5 h-3 w-3/4 rounded-[2px] bg-(--background-tertiary)" />
-                                    <div className="mt-1 h-2.5 w-1/2 rounded-[2px] bg-(--background-tertiary)" />
+                                    <div className="mt-1.5 h-3 w-3/4 rounded-plate bg-(--background-tertiary)" />
+                                    <div className="mt-1 h-2.5 w-1/2 rounded-plate bg-(--background-tertiary)" />
                                 </div>
                             ))
                             : recentCards.map((item, index) => (
