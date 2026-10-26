@@ -1787,7 +1787,7 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                                 disabled={!isTeamSetupValid(draft)}
                                 className={buttonClass('primary', 'md')}
                             >
-                                Continue to Draft <FaArrowRight className="text-[11px]" />
+                                Continue to draft <FaArrowRight className="text-[11px]" />
                             </button>
                         </div>
                     </div>
@@ -2085,7 +2085,7 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                                     disabled={!pendingSettings || settingsChanges.length === 0 || !settingsValid}
                                     className={buttonClass('primary', 'md', 'flex-1')}
                                 >
-                                    Apply Changes
+                                    Apply changes
                                 </button>
                                 <button
                                     type="button"
@@ -2163,7 +2163,7 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                                 disabled={reshuffling}
                                 className={buttonClass('primary', 'md', 'flex-1 py-2.5!')}
                             >
-                                <FaCircleCheck className="text-[11px]" /> Use This Roster
+                                <FaCircleCheck className="text-[11px]" /> Use this roster
                             </button>
                         </div>
                     }

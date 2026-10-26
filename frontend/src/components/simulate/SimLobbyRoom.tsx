@@ -245,7 +245,7 @@ export function SimLobbyRoom({ lobbyId, initialState, token, userId, onRunning, 
                         className={buttonClass('primary', 'sm', 'self-start')}
                     >
                         {claiming ? <FaSpinner className="animate-spin text-[10px]" /> : <FaCheck className="text-[10px]" />}
-                        {myMember ? 'Update Claim' : 'Claim Club'}
+                        {myMember ? 'Update claim' : 'Claim club'}
                     </button>
                 </div>
             )}
@@ -263,7 +263,7 @@ export function SimLobbyRoom({ lobbyId, initialState, token, userId, onRunning, 
                         onClick={handleLeave}
                         className="flex items-center gap-1.5 px-3 py-2 rounded-control text-[12px] font-semibold text-(--text-secondary) hover:text-(--text-primary) transition-colors cursor-pointer"
                     >
-                        <FaRightFromBracket className="text-[10px]" /> Leave Lobby
+                        <FaRightFromBracket className="text-[10px]" /> Leave lobby
                     </button>
                 )}
                 {isHost && (
@@ -274,7 +274,7 @@ export function SimLobbyRoom({ lobbyId, initialState, token, userId, onRunning, 
                         className={buttonClass('primary', 'md', 'ml-auto')}
                     >
                         {starting ? <FaSpinner className="animate-spin text-[11px]" /> : <FaPlay className="text-[11px]" />}
-                        Start Simulation
+                        Start simulation
                     </button>
                 )}
             </div>

@@ -128,7 +128,7 @@ Screens with nothing to show yet will borrow the voice of the 2000 print ads: a 
 
 ## Copy
 
-Write like the cards and the ads: short, confident, plain. Use baseball terms the way the cards print them (PT., ON-BASE, CONTROL, IP 7, SPEED B (15)). Buttons say exactly what happens ("Run algorithm", "Publish").
+Write like the cards and the ads: short, confident, plain. Use baseball terms the way the cards print them (PT., ON-BASE, CONTROL, IP 7, SPEED B (15)). Buttons say exactly what happens ("Run algorithm", "Publish"). Labels are sentence case ("Send reset link", "Apply changes"); proper nouns and set names keep their capitals. Status messages are plain statements without exclamation marks ("Card built", "Filter saved", "Signed out"); errors say what failed and what to do ("Couldn't save your username. Try again."), without "please" or "successfully". In-progress labels end in a single ellipsis character ("Saving…").
 
 ## Set themes (future)
 

@@ -1453,7 +1453,7 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
                             label=""
                             type="text"
                             value={searchText || ''}
-                            placeholder={isSmallScreen ? "Search" : "Search for a Player..."}
+                            placeholder={isSmallScreen ? "Search" : "Search for a player…"}
                             onChange={(value) => setSearchText(value || '')}
                             className="w-full @2xl:w-1/3 font-bold"
                             isClearable={true}
@@ -2016,7 +2016,7 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
                                     <label className={FIELD_LABEL_CLASS}>Positions</label>
                                     <SetMultiSelect
                                         variant="form"
-                                        placeholder="Select..."
+                                        placeholder="Select…"
                                         options={POSITION_OPTIONS}
                                         selections={filtersForEditing.positions ?? []}
                                         onChange={(values) => setFiltersForEditing(prev => ({ ...prev, positions: values }))}

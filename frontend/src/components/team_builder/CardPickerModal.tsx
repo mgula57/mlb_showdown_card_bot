@@ -83,7 +83,7 @@ export function CardPickerModal({
                     onChange={v => setQuery(v ?? '')}
                     isClearable
                     showSearchIcon
-                    placeholder="Search..."
+                    placeholder="Search…"
                 />
 
                 {/* Results */}

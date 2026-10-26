@@ -90,7 +90,7 @@ export const ResetPasswordPage: React.FC = () => {
                             <button
                                 onClick={() => navigate('/')}
                                 className={buttonClass('primary', 'md', 'w-full')}>
-                                Back to Sign In
+                                Back to sign in
                             </button>
                         </div>
                     )}
@@ -138,7 +138,7 @@ export const ResetPasswordPage: React.FC = () => {
                                 <button
                                     type="submit" disabled={loading || !password || !confirmPassword}
                                     className={buttonClass('primary', 'md', 'w-full')}>
-                                    {loading ? 'Updating…' : 'Update Password'}
+                                    {loading ? 'Updating…' : 'Update password'}
                                 </button>
                             </form>
                         </>
@@ -149,7 +149,7 @@ export const ResetPasswordPage: React.FC = () => {
                         <div className="text-center space-y-4">
                             <FaCheckCircle className="text-(--green) text-4xl mx-auto" />
                             <div>
-                                <Heading level="page" className="mb-1">Password updated!</Heading>
+                                <Heading level="page" className="mb-1">Password updated</Heading>
                                 <p className="text-sm text-secondary opacity-70">
                                     Your password has been changed. You're now signed in.
                                 </p>
@@ -157,7 +157,7 @@ export const ResetPasswordPage: React.FC = () => {
                             <button
                                 onClick={() => navigate('/account')}
                                 className={buttonClass('primary', 'md', 'w-full')}>
-                                Go to Account
+                                Go to account
                             </button>
                         </div>
                     )}

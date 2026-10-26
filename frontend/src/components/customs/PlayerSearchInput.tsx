@@ -80,7 +80,7 @@ const MENU_VIEWPORT_MARGIN = 8;
  * Demonstrates various search capabilities and formats
  */
 const PLACEHOLDER_EXAMPLES = [
-    "Search for a player...",
+    "Search for a player…",
     "Try: Aaron Judge",
     "Try: 2025",
     "Try: NYM",
@@ -373,7 +373,7 @@ export function PlayerSearchInput({
     };
 
     // Get current placeholder text
-    const currentPlaceholder = (isFocused || query) ? "Search for a player..." : PLACEHOLDER_EXAMPLES[placeholderIndex];
+    const currentPlaceholder = (isFocused || query) ? "Search for a player…" : PLACEHOLDER_EXAMPLES[placeholderIndex];
 
     return (
         <div className={`relative ${className}`}>

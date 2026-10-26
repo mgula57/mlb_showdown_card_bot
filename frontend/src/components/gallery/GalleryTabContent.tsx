@@ -577,7 +577,7 @@ export const GalleryTabContent: React.FC<GalleryTabContentProps> = ({ user, toke
                         title={showingHidden ? 'Show active cards' : 'Show hidden cards'}
                     >
                         <FaEyeSlash size={13} />
-                        {showingHidden ? 'Hidden Only' : 'Active Only'}
+                        {showingHidden ? 'Hidden only' : 'Active only'}
                     </button>
                 </div>
             </div>

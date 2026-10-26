@@ -100,7 +100,7 @@ export function SimLobbyEntry({ token, onEnterLobby, onBack, initialMode }: Prop
                         className={buttonClass('primary', 'md')}
                     >
                         {busy ? <FaSpinner className="animate-spin text-[11px]" /> : <FaRightToBracket className="text-[11px]" />}
-                        Join Lobby
+                        Join lobby
                     </button>
                     {error && (
                         <InlineError size="md">

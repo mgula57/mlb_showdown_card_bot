@@ -419,7 +419,7 @@ function GuidedTargetPrompt({ onSetTarget }: { onSetTarget: (target: number) => 
                 disabled={target < 100}
                 className={buttonClass('primary', 'md')}
             >
-                Start Guided Draft <FaArrowRight className="text-[11px]" />
+                Start guided draft <FaArrowRight className="text-[11px]" />
             </button>
         </div>
     );

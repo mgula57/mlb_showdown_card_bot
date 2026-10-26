@@ -1095,7 +1095,7 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
                                                     >
                                                         <FaChevronRight className="h-3.5 w-3.5" />
                                                         <span className={`lg:hidden ${CAPS_LABEL_CLASS}`}>
-                                                            Show WBC Navigation
+                                                            Show WBC navigation
                                                         </span>
                                                     </button>
                                                 </div>
@@ -1458,7 +1458,7 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
                                             />
                                         )} */}
                                         <div className="flex justify-center p-24 text-2xl">
-                                            <span className="p-12 rounded-card bg-secondary">Coming soon - once 2026 stats mature!</span>
+                                            <span className="p-12 rounded-card bg-secondary">Coming once 2026 stats mature.</span>
                                         </div>
                                     </Tabs.Content>
 

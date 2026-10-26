@@ -210,7 +210,7 @@ export default function GameSimSetupModal({ gamePk, showdownSet, onCancel, onSta
                             className={buttonClass('feature', 'sm')}
                         >
                             {starting ? <FaSpinner className="animate-spin text-[10px]" /> : <FaTerminal className="text-[15px]" />}
-                            {starting ? 'Simulating…' : setup?.is_takeover ? 'Take Over' : 'Simulate'}
+                            {starting ? 'Simulating…' : setup?.is_takeover ? 'Take over' : 'Simulate'}
                         </button>
                     </div>
                 </div>
@@ -227,7 +227,7 @@ export default function GameSimSetupModal({ gamePk, showdownSet, onCancel, onSta
                                 disabled={loading}
                                 className={choiceClass(!fromBeginning, 'sm')}
                             >
-                                Current State
+                                Current state
                             </button>
                             <button
                                 type="button"
@@ -235,7 +235,7 @@ export default function GameSimSetupModal({ gamePk, showdownSet, onCancel, onSta
                                 disabled={loading}
                                 className={choiceClass(fromBeginning, 'sm')}
                             >
-                                Beginning of Game
+                                Beginning of game
                             </button>
                         </div>
                         {loading && <FaSpinner className="animate-spin text-xs text-(--secondary)" />}

@@ -474,7 +474,7 @@ function ReleaseImageDetailModal({ image, snapshot, canRender, isRendering, onRe
                             rel="noreferrer"
                             className={buttonClass('ghost', 'sm')}
                         >
-                            <FaArrowUpRightFromSquare className="text-[11px]" /> Open Full Size
+                            <FaArrowUpRightFromSquare className="text-[11px]" /> Open full size
                         </a>
                     )}
                     {canRender && (
@@ -483,7 +483,7 @@ function ReleaseImageDetailModal({ image, snapshot, canRender, isRendering, onRe
                             onClick={onRender}
                             className={buttonClass('primary', 'sm', 'min-h-9')}
                         >
-                            <FaWandMagicSparkles className="text-[12px]" /> Render This Card
+                            <FaWandMagicSparkles className="text-[12px]" /> Render this card
                         </button>
                     )}
                 </div>

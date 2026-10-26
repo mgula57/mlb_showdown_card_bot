@@ -186,7 +186,7 @@ export default function GameItem({ game, isStarred, showMatchupDetails, playerId
                         className={buttonClass('primary', 'sm')}
                     >
                         <FaTerminal className="h-3 w-3" />
-                        Sim It
+                        Sim it
                     </button>
                 )}
 

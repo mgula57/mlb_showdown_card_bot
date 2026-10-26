@@ -420,8 +420,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
             {/* Login Success Toast */}
             <ToastMessage
                 loadingStatus={loginSuccess ? {
-                    message: 'Welcome!',
-                    subMessage: 'Successfully logged in',
+                    message: 'Signed in',
                     icon: <FaCircleCheck className="w-5 h-5" />,
                     tone: 'success',
                     removeAfterSeconds: 3

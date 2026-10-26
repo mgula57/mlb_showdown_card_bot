@@ -147,7 +147,7 @@ export const WhatsNewModal: React.FC<WhatsNewModalProps> = ({ isOpen, onClose })
                         className={buttonClass('primary')}
                         aria-label="Acknowledge new features and close modal"
                     >
-                        Got it!
+                        Got it
                     </button>
                 </div>
             </div>

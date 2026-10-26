@@ -534,7 +534,7 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
 
             setLoadingStatus(prevStatus => ({
                 ...prevStatus, // Keep all existing values
-                message: "Done!",
+                message: "Card built",
                 icon: <FaCircleCheck className="text-sm"/>,
                 tone: "success",
                 removeAfterSeconds: 2,
@@ -561,7 +561,7 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
 
         const subMessage = `${form.name} | ${form.year}`;
         setLoadingStatus({
-            message: "Building...",
+            message: "Building…",
             subMessage: subMessage,
             icon: <FaBaseballBall
                         className="text-sm animate-bounce"
@@ -606,7 +606,7 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
         const subMessage = elements.join(", ");
 
         setLoadingStatus({
-            message: "Shuffling...",
+            message: "Shuffling…",
             subMessage: subMessage,
             icon: <FaShuffle
                         className="text-sm animate-bounce"
@@ -919,7 +919,7 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
                             onChange={(value) => setForm({ ...form, split: value || null })}
                             className='col-span-full'
                             disabled={splitOptions.length === 0}
-                            placeholder={splitOptions.length === 0 ? 'Loading...' : 'Select a Split'}
+                            placeholder={splitOptions.length === 0 ? 'Loading…' : 'Select a split'}
                         />
                     );
                 }
@@ -1402,7 +1402,7 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
                                 <button
                                     type="button"
                                     aria-label="Build Card"
-                                    title={disableBuildButton ? "Please enter player name and year" : "Build Card"}
+                                    title={disableBuildButton ? "Enter a player name and year" : "Build Card"}
                                     className={`
                                         pointer-events-auto
                                         bg-(--showdown-blue)

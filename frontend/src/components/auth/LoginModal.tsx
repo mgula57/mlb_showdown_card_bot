@@ -81,7 +81,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({ onClose, onSuccess }) =>
 
         if (!username || username.length < 3) { setError('Username must be at least 3 characters'); return; }
         if (!/^[a-zA-Z0-9_]+$/.test(username)) { setError('Username can only contain letters, numbers, and underscores'); return; }
-        if (usernameError) { setError('Please fix username errors before continuing'); return; }
+        if (usernameError) { setError('Fix the username first'); return; }
         if (password !== confirmPassword) { setError('Passwords do not match'); return; }
 
         setLoading(true);
@@ -179,7 +179,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({ onClose, onSuccess }) =>
                             </div>
                             <button type="submit" disabled={loading || !email}
                                 className={buttonClass('primary', 'md', 'w-full')}>
-                                {loading ? 'Checking...' : 'Continue'}
+                                {loading ? 'Checking…' : 'Continue'}
                             </button>
                         </form>
                     </>
@@ -208,7 +208,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({ onClose, onSuccess }) =>
                             </div>
                             <button type="submit" disabled={loading}
                                 className={buttonClass('primary', 'md', 'w-full')}>
-                                {loading ? 'Signing in...' : 'Sign In'}
+                                {loading ? 'Signing in…' : 'Sign in'}
                             </button>
                         </form>
                         <button onClick={goBack} disabled={loading}
@@ -229,7 +229,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({ onClose, onSuccess }) =>
                                 </p>
                                 <button onClick={goBack}
                                     className={buttonClass('primary', 'md', 'w-full')}>
-                                    Back to Sign In
+                                    Back to sign in
                                 </button>
                             </div>
                         ) : (
@@ -250,12 +250,12 @@ export const LoginModal: React.FC<LoginModalProps> = ({ onClose, onSuccess }) =>
                                     </div>
                                     <button type="submit" disabled={loading || !email}
                                         className={buttonClass('primary', 'md', 'w-full')}>
-                                        {loading ? 'Sending...' : 'Send Reset Link'}
+                                        {loading ? 'Sending…' : 'Send reset link'}
                                     </button>
                                 </form>
                                 <button onClick={() => { setStep('signin'); setError(null); }} disabled={loading}
                                     className="mt-4 w-full flex items-center justify-center gap-2 py-2 text-sm text-secondary hover:text-(--text-primary) transition-colors cursor-pointer disabled:opacity-50">
-                                    <FaArrowLeft className="text-xs" /> Back to Sign In
+                                    <FaArrowLeft className="text-xs" /> Back to sign in
                                 </button>
                             </>
                         )}
@@ -276,10 +276,10 @@ export const LoginModal: React.FC<LoginModalProps> = ({ onClose, onSuccess }) =>
                                     className={`${inputCls} ${usernameError ? 'border-(--red)' : ''}`}
                                     placeholder="e.g. brianjordangoat"
                                 />
-                                {checkingUsername && <p className="text-xs text-(--text-tertiary) mt-1">Checking availability...</p>}
+                                {checkingUsername && <p className="text-xs text-(--text-tertiary) mt-1">Checking availability…</p>}
                                 {usernameError && <p className="text-xs text-(--red) mt-1">{usernameError}</p>}
                                 {!usernameError && username && !checkingUsername && (
-                                    <p className="text-xs text-(--green) mt-1">Username is available!</p>
+                                    <p className="text-xs text-(--green) mt-1">Username available</p>
                                 )}
                                 <p className="text-xs text-(--text-tertiary) mt-1">Letters, numbers, and underscores only. Min 3 characters.</p>
                             </div>
@@ -305,7 +305,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({ onClose, onSuccess }) =>
                             </div>
                             <button type="submit" disabled={loading || !!usernameError || checkingUsername}
                                 className={buttonClass('primary', 'md', 'w-full')}>
-                                {loading ? 'Creating account...' : 'Create Account'}
+                                {loading ? 'Creating account…' : 'Create account'}
                             </button>
                         </form>
                         <button onClick={goBack} disabled={loading}

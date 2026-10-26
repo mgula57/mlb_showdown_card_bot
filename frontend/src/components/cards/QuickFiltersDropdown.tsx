@@ -155,7 +155,7 @@ export function QuickFiltersDropdown({ source, defaultPresets, currentFilters, o
         setSaveMode(false);
         setSaveName('');
         setIsSaving(false);
-        showToast('Filter saved!', 'success');
+        showToast('Filter saved', 'success');
     };
 
     const handleDelete = async (id: string) => {
@@ -171,7 +171,7 @@ export function QuickFiltersDropdown({ source, defaultPresets, currentFilters, o
         setUserFilters(prev => prev.map(f => f.id === renamingId ? { ...f, name: trimmed } : f));
         setRenamingId(null);
         await updateUserQuickFilter(token, renamingId, { name: trimmed });
-        showToast('Filter renamed!', 'success');
+        showToast('Filter renamed', 'success');
     };
 
     const handleRenameCancel = () => {
@@ -183,7 +183,7 @@ export function QuickFiltersDropdown({ source, defaultPresets, currentFilters, o
         if (!token) return;
         setUserFilters(prev => prev.map(f => f.id === id ? { ...f, filters: currentFilters } : f));
         await updateUserQuickFilter(token, id, { filters: currentFilters });
-        showToast('Preset updated!', 'success');
+        showToast('Preset updated', 'success');
     };
 
     return (

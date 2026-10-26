@@ -357,7 +357,7 @@ export default function GameDetail({ gamePk, sportId, season, showdownSet, isAct
                         className={`flex items-center gap-1.5 rounded-control px-2.5 py-1 text-[11px] font-semibold ${buttonVariantClass('secondary')}`}
                     >
                         {showRecap ? <FaRing size={10} /> : <FaStar size={10} />}
-                        {showRecap ? 'Show Field' : 'Recap'}
+                        {showRecap ? 'Show field' : 'Recap'}
                     </button>
                 ) : undefined;
                 const scoreHeader = <ScoreHeader game={headerView} centerAction={recapToggle} />;

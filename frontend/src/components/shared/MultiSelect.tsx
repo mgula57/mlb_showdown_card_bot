@@ -85,7 +85,7 @@ interface MultiSelectProps {
  * @param props - Component props
  * @returns A multi-selection dropdown with tags and advanced UX
  */
-const MultiSelect = ({ label, labelDescription, options, selections, onChange, placeholder = "Select...", className, disabled = false }: MultiSelectProps) => {
+const MultiSelect = ({ label, labelDescription, options, selections, onChange, placeholder = "Select…", className, disabled = false }: MultiSelectProps) => {
 
     // State management for dropdown behavior and positioning
     /** Controls dropdown visibility */
@@ -314,7 +314,7 @@ const MultiSelect = ({ label, labelDescription, options, selections, onChange, p
                                     disabled={disabled}
                                     className="cursor-pointer text-(--showdown-blue) hover:underline"
                                 >
-                                    Select All
+                                    Select all
                                 </button>
                                 <button
                                     type="button"
@@ -322,7 +322,7 @@ const MultiSelect = ({ label, labelDescription, options, selections, onChange, p
                                     disabled={disabled}
                                     className="cursor-pointer text-(--text-tertiary) hover:text-(--text-primary)"
                                 >
-                                    Clear All
+                                    Clear all
                                 </button>
                             </div>
                         </div>

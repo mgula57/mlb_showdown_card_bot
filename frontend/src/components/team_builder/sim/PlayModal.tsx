@@ -285,7 +285,7 @@ export function PlayModal({
                         className={buttonClass('primary', 'sm')}
                     >
                         {starting ? <FaSpinner className="animate-spin text-[10px]" /> : <FaPlay className="text-[10px]" />}
-                        {mode === 'season' ? 'Play Season' : 'Play Challenge'}
+                        {mode === 'season' ? 'Play season' : 'Play challenge'}
                     </button>
                 </div>
             }
@@ -293,7 +293,7 @@ export function PlayModal({
             <div className="flex flex-col gap-4 px-3 py-2">
                 <div className={tabListClass(true)}>
                     <button type="button" onClick={() => setMode('season')} className={tabButtonClass(mode === 'season', 'sm', true)}>
-                        <FaCalendarDays className="text-[11px]" /> Season Takeover
+                        <FaCalendarDays className="text-[11px]" /> Season takeover
                     </button>
                     <button type="button" onClick={() => setMode('challenge')} className={tabButtonClass(mode === 'challenge', 'sm', true)}>
                         <FaFlagCheckered className="text-[11px]" /> Team Challenge

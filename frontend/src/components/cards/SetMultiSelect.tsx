@@ -149,8 +149,8 @@ export default function SetMultiSelect({ options, selections, onChange, defaultI
                     "
                 >
                     <div className="flex justify-between px-3 py-2 gap-5 text-xs font-semibold border-b border-(--divider)">
-                        <button type="button" onClick={() => onChange(options.map(o => o.value))} className="cursor-pointer text-(--showdown-blue) hover:underline">Select All</button>
-                        <button type="button" onClick={() => onChange([])} className="cursor-pointer text-(--text-tertiary) hover:text-(--text-primary)">Clear All</button>
+                        <button type="button" onClick={() => onChange(options.map(o => o.value))} className="cursor-pointer text-(--showdown-blue) hover:underline">Select all</button>
+                        <button type="button" onClick={() => onChange([])} className="cursor-pointer text-(--text-tertiary) hover:text-(--text-primary)">Clear all</button>
                     </div>
                     {options.map((option, index) => {
                         const isSelected = selections.includes(option.value);

@@ -82,7 +82,7 @@ export const UsernamePrompt: React.FC<UsernamePromptProps> = ({ userId, onComple
                 .eq('id', userId);
 
             if (updateError) {
-                setError('Failed to save username. Please try again.');
+                setError("Couldn't save your username. Try again.");
                 setSaving(false);
                 return;
             }
@@ -121,7 +121,7 @@ export const UsernamePrompt: React.FC<UsernamePromptProps> = ({ userId, onComple
         >
             <div className="p-6">
                 <p className="text-secondary mb-4">
-                    Please choose a username to complete your account setup.
+                    Choose a username to finish setting up your account.
                 </p>
 
                 <form onSubmit={handleSubmit} className="space-y-4">
@@ -150,7 +150,7 @@ export const UsernamePrompt: React.FC<UsernamePromptProps> = ({ userId, onComple
                         
                         {checking && (
                             <p className="text-xs text-(--text-tertiary) mt-1">
-                                Checking availability...
+                                Checking availability…
                             </p>
                         )}
                         {error && (
@@ -174,7 +174,7 @@ export const UsernamePrompt: React.FC<UsernamePromptProps> = ({ userId, onComple
                         disabled={saving || checking || !!error || !username}
                         className={buttonClass('primary', 'md', 'w-full')}
                     >
-                        {saving ? 'Saving...' : 'Continue'}
+                        {saving ? 'Saving…' : 'Continue'}
                     </button>
                 </form>
             </div>

@@ -444,7 +444,7 @@ export default function Home() {
                         )}
                     </p>
                     <Link to="/seasons" className="text-xs font-semibold text-white/80 hover:text-white flex items-center gap-1 shrink-0">
-                        Full Season Details <FaChevronRight className="text-[10px]" />
+                        Full season details <FaChevronRight className="text-[10px]" />
                     </Link>
                 </div>
 

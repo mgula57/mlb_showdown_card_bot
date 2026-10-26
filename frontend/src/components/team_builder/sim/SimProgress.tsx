@@ -103,7 +103,7 @@ export function SimProgress({ job, teamName, onCancel }: Props) {
                             onClick={onCancel}
                             className="absolute top-1 right-1 z-10 flex cursor-pointer flex-col items-center rounded-control border border-(--divider) bg-(--background-primary) px-2.5 py-1.5 text-[11px] font-semibold leading-tight text-tertiary transition-colors hover:border-(--showdown-blue) hover:text-(--text-primary)"
                         >
-                            <span>Sim Stuck?</span>
+                            <span>Sim stuck?</span>
                             <span className="inline-flex items-center gap-1">
                                 <FaRotate className="text-[11px]" />
                                 Retry

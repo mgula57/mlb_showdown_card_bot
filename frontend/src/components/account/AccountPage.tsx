@@ -162,7 +162,7 @@ const AccountPage: React.FC = () => {
         setIsSavingUsername(false);
 
         if (error) {
-            setUsernameError('Failed to update username. Please try again.');
+            setUsernameError("Couldn't update your username. Try again.");
             return;
         }
 
@@ -193,7 +193,7 @@ const AccountPage: React.FC = () => {
         if (url) {
             syncSetting({ avatar_url: url });
         } else {
-            setAvatarError('Upload failed. Please try again.');
+            setAvatarError("Upload failed. Try again.");
         }
         setCropSrc(null);
     };
@@ -337,11 +337,11 @@ const AccountPage: React.FC = () => {
                                                     placeholder="e.g. brianjordangoat"
                                                 />
                                                 {isCheckingUsername && (
-                                                    <p className="text-xs text-(--text-tertiary)">Checking availability...</p>
+                                                    <p className="text-xs text-(--text-tertiary)">Checking availability…</p>
                                                 )}
                                                 {usernameError && !isCheckingUsername ? (
                                                     <p className="text-xs text-(--red)">{usernameError}</p>
-                                                ) : (!usernameError && !isCheckingUsername ? (<p className="text-xs text-(--green)">Username is available!</p>) : null)}
+                                                ) : (!usernameError && !isCheckingUsername ? (<p className="text-xs text-(--green)">Username available</p>) : null)}
                                                 <div className="flex items-center gap-2">
                                                     <button
                                                         type="button"
@@ -349,7 +349,7 @@ const AccountPage: React.FC = () => {
                                                         disabled={isSavingUsername || isCheckingUsername}
                                                         className={buttonClass('primary', 'sm')}
                                                     >
-                                                        {isSavingUsername ? 'Saving...' : 'Save'}
+                                                        {isSavingUsername ? 'Saving…' : 'Save'}
                                                     </button>
                                                     <button
                                                         type="button"
@@ -466,7 +466,7 @@ const AccountPage: React.FC = () => {
                             className={buttonClass('secondary', 'md', 'w-full md:w-auto px-6! py-3!')}
                         >
                             <FaSignOutAlt />
-                            <span>{isSigningOut ? 'Signing Out...' : 'Sign Out'}</span>
+                            <span>{isSigningOut ? 'Signing out…' : 'Sign out'}</span>
                         </button>
 
                         {/* Delete Account Button (placeholder for future implementation) */}
@@ -476,11 +476,11 @@ const AccountPage: React.FC = () => {
                             title="Account deletion coming soon"
                         >
                             <FaTrash />
-                            <span>Delete Account</span>
+                            <span>Delete account</span>
                         </button>
                         <p className="text-xs text-(--text-tertiary)">
                             Account deletion will be available in a future update. 
-                            If you need account assistance please email <a href="mailto:mlbshowdownbot@gmail.com" className="text-tertiary hover:underline">mlbshowdownbot@gmail.com</a>.
+                            For help with your account, email <a href="mailto:mlbshowdownbot@gmail.com" className="text-tertiary hover:underline">mlbshowdownbot@gmail.com</a>.
                         </p>
                     </div>
                 </AccountSection>

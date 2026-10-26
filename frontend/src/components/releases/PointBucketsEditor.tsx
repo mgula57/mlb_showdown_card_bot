@@ -68,7 +68,7 @@ export default function PointBucketsEditor({ buckets, onChange }: PointBucketsEd
                 className="self-start flex items-center gap-1.5 px-2.5 py-1.5 rounded-control border border-(--divider) text-[12px] font-semibold
                     text-(--text-secondary) hover:text-(--text-primary) hover:bg-(--background-secondary) transition-colors cursor-pointer"
             >
-                <FaPlus className="text-[10px]" /> Add Bucket
+                <FaPlus className="text-[10px]" /> Add bucket
             </button>
 
             <p className="text-[11px] text-(--text-tertiary)">

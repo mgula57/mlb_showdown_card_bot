@@ -54,7 +54,7 @@ export function EditionStyleModal({ releaseId, edition, token, onClose, onEditio
                         onClick={() => setStyle(CARD_STYLE_DEFAULTS)}
                         className={buttonClass('ghost', 'sm', 'mr-auto')}
                     >
-                        Reset to Defaults
+                        Reset to defaults
                     </button>
                     <button
                         type="button"

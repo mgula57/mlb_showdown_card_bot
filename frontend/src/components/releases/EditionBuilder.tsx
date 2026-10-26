@@ -978,21 +978,21 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
                                             onClick={handleFillRemainingSlots}
                                             className={buttonClass('primary', 'sm')}
                                         >
-                                            Fill Remaining Slots
+                                            Fill remaining slots
                                         </button>
                                         <button
                                             type="button"
                                             onClick={handleReplaceAllFromPreview}
                                             className={buttonClass('secondary', 'sm')}
                                         >
-                                            Replace All
+                                            Replace all
                                         </button>
                                         <button
                                             type="button"
                                             onClick={() => setPreviewResult(null)}
                                             className={buttonClass('ghost', 'sm')}
                                         >
-                                            Discard Preview
+                                            Discard preview
                                         </button>
                                     </div>
                                 </div>
@@ -1110,7 +1110,7 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
                                                     onClick={() => persist(renumberSorted(cards, numbering.sortLayers))}
                                                     className={buttonClass('secondary', 'sm', 'min-h-9')}
                                                 >
-                                                    <FaArrowsRotate className="text-[12px]" /> Renumber Now
+                                                    <FaArrowsRotate className="text-[12px]" /> Renumber now
                                                 </button>
                                             )}
 
@@ -1241,7 +1241,7 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
                                             onClick={clearPoolFilters}
                                             className={buttonClass('secondary', 'sm')}
                                         >
-                                            Clear Filters
+                                            Clear filters
                                         </button>
                                     </div>
                                 ) : displayCards.length === 0 ? (

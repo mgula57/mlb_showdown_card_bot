@@ -231,7 +231,7 @@ export function SimResult({ summary, challengeResult, challengeStanding, onOpenC
                             className={buttonClass('secondary', 'sm', 'mt-1 px-3! py-1! text-[10px]! sm:text-[12px]!')}
                         >
                             <FaArrowRotateLeft className="text-[10px]" />
-                            {onTryAgain ? 'Edit & Try Again' : 'Run again'}
+                            {onTryAgain ? 'Edit and try again' : 'Run again'}
                         </button>
                     )}
                 </div>

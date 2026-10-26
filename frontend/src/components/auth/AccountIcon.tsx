@@ -139,7 +139,7 @@ export const AccountIcon: React.FC<AccountIconProps> = ({
 
             <ToastMessage
                 loadingStatus={hasSignedOut ? {
-                    message: 'Logged Out!',
+                    message: 'Signed out',
                     icon: <FaCircleCheck className="w-5 h-5" />,
                     tone: 'success',
                     removeAfterSeconds: 3,
@@ -177,7 +177,7 @@ export const AccountIcon: React.FC<AccountIconProps> = ({
                             "
                         >
                             <FaCog className="w-4 h-4" />
-                            <span>Account Settings</span>
+                            <span>Account settings</span>
                         </button>
                         <button
                             onClick={handleSignOut}
