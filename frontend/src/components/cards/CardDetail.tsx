@@ -52,6 +52,8 @@ type CardDetailProps = {
     showdownBotCardData?: ShowdownBotCardAPIResponse | null;
     /** Card Id is passed in when loading from search */
     cardId?: string;
+    /** Load the `cardId` card with variable speed (2000/2001 hitters only), e.g. from a variable speed search */
+    variableSpeed?: boolean;
     /** Whether to hide trend graphs (optional for mobile/compact views) */
     hideTrendGraphs?: boolean;
     /** Loading state for the main card data */
@@ -121,7 +123,7 @@ const SectionPanel = ({ title, subtitle, isLoading, children }: { title: string;
  * />
  * ```
  */
-export const CardDetail = memo(function CardDetail({ showdownBotCardData, cardId, isLoading, hideTrendGraphs=false, context='custom', parent, showdownSetForPlaceholder, simStats, tooltip, onDraft, draftDisabled=false, enableSetSwitcher=false }: CardDetailProps) {
+export const CardDetail = memo(function CardDetail({ showdownBotCardData, cardId, variableSpeed = false, isLoading, hideTrendGraphs=false, context='custom', parent, showdownSetForPlaceholder, simStats, tooltip, onDraft, draftDisabled=false, enableSetSwitcher=false }: CardDetailProps) {
 
     const { session } = useAuth();
     const customizeCard = useCustomizeCard();
@@ -141,7 +143,9 @@ export const CardDetail = memo(function CardDetail({ showdownBotCardData, cardId
     // the parent handed us a new card every time the parent re-renders after a local set switch
     // (e.g. a background session refresh when the browser tab regains focus), re-fetching the
     // stale prop id and silently reverting the user's chosen set.
-    const handledCardIdPropRef = useRef<string | undefined>(cardId);
+    // Keyed with the speed mode too, so toggling variable speed refetches the same card
+    const cardFetchKey = cardId ? `${cardId}${variableSpeed ? ':variable-speed' : ''}` : undefined;
+    const handledCardIdPropRef = useRef<string | undefined>(cardFetchKey);
 
     // Use internal state when available, fallback to prop
     const activeCardData = internalCardData || showdownBotCardData;
@@ -217,15 +221,15 @@ export const CardDetail = memo(function CardDetail({ showdownBotCardData, cardId
                 fetchRanges(showdownBotCardData.card);
             }
 
-            handledCardIdPropRef.current = cardId;
+            handledCardIdPropRef.current = cardFetchKey;
             return;
         }
 
         // Case 2: No data but cardId provided - fetch it from DB
-        if (cardId && cardId !== handledCardIdPropRef.current) {
-            handledCardIdPropRef.current = cardId;
+        if (cardId && cardFetchKey !== handledCardIdPropRef.current) {
+            handledCardIdPropRef.current = cardFetchKey;
             setIsLoadingFromId(true);
-            fetchCardById(cardId, 'card-detail')
+            fetchCardById(cardId, 'card-detail', variableSpeed)
                 .then((data) => {
                     console.log("Fetched single card data by ID:", data);
                     if (data) {
@@ -254,7 +258,7 @@ export const CardDetail = memo(function CardDetail({ showdownBotCardData, cardId
             return;
         }
 
-    }, [showdownBotCardData, cardId]);
+    }, [showdownBotCardData, cardFetchKey]);
 
     // Image Generation State
     const [isGeneratingImage, setIsGeneratingImage] = useState<boolean>(false);
@@ -371,7 +375,7 @@ export const CardDetail = memo(function CardDetail({ showdownBotCardData, cardId
             // WOTC/WBC search rows embed full card_data; BOT rows don't, so hydrate by id.
             const cardResponse = match.card_data
                 ? ({ card: match.card_data, error: null, error_for_user: null } as ShowdownBotCardAPIResponse)
-                : await fetchCardById(match.card_id, 'card-detail-set-switch');
+                : await fetchCardById(match.card_id, 'card-detail-set-switch', variableSpeed);
 
             setInternalCardData(cardResponse);
 
