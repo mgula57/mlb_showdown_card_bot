@@ -30,6 +30,9 @@
     --shadow-overlay: 0 12px 32px rgb(0 0 0 / 0.18);
     /* `shadow-feature`: the hard raised edge in Showdown red, for the one feature button per screen. */
     --shadow-feature: 0 3px 0 var(--showdown-red);
+    /* The feature edge on a floating button (Build Card and Run Algorithm on mobile), which also
+       needs the overlay shadow to lift it off the content scrolling underneath. */
+    --shadow-feature-float: 0 3px 0 var(--showdown-red), 0 12px 32px rgb(0 0 0 / 0.18);
     --shadow-sheet: 0 -12px 32px rgb(0 0 0 / 0.18);
 }
 

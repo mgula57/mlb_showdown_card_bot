@@ -44,6 +44,8 @@ import type { PopularCardRecord, TrendingCardRecord, SpotlightCardRecord, CardOf
 import { fetchUserGallery, type GalleryImageRecord } from '../api/gallery';
 
 import { Heading } from './shared/Heading';
+import { CAPS_LABEL_CLASS } from './shared/fieldStyles';
+import { GameStatePlate } from './games/GameStatePlate';
 // TODO: replace hard-coded IDs with a general two-way player detection strategy
 const TWO_WAY_PLAYER_IDS = new Set([660271]); // Ohtani
 const PITCHING_LEADER_CATEGORIES = new Set(['walksAndHitsPerInningPitched', 'earnedRunAverage', 'strikeouts', 'wins', 'saves', 'inningsPitched', 'strikeoutsPer9Inn', 'strikeoutWalkRatio']);
@@ -100,11 +102,12 @@ function HomeNavTile({ tile }: { tile: HomeNavTileData }) {
     );
 }
 
-/** Display-face section title with an optional secondary-button link on the right. */
+/** A landing-page section title (page-size, under the hero) with an optional secondary-button link
+ *  on the right. Home's tiers: hero > section header (`page`) > block title (`section`) > `panel`. */
 function HomeSectionHeader({ title, action }: { title: string; action?: { label: string; to: string } }) {
     return (
         <div className="flex justify-between items-end gap-4 mb-6">
-            <Heading level="section" className="text-3xl!">{title}</Heading>
+            <Heading level="page" as="h2">{title}</Heading>
             {action && (
                 <Link to={action.to} className={buttonClass('secondary')}>
                     {action.label} <FaChevronRight className="text-xs" />
@@ -127,7 +130,7 @@ function HomePanel({ children, className = '' }: { children: React.ReactNode; cl
 function HomePanelHeading({ Icon, title, description }: { Icon: React.ComponentType<{ className?: string }>; title: string; description: string }) {
     return (
         <div className="mb-3">
-            <Heading level="section" as="h3" className="text-lg! flex items-center gap-2">
+            <Heading level="section" as="h3" className="flex items-center gap-2">
                 <Icon className="text-base text-(--text-tertiary)" /> {title}
             </Heading>
             <div className="text-sm mt-1.5 text-(--text-tertiary)">{description}</div>
@@ -399,9 +402,10 @@ export default function Home() {
                                 cards created
                             </Plate>
                         </div>
-                        <h1 className="font-display uppercase text-4xl md:text-5xl leading-[0.95]">
+                        {/* The hero is the one title set larger than the `page` level (see DESIGN.md). */}
+                        <Heading level="page" className="text-4xl! md:text-5xl! leading-[0.95]!">
                             Digital Cards that <span className="text-(--showdown-red)">Play Ball.</span>
-                        </h1>
+                        </Heading>
                         <p className="text-base max-w-xl leading-6 text-(--text-secondary)">
                             Turn real stats into Showdown cards, draft a team, and simulate full seasons — you're the GM of your own digital baseball-verse.
                         </p>
@@ -432,7 +436,7 @@ export default function Home() {
                 <div className="flex items-center justify-between gap-4 px-4 md:px-6 py-2.5 bg-(--showdown-blue) border-b-2 border-(--showdown-red)">
                     <p className="flex items-center gap-2 text-white">
                         <LiveIcon size={7} title="Live" color="var(--field-live)" />
-                        <span className="font-display uppercase text-lg leading-none">Today's Games</span>
+                        <Heading level="section" as="h2" style={{ color: 'white' }}>Today's Games</Heading>
                         {tickerSeason && (
                             <span className="text-xs text-white/70">
                                 {new Date().toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
@@ -495,18 +499,11 @@ export default function Home() {
                                 >
                                     {/* Status */}
                                     <div className="mb-2 flex items-center justify-between gap-1.5 min-h-4.25">
-                                        {isLive ? (
-                                            <Plate variant="red" size="sm">Live</Plate>
-                                        ) : isFinal ? (
-                                            <Plate variant="outline" size="sm">Final</Plate>
-                                        ) : (
-                                            <span className="text-[10px] font-semibold uppercase tabular-nums text-(--text-tertiary)">{statusLabel}</span>
-                                        )}
-                                        {isLive && inning != null && (
-                                            <span className="text-[10px] font-bold tabular-nums text-(--live)">
-                                                {inningHalf} {inning}
-                                            </span>
-                                        )}
+                                        <GameStatePlate
+                                            state={game.state}
+                                            detailedState={isFinal ? (game.detailedState ?? 'Final') : statusLabel}
+                                            liveDetail={isLive && inning != null ? `${inningHalf} ${inning}` : undefined}
+                                        />
                                     </div>
 
                                     {/* Away team */}
@@ -643,7 +640,7 @@ export default function Home() {
                     <div>
                         <div className="mb-3">
                             <Eyebrow className="text-(--showdown-red)">Step 1</Eyebrow>
-                            <h3 className="font-display uppercase text-2xl leading-none mt-1.5">The Pitch</h3>
+                            <Heading level="section" as="h3" className="mt-1.5">The Pitch</Heading>
                             <p className="text-sm mt-1.5 text-(--text-tertiary)">Pitcher rolls to see who gets the advantage</p>
                         </div>
 
@@ -656,17 +653,17 @@ export default function Home() {
                             <div className='flex items-center justify-center gap-3'>
                                 <div className='flex flex-col items-center gap-1'>
                                     <CardCommand isPitcher={true} primaryColor="rgb(200, 16, 46)" secondaryColor="rgb(255, 255, 255)" command={4} team="BOS" className="w-10 h-10 shrink-0" />
-                                    <span className='text-[10px] font-bold text-(--text-tertiary)'>Control</span>
+                                    <span className={`${CAPS_LABEL_CLASS} text-(--text-tertiary)`}>Control</span>
                                 </div>
                                 <span className='text-lg font-display-upright leading-none'>+</span>
                                 <div className='flex flex-col items-center gap-1'>
                                     <FaDiceD20 className="text-(--text-tertiary) w-10 h-10" />
-                                    <span className='text-[10px] font-bold text-(--text-tertiary)'>Dice Roll</span>
+                                    <span className={`${CAPS_LABEL_CLASS} text-(--text-tertiary)`}>Dice Roll</span>
                                 </div>
                                 <span className="font-display uppercase text-sm px-3 text-(--text-tertiary)">vs</span>
                                 <div className='flex flex-col items-center gap-1'>
                                     <CardCommand isPitcher={false} primaryColor="rgb(12, 35, 64)" secondaryColor="rgb(255, 255, 255)" command={8} team="NYY" className="w-10 h-10 shrink-0" />
-                                    <span className='text-[10px] font-bold text-(--text-tertiary)'>On-Base</span>
+                                    <span className={`${CAPS_LABEL_CLASS} text-(--text-tertiary)`}>On-Base</span>
                                 </div>
                             </div>
                         </HomePanel>
@@ -676,7 +673,7 @@ export default function Home() {
                     <div>
                         <div className="mb-3">
                             <Eyebrow className="text-(--showdown-blue)">Step 2</Eyebrow>
-                            <h3 className="font-display uppercase text-2xl leading-none mt-1.5">The Swing</h3>
+                            <Heading level="section" as="h3" className="mt-1.5">The Swing</Heading>
                             <p className="text-sm mt-1.5 text-(--text-tertiary)">Batter rolls to see what happens</p>
                         </div>
 
@@ -691,7 +688,7 @@ export default function Home() {
                                 <div className='flex gap-3 items-center lg:items-start lg:mr-3'>
                                     <div className='flex flex-col items-center gap-1 pt-2'>
                                         <FaDiceD20 className="text-(--text-tertiary) w-6 h-6 lg:w-8 lg:h-8" />
-                                        <span className='text-[10px] font-bold text-(--text-tertiary)'>Roll</span>
+                                        <span className={`${CAPS_LABEL_CLASS} text-(--text-tertiary)`}>Roll</span>
                                     </div>
                                     <div className='flex flex-col items-center justify-center gap-0.5 pt-3 text-(--text-tertiary)'>
                                         <FaChevronRight className="hidden lg:block" />
@@ -721,7 +718,7 @@ export default function Home() {
                 <div className="grid md:grid-cols-2 gap-8 mb-12">
                     {/* The Rest */}
                     <div>
-                        <h2 className="font-display uppercase text-2xl leading-none mb-4">Play out the Game</h2>
+                        <Heading level="section" as="h3" className="mb-4">Play out the Game</Heading>
                         <ul className="space-y-2 mb-4 text-(--text-secondary)">
                             <li className="flex items-start gap-2">
                                 <span className="text-(--text-primary) font-bold mt-0.5">•</span>
@@ -740,13 +737,13 @@ export default function Home() {
 
                     {/* Why it works */}
                     <div className="max-w-3xl mx-auto">
-                        <h2 className="font-display uppercase text-2xl leading-none mb-4">Why it works</h2>
+                        <Heading level="section" as="h3" className="mb-4">Why it works</Heading>
                         <ul className="space-y-3 mb-4">
                             <li className="flex items-center gap-2"><FaDiceD20 className="text-(--text-secondary)" /> <span>20-sided dice system <span className="text-(--text-tertiary)">— Every at-bat is different to the randomness of a dice roll.</span></span></li>
                             <li className="flex items-center gap-2"><FaShieldAlt className="text-(--text-secondary)" /> <span>Real stats, simulated play <span className="text-(--text-tertiary)">— Players perform like they did in their actual season.</span></span></li>
                         </ul>
                         <div className="rounded-card p-4 text-sm bg-(--background-tertiary) text-(--text-secondary)">
-                            <div className="font-semibold mb-1">The beauty of Showdown</div>
+                            <Heading level="panel" as="h4" className="mb-1">The beauty of Showdown</Heading>
                             <div className="text-(--text-tertiary)">"Dice rolls meet baseball stats. Fast-paced strategy with authentic player performance."</div>
                         </div>
                     </div>

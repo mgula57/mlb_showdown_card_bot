@@ -721,8 +721,8 @@ export function AlgorithmBuilder({ releaseId, edition, token, defaultShowdownSet
             onClick={handleRun}
             disabled={!canRun}
             aria-label="Run algorithm"
-            className="fixed md:absolute bottom-[calc(0.75rem+var(--safe-bottom))] md:bottom-3 right-3 w-16 h-16 rounded-full flex flex-col items-center justify-center gap-1 text-[12px] font-bold shadow-overlay
-                bg-(--showdown-blue) text-white hover:brightness-110 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+            className="fixed md:absolute bottom-[calc(0.75rem+var(--safe-bottom))] md:bottom-3 right-3 w-16 h-16 rounded-full flex flex-col items-center justify-center gap-1 font-display uppercase leading-none text-[15px] shadow-feature-float
+                bg-(--showdown-blue) text-white hover:brightness-110 active:translate-y-0.5 active:shadow-overlay disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
         >
             {status === 'running' ? <FaSpinner className="animate-spin text-[18px]" /> : <FaWandMagicSparkles className="text-[18px]" />}
             {status === 'running' ? '…' : 'Run'}
