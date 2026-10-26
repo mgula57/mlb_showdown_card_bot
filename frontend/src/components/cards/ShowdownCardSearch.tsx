@@ -114,6 +114,11 @@ type ShowdownCardSearchProps = {
      * filter. Off by default — currently just the Cards explorer.
      */
     enableSetOverride?: boolean;
+    /**
+     * Shows a toggle next to the sort that switches 2000/2001 cards between standard (10/15/20) and
+     * variable speed, with points to match. Off by default — currently just the Cards explorer.
+     */
+    enableVariableSpeedToggle?: boolean;
 };
 
 // =============================================================================
@@ -248,6 +253,9 @@ export interface FilterSelections {
     // WBC
     wbc_team?: string[];
     pro_league?: string[];
+
+    /** Show, filter and sort 2000/2001 hitters with variable speed. Unset (never `false`) when off */
+    variable_speed?: boolean;
 }
 
 /**
@@ -654,7 +662,7 @@ const DEFAULT_QUICK_FILTERS: Record<CardSource, { id: string; name: string; filt
  * @param disableLocalStorage - Optionally disable storing and loading from local storage
  * @param verticalOffset - Vertical offset of the content that lives above
  */
-export default function ShowdownCardSearch({ className, verticalOffset='22', source = CardSource.BOT, defaultFilters = {}, lockedFilters, disableLocalStorage = false, compact = false, actionButton, excludeIds, resetTrigger, enableSetSwitcher = false, enableSetOverride = false }: ShowdownCardSearchProps) {
+export default function ShowdownCardSearch({ className, verticalOffset='22', source = CardSource.BOT, defaultFilters = {}, lockedFilters, disableLocalStorage = false, compact = false, actionButton, excludeIds, resetTrigger, enableSetSwitcher = false, enableSetOverride = false, enableVariableSpeedToggle = false }: ShowdownCardSearchProps) {
     // =============================================================================
     // CORE STATE MANAGEMENT
     // =============================================================================
@@ -722,6 +730,9 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
     );
     const [filters, setFilters] = useState<FilterSelections>(getInitialFilters(source, defaultFilters, disableLocalStorage));
     const [filtersForEditing, setFiltersForEditing] = useState<FilterSelections>(getInitialFilters(source, defaultFilters, disableLocalStorage));
+    // Variable speed only changes 2000/2001 cards
+    const searchedSets = filters.showdown_set?.length ? filters.showdown_set : [effectiveShowdownSet];
+    const isVariableSpeedAvailable = enableVariableSpeedToggle && searchedSets.some(set => set === '2000' || set === '2001');
     // Nothing picked → the search uses the header's set, so show that set as the selection
     // (when it's one WOTC printed; Classic/Expanded fall back to the "(Default)" display).
     const wotcSetSelections = filters.showdown_set?.length
@@ -1001,13 +1012,14 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
                 ...filters,
                 ...searchFilters,
                 ...showdownSetFilter,
+                variable_speed: isVariableSpeedAvailable ? filters.variable_speed : undefined,
                 page: pageNum,
                 limit: pageLimit // Cards per page
             };
 
             // Remove filters with empty arrays or undefined values
             const cleanedFilters = Object.fromEntries(
-                Object.entries(combinedFilters).filter(([_, v]) => v !== undefined && v !== null && v.length !== 0)
+                Object.entries(combinedFilters).filter(([_, v]) => v !== undefined && v !== null && !((typeof v === 'string' || Array.isArray(v)) && v.length === 0))
             );
             const data = await fetchCardData(source, cleanedFilters, authToken, abortController.signal);
 
@@ -1241,6 +1253,9 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
             return `Small Samples?: ${finalValue}`;
         }
 
+        // Shown by the speed toggle next to the sort instead of as a chip
+        if (key === 'variable_speed') return undefined;
+
         if (key === 'is_hof') {
             const finalValues = value.length === 2 ? ['Yes', 'No'] : value[0] === 'true' ? ['Yes'] : ['No'];
             const finalValue = finalValues.join(',');
@@ -1416,6 +1431,25 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
                             disableSortDirection={isFilterLocked('sort_direction')}
                         />
 
+                        {/* Standard (10/15/20) vs variable speed for 2000/2001 cards */}
+                        {isVariableSpeedAvailable && (
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    // Unset rather than false, so standard speed doesn't count as a custom filter
+                                    const variable_speed = filters.variable_speed ? undefined : true;
+                                    setFilters(prev => ({ ...prev, variable_speed }));
+                                    setFiltersForEditing(prev => ({ ...prev, variable_speed }));
+                                }}
+                                title="Uncapped speed on 2000/2001 hitters instead of 10/15/20, with points to match"
+                                className="shrink-0 flex items-center gap-1 px-2 py-1 bg-(--background-secondary) border border-form-element rounded-full text-sm text-nowrap cursor-pointer hover:bg-(--background-secondary-hover)"
+                            >
+                                <FaPersonRunning className="text-primary" />
+                                <span className="text-primary font-semibold">Speed:</span>
+                                <span>{filters.variable_speed ? 'Variable' : 'Standard'}</span>
+                            </button>
+                        )}
+
                         {/* Selected Filters — locked ones stay visible but can't be removed */}
                         {/* The last element should add lots of padding */}
                         {Object.entries(filtersWithoutSorting)
@@ -1580,6 +1614,7 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
                             <CardDetail
                                 showdownBotCardData={{ card: selectedCardForSidebar?.card_data } as ShowdownBotCardAPIResponse}
                                 cardId={selectedCardForSidebar?.card_id}
+                                variableSpeed={!!selectedCardForSidebar?.is_variable_speed_00_01}
                                 hideTrendGraphs={true}
                                 context='explore'
                                 parent="sidebar"
@@ -1615,6 +1650,7 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
                     <CardDetail
                         showdownBotCardData={selectedCardForModal ? { card: selectedCardForModal.card_data } as ShowdownBotCardAPIResponse : undefined}
                         cardId={selectedCardForModal?.card_id}
+                        variableSpeed={!!selectedCardForModal?.is_variable_speed_00_01}
                         hideTrendGraphs={true}
                         context='explore'
                         parent="modal"

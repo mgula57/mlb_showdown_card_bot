@@ -46,6 +46,7 @@ from .sets import Set, Era, SpeedMetric, PlayerType, PlayerSubType, Position, Pl
 from .chart import ChartCategory, Stat, ChartAccuracyBreakdown
 from .images import ImageLibrary, ImageSource, ImageSourceType, SpecialEdition, Edition, Expansion, ShowdownImage, StatHighlightsType, StatHighlightsCategory
 from .points import Points, PointsMetric, PointsBreakdown
+from .variable_speed import VariableSpeedVariant
 from .command_out_selections import CommandOutSelection, CommandOutSelections
 
 from .trends.trends import TrendDatapoint
@@ -132,6 +133,7 @@ class ShowdownPlayerCard(BaseModel):
     projected: dict = {}
     points_breakdown: Points = Points()
     points: int = 0
+    variable_speed_variant: Optional[VariableSpeedVariant] = None # SPEED/POINTS IF VARIABLE SPEED WERE ON (STANDARD SPEED 2000/2001 HITTERS ONLY)
 
     # FRONTEND
     real_vs_projected_stats: list[RealVsProjectedStat] = []
@@ -304,6 +306,7 @@ class ShowdownPlayerCard(BaseModel):
         self.projected: dict = self.projected_statline(stats_per_400_pa=self.chart.projected_stats_per_400_pa, command=self.chart.command, pa=self.stats_for_card.get('PA', 650))
 
         self.recalculate_points()
+        self.variable_speed_variant = self.calculate_variable_speed_variant()
 
         # STATS DISPLAYED ON FRONTEND
         self.real_vs_projected_stats = self._calculate_real_vs_projected_stats()
@@ -1431,8 +1434,11 @@ class ShowdownPlayerCard(BaseModel):
         
         return ip
 
-    def calculate_speed(self) -> Speed:
+    def calculate_speed(self, is_variable_speed: Optional[bool] = None) -> Speed:
         """Calculate in-game speed from the card's current stats.
+
+        Args:
+          is_variable_speed: Use variable speed (2000/2001 only). Defaults to the card's own setting.
 
         Returns:
           Speed object with in-game speed and letter.
@@ -1440,11 +1446,14 @@ class ShowdownPlayerCard(BaseModel):
         sb_safe = self.stats_for_card.get('SB', 0) if len(str(self.stats_for_card.get('SB',''))) > 0 else 0
         pa_safe = self.stats_for_card.get('PA', 0) if len(str(self.stats_for_card.get('PA',''))) > 0 else 0
         sb_per_650_pa = sb_safe / (pa_safe / 650.0) if pa_safe > 0 else 0
-        return self._speed(sprint_speed=self.stats_for_card.get('sprint_speed', None), stolen_bases=sb_per_650_pa, is_sb_empty=len(str(self.stats_for_card.get('SB',''))) == 0, games=self.stats_for_card.get('G', 0))
+        is_variable_speed = self.is_variable_speed_00_01 if is_variable_speed is None else is_variable_speed
+        return self._speed(sprint_speed=self.stats_for_card.get('sprint_speed', None), stolen_bases=sb_per_650_pa, is_sb_empty=len(str(self.stats_for_card.get('SB',''))) == 0, games=self.stats_for_card.get('G', 0), is_variable_speed=is_variable_speed)
 
     def apply_variable_speed_00_01(self, enabled: bool) -> None:
-        """Toggle variable speed on an already-built card, recomputing speed and points.
+        """Toggle variable speed on an already-built card, recomputing speed and the speed points.
         Only applies to 2000/2001 sets, where speed is otherwise bucketed to 10/15/20.
+        Every other points category keeps its stored value (see `_points_with_speed`), so this matches
+        the card's stored `variable_speed_variant`.
 
         Args:
           enabled: Whether variable speed should be enabled.
@@ -1456,9 +1465,25 @@ class ShowdownPlayerCard(BaseModel):
             return
         self.is_variable_speed_00_01 = enabled
         self.speed = self.calculate_speed()
-        self.recalculate_points()
+        if self.is_hitter:
+            self.points_breakdown = self._points_with_speed(speed=self.speed.speed)
+            self.points = self.points_breakdown.total_points
+        self.variable_speed_variant = self.calculate_variable_speed_variant()
 
-    def _speed(self, sprint_speed:float, stolen_bases:int, is_sb_empty:bool, games:int = 0) -> Speed:
+    def calculate_variable_speed_variant(self) -> Optional[VariableSpeedVariant]:
+        """Speed and points this card would have with variable speed on.
+
+        Returns:
+          Variant for standard speed 2000/2001 hitters, None otherwise.
+        """
+        # NEEDS THE STORED BREAKDOWN TO SWAP SPEED INTO (SEE `_points_with_speed`)
+        if not self.set.is_00_01 or not self.is_hitter or self.is_variable_speed_00_01 or not self.points_breakdown.breakdowns:
+            return None
+        speed = self.calculate_speed(is_variable_speed=True)
+        points_breakdown = self._points_with_speed(speed=speed.speed)
+        return VariableSpeedVariant(speed=speed, points=points_breakdown.total_points, points_breakdown=points_breakdown)
+
+    def _speed(self, sprint_speed:float, stolen_bases:int, is_sb_empty:bool, games:int = 0, is_variable_speed:bool = False) -> Speed:
         """In game speed for a position player. Will use pure sprint speed
            if year is >= 2015, otherwise uses stolen bases. Pitcher defaults to 10.
 
@@ -1468,6 +1493,7 @@ class ShowdownPlayerCard(BaseModel):
           stolen_bases: Number of steals during the season.
           is_sb_empty: Bool for whether SB are unavailable for the player.
           games: Number of games played in the season(s).
+          is_variable_speed: Leave 2000/2001 speed uncapped instead of bucketing to 10/15/20.
 
         Returns:
           Speed class with speed and letter.
@@ -1493,7 +1519,7 @@ class ShowdownPlayerCard(BaseModel):
 
         in_game_speed_for_metric: dict[SpeedMetric, float] = {}
         for metric, value in speed_elements.items():
-            use_variable_speed_multiplier = self.set.is_00_01 and self.is_variable_speed_00_01
+            use_variable_speed_multiplier = self.set.is_00_01 and is_variable_speed
             metric_multiplier = self.set.speed_metric_multiplier(metric=metric, use_variable_speed_multiplier=use_variable_speed_multiplier, max_year=self.stats_period.last_year)
             era_multiplier = self.era.speed_multiplier
 
@@ -1535,7 +1561,7 @@ class ShowdownPlayerCard(BaseModel):
             letter = SpeedLetter.A
 
         # IF 2000 OR 2001, SPEED VALUES CAN ONLY BE 10,15,20
-        if self.set.is_00_01 and not self.is_variable_speed_00_01:
+        if self.set.is_00_01 and not is_variable_speed:
             final_speed = letter.speed_00_01
 
         return Speed(speed=final_speed, letter=letter)
@@ -2517,23 +2543,9 @@ class ShowdownPlayerCard(BaseModel):
             points.add_breakdown(breakdown=points_breakdown)
 
         # USE EITHER SPEED OR IP DEPENDING ON PLAYER TYPE
-        spd_ip_metric = PointsMetric.IP if self.is_pitcher else PointsMetric.SPEED
-        allow_negatives_speed_ip = True if self.is_pitcher else allow_negatives
-        spd_ip_range = self.set.pts_speed_or_ip_percentile_range(self.player_sub_type)
-        spd_ip_percentile = spd_ip_range.percentile(value=speed_or_ip, is_desc=False, allow_negative=allow_negatives_speed_ip)
-        spd_ip_weight = self.set.pts_metric_weight(player_sub_type=self.player_sub_type, metric=spd_ip_metric)
-        spd_total_pts = round(spd_ip_weight * spd_ip_percentile, 3)
-        if spd_ip_weight > 0:
-            points_breakdown = PointsBreakdown(
-                metric=spd_ip_metric,
-                points=spd_total_pts,
-                possible_points=spd_ip_weight,
-                value=speed_or_ip,
-                value_range=spd_ip_range,
-                percentile=spd_ip_percentile,
-                is_desc=False
-            )
-            points.add_breakdown(breakdown=points_breakdown)
+        spd_ip_breakdown = self._speed_or_ip_points_breakdown(speed_or_ip=speed_or_ip)
+        if spd_ip_breakdown:
+            points.add_breakdown(breakdown=spd_ip_breakdown)
 
         # ---- DEFENSE ----
 
@@ -2578,13 +2590,7 @@ class ShowdownPlayerCard(BaseModel):
                 points.add_breakdown(breakdown=icon_pts_breakdown, id_suffix=icon.value)
 
         # --- APPLY ANY ADDITIONAL PT ADJUSTMENTS FOR DIFFERENT SETS ---
-
-        # SOME SETS HAVE PTS DECAY AFTER A CERTAIN MARKER. APPLIES TO ONLY SLASHLINE CATEGORIES
-        points.apply_decay(decay_rate_and_start=self.set.pts_decay_rate_and_start(self.player_sub_type))
-
-        # APPLY ANOTHER DECAY IF POINTS > 1000
-        if points.total_points > 1000:
-            points.apply_decay(decay_rate_and_start=(0.70, 1000))
+        self._apply_points_decay(points)
         
         if self.is_pitcher:
 
@@ -2606,6 +2612,67 @@ class ShowdownPlayerCard(BaseModel):
                 )
                 points.add_breakdown(breakdown=out_dist_breakdown)
 
+        return points
+
+    def _speed_or_ip_points_breakdown(self, speed_or_ip:int) -> Optional[PointsBreakdown]:
+        """Points for speed (hitters) or IP (pitchers).
+
+        Args:
+          speed_or_ip: In game speed ability or innings pitched.
+
+        Returns:
+          Breakdown for the category, None when the set doesn't weight it.
+        """
+        spd_ip_metric = PointsMetric.IP if self.is_pitcher else PointsMetric.SPEED
+        spd_ip_weight = self.set.pts_metric_weight(player_sub_type=self.player_sub_type, metric=spd_ip_metric)
+        if spd_ip_weight <= 0:
+            return None
+        allow_negatives_speed_ip = True if self.is_pitcher else self.set.pts_allow_negatives(self.player_sub_type)
+        spd_ip_range = self.set.pts_speed_or_ip_percentile_range(self.player_sub_type)
+        spd_ip_percentile = spd_ip_range.percentile(value=speed_or_ip, is_desc=False, allow_negative=allow_negatives_speed_ip)
+        return PointsBreakdown(
+            metric=spd_ip_metric,
+            points=round(spd_ip_weight * spd_ip_percentile, 3),
+            possible_points=spd_ip_weight,
+            value=speed_or_ip,
+            value_range=spd_ip_range,
+            percentile=spd_ip_percentile,
+            is_desc=False
+        )
+
+    def _apply_points_decay(self, points:Points) -> None:
+        """Apply the set's points decay, plus the extra decay over 1000 points. Only affects slashline categories.
+
+        Args:
+          points: Points to decay in place.
+
+        Returns:
+          None
+        """
+        # SOME SETS HAVE PTS DECAY AFTER A CERTAIN MARKER
+        points.apply_decay(decay_rate_and_start=self.set.pts_decay_rate_and_start(self.player_sub_type))
+
+        # APPLY ANOTHER DECAY IF POINTS > 1000
+        if points.total_points > 1000:
+            points.apply_decay(decay_rate_and_start=(0.70, 1000))
+
+    def _points_with_speed(self, speed:int) -> Points:
+        """This hitter's stored points breakdown with only the speed category recomputed.
+        Every other category keeps its stored value, so the change reflects speed alone, even for a
+        card archived under older points formulas. Decay is re-run since it depends on the total.
+
+        Args:
+          speed: In game speed to price.
+
+        Returns:
+          Updated copy of the points breakdown.
+        """
+        points = self.points_breakdown.model_copy(deep=True)
+        points.remove_decay()
+        speed_breakdown = self._speed_or_ip_points_breakdown(speed_or_ip=speed)
+        if speed_breakdown:
+            points.add_breakdown(breakdown=speed_breakdown)
+        self._apply_points_decay(points)
         return points
 
     def calculate_shOPS_plus(self, command:int, proj_obp:float, proj_slg:float) -> float:
@@ -7323,7 +7390,7 @@ class ShowdownPlayerCard(BaseModel):
 
     # FIELDS PRODUCED BY `build_card()` (OR STAMPED AT BUILD TIME) - DROPPED WHEN RE-RUNNING A STORED CARD
     REBUILT_FIELDS: ClassVar[frozenset[str]] = frozenset([
-        'version', 'load_time', 'warnings', 'chart', 'points', 'points_breakdown', 'projected',
+        'version', 'load_time', 'warnings', 'chart', 'points', 'points_breakdown', 'variable_speed_variant', 'projected',
         'command_out_accuracies', 'command_out_accuracy_breakdowns', 'real_vs_projected_stats',
         'command_out_selection', 'command_out_selection_fingerprint', 'selected_command_outs',
         'positions_list', 'positions_and_defense', 'positions_and_defense_for_visuals',
@@ -7353,6 +7420,8 @@ class ShowdownPlayerCard(BaseModel):
         speed = data.get('speed') or {}
         image = data.get('image') or {}
         speed_value, speed_letter = speed.get('speed'), speed.get('letter')
+        variant = self.variable_speed_variant
+        variant_speed = variant.speed if variant else None
         return {
             'card_year': (data.get('stats_period') or {}).get('year'),
             'showdown_bot_version': data.get('version'),
@@ -7382,4 +7451,10 @@ class ShowdownPlayerCard(BaseModel):
             'is_errata': bool(data.get('is_errata')),
             'notes': data.get('notes'),
             'card_data': data,
+            # VARIABLE SPEED (`points_change_yoy_vs` NEEDS THE PRIOR YEAR, SO IT'S LEFT TO THE VIEW)
+            'points_vs': variant.points if variant else None,
+            'speed_vs': variant_speed.speed if variant_speed else None,
+            'speed_letter_vs': variant_speed.letter.value if variant_speed else None,
+            'speed_full_vs': f"{variant_speed.letter.value}({variant_speed.speed})" if variant_speed else None,
+            'speed_or_ip_vs': variant_speed.speed if variant_speed else None,
         }

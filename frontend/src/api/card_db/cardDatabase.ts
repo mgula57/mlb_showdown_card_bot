@@ -46,6 +46,9 @@ export type CardDatabaseRecord = {
     // Only exists in WOTC records
     card_data?: ShowdownBotCard | null;
 
+    // Set on rows returned with variable speed (2000/2001 hitters from a `variable_speed` search)
+    is_variable_speed_00_01?: boolean;
+
     // Identifiers
     card_id: string;
     card_year: string;
