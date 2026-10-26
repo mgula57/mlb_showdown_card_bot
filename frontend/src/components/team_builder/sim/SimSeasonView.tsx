@@ -4,6 +4,7 @@ import { cancelSimJob, fetchSimJob, fetchSimSeason, type ChallengeStanding, type
 import BackButton from '../../shared/BackButton';
 import { SimProgress } from './SimProgress';
 import { SimResult, SimResultSkeleton } from './SimResult';
+import { PinstripeBackdrop } from '../../shared/PinstripeBackdrop';
 
 // Setup phases report no game counts, so polling a little faster keeps the phase label moving.
 const POLL_INTERVAL_MS = 1000;
@@ -136,7 +137,9 @@ export function SimSeasonView({ jobId, teamName, token, onBack, onBackToChalleng
         : undefined;
 
     return (
-        <div className="flex flex-col h-full overflow-y-auto">
+        <div className="relative isolate flex flex-col h-full overflow-y-auto">
+            {/* Card-back pinstripes behind the finished season's headline */}
+            {summary && <PinstripeBackdrop heightClass="h-56" />}
             <div className="px-4 pt-4 flex items-center gap-2">
                 <BackButton onBack={onBack} label="Back to team" />
                 {challengeResult !== null && onBackToChallenges && (

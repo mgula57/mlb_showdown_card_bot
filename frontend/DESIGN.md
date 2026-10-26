@@ -109,7 +109,7 @@ Use these before writing new styles. All live in `src/components/shared/` unless
 | `CardCommand` (`cards/card_elements/`) | The home plate (On-Base) and baseball (Control) art with the number in the team color |
 | `CardChart` (`cards/card_elements/`) | Chart box: hairline `--divider` border, team-color outs, compact ranges |
 | `bg-pinstripe` (utility) | Card-back pinstripes. Headers, hero bands and card fields only |
-| `PinstripeBackdrop` | Pinstripes behind the top of a page, fading out into the content (Home uses it). Inside a `relative isolate` page container |
+| `PinstripeBackdrop` | Pinstripes behind the top of a page, fading out into the content. Inside a full-width `relative isolate` page container. Used on hub and "finished" screens: Home, the Release Builder list and a finished sim result; not on working tools (search, builders, Gameday) |
 | `InlineError` | Small red notice inline with a form or panel (validation, failed upload, a sim that couldn't start). `sm` in forms, `md` in modals; `icon` adds a warning triangle for field validation |
 
 Reference implementations: `CardItem`, `CardItemCompact`, `TeamPreviewCard`, `ReleaseItem`.

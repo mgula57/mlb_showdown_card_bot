@@ -4,6 +4,7 @@ import { cancelSimJob, fetchSimJob, fetchSimSeason, type SeasonSimSummary, type 
 import { SimProgress } from '../team_builder/sim/SimProgress';
 import { SimResult, SimResultSkeleton } from '../team_builder/sim/SimResult';
 import BackButton from '../shared/BackButton';
+import { PinstripeBackdrop } from '../shared/PinstripeBackdrop';
 
 // Setup phases report no game counts, so polling a little faster keeps the phase label moving.
 const POLL_INTERVAL_MS = 1000;
@@ -117,7 +118,9 @@ export function SeasonSimView({ jobId, token, initialFocusAbbr, onRunAgain, onBa
     }
 
     return (
-        <div className="flex flex-col h-full overflow-y-auto">
+        <div className="relative isolate flex flex-col h-full overflow-y-auto">
+            {/* Card-back pinstripes behind the finished season's headline */}
+            {summary && <PinstripeBackdrop heightClass="h-56" />}
             {onBack && (
                 <div className="px-4 pt-3 shrink-0">
                     <BackButton onBack={onBack} label="Back to seasons" />

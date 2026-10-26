@@ -19,6 +19,7 @@ import { InlineError } from '../shared/InlineError';
 import { Heading } from '../shared/Heading';
 import { buttonClass } from '../shared/buttonStyles';
 import { EmptyState } from '../shared/EmptyState';
+import { PinstripeBackdrop } from '../shared/PinstripeBackdrop';
 /** A release that has been opened in this session. Each one keeps its own mounted ReleaseDetail
  *  (hidden when not addressed by the URL) so unsaved builder progress survives navigation. */
 /** Release tiles: two per row on phones, fixed-width tiles that wrap on wider screens. */
@@ -196,7 +197,9 @@ export default function Releases() {
 
     function renderList() {
         return (
-        <div className="@container w-full">
+        <div className="@container w-full relative isolate">
+        {/* Card-back pinstripes behind the page header, echoing the release tiles' card fields */}
+        <PinstripeBackdrop heightClass="h-72" />
         <div className="flex flex-col gap-6 py-4 max-w-4xl lg:max-w-7xl mx-auto w-full">
             {/* Header */}
             <div className={`flex items-center ${px} justify-between`}>
