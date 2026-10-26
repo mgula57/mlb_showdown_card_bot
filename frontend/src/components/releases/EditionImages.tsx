@@ -144,10 +144,10 @@ export function EditionImages({ releaseId, releaseName, edition, readOnly, token
                                     onClick={() => zipDownload.start(zipEntries, editionZipFileName(releaseName, edition.name))}
                                     disabled={jobActive}
                                     title={jobActive ? 'Wait for rendering to finish' : 'Download every current full-size image as a ZIP'}
-                                    className="flex items-center gap-1.5 min-h-9 px-3.5 py-2 rounded-control text-[13px] font-bold border border-(--divider) text-(--text-secondary) hover:border-(--text-tertiary) transition-colors disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                                    className={buttonClass('secondary', 'sm')}
                                 >
                                     <FaDownload className="text-[12px]" /> Download ZIP
-                                    <span className="text-[10px] font-normal text-(--text-tertiary) bg-(--background-secondary) py-0.5 px-1 rounded-control">{zipEntries.length}</span>
+                                    <Plate size="sm">{zipEntries.length}</Plate>
                                 </button>
                             )}
                             {readOnly ? null : jobActive ? (
@@ -155,7 +155,7 @@ export function EditionImages({ releaseId, releaseName, edition, readOnly, token
                                     type="button"
                                     onClick={handleCancel}
                                     disabled={requesting}
-                                    className="flex items-center gap-1.5 min-h-9 px-3.5 py-2 rounded-control text-[13px] font-bold border border-(--divider) text-(--text-secondary) hover:border-(--text-tertiary) transition-colors disabled:opacity-50 cursor-pointer"
+                                    className={buttonClass('secondary', 'sm')}
                                 >
                                     <FaXmark className="text-[12px]" /> Cancel
                                 </button>
@@ -472,7 +472,7 @@ function ReleaseImageDetailModal({ image, snapshot, canRender, isRendering, onRe
                             href={fullSrc}
                             target="_blank"
                             rel="noreferrer"
-                            className="flex items-center gap-1.5 min-h-9 px-3.5 py-2 rounded-control text-[13px] font-semibold text-(--text-tertiary) hover:text-(--text-primary) transition-colors cursor-pointer"
+                            className={buttonClass('ghost', 'sm')}
                         >
                             <FaArrowUpRightFromSquare className="text-[11px]" /> Open Full Size
                         </a>

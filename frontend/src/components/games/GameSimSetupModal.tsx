@@ -15,7 +15,7 @@ import {
 import { buttonClass } from '../shared/buttonStyles';
 import { choiceClass } from '../shared/choiceStyles';
 import { CAPS_LABEL_CLASS } from '../shared/fieldStyles';
-import { headingClass } from '../shared/headingStyles';
+import { Heading } from '../shared/Heading';
 
 function errorMessage(err: unknown): string {
     return err instanceof Error ? err.message : String(err);
@@ -78,11 +78,11 @@ function TeamPanel({
                     className="h-3 w-3 rounded-full border border-(--divider)"
                     style={{ backgroundColor: team.identity.primary_color ?? undefined }}
                 />
-                <span className="text-sm font-bold text-(--primary)">{team.identity.name}</span>
+                <Heading level="panel" as="span">{team.identity.name}</Heading>
             </div>
 
             <div className="space-y-1">
-                <div className={headingClass('panel')}>Starting Pitcher</div>
+                <div className={`${CAPS_LABEL_CLASS} text-(--text-tertiary)`}>Starting Pitcher</div>
                 <div className="text-xs font-semibold text-(--primary)">
                     {starter ? `${starter.name} · ${starter.points} pts${starter.ip ? ` · ${starter.ip} IP` : ''}` : '—'}
                 </div>
@@ -90,7 +90,7 @@ function TeamPanel({
 
             {team.lineup.length > 0 ? (
                 <div className="space-y-1.5">
-                    <div className={headingClass('panel')}>Lineup</div>
+                    <div className={`${CAPS_LABEL_CLASS} text-(--text-tertiary)`}>Lineup</div>
                     {team.lineup.map((slot) => {
                         const option = optionsById.get(slot.player_id);
                         return (
@@ -257,7 +257,7 @@ export default function GameSimSetupModal({ gamePk, showdownSet, onCancel, onSta
                     <div className={loading ? 'space-y-4 opacity-50' : 'space-y-4'}>
                         {canOfferTakeover && (
                             <div className="rounded-card border border-(--divider) bg-(--background-secondary) p-3">
-                                <div className={headingClass('panel')}>
+                                <div className={`${CAPS_LABEL_CLASS} text-(--text-tertiary)`}>
                                     {setup.is_takeover ? 'Taking over from' : 'Starting from'}
                                 </div>
                                 <div className="text-sm font-semibold text-(--primary)">

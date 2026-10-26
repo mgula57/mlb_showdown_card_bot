@@ -18,7 +18,6 @@ import type { ReleaseCreatePayload } from '../../api/releases';
 import { InlineError } from '../shared/InlineError';
 import { Heading } from '../shared/Heading';
 import { buttonClass } from '../shared/buttonStyles';
-import { headingClass } from '../shared/headingStyles';
 /** A release that has been opened in this session. Each one keeps its own mounted ReleaseDetail
  *  (hidden when not addressed by the URL) so unsaved builder progress survives navigation. */
 /** Release tiles: two per row on phones, fixed-width tiles that wrap on wider screens. */
@@ -245,9 +244,7 @@ export default function Releases() {
                     {/* My Releases */}
                     {token && (
                         <section className={px}>
-                            <div className={`mb-2 ${headingClass('panel')}`}>
-                                My Releases
-                            </div>
+                            <Heading level="section" as="h2" className="mb-3">My Releases</Heading>
                             {userReleases.length === 0 ? (
                                 <p className="text-[13px] text-(--text-tertiary) py-4">
                                     You haven't created any releases yet.
@@ -270,9 +267,7 @@ export default function Releases() {
                     {/* Official Releases */}
                     {officialReleases.length > 0 && (
                         <section className={px}>
-                            <div className={`mb-2 ${headingClass('panel')}`}>
-                                Official Releases
-                            </div>
+                            <Heading level="section" as="h2" className="mb-3">Official Releases</Heading>
                             <div className={RELEASE_GRID}>
                                 {officialReleases.map(release => (
                                     <ReleaseItem

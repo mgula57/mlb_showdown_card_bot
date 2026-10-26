@@ -138,7 +138,7 @@ export default function SeasonSimulator() {
                 >
                     <FaDiceD20 className="absolute -bottom-2 -right-2 text-7xl opacity-5" />
                     <FaDiceD20 className="text-3xl mb-1 text-(--showdown-blue)" />
-                    <span className="font-bold text-sm text-(--text-primary)">Solo Sim</span>
+                    <span className="font-display uppercase text-[17px] leading-none text-(--text-primary)">Solo Sim</span>
                     <span className="text-xs leading-snug text-(--text-tertiary)">Simulate a season on your own</span>
                 </button>
                 <button
@@ -148,7 +148,7 @@ export default function SeasonSimulator() {
                 >
                     <FaUsers className="absolute -bottom-2 -right-2 text-7xl opacity-5" />
                     <FaUsers className="text-3xl mb-1 text-(--showdown-red)" />
-                    <span className="font-bold text-sm text-(--text-primary)">Collab Sim</span>
+                    <span className="font-display uppercase text-[17px] leading-none text-(--text-primary)">Collab Sim</span>
                     <span className="text-xs leading-snug text-(--text-tertiary)">Create or join a lobby with friends</span>
                 </button>
             </div>

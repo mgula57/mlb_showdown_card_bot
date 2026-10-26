@@ -5,6 +5,7 @@ import { useAuth } from './AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { ToastMessage } from '../shared/ToastMessage';
 import { UserAvatar } from '../shared/UserAvatar';
+import { Heading } from '../shared/Heading';
 
 // ---------------------------------------------------------------------------
 // AccountAvatar — reusable avatar image / initials / fallback icon
@@ -159,7 +160,7 @@ export const AccountIcon: React.FC<AccountIconProps> = ({
                     <div className='flex space-x-3 px-2 py-3 border-b border-form-element'>
                         <AccountAvatar size={10} showStatus={false} />
                         <div>
-                            <p className="text-base font-bold text-primary truncate">{username}</p>
+                            <Heading level="panel" as="div" className="truncate">{username}</Heading>
                             <p className="text-[11px] text-secondary truncate">{user.email}</p>
                         </div>
                     </div>

@@ -9,6 +9,7 @@ import { headingClass } from "../shared/headingStyles";
 import { choiceClass } from "../shared/choiceStyles";
 import { CAPS_LABEL_CLASS } from "../shared/fieldStyles";
 import { Plate } from "../shared/Plate";
+import { Eyebrow } from '../shared/Eyebrow';
 
 type CardMap = Record<string, ShowdownBotCardAPIResponse>;
 
@@ -188,8 +189,8 @@ export default function PlayByPlayLog({ plays, cardMap, onCardSelect, isLoadingC
                                 </div>
                             )}
                             {showDivider && (
-                                <div className={`w-full text-center pt-1 pb-2 ${headingClass('panel')}`}>
-                                    {inningLabel(play.inning, play.isTop)}
+                                <div className="w-full text-center pt-1 pb-2">
+                                    <Eyebrow>{inningLabel(play.inning, play.isTop)}</Eyebrow>
                                 </div>
                             )}
                             <div className="flex items-start gap-3 p-3 rounded-card bg-primary border border-(--divider)/50">

@@ -52,14 +52,14 @@ export function EditionStyleModal({ releaseId, edition, token, onClose, onEditio
                     <button
                         type="button"
                         onClick={() => setStyle(CARD_STYLE_DEFAULTS)}
-                        className="min-h-9 px-3.5 py-2 mr-auto rounded-control text-[13px] font-semibold text-(--text-tertiary) hover:text-(--text-primary) transition-colors cursor-pointer"
+                        className={buttonClass('ghost', 'sm', 'mr-auto')}
                     >
                         Reset to Defaults
                     </button>
                     <button
                         type="button"
                         onClick={onClose}
-                        className="min-h-9 px-3.5 py-2 rounded-control text-[13px] font-bold border border-(--divider) text-(--text-secondary) hover:border-(--text-tertiary) transition-colors cursor-pointer"
+                        className={buttonClass('secondary', 'sm')}
                     >
                         Cancel
                     </button>
@@ -67,7 +67,7 @@ export function EditionStyleModal({ releaseId, edition, token, onClose, onEditio
                         type="button"
                         onClick={handleSave}
                         disabled={!token || saving}
-                        className={buttonClass('primary', 'sm', 'min-h-9')}
+                        className={buttonClass('primary', 'sm')}
                     >
                         {saving && <FaSpinner className="animate-spin text-[12px]" />} Save
                     </button>

@@ -63,7 +63,7 @@ function GameScheduleHeader({ dateLabel, description, onRefresh }: GameScheduleH
             <div>
                 <Heading level="section">{dateLabel}</Heading>
                 {description && (
-                    <div className="text-sm font-semibold text-(--text-secondary)">{description}</div>
+                    <div className="text-sm text-(--text-secondary)">{description}</div>
                 )}
             </div>
 
