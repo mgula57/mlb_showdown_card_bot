@@ -7,6 +7,7 @@ import { FaMinus } from 'react-icons/fa';
 import { FaMagnifyingGlass } from 'react-icons/fa6';
 import { CAPS_LABEL_CLASS } from '../../shared/fieldStyles';
 import { choiceClass } from '../../shared/choiceStyles';
+import { StatTile } from '../../shared/StatTile';
 
 const OUTCOME_ORDER = ['PU', 'SO', 'GB', 'FB', 'BB', '1B', '1B+', '2B', '3B', 'HR'];
 const TOTAL = 20;
@@ -114,15 +115,6 @@ function calcPitcherStats(results: { key: string; prob: number }[]) {
         bb:  Math.round(pBB * bfPer9),
         avg: ab > 0 ? pH * bfPer9 / ab : 0,
     };
-}
-
-function StatCell({ label, value }: { label: string; value: string | number }) {
-    return (
-        <div className="flex flex-col items-center gap-0.5">
-            <span className="text-sm font-bold tabular-nums leading-none">{value}</span>
-            <span className="text-[9px] font-semibold uppercase tracking-wide opacity-40">{label}</span>
-        </div>
-    );
 }
 
 type OpponentMode = 'slider' | 'search';
@@ -372,39 +364,39 @@ export default function OutcomeProbability({ chart, primaryColor, secondaryColor
             <div className={`rounded-card p-3 space-y-2.5 transition-opacity duration-300 ${resultsAreBaseline ? 'opacity-20 pointer-events-none' : ''}`} style={{ background: 'color-mix(in srgb, var(--form-element) 20%, transparent)' }}>
                 {isPitcher && pStats ? (
                     <>
-                        <div className="text-[9px] font-semibold uppercase tracking-widest opacity-40">Est. per 9 inn.</div>
+                        <div className={`${CAPS_LABEL_CLASS} text-(--text-tertiary)`}>Est. per 9 inn.</div>
                         <div className="flex justify-around">
-                            <StatCell label="ERA"  value={pStats.era.toFixed(2)}  />
-                            <StatCell label="WHIP" value={pStats.whip.toFixed(2)} />
-                            <StatCell label="K/9"  value={pStats.kPer9.toFixed(1)}  />
-                            <StatCell label="BB/9" value={pStats.bbPer9.toFixed(1)} />
+                            <StatTile size="inline" label="ERA"  value={pStats.era.toFixed(2)}  />
+                            <StatTile size="inline" label="WHIP" value={pStats.whip.toFixed(2)} />
+                            <StatTile size="inline" label="K/9"  value={pStats.kPer9.toFixed(1)}  />
+                            <StatTile size="inline" label="BB/9" value={pStats.bbPer9.toFixed(1)} />
                         </div>
                         <div className="h-px opacity-10" style={{ background: 'currentColor' }} />
-                        <div className="text-[9px] font-semibold uppercase tracking-widest opacity-40">Against per 9 inn.</div>
+                        <div className={`${CAPS_LABEL_CLASS} text-(--text-tertiary)`}>Against per 9 inn.</div>
                         <div className="flex justify-around">
-                            <StatCell label="BAA" value={fmtRate(pStats.avg)} />
-                            <StatCell label="H"   value={pStats.h}  />
-                            <StatCell label="2B"  value={pStats.d}  />
-                            <StatCell label="3B"  value={pStats.t}  />
-                            <StatCell label="HR"  value={pStats.hr} />
+                            <StatTile size="inline" label="BAA" value={fmtRate(pStats.avg)} />
+                            <StatTile size="inline" label="H"   value={pStats.h}  />
+                            <StatTile size="inline" label="2B"  value={pStats.d}  />
+                            <StatTile size="inline" label="3B"  value={pStats.t}  />
+                            <StatTile size="inline" label="HR"  value={pStats.hr} />
                         </div>
                     </>
                 ) : stats ? (
                     <>
-                        <div className="text-[9px] font-semibold uppercase tracking-widest opacity-40">Est. over {SEASON_PA} PA</div>
+                        <div className={`${CAPS_LABEL_CLASS} text-(--text-tertiary)`}>Est. over {SEASON_PA} PA</div>
                         <div className="flex justify-around">
-                            <StatCell label="AVG" value={fmtRate(stats.avg)} />
-                            <StatCell label="OBP" value={fmtRate(stats.obp)} />
-                            <StatCell label="SLG" value={fmtRate(stats.slg)} />
-                            <StatCell label="OPS" value={fmtRate(stats.obp + stats.slg)} />
+                            <StatTile size="inline" label="AVG" value={fmtRate(stats.avg)} />
+                            <StatTile size="inline" label="OBP" value={fmtRate(stats.obp)} />
+                            <StatTile size="inline" label="SLG" value={fmtRate(stats.slg)} />
+                            <StatTile size="inline" label="OPS" value={fmtRate(stats.obp + stats.slg)} />
                         </div>
                         <div className="h-px opacity-10" style={{ background: 'currentColor' }} />
                         <div className="flex justify-around">
-                            <StatCell label="H"  value={stats.h}  />
-                            <StatCell label="2B" value={stats.d}  />
-                            <StatCell label="3B" value={stats.t}  />
-                            <StatCell label="HR" value={stats.hr} />
-                            <StatCell label="BB" value={stats.bb} />
+                            <StatTile size="inline" label="H"  value={stats.h}  />
+                            <StatTile size="inline" label="2B" value={stats.d}  />
+                            <StatTile size="inline" label="3B" value={stats.t}  />
+                            <StatTile size="inline" label="HR" value={stats.hr} />
+                            <StatTile size="inline" label="BB" value={stats.bb} />
                         </div>
                     </>
                 ) : null}

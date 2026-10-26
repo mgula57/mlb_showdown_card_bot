@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { type RealVsProjectedStat } from '../../../api/showdownBotCard';
 import { formatStatValue } from '../../../functions/formatters';
 import { heatColor } from '../../../functions/colors';
+import { CAPS_LABEL_CLASS } from '../../shared/fieldStyles';
 
 type StatRanges = Record<string, { min: number; max: number }>;
 
@@ -163,7 +164,7 @@ export default function RealVsProjectedVisual({ realVsProjectedData, statRanges,
     return (
         <div className={`space-y-2 ${isEmpty ? 'opacity-25 pointer-events-none select-none' : ''}`}>
             {/* Header */}
-            <div className="flex items-center gap-2 text-[9px] font-semibold uppercase tracking-widest opacity-40 mb-0.5">
+            <div className={`flex items-center gap-2 mb-0.5 ${CAPS_LABEL_CLASS} text-(--text-tertiary)`}>
                 <span className="w-14 shrink-0">Stat</span>
                 <span className="w-12 shrink-0 text-right">Card</span>
                 <span className="w-12 shrink-0 text-right">Real</span>

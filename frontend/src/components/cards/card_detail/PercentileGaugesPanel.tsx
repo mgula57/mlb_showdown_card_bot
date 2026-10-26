@@ -47,10 +47,10 @@ export default function PercentileGaugesPanel({ breakdowns }: PercentileGaugesPa
         <div className={`w-full ${isEmpty ? 'opacity-25 pointer-events-none select-none' : ''}`}>
             <table className="w-full text-xs">
                 <thead>
-                    <tr className="opacity-40 border-b border-current">
-                        <th className="text-left font-semibold uppercase tracking-wide py-1 pr-2">Stat</th>
-                        <th className="text-right font-semibold uppercase tracking-wide py-1 px-2">Value</th>
-                        <th className="text-right font-semibold uppercase tracking-wide py-1 pl-2">Pctile</th>
+                    <tr className={`border-b border-(--divider) ${CAPS_LABEL_CLASS} text-(--text-tertiary)`}>
+                        <th className="text-left font-semibold py-1 pr-2">Stat</th>
+                        <th className="text-right font-semibold py-1 px-2">Value</th>
+                        <th className="text-right font-semibold py-1 pl-2">Pctile</th>
                         <th className="w-24 pl-3 py-1"></th>
                     </tr>
                 </thead>
@@ -61,11 +61,11 @@ export default function PercentileGaugesPanel({ breakdowns }: PercentileGaugesPa
                         const color = gradeColor(pct);
                         return (
                             <tr key={bd.metric} className="border-b border-(--divider) last:border-0">
-                                <td className={`py-1.5 pr-2 opacity-60 ${CAPS_LABEL_CLASS}`}>{label}</td>
-                                <td className={`py-1.5 px-2 text-right font-bold ${isEmpty ? 'blur-xs' : ''}`}>
+                                <td className={`py-1.5 pr-2 ${CAPS_LABEL_CLASS} text-(--text-tertiary)`}>{label}</td>
+                                <td className={`py-1.5 px-2 text-right font-bold tabular-nums ${isEmpty ? 'blur-xs' : ''}`}>
                                     {formatStatValue(bd.value, bd.metric)}
                                 </td>
-                                <td className={`py-1.5 pl-2 text-right font-bold ${isEmpty ? 'blur-xs' : ''}`} style={{ color }}>
+                                <td className={`py-1.5 pl-2 text-right font-bold tabular-nums ${isEmpty ? 'blur-xs' : ''}`} style={{ color }}>
                                     {Math.round(pct * 100)}
                                 </td>
                                 <td className="py-1.5 pl-3">

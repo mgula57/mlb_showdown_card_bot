@@ -2,6 +2,7 @@ import { type ShowdownBotCardChart } from '../../../api/showdownBotCard';
 import { getContrastTextColor } from '../../../functions/colors';
 import { CardChart, buildChartRangesFromValues } from '../card_elements/CardChart';
 import { CAPS_LABEL_CLASS } from '../../shared/fieldStyles';
+import { StatTile } from '../../shared/StatTile';
 
 const OUTS = new Set(['PU', 'SO', 'GB', 'FB']);
 const TOTAL = 20;
@@ -19,29 +20,18 @@ function outcomeColor(key: string, primaryColor?: string, secondaryColor?: strin
     return 'var(--rule-strong)';
 }
 
-function KpiTile({ label, value, blurred }: { label: string; value: number; blurred: boolean }) {
-    return (
-        <div className="flex-1 flex flex-col items-center justify-center gap-1 rounded-card py-2.5 px-3 bg-tertiary">
-            <span className={`text-2xl font-display-upright leading-none tabular-nums ${blurred ? 'blur-xs' : ''}`}>
-                {value.toFixed(2)}
-            </span>
-            <span className={`opacity-50 ${CAPS_LABEL_CLASS}`}>{label}</span>
-        </div>
-    );
-}
-
 function Bar({ label, value, color, blurred }: { label: string; value: number; color: string; blurred: boolean }) {
     const pct = Math.min((value / TOTAL) * 100, 100);
     return (
         <div className="flex items-center gap-2.5">
-            <span className="text-[11px] font-bold w-7 text-right uppercase shrink-0 opacity-60">{label}</span>
+            <span className={`w-7 text-right shrink-0 ${CAPS_LABEL_CLASS} text-(--text-tertiary)`}>{label}</span>
             <div className="relative flex-1 h-3.5 rounded-full overflow-hidden" style={{ background: 'color-mix(in srgb, var(--form-element) 30%, transparent)' }}>
                 <div
                     className="absolute inset-y-0 left-0 rounded-full transition-all duration-500"
                     style={{ width: `${pct}%`, backgroundColor: color, opacity: 0.85 }}
                 />
             </div>
-            <span className={`text-[11px] font-semibold w-10 shrink-0 text-right opacity-60 tabular-nums ${blurred ? 'blur-xs' : ''}`}>
+            <span className={`text-[11px] font-semibold w-10 shrink-0 text-right text-(--text-tertiary) tabular-nums ${blurred ? 'blur-xs' : ''}`}>
                 {value % 1 === 0 ? value : value.toFixed(2)}/{TOTAL}
             </span>
         </div>
@@ -79,8 +69,8 @@ export function BaselineOpponentBreakdown({ chart, primaryColor, secondaryColor,
     return (
         <div className={`space-y-3 ${isEmpty ? 'opacity-25 pointer-events-none select-none' : ''} ${className ?? ''}`}>
             <div className="flex gap-2">
-                <KpiTile label={commandLabel} value={data.command} blurred={isEmpty} />
-                <KpiTile label="Outs" value={data.outs} blurred={isEmpty} />
+                <StatTile label={commandLabel} value={data.command.toFixed(2)} blurred={isEmpty} />
+                <StatTile label="Outs" value={data.outs.toFixed(2)} blurred={isEmpty} />
             </div>
             <div className="flex flex-col space-y-0.5">
                 <CardChart

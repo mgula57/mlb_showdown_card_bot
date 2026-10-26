@@ -3,6 +3,7 @@ import { formatSlashlineValue } from '../../../functions/formatters';
 import CardCommand from '../card_elements/CardCommand';
 import { rankChartsByVersion } from './chartVersions';
 import { CAPS_LABEL_CLASS } from '../../shared/fieldStyles';
+import { StatTile } from '../../shared/StatTile';
 
 const PLACEHOLDER_CHART_ACCURACY: Record<string, Record<string, ChartAccuracyCategoryBreakdown>> = {
     '10-5': { OVERALL: { stat: 'OVERALL', accuracy: 0.9421, actual: 0.840, comparison: 0.851, is_pitcher: false, notes: '' } },
@@ -11,19 +12,6 @@ const PLACEHOLDER_CHART_ACCURACY: Record<string, Record<string, ChartAccuracyCat
     '7-5': { OVERALL: { stat: 'OVERALL', accuracy: 0.8876, actual: 0.840, comparison: 0.888, is_pitcher: false, notes: '' } },
     '6-5': { OVERALL: { stat: 'OVERALL', accuracy: 0.8654, actual: 0.840, comparison: 0.901, is_pitcher: false, notes: '' } },
 };
-
-function KpiTile({ label, value, blurred }: { label: string; value: string | number; blurred: boolean }) {
-    return (
-        <div 
-            className="@container flex-1 flex flex-col items-center justify-center gap-1 rounded-card py-2.5 px-3 bg-tertiary" 
-        >
-            <span className={`text-xl @[80px]:text-2xl font-display-upright leading-none tabular-nums ${blurred ? 'blur-xs' : ''}`}>
-                {value}
-            </span>
-            <span className="text-[8px] @[80px]:text-[10px] font-semibold uppercase tracking-widest opacity-50">{label}</span>
-        </div>
-    );
-}
 
 type ChartRow = ChartAccuracyCategoryBreakdown & { chart: string; rank: number; accuracyRank: number };
 
@@ -147,8 +135,8 @@ export function ChartSelectionBreakdown({ chartAccuracyData, commandOutAccuracie
                             <span className='text-[9px] @[80px]:text-xs opacity-70'> Out</span>
                         </span>
                     </div>
-                    <KpiTile label="Card OPS" value={formatSlashlineValue(selectedVersion.comparison)} blurred={isEmpty} />
-                    <KpiTile label="Real OPS" value={formatSlashlineValue(selectedVersion.actual)} blurred={isEmpty} />
+                    <StatTile label="Card OPS" value={formatSlashlineValue(selectedVersion.comparison)} blurred={isEmpty} />
+                    <StatTile label="Real OPS" value={formatSlashlineValue(selectedVersion.actual)} blurred={isEmpty} />
                 </div>
             )}
             {isPicked && (
@@ -163,10 +151,10 @@ export function ChartSelectionBreakdown({ chartAccuracyData, commandOutAccuracie
             )}
             <div className="space-y-1.5">
                 <div className="flex items-center gap-2.5 pb-0.5">
-                    <span className={`opacity-40 w-16 text-right shrink-0 ${CAPS_LABEL_CLASS}`}>Chart</span>
+                    <span className={`w-16 text-right shrink-0 ${CAPS_LABEL_CLASS} text-(--text-tertiary)`}>Chart</span>
                     <div className="flex-1" />
                     {['SCORE', 'CARD', 'REAL'].map(label => (
-                        <span key={label} className={`opacity-40 w-10 text-right shrink-0 ${CAPS_LABEL_CLASS}`}>{label}</span>
+                        <span key={label} className={`w-10 text-right shrink-0 ${CAPS_LABEL_CLASS} text-(--text-tertiary)`}>{label}</span>
                     ))}
                 </div>
                 {ranked.map((row) => (

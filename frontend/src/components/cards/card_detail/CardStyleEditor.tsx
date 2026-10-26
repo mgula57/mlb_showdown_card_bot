@@ -17,7 +17,7 @@ import { chartVersionOptions, isCardStyleDifferent, type CardStyleSettings } fro
 import type { SelectOption } from '../../shared/CustomSelect';
 import type { ShowdownBotCard } from '../../../api/showdownBotCard';
 import { rankChartsByVersion } from './chartVersions';
-import { CAPS_LABEL_CLASS } from '../../shared/fieldStyles';
+import { Heading } from '../../shared/Heading';
 
 /** Enables in-place style editing on CardDetail (see its `styleEditor` prop) */
 export type CardStyleEditorConfig = {
@@ -142,8 +142,8 @@ export function CardStyleEditor({ style: initialStyle, defaults, onSave, revertT
         <div className="flex-1 flex flex-col min-h-0 bg-secondary rounded-card border border-form-element fade-in">
             {/* Header */}
             <div className="flex items-center gap-2 pl-4 pr-2 py-2 border-b border-form-element shrink-0">
-                <FaPalette className="text-[12px] opacity-60" />
-                <div className={`opacity-60 ${CAPS_LABEL_CLASS}`}>Card Style</div>
+                <FaPalette className="text-[12px] text-(--text-tertiary)" />
+                <Heading level="panel" as="h3">Card Style</Heading>
                 <span className="flex items-center gap-1 text-[11px] text-(--text-tertiary)">
                     {isRebuilding ? (
                         <><FaSpinner className="animate-spin text-[10px]" /> Rebuilding card</>

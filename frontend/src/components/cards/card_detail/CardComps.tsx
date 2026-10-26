@@ -2,8 +2,8 @@ import { useState, useEffect } from 'react';
 import { type ShowdownBotCard } from '../../../api/showdownBotCard';
 import { fetchCardComps, type WotcCompCard } from '../../../api/card_db/cardDatabase';
 import { CardItem, CardItemFromCard, CardItemSkeleton } from '../CardItem';
-import { CAPS_LABEL_CLASS } from '../../shared/fieldStyles';
 import { gradeColor } from '../../../functions/colors';
+import { Eyebrow } from '../../shared/Eyebrow';
 
 type CardCompsProps = {
     card: ShowdownBotCard | null | undefined;
@@ -123,7 +123,7 @@ export function CardComps({ card, isLoading }: CardCompsProps) {
 
             {/* Divider */}
             <div className="border-t-3 border-(--divider) my-2" />
-            <span className={`opacity-40 text-center block ${CAPS_LABEL_CLASS}`}>WOTC Comps</span>
+            <Eyebrow className="block text-center">WOTC Comps</Eyebrow>
 
             {comps.map(comp => (
                 <CompCardItem key={comp.id} comp={comp} />
