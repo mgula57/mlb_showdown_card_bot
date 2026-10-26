@@ -5,7 +5,6 @@
 /* Design language: see frontend/DESIGN.md before adding or changing anything below. */
 @theme {
     --container-field-split: 600px;
-    --breakpoint-2xs: 22rem; /* or 352px */
     --breakpoint-xs: 30rem; /* or 480px */
     --breakpoint-3xl: 120rem; /* or 1920px */
 
@@ -94,11 +93,8 @@
     --table-banding: #f2f4f6;
 
     /* Legacy aliases: used across components but never defined before the design-language pass. */
-    --background: var(--background-primary);
     --background-secondary-hover: var(--background-tertiary);
     --form-element: var(--divider);
-    --border-primary: var(--divider);
-    --border-secondary: var(--rule-strong);
 
     --success: #4BB543;
     --warning: #d5ad0c;
@@ -109,7 +105,6 @@
     --challenge-budget: #2f6bd6;
     --challenge-superteam: #7c4dd0;
     --challenge-themed: #e0654f;
-
 
     --green: #287c22;
     --red: #ca443d;
@@ -192,7 +187,6 @@
     --challenge-budget: #5a97f0;
     --challenge-superteam: #a884e8;
     --challenge-themed: #f0806c;
-
 
     --green: #5cc46f;
     --red: #f0675c;
@@ -537,48 +531,12 @@
     animation: live-pulse 1.6s ease-in-out infinite;
 }
 
-/* Game playback tempo. `--motion-scale` is the one dial: playback speed divides it, reduced
-   motion collapses it. Every animated duration inside the game view is a multiple of these three
-   custom properties rather than a hardcoded duration, so speed and accessibility stay centralized.
-   Scoped to a class (not :root) because the speed value is set inline on a descendant element —
-   a custom property set below :root can't feed a :root-level calc(). */
-.playback-scope {
-    --motion-scale:  calc(1 / var(--playback-speed, 1));
-    --motion-fast:   calc(150ms * var(--motion-scale));
-    --motion-base:   calc(300ms * var(--motion-scale));
-    --motion-runner: calc(700ms * var(--motion-scale));
-}
-
-/* 0.001 rather than 0 - a genuinely-0s transition can skip firing `transitionend`, which would
-   desync usePresenceList's exit timers from what's actually on screen. */
-@media (prefers-reduced-motion: reduce) {
-    .playback-scope { --motion-scale: 0.001; }
-}
-
-@keyframes runner-out {
-    0%   { opacity: 1; transform: scale(1) rotate(0deg); filter: grayscale(0); }
-    100% { opacity: 0; transform: scale(0.8) rotate(-6deg); filter: grayscale(1); }
-}
-.runner-out { animation: runner-out var(--motion-base, 300ms) ease-in forwards; }
-
-@keyframes score-tick {
-    0%, 100% { transform: scale(1); color: var(--primary); }
-    50%      { transform: scale(1.25); color: var(--green); }
-}
-.score-tick { animation: score-tick var(--motion-base, 300ms) ease-out; }
-
-@keyframes log-row-enter {
-    from { opacity: 0; transform: translateY(-8px); }
-    to   { opacity: 1; transform: translateY(0); }
-}
-.log-row-enter { animation: log-row-enter var(--motion-base, 300ms) ease-out; }
-
 @keyframes result-pop {
     0%   { opacity: 0; transform: scale(0.7); }
     60%  { opacity: 1; transform: scale(1.08); }
     100% { opacity: 1; transform: scale(1); }
 }
-.result-pop { animation: result-pop var(--motion-base, 300ms) ease-out; }
+.result-pop { animation: result-pop 300ms ease-out; }
 
 /* Card highlight for the side that won the advantage on a sim plate appearance (see
    `AdvantageBadge`). Unlayered on purpose: it has to beat the card's own `shadow-xl` utility. */
@@ -776,14 +734,6 @@ html, body, #root {
   height: auto;
   min-height: 100dvh;
 }
-
-/* Safe-area helpers */
-.pb-safe { padding-bottom: var(--safe-bottom); }
-.mb-safe { margin-bottom: var(--safe-bottom); }
-.fixed-bottom-safe { bottom: var(--safe-bottom); }
-
-/* dvh utility (for Tailwind gap) */
-.min-h-dvh { min-height: 100dvh; }
 
 /* Full device height utility (covers under iOS toolbars) */
 .h-lvh { height: 100lvh; }

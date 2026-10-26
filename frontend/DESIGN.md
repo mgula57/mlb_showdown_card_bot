@@ -122,7 +122,7 @@ The 2001 card-back double rule (outer `--rule-strong` border, a gap, inner `--di
 
 ### Motion
 
-Motion is short and functional: a press, a panel opening, a die landing. When the viewer asks for reduced motion, one global rule at the end of `index.css` collapses animations and transitions to an instant, except spinners (still turning, slower, because they mean work is in progress). Don't add per-component `motion-reduce:` variants for ordinary motion; the global rule covers it. Signature effects that need a different reduced state (the dice toss, the advantage glow, playback tempo via `--motion-scale`, the home reel's autoplay via `usePrefersReducedMotion`) define their own.
+Motion is short and functional: a press, a panel opening, a die landing. When the viewer asks for reduced motion, one global rule at the end of `index.css` collapses animations and transitions to an instant, except spinners (still turning, slower, because they mean work is in progress). Don't add per-component `motion-reduce:` variants for ordinary motion; the global rule covers it. Signature effects that need a different reduced state (the dice toss, the advantage glow, the home reel's autoplay via `usePrefersReducedMotion`) define their own.
 
 ### Loading
 
