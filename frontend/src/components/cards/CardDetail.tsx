@@ -62,6 +62,8 @@ type CardDetailProps = {
     showdownBotCardData?: ShowdownBotCardAPIResponse | null;
     /** Card Id is passed in when loading from search */
     cardId?: string;
+    /** Load the `cardId` card with variable speed (2000/2001 hitters only), e.g. from a variable speed search */
+    variableSpeed?: boolean;
     /** Whether to hide trend graphs (optional for mobile/compact views) */
     hideTrendGraphs?: boolean;
     /** Loading state for the main card data */
@@ -148,7 +150,7 @@ const SectionPanel = ({ title, subtitle, isLoading, children }: { title: string;
  * />
  * ```
  */
-export const CardDetail = memo(function CardDetail({ showdownBotCardData: showdownBotCardDataProp, cardId, isLoading, hideTrendGraphs=false, context='custom', parent, showdownSetForPlaceholder, simStats, tooltip, onDraft, draftDisabled=false, draftLabel='Draft', actionBarContent, enableSetSwitcher=false, styleOverrides: styleOverridesProp, styleEditor }: CardDetailProps) {
+export const CardDetail = memo(function CardDetail({ showdownBotCardData: showdownBotCardDataProp, cardId, variableSpeed = false, isLoading, hideTrendGraphs=false, context='custom', parent, showdownSetForPlaceholder, simStats, tooltip, onDraft, draftDisabled=false, draftLabel='Draft', actionBarContent, enableSetSwitcher=false, styleOverrides: styleOverridesProp, styleEditor }: CardDetailProps) {
     // Keyed on content, so a caller handing over an equal overrides object (e.g. after an unrelated
     // save returns fresh objects) doesn't regenerate the image
     const styleOverridesKey = JSON.stringify([
@@ -198,7 +200,9 @@ export const CardDetail = memo(function CardDetail({ showdownBotCardData: showdo
     // (e.g. a background session refresh when the browser tab regains focus), re-fetching the
     // stale prop id and silently reverting the user's chosen set.
     // Mounting with only a `cardId` (no data) must still fetch it, so it starts unhandled then.
-    const handledCardIdPropRef = useRef<string | undefined>(showdownBotCardDataProp?.card ? cardId : undefined);
+    // Keyed with the speed mode too, so toggling variable speed refetches the same card
+    const cardFetchKey = cardId ? `${cardId}${variableSpeed ? ':variable-speed' : ''}` : undefined;
+    const handledCardIdPropRef = useRef<string | undefined>(showdownBotCardDataProp?.card ? cardFetchKey : undefined);
     // The style overrides last rendered, and the unstyled card last fetched by id — so new
     // overrides re-render (and regenerate the image) without refetching.
     const appliedStyleOverridesRef = useRef<CardStyleOverrides | undefined>(undefined);
@@ -292,7 +296,7 @@ export const CardDetail = memo(function CardDetail({ showdownBotCardData: showdo
                 fetchRanges(showdownBotCardData.card);
             }
 
-            handledCardIdPropRef.current = cardId;
+            handledCardIdPropRef.current = cardFetchKey;
             isShowingPropDataRef.current = true;
             return;
         }
@@ -305,7 +309,7 @@ export const CardDetail = memo(function CardDetail({ showdownBotCardData: showdo
         }
         const styleOverridesChanged = styleOverrides !== appliedStyleOverridesRef.current;
         appliedStyleOverridesRef.current = styleOverrides;
-        if (cardId && cardId === handledCardIdPropRef.current && styleOverridesChanged && fetchedCardRef.current) {
+        if (cardId && cardFetchKey === handledCardIdPropRef.current && styleOverridesChanged && fetchedCardRef.current) {
             // Same card, new styling: restyle the already-fetched card and regenerate its image
             restyleFromImagePathRef.current = imagePathFor(internalCardData?.card) ?? restyleFromImagePathRef.current;
             const cardResponse = withStyleOverrides(fetchedCardRef.current);
@@ -313,10 +317,10 @@ export const CardDetail = memo(function CardDetail({ showdownBotCardData: showdo
             if (isMissingImage(cardResponse?.card) && cardResponse) handleGenerateImage(cardResponse);
             return;
         }
-        if (cardId && cardId !== handledCardIdPropRef.current) {
-            handledCardIdPropRef.current = cardId;
+        if (cardId && cardFetchKey !== handledCardIdPropRef.current) {
+            handledCardIdPropRef.current = cardFetchKey;
             setIsLoadingFromId(true);
-            fetchCardById(cardId, 'card-detail')
+            fetchCardById(cardId, 'card-detail', variableSpeed)
                 .then((data) => {
                     console.log("Fetched single card data by ID:", data);
                     if (data) {
@@ -345,7 +349,7 @@ export const CardDetail = memo(function CardDetail({ showdownBotCardData: showdo
             return;
         }
 
-    }, [showdownBotCardData, cardId, styleOverrides]);
+    }, [showdownBotCardData, cardFetchKey, styleOverrides]);
 
     // Image Generation State
     const [isGeneratingImage, setIsGeneratingImage] = useState<boolean>(false);
@@ -468,7 +472,7 @@ export const CardDetail = memo(function CardDetail({ showdownBotCardData: showdo
             // WOTC/WBC search rows embed full card_data; BOT rows don't, so hydrate by id.
             const cardResponse = match.card_data
                 ? ({ card: match.card_data, error: null, error_for_user: null } as ShowdownBotCardAPIResponse)
-                : await fetchCardById(match.card_id, 'card-detail-set-switch');
+                : await fetchCardById(match.card_id, 'card-detail-set-switch', variableSpeed);
 
             setInternalCardData(cardResponse);
 

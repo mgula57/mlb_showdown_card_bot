@@ -92,12 +92,17 @@ def fetch_card():
     try:
         id = request.args.get('id')
         source = request.args.get('src', 'unknown')
+        is_variable_speed = request.args.get('variable_speed', 'false').lower() == 'true'
         with PostgresDB() as db:
             card = db.fetch_single_card(id)
             db.log_card_id_lookup(card_id=id, source=source, user_id=optional_user_id())
 
         if card is None:
             return jsonify({'error': 'Card not found'}), 404
+
+        # 2000/2001 ONLY, NO-OP FOR EVERY OTHER CARD
+        if is_variable_speed:
+            card.apply_variable_speed_00_01(True)
 
         return jsonify({'card': card.as_json()})
 
