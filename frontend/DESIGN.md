@@ -120,7 +120,7 @@ The team preview tile gets the full card-front look, because the team is the sub
 
 ### Frames
 
-The 2001 card-back double rule (outer `--rule-strong` border, a gap, inner `--divider` hairline) marks feature tiles like a release tile or a finished card. It isn't for ordinary panels.
+The 2001 card-back double rule (outer `--rule-strong` border, a gap, inner `--divider` hairline) with a diamond "base" on each corner (`<FrameCorners />` inside the framed element) marks feature tiles like a release tile or a finished card. Use it for about one kind of thing per screen, never ordinary panels, and leave at least a 12px gap between framed tiles so neighboring bases don't touch.
 
 ### Motion
 

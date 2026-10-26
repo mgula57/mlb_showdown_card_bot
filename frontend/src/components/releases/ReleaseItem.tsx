@@ -5,6 +5,7 @@ import { SetBadgeRow } from '../shared/SetBadge';
 import { FaLayerGroup } from 'react-icons/fa6';
 import { SLANT_ROOM_CLASS } from '../shared/headingStyles';
 import { Plate } from '../shared/Plate';
+import { FrameCorners } from '../shared/FrameCorners';
 
 /** Tile frame shared by ReleaseItem and its skeleton — sized like TeamPreviewCard's 'md' tile on
  *  wider screens, filling a 2-column grid cell on phones. */
@@ -62,10 +63,11 @@ export function ReleaseItem({ release, onClick, showPublishStatus = false }: Rel
                 border-2 border-(--rule-strong) bg-(--background-secondary)
                 [@media(hover:hover)]:hover:scale-[1.025] [@media(hover:hover)]:active:scale-[0.975]
                 [@media(hover:hover)]:transition-transform [@media(hover:hover)]:duration-150
-                cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--showdown-blue) focus-visible:ring-offset-1
+                cursor-pointer
             `}
         >
-            {/* Double-rule frame from the 2001 card back: outer rule on the button, hairline here */}
+            {/* Double-rule frame from the 2001 card back: outer rule on the button, hairline here, bases on the corners */}
+            <FrameCorners />
             <div className="relative h-full flex flex-col overflow-hidden rounded-plate border border-(--divider)">
                 {/* Official plate + every included set, wrapping onto a second row when there are many */}
                 <div className="absolute top-0.5 inset-x-0.5 z-1 flex items-start justify-between gap-1 pointer-events-none">
