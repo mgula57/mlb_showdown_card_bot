@@ -362,9 +362,13 @@ export const CardItem = ({
                         })()}
 
                         {/* Awards as quiet outline plates */}
-                        {awardList.map((award, index) => (
-                            <Plate key={index} variant="outline" size="sm">{award}</Plate>
-                        ))}
+                        {awardList.length > 0 && (
+                            <div className="flex flex-row gap-1">
+                                {awardList.map((award, index) => (
+                                    <Plate key={index} variant="outline" size="xs">{award}</Plate>
+                                ))}
+                            </div>
+                        )}
 
                         {isRedacted && (
                             <div className="space-x-2">

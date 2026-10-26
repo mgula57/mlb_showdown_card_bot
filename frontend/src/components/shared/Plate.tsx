@@ -15,7 +15,7 @@ import type { CSSProperties, ReactNode } from 'react';
  * Team-colored plates pass `variant="custom"` with `style={{ backgroundColor, color }}`.
  */
 export type PlateVariant = 'ink' | 'navy' | 'red' | 'outline' | 'success' | 'onField' | 'onFieldOutline' | 'custom';
-export type PlateSize = 'sm' | 'md' | 'lg';
+export type PlateSize = 'xs' | 'sm' | 'md' | 'lg';
 
 const VARIANT_CLASSES: Record<PlateVariant, string> = {
     ink: 'bg-(--plate) text-(--plate-ink)',
@@ -29,6 +29,7 @@ const VARIANT_CLASSES: Record<PlateVariant, string> = {
 };
 
 const SIZE_CLASSES: Record<PlateSize, string> = {
+    xs: 'text-[8px] px-0.5 py-[2px] gap-0.5',
     sm: 'text-[10px] px-1 py-[3px] gap-1',
     md: 'text-[13px] px-1.5 py-1 gap-1.5',
     lg: 'text-[22px] px-2.5 py-1.5 gap-1.5',
