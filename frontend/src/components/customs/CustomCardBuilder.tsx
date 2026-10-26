@@ -35,6 +35,7 @@ import { PlayerSearchInput } from './PlayerSearchInput';
 import CustomSelect from '../shared/CustomSelect';
 import type { SelectOption } from '../shared/CustomSelect';
 import { useSiteSettings, showdownSets } from '../shared/SiteSettingsContext';
+import { hasVariableSpeedSet } from '../../functions/showdownSets';
 import { setSelectOption } from '../shared/SetBadge';
 import { WhatsNewBanner } from '../shared/WhatsNewBanner';
 import { InfoTooltip } from '../shared/InfoTooltip';
@@ -228,7 +229,7 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
     const { userShowdownSet } = useSiteSettings();
     const [showdownSetOverride, setShowdownSetOverride] = useState<string | null>(null);
     const effectiveShowdownSet = showdownSetOverride ?? userShowdownSet;
-    const isSet00_01 = ['2000', '2001'].includes(effectiveShowdownSet);
+    const isSet00_01 = hasVariableSpeedSet([effectiveShowdownSet]);
     const [showdownBotCardData, setShowdownBotCardData] = useState<ShowdownBotCardAPIResponse | null>(null);
     const [isProcessingCard, setIsProcessingCard] = useState(false);
     const [errorMessage, setErrorMessage] = useState<string | null>(null);

@@ -379,10 +379,13 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
     // the user clearing) the search's filters.
     const algorithmShowdownSetsKey = algorithmSettings.showdown_sets.join(',');
     const algorithmAllStarsOnly = algorithmSettings.all_stars_only ?? false;
+    const algorithmVariableSpeed = algorithmSettings.variable_speed ?? false;
+    // Manual adds match the Algorithm's speed mode, so the edition's 2000/2001 cards stay consistent
     const manualSearchDefaults = useMemo<Partial<FilterSelections>>(() => ({
         showdown_set: algorithmShowdownSetsKey ? algorithmShowdownSetsKey.split(',') : undefined,
         awards: algorithmAllStarsOnly ? ['AS'] : undefined,
-    }), [algorithmShowdownSetsKey, algorithmAllStarsOnly]);
+        variable_speed: algorithmVariableSpeed || undefined,
+    }), [algorithmShowdownSetsKey, algorithmAllStarsOnly, algorithmVariableSpeed]);
 
     const excludeIds = useMemo(
         () => cards.map(c => c.source_card_id).filter((id): id is string => !!id),
@@ -906,6 +909,7 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
                                     excludeIds={excludeIds}
                                     defaultFilters={manualSearchDefaults}
                                     defaultYears={algorithmSettings.years}
+                                    enableVariableSpeedToggle
                                     actionButton={{
                                         icon: <FaPlus />,
                                         label: 'Add',
@@ -1371,6 +1375,7 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
                     <CardDetail
                         showdownBotCardData={detailCard?.card_snapshot.card_data ? { card: detailCard.card_snapshot.card_data } as ShowdownBotCardAPIResponse : undefined}
                         cardId={detailCard?.card_snapshot.card_id}
+                        variableSpeed={!!detailCard?.card_snapshot.is_variable_speed_00_01}
                         styleOverrides={detailStyleOverrides}
                         styleEditor={detailStyleEditor}
                         hideTrendGraphs={true}

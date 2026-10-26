@@ -14,7 +14,7 @@ class ReleaseCardRebuilder:
     command, outs, projections and points - so unlike style it can't sit on top of the snapshot
     as an override. Version 1 restores the archived card as-is (no formula drift from re-running
     it); other versions re-run the archived card through the current algorithm at that version
-    and embed the result in the snapshot.
+    and embed the result in the snapshot. A variable speed card stays variable speed either way.
     """
 
     MAX_CHART_VERSION = 5
@@ -36,20 +36,21 @@ class ReleaseCardRebuilder:
         if not card_id:
             raise ReleaseCardRebuildError('Card is missing its archived card id.')
 
+        is_variable_speed = bool(snapshot.get('is_variable_speed_00_01') or (snapshot.get('card_data') or {}).get('is_variable_speed_00_01'))
         if chart_version == 1:
-            archived_row = self._archived_row(card_id)
+            archived_row = self._archived_row(card_id, is_variable_speed)
             if archived_row is not None:
                 return {**{k: v for k, v in snapshot.items() if k != 'card_data'}, **archived_row}
 
-        card = self._rebuilt_card(snapshot, card_id, chart_version)
-        return {**snapshot, **card.card_bot_columns()}
+        card = self._rebuilt_card(snapshot, card_id, chart_version, is_variable_speed)
+        return {**snapshot, **card.card_bot_columns(), 'is_variable_speed_00_01': card.is_variable_speed_00_01}
 
-    def _archived_row(self, card_id: str) -> Optional[dict]:
+    def _archived_row(self, card_id: str, is_variable_speed: bool) -> Optional[dict]:
         """The card's `card_bot` row, as manual add / the algorithm snapshot it"""
-        rows = self.db.fetch_card_list({'card_id': [card_id], 'limit': 1})
+        rows = self.db.fetch_card_list({'card_id': [card_id], 'limit': 1, 'variable_speed': is_variable_speed})
         return rows[0] if rows else None
 
-    def _rebuilt_card(self, snapshot: dict, card_id: str, chart_version: int) -> ShowdownPlayerCard:
+    def _rebuilt_card(self, snapshot: dict, card_id: str, chart_version: int, is_variable_speed: bool) -> ShowdownPlayerCard:
         card_data = snapshot.get('card_data')
         if not card_data:
             archived_card = self.db.fetch_cards_for_roster_slots([{'card_id': card_id, 'card_source': 'BOT'}]).get(str(card_id))
@@ -61,7 +62,7 @@ class ReleaseCardRebuilder:
 
         image = {k: v for k, v in (card_data.get('image') or {}).items() if k not in self._IMAGE_OUTPUT_FIELDS}
         try:
-            return ShowdownPlayerCard.rebuilt_from_card_data({**card_data, 'image': image, 'chart_version': chart_version})
+            return ShowdownPlayerCard.rebuilt_from_card_data({**card_data, 'image': image, 'chart_version': chart_version, 'is_variable_speed_00_01': is_variable_speed})
         except IndexError:
             # `_most_accurate_chart` indexes the ranked charts by version
             raise ReleaseCardRebuildError(f"This card doesn't have a chart version {chart_version}.")

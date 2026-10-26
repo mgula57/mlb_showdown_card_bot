@@ -1390,7 +1390,8 @@ class PostgresDB:
         """A card_bot row as its variable speed version, with the VARIABLE_SPEED_COLUMNS values swapped
         in. Rows without a variant (pitchers, sets other than 2000/2001) are returned unchanged. Swapped
         rows are flagged `is_variable_speed_00_01`, so the card detail knows to load the card with
-        variable speed (`/cards/card` recomputes its points breakdown).
+        variable speed (`/cards/card` recomputes its points breakdown) and a release snapshot made
+        from one embeds the variable speed card (see `_embed_variable_speed_card_data`).
         """
         if row.get('points_vs') is None:
             return row
@@ -7108,8 +7109,31 @@ class PostgresDB:
                     values + [edition_id],
                 )
             if cards is not None:
+                self._embed_variable_speed_card_data(cards)
                 self._upsert_release_cards(cur, edition_id, cards)
         return True
+
+    def _embed_variable_speed_card_data(self, cards: list) -> None:
+        """Embed the variable speed card JSON in release card snapshots taken from variable speed
+        search rows (`card_row_as_variable_speed`). card_bot rows don't carry `card_data`, so anything
+        that later loads the card by its `card_id` (renders, rosters, card detail) would otherwise get
+        the standard speed card. Snapshots that already embed `card_data` are left alone."""
+        snapshots = [
+            card['card_snapshot'] for card in cards
+            if isinstance(card.get('card_snapshot'), dict)
+                and card['card_snapshot'].get('is_variable_speed_00_01')
+                and card['card_snapshot'].get('card_id')
+                and not card['card_snapshot'].get('card_data')
+        ]
+        if not snapshots:
+            return
+        archived_cards = self.fetch_cards_by_ids([snapshot['card_id'] for snapshot in snapshots])
+        for snapshot in snapshots:
+            card = archived_cards.get(snapshot['card_id'])
+            if card is None:
+                continue
+            card.apply_variable_speed_00_01(True)
+            snapshot['card_data'] = card.as_json()
 
     def delete_edition(self, edition_id: str, user_id: str) -> str | None:
         """Delete an edition owned (via its parent release) by user_id. Returns its release id if

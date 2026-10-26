@@ -3,6 +3,7 @@ import { FaWandMagicSparkles, FaSpinner, FaTriangleExclamation, FaStar, FaLayerG
 import type { ReleaseEdition, AlgorithmConfig, AlgorithmPlayerTypeDistribution, AlgorithmPreviewResult, AlgorithmSelectionWeights, AlgorithmTeamMinimums, AlgorithmTeamWeighting, AlgorithmOtherEditionsRule, WotcSetProfile } from '../../api/releases';
 import { fetchWotcSetProfiles, previewAlgorithm, updateEdition } from '../../api/releases';
 import { showdownSets } from '../shared/SiteSettingsContext';
+import { hasVariableSpeedSet } from '../../functions/showdownSets';
 import { setSelectOption } from '../shared/SetBadge';
 import FormInput from '../customs/FormInput';
 import FormEnabler from '../customs/FormEnabler';
@@ -315,7 +316,7 @@ export function AlgorithmBuilder({ releaseId, edition, token, defaultShowdownSet
     const pointBuckets = config.point_buckets ?? [];
     const arePointBucketsValid = validatePointBuckets(pointBuckets) === null;
 
-    const hasSet00_01 = config.showdown_sets.some(set => set === '2000' || set === '2001');
+    const hasSet00_01 = hasVariableSpeedSet(config.showdown_sets);
 
     const canRun = !!token
         && config.set_size > 0

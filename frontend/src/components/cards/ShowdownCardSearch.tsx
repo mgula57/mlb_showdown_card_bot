@@ -39,6 +39,8 @@ import FormInput from "../customs/FormInput";
 import MultiSelect from "../shared/MultiSelect";
 import FormDropdown from "../customs/FormDropdown";
 import FormSection from "../customs/FormSection";
+import FormEnabler from "../customs/FormEnabler";
+import { hasVariableSpeedSet } from "../../functions/showdownSets";
 import CustomSelect, { type SelectOption } from '../shared/CustomSelect';
 import { CardItemFromCardDatabaseRecord, CardItemFromCard, CardItemSkeleton } from "./CardItem";
 import { type CardItemActionButton } from "./CardItemCompact";
@@ -135,7 +137,8 @@ type ShowdownCardSearchProps = {
 
     /**
      * Shows a toggle next to the sort that switches 2000/2001 cards between standard (10/15/20) and
-     * variable speed, with points to match. Off by default — currently just the Cards explorer.
+     * variable speed, with points to match. Off by default — currently the Cards explorer and the
+     * Edition Builder's manual search.
      */
     enableVariableSpeedToggle?: boolean;
 };
@@ -838,7 +841,7 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
     const [filtersForEditing, setFiltersForEditing] = useState<FilterSelections>(getInitialFilters(source, defaultFilters, disableLocalStorage));
     // Variable speed only changes 2000/2001 cards
     const searchedSets = filters.showdown_set?.length ? filters.showdown_set : [effectiveShowdownSet];
-    const isVariableSpeedAvailable = enableVariableSpeedToggle && searchedSets.some(set => set === '2000' || set === '2001');
+    const isVariableSpeedAvailable = enableVariableSpeedToggle && hasVariableSpeedSet(searchedSets);
     // Nothing picked → the search uses the header's set, so show that set as the selection
     // (when it's one WOTC printed; Classic/Expanded fall back to the "(Default)" display).
     const wotcSetSelections = filters.showdown_set?.length
@@ -1566,21 +1569,20 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
 
                         {/* Standard (10/15/20) vs variable speed for 2000/2001 cards */}
                         {isVariableSpeedAvailable && (
-                            <button
-                                type="button"
-                                onClick={() => {
+                            <FormEnabler
+                                size="sm"
+                                className="shrink-0"
+                                label={<><span className="@2xl:hidden">Var SPD</span><span className="hidden @2xl:inline">Variable Speed</span></>}
+                                title="Uncapped speed on 2000/2001 hitters instead of 10/15/20, with points to match"
+                                isEnabled={!!filters.variable_speed}
+                                isDisabled={isFilterLocked('variable_speed')}
+                                onChange={(isEnabled) => {
                                     // Unset rather than false, so standard speed doesn't count as a custom filter
-                                    const variable_speed = filters.variable_speed ? undefined : true;
+                                    const variable_speed = isEnabled ? undefined : true;
                                     setFilters(prev => ({ ...prev, variable_speed }));
                                     setFiltersForEditing(prev => ({ ...prev, variable_speed }));
                                 }}
-                                title="Uncapped speed on 2000/2001 hitters instead of 10/15/20, with points to match"
-                                className="shrink-0 flex items-center gap-1 px-2 py-1 bg-(--background-secondary) border border-form-element rounded-full text-sm text-nowrap cursor-pointer hover:bg-(--background-secondary-hover)"
-                            >
-                                <FaPersonRunning className="text-primary" />
-                                <span className="text-primary font-semibold">Speed:</span>
-                                <span>{filters.variable_speed ? 'Variable' : 'Standard'}</span>
-                            </button>
+                            />
                         )}
 
                         {/* Positions (always exposed; replaces the positions chip) */}
