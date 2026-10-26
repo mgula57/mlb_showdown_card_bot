@@ -8,6 +8,7 @@ import FormEnabler from '../customs/FormEnabler';
 import { headingClass } from '../shared/headingStyles';
 import { CAPS_LABEL_CLASS } from '../shared/fieldStyles';
 import { choiceClass } from '../shared/choiceStyles';
+import { EmptyState } from '../shared/EmptyState';
 
 type SummaryChartsProps = {
     cards: ReleaseCard[];
@@ -797,7 +798,7 @@ export function SummaryCharts({ cards, editionId }: SummaryChartsProps) {
             </div>
 
             {filteredSnapshots.length === 0 ? (
-                <p className="text-[13px] text-(--text-tertiary) py-8 text-center">No cards match this subset.</p>
+                <EmptyState size="inline">No cards match this subset.</EmptyState>
             ) : (
                 <>
                     {/* Side by side (1/3 – 2/3) when there's room, stacked otherwise. */}

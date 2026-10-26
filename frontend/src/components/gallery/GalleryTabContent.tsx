@@ -18,6 +18,7 @@ import { type ShowdownBotCard, type ShowdownBotCardAPIResponse } from '../../api
 import { CardDetail } from '../cards/CardDetail';
 
 import { Heading } from '../shared/Heading';
+import { EmptyState } from '../shared/EmptyState';
 type User = { id: string } | null | undefined;
 
 interface GalleryTabContentProps {
@@ -585,15 +586,13 @@ export const GalleryTabContent: React.FC<GalleryTabContentProps> = ({ user, toke
             {/* Grid */}
             <div className="p-3">
                 {gallery.length === 0 && !isLoading ? (
-                    <div className="flex flex-col items-center justify-center py-16 gap-3 text-secondary">
-                        <FaImages size={36} className="opacity-30" />
-                        <p className="text-sm font-medium">
-                            {hasActiveFilters ? 'No cards match these filters' : showingHidden ? 'No hidden cards' : 'No cards yet'}
-                        </p>
-                        {!hasActiveFilters && !showingHidden && (
-                            <p className="text-xs text-center max-w-xs">Cards you generate while signed in will appear here.</p>
-                        )}
-                    </div>
+                    hasActiveFilters ? (
+                        <EmptyState size="inline">No cards match these filters.</EmptyState>
+                    ) : showingHidden ? (
+                        <EmptyState size="panel" title="Nothing hidden.">Cards you hide from your gallery show up here.</EmptyState>
+                    ) : (
+                        <EmptyState title="No cards yet.">Cards you build while signed in land here.</EmptyState>
+                    )
                 ) : (
                     <>
                         <div className="relative">

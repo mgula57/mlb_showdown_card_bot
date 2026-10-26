@@ -9,6 +9,7 @@ import CustomSelect, { type SelectOption } from '../shared/CustomSelect';
 import type { HistoricalNavState } from './HistoricalTeams';
 
 import { InlineError } from '../shared/InlineError';
+import { EmptyState } from '../shared/EmptyState';
 // Label lookup falls back to the same formatting the backend uses (RosterEra.label) so a tile
 // still reads correctly before /api/seasons/eras has loaded.
 const eraLabel = (eraKey: string, eras: RosterEra[]): string =>
@@ -119,9 +120,9 @@ export function EraTeams({ horizontalPadding, hideSearch = false, externalQuery,
                     {Array.from({ length: 8 }, (_, i) => <TeamPreviewCardSkeleton key={i} />)}
                 </TeamShelf>
             ) : teams.length === 0 ? (
-                <p className="text-[13px] text-(--text-tertiary) py-8 text-center">
-                    {searchQuery ? `No teams match "${searchQuery}".` : 'No era teams have been processed yet.'}
-                </p>
+                searchQuery
+                    ? <EmptyState size="inline">No teams match “{searchQuery}”.</EmptyState>
+                    : <EmptyState size="panel" title="No teams yet.">Era teams appear here once they have been processed.</EmptyState>
             ) : (
                 <TeamShelf
                     title="Era Teams"

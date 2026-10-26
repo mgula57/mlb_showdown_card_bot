@@ -15,6 +15,7 @@ import CustomSelect, { type SelectOption } from '../shared/CustomSelect';
 
 import { Heading } from '../shared/Heading';
 import { headingClass } from '../shared/headingStyles';
+import { EmptyState } from '../shared/EmptyState';
 type BrowseType = 'all' | 'featured' | 'community' | 'historical' | 'era';
 
 const TYPE_OPTIONS: SelectOption[] = [
@@ -354,7 +355,7 @@ export function BrowseTeams({ onOpenTeam, horizontalPadding, currentUserId, myTe
                         </div>
                     </div>
                 ) : !searchModeResults || searchModeResults.length === 0 ? (
-                    <p className="text-[13px] text-(--text-tertiary) py-8 text-center">No teams match “{q}”.</p>
+                    <EmptyState size="inline">No teams match “{q}”.</EmptyState>
                 ) : (
                     <div className={px}>
                         <div className={`mb-3 ${headingClass('panel')}`}>

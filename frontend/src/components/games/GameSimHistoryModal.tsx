@@ -5,6 +5,7 @@ import { InlineError } from '../shared/InlineError';
 import { UserAvatar } from '../shared/UserAvatar';
 import { ordinal } from '../../functions/formatters';
 import { fetchGameSimHistory, fetchGameSimResult, type SimGameRecord } from '../../api/simGame';
+import { EmptyState } from '../shared/EmptyState';
 
 function errorMessage(err: unknown): string {
     return err instanceof Error ? err.message : String(err);
@@ -77,9 +78,7 @@ export default function GameSimHistoryModal({ gamePk, onClose, onSelect }: Props
                 )}
 
                 {!loading && games?.length === 0 && (
-                    <div className="py-10 text-center text-xs text-(--secondary)">
-                        No one has simulated this game yet.
-                    </div>
+                    <EmptyState size="panel" title="Be the first.">Nobody has simulated this game yet.</EmptyState>
                 )}
 
                 {games?.map((row) => (

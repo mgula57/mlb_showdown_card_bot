@@ -21,6 +21,7 @@ import { InlineError } from '../../../shared/InlineError';
 import { Heading } from '../../../shared/Heading';
 import { buttonClass } from '../../../shared/buttonStyles';
 import { CAPS_LABEL_CLASS } from '../../../shared/fieldStyles';
+import { EmptyState } from '../../../shared/EmptyState';
 type Props = {
     token: string;
     onBack: () => void;
@@ -249,7 +250,7 @@ export function AdminChallengesView({ token, onBack }: Props) {
                     {Array.from({ length: 4 }, (_, i) => <div key={i} className="h-12 rounded-card bg-(--background-tertiary)" />)}
                 </div>
             ) : groupedTemplates.length === 0 ? (
-                <p className="text-[13px] text-(--text-tertiary) py-8 text-center">No templates yet — create one to get started.</p>
+                <EmptyState size="panel" title="No templates yet.">Create one to start rotating challenges.</EmptyState>
             ) : (
                 <div className="flex flex-col gap-4">
                     {groupedTemplates.map(([category, group]) => {

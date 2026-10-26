@@ -4,6 +4,7 @@ import { ChallengeCard, ChallengeCardSkeleton } from './ChallengeCard';
 import { byChallengeCategory } from './challengeCategory';
 
 import { InlineError } from '../../shared/InlineError';
+import { EmptyState } from '../../shared/EmptyState';
 /** As many placeholder cards as the "usually 3-6 live at once" set `ChallengeCard` is sized for. */
 const SKELETON_COUNT = 4;
 
@@ -45,9 +46,9 @@ export function SimChallenges({ token, onNewTeam, onUseExistingTeam, onSelectCha
 
     if (challenges.length === 0) {
         return (
-            <p className="text-[13px] text-(--text-tertiary) py-8 text-center">
-                No challenges are live right now — check back soon.
-            </p>
+            <EmptyState size="panel" title="No live challenges.">
+                New challenges rotate in every week. Check back soon.
+            </EmptyState>
         );
     }
 

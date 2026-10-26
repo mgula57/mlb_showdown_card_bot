@@ -15,6 +15,7 @@ import { InlineError } from '../../shared/InlineError';
 import { buttonClass } from '../../shared/buttonStyles';
 import { CAPS_LABEL_CLASS } from '../../shared/fieldStyles';
 import { headingClass } from '../../shared/headingStyles';
+import { EmptyState } from '../../shared/EmptyState';
 
 function errorMessage(err: unknown): string {
     return err instanceof Error ? err.message : String(err);
@@ -362,9 +363,7 @@ export function PlayModal({
                                 </div>
                             )}
                             {challenges !== null && challengeOptions.length === 0 && (
-                                <p className="text-[12px] text-(--text-tertiary) py-4 text-center">
-                                    No challenges are live right now — check back soon.
-                                </p>
+                                <EmptyState size="inline">No challenges are live right now. Check back soon.</EmptyState>
                             )}
                         </div>
 

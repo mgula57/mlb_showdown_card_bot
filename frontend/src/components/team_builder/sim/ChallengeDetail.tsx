@@ -12,6 +12,7 @@ import { Tabs, type TabItem } from '../../shared/Tabs';
 
 import { InlineError } from '../../shared/InlineError';
 import { Heading } from '../../shared/Heading';
+import { EmptyState } from '../../shared/EmptyState';
 type Props = {
     instanceId: string;
     token?: string;
@@ -154,9 +155,7 @@ export function ChallengeDetail({ instanceId, token, initialChallenge, onBack, o
                     </div>
                 )}
                 {!entriesError && entries !== null && entries.length === 0 && (
-                    <p className="text-[12px] text-(--text-tertiary) py-6 text-center">
-                        No one has taken on this challenge yet — be the first.
-                    </p>
+                    <EmptyState size="panel" title="Be the first.">Nobody has taken on this challenge yet.</EmptyState>
                 )}
                 {entries !== null && entries.length > 0 && (
                     <div className="flex flex-col gap-1.5">

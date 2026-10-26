@@ -14,6 +14,7 @@ import { TeamSearchInput } from './TeamSearchInput';
 
 import { InlineError } from '../shared/InlineError';
 import { headingClass } from '../shared/headingStyles';
+import { EmptyState } from '../shared/EmptyState';
 // League team-colors for the All-Star tiles / detail header.
 export const ASG_COLORS: Record<string, { primary: string; secondary: string }> = {
     AL: { primary: 'rgb(200,16,46)', secondary: 'rgb(255,255,255)' },
@@ -347,7 +348,7 @@ export function HistoricalTeams({ horizontalPadding, hideSearch = false, externa
                             {Array.from({ length: 6 }, (_, i) => <TeamPreviewCardSkeleton key={i} />)}
                         </div>
                     ) : searchResults.length === 0 ? (
-                        <p className="text-[13px] text-(--text-tertiary) py-8 text-center">No teams match “{searchQuery}”.</p>
+                        <EmptyState size="inline">No teams match “{searchQuery}”.</EmptyState>
                     ) : (
                         <div className={horizontalPadding ?? ''}>
                             <div className="flex items-center justify-between mb-3">
@@ -375,9 +376,9 @@ export function HistoricalTeams({ horizontalPadding, hideSearch = false, externa
                 ) : loadingSeasons ? (
                     <TeamShelfSkeleton shelves={2} className={horizontalPadding} />
                 ) : seasons.length === 0 ? (
-                    <p className="text-[13px] text-(--text-tertiary) py-8 text-center">No historical teams have been processed yet.</p>
+                    <EmptyState size="panel" title="No teams yet.">Historical teams appear here once they have been processed.</EmptyState>
                 ) : filteredSeasons.length === 0 ? (
-                    <p className="text-[13px] text-(--text-tertiary) py-8 text-center">No teams found for {selectedSeason}.</p>
+                    <EmptyState size="inline">No teams found for {selectedSeason}.</EmptyState>
                 ) : (
                     <>
                         {filteredSeasons.slice(0, visibleCount).map(({ season, team_count }) => (

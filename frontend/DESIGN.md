@@ -53,6 +53,7 @@ A club with no colors falls back to `NEUTRAL_TEAM_COLOR` / `NEUTRAL_TEAM_COLOR_S
 | Display | `font-display uppercase` | Headlines that stand alone: page and section titles, release names, team abbreviations and names on team tiles, tab labels, `feature` button labels. The bundled Helvetica Neue Condensed Heavy Oblique (already slanted, so never add `italic`) |
 | Command number | `font-display-black` | On-Base and Control numbers in `CardCommand`. Helvetica Neue 107 Extra Black Condensed |
 | Card name | `font-display-upright` | Player names and the year/team plate next to them on cards (`CardItem`, `CardItemCompact`), stat-badge values, game scores, and form section titles (`FormSection`), which sit inline with summary chips. Helvetica Neue Bold Condensed |
+| Slab | `font-slab` | Alfa Slab One, only for `EmptyState` headlines: the heavy slab caps of the 2000 print ads. Self-hosted from `@fontsource/alfa-slab-one` |
 | Eyebrow | `<Eyebrow>` | Small, widely spaced caps above a title |
 | Field label | `FIELD_LABEL_CLASS` (`fieldStyles.ts`) | The label above every input, dropdown, picker and toggle group: 11px semibold body-face caps, lightly spaced, tertiary ink, like ON-BASE / SPEED on the card front. Hint text inside a label goes back to `normal-case` |
 | Caps label | `CAPS_LABEL_CLASS` (`fieldStyles.ts`) | The field label's type with no color or `block`: group labels in a list ("Rotation", "Overperformers" in green), table column headers, inline labels ("On Deck"). Add the ink yourself, `text-(--text-tertiary)` unless it carries a status color. Caps labels of 7–9px inside plates and chart visuals are card-stat micro labels and stay as they are |
@@ -85,6 +86,7 @@ Use these before writing new styles. All live in `src/components/shared/` unless
 | Component | What it is |
 |---|---|
 | `Plate` | The stat box from the card front, in semibold body-face caps. Variants: `ink` (stats, points), `navy`/`red` (OFFICIAL, LIVE, errata), `outline` (Draft, awards), `success` (Published), `onField`/`onFieldOutline` (on team-color fields), `custom` (team-colored, pass `style`; on cards the year/team plate takes the primary color and the points plate the secondary). Replaces rounded pills |
+| `EmptyState` | Nothing to show yet: a slab headline, one line and an optional action, in `page`, `panel` and `inline` sizes (see Empty states) |
 | `StatTile` | A number over its caps label, the way a card prints a stat: the value in the upright condensed face with tabular figures. `tile` is the silver headline tile (On-Base, Outs, Card OPS); `inline` is a bare pair for a row of small stats (ERA · WHIP · K/9) |
 | `Eyebrow` | Spaced small caps above a title or labeling a group ("WHIP Leaders", "Step 1") |
 | `buttonStyles.ts` → `buttonClass(variant, size)` | Buttons and button-styled links: `feature` (navy with a hard red `shadow-feature` edge, label in the display face; the one headline action per screen, like Build Card, Simulate, a modal's Start or a card's Draft), `primary` (navy, `shadow-raised`), `secondary` (bordered surface), `ghost`, `danger` (red, destructive confirms only; adding, drafting or starting something is `primary`). Works on `<button>`, `<Link>` and `<a>`. `buttonVariantClass(variant)` is just the colors and states, for buttons that size themselves (`GameDetail`'s top bar, a card's corner action) |
@@ -128,9 +130,15 @@ Motion is short and functional: a press, a panel opening, a die landing. When th
 
 Skeletons use the silver surface (`--background-tertiary`) and match the dimensions of the content they stand in for, plates included.
 
-### Empty states (planned)
+### Empty states
 
-Screens with nothing to show yet will borrow the voice of the 2000 print ads: a short, confident slab-serif caps headline ("NO RELEASES YET."), one plain line under it, and a primary action. The `EmptyState` component and slab face aren't built yet; add them here when they are.
+Screens with nothing to show borrow the voice of the 2000 print ads: `<EmptyState>` (`shared/`) sets a short, confident slab-serif caps headline ending in a period ("NO TEAMS YET.", "BE THE FIRST."), one plain line under it, and the next step as a primary action when there is one.
+
+- `page`: a screen or tab with nothing in it yet (your teams, your gallery).
+- `panel`: an empty section inside a page (a challenge leaderboard, a release with no editions, an empty schedule day).
+- `inline`: one quiet centered line, no headline, for a search or filter with no matches ("No teams match “xyz”.").
+
+Short notes inside a dense panel row ("No awards won.") stay plain tertiary text. Never put the slab headline on a search miss.
 
 ## Copy
 

@@ -11,6 +11,7 @@ import { InlineError } from '../../shared/InlineError';
 import { Eyebrow } from '../../shared/Eyebrow';
 import { Heading } from '../../shared/Heading';
 import { Plate } from '../../shared/Plate';
+import { EmptyState } from '../../shared/EmptyState';
 type Props = {
     token?: string;
     onOpenSeason: (teamId: string, jobId: string) => void;
@@ -293,11 +294,11 @@ export function SimLeaderboard({ token, onOpenSeason, onOpenChallenge, sort }: P
 
             {view === 'challenges' && (
                 challengeCards.length === 0 ? (
-                    <p className="text-[13px] text-(--text-tertiary) py-8 text-center px-4">
+                    <EmptyState size="panel" title="No results yet.">
                         {allChallengeCards.length === 0
-                            ? 'No challenge attempts yet. Take on one of the Active Challenges above.'
-                            : 'No results yet for the active challenges.'}
-                    </p>
+                            ? 'Take on one of the active challenges above to get on the board.'
+                            : 'Nobody has finished the active challenges yet.'}
+                    </EmptyState>
                 ) : sectioned ? (
                     <div className="flex flex-col gap-5 px-4">
                         {activeCards.length > 0 && (
@@ -347,9 +348,9 @@ export function SimLeaderboard({ token, onOpenSeason, onOpenChallenge, sort }: P
 
             {view === 'open' && (
                 openSeasons.length === 0 ? (
-                    <p className="text-[13px] text-(--text-tertiary) py-8 text-center px-4">
-                        No open-play seasons yet. Open one of your teams and hit Play Season.
-                    </p>
+                    <EmptyState size="panel" title="No seasons yet.">
+                        Open one of your teams and hit Play season to get on the board.
+                    </EmptyState>
                 ) : (
                     <div className="flex flex-col gap-6 px-4">
                         {openSeasons.map(season => {

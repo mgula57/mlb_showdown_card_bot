@@ -8,6 +8,7 @@ import { matchesTeamQuery } from './teamSearch';
 
 import { InlineError } from '../shared/InlineError';
 import { headingClass } from '../shared/headingStyles';
+import { EmptyState } from '../shared/EmptyState';
 // Set ordering for the "by set" shelves — newest curated sets first.
 type SortKey = 'recent' | 'points' | 'name' | 'roster' | 'popular';
 
@@ -120,7 +121,7 @@ export function CommunityTeams({ onOpen, horizontalPadding, hideSearch = false, 
                 <TeamShelfSkeleton shelves={3} className={px} />
             ) : results !== null ? (
                 results.length === 0 ? (
-                    <p className="text-[13px] text-(--text-tertiary) py-8 text-center">No public teams match “{query.trim()}”.</p>
+                    <EmptyState size="inline">No public teams match “{query.trim()}”.</EmptyState>
                 ) : (
                     <div className={px}>
                         <div className="flex items-center justify-between mb-3">
@@ -142,7 +143,7 @@ export function CommunityTeams({ onOpen, horizontalPadding, hideSearch = false, 
                     </div>
                 )
             ) : shelves.recentlyAdded.length === 0 ? (
-                <p className="text-[13px] text-(--text-tertiary) py-8 text-center">No public teams yet.</p>
+                <EmptyState size="panel" title="No public teams yet.">Make one of your teams public and it shows up here.</EmptyState>
             ) : (
                 /* Browse (shelves) mode — headers indented by `px`, tile rows bleed to the screen edge. */
                 <>

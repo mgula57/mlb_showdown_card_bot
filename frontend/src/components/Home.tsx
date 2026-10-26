@@ -46,6 +46,7 @@ import { fetchUserGallery, type GalleryImageRecord } from '../api/gallery';
 import { Heading } from './shared/Heading';
 import { CAPS_LABEL_CLASS } from './shared/fieldStyles';
 import { GameStatePlate } from './games/GameStatePlate';
+import { EmptyState } from './shared/EmptyState';
 // TODO: replace hard-coded IDs with a general two-way player detection strategy
 const TWO_WAY_PLAYER_IDS = new Set([660271]); // Ohtani
 const PITCHING_LEADER_CATEGORIES = new Set(['walksAndHitsPerInningPitched', 'earnedRunAverage', 'strikeouts', 'wins', 'saves', 'inningsPitched', 'strikeoutsPer9Inn', 'strikeoutWalkRatio']);
@@ -469,9 +470,7 @@ export default function Home() {
                             ))
                         )}
                         {!isLoadingGames && todaysGames.length === 0 &&  (
-                            <div className="px-6 py-4 text-sm text-(--text-tertiary)">
-                                No games scheduled today.
-                            </div>
+                            <EmptyState size="inline" className="w-full">No games scheduled today.</EmptyState>
                         )}
                         {!isLoadingGames && todaysGames.map((game) => fromScheduledGame(game)).sort((a, b) => {
                             const seasonId = tickerSeason?.season_id ?? '';

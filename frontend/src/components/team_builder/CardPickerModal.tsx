@@ -6,6 +6,7 @@ import { CardSource } from '../../types/cardSource';
 import type { CardSource as CardSourceType } from '../../types/cardSource';
 import FormInput from '../customs/FormInput';
 import { Tabs } from '../shared/Tabs';
+import { EmptyState } from '../shared/EmptyState';
 
 type CardPickerModalProps = {
     title?: string;
@@ -92,7 +93,7 @@ export function CardPickerModal({
                         <div key={i} className="h-14 shrink-0 rounded-card bg-(--background-tertiary) animate-pulse" />
                     ))}
                     {!loading && results.length === 0 && query.trim().length >= 2 && (
-                        <p className="text-center text-[12px] text-(--text-tertiary) py-4">No cards found.</p>
+                        <EmptyState size="inline">No cards found.</EmptyState>
                     )}
                     {!loading && query.trim().length < 2 && (
                         <p className="text-center text-[12px] text-(--text-tertiary) py-4">Type at least 2 characters to search.</p>

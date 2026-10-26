@@ -12,6 +12,7 @@ import { FaArrowUpRightFromSquare, FaCheck, FaDownload, FaImage, FaSpinner, FaTr
 import { InlineError } from '../shared/InlineError';
 import { buttonClass } from '../shared/buttonStyles';
 import { Plate } from '../shared/Plate';
+import { EmptyState } from '../shared/EmptyState';
 /** How often to refresh statuses while a render job runs (each card takes a few seconds). */
 const POLL_INTERVAL_MS = 2500;
 /** Skeleton tiles shown while statuses load. */
@@ -112,9 +113,9 @@ export function EditionImages({ releaseId, releaseName, edition, readOnly, token
 
     if (edition.cards.length === 0) {
         return (
-            <p className="text-[13px] text-(--text-tertiary) py-8 text-center">
-                {readOnly ? 'No cards in this edition yet.' : 'Add cards to the player pool to render their images.'}
-            </p>
+            <EmptyState size="panel" title="No cards yet.">
+                {readOnly ? 'This edition has no cards yet.' : 'Add cards to the player pool to render their images.'}
+            </EmptyState>
         );
     }
 
@@ -199,7 +200,7 @@ export function EditionImages({ releaseId, releaseName, edition, readOnly, token
                         ))}
                     </div>
                 ) : visibleImages.length === 0 ? (
-                    <p className="text-[13px] text-(--text-tertiary) py-8 text-center">No cards with this status.</p>
+                    <EmptyState size="inline">No cards with this status.</EmptyState>
                 ) : (
                     <div className={TILE_GRID_CLASS}>
                         {visibleImages.map(image => (

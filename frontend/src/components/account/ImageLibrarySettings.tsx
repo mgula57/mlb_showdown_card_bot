@@ -19,6 +19,7 @@ import { deleteImageLibrary, saveImageLibrary, updateImageLibraryOrder } from '.
 import { FIELD_LABEL_CLASS } from '../shared/fieldStyles';
 import { buttonClass } from '../shared/buttonStyles';
 import { smoothScrollBehavior } from '../../hooks/usePrefersReducedMotion';
+import { EmptyState } from '../shared/EmptyState';
 const MAX_LIBRARIES = 5; // Matches UserImageLibraries.MAX_LIBRARIES
 
 const iconButton = 'p-1.5 rounded-control text-(--text-tertiary) hover:text-(--text-secondary) hover:bg-(--background-tertiary) cursor-pointer disabled:cursor-not-allowed disabled:opacity-30';
@@ -209,9 +210,9 @@ export const ImageLibrarySettings: React.FC = () => {
                     ))}
                     {orderError && <p className="text-xs text-(--red)">{orderError}</p>}
                     {libraryCount === 0 && (
-                        <p className="text-xs text-(--text-tertiary) pt-1">
-                            No folders connected yet. Connect a Google Drive folder to use your own player images.
-                        </p>
+                        <EmptyState size="panel" title="No folders yet.">
+                            Connect a Google Drive folder to use your own player images on cards.
+                        </EmptyState>
                     )}
                 </div>
             )}

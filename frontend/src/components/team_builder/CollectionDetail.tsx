@@ -4,6 +4,7 @@ import { TeamPreviewCard, TeamPreviewCardSkeleton } from './TeamPreviewCard';
 import BackButton from '../shared/BackButton';
 
 import { Heading } from '../shared/Heading';
+import { EmptyState } from '../shared/EmptyState';
 type CollectionDetailProps = {
     slug: string;
     onOpenTeam: (team: TeamSummary) => void;
@@ -57,7 +58,7 @@ export function CollectionDetail({ slug, onOpenTeam, onBack, horizontalPadding }
                         />
                     ))}
                     {(collection.teams ?? []).length === 0 && (
-                        <p className="text-[13px] text-(--text-tertiary) py-8">No teams in this collection yet.</p>
+                        <EmptyState size="panel" title="Empty collection." className="w-full">No teams have been added to this collection yet.</EmptyState>
                     )}
                 </div>
             )}

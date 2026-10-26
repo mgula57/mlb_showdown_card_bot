@@ -4,6 +4,7 @@ import { SimSeasonRow, SimSeasonRowSkeleton } from './SimSeasonRow';
 
 import { InlineError } from '../../shared/InlineError';
 import { Heading } from '../../shared/Heading';
+import { EmptyState } from '../../shared/EmptyState';
 type Props = {
     token?: string;
     onOpenSeason: (teamId: string, jobId: string) => void;
@@ -92,9 +93,9 @@ export function SimHistory({ token, onOpenSeason, sort }: Props) {
 
     if (seasons.length === 0) {
         return (
-            <p className="text-[13px] text-(--text-tertiary) py-8 text-center px-4">
-                You haven't played a season yet. Open one of your teams and hit Play Season.
-            </p>
+            <EmptyState size="panel" title="No seasons played.">
+                Open one of your teams and hit Play season.
+            </EmptyState>
         );
     }
 

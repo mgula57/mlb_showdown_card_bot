@@ -48,6 +48,7 @@ import { buttonClass } from '../shared/buttonStyles';
 import { choiceClass } from '../shared/choiceStyles';
 import { FIELD_LABEL_CLASS, fieldClass } from '../shared/fieldStyles';
 import { radixTabTriggerClass, tabListClass } from '../shared/tabStyles';
+import { EmptyState } from '../shared/EmptyState';
 /** Narrowest the Player Pool panel can get; it takes whatever the Build Method panel leaves. */
 const MIN_POOL_PANEL_WIDTH = 280;
 /** Narrowest the Build Method panel can be dragged to. */
@@ -1235,7 +1236,7 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
                             <div className={`flex-1 min-h-0 overflow-y-auto p-3 ${activePreview ? 'bg-(--preview-accent)/4' : 'bg-(--background-tertiary)'}`}>
                                 {displayCards.length > 0 && filteredCards.length === 0 ? (
                                     <div className="flex flex-col items-center gap-2 py-8">
-                                        <p className="text-[13px] text-(--text-tertiary)">No cards match these filters.</p>
+                                        <EmptyState size="inline">No cards match these filters.</EmptyState>
                                         <button
                                             type="button"
                                             onClick={clearPoolFilters}
@@ -1245,11 +1246,11 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
                                         </button>
                                     </div>
                                 ) : displayCards.length === 0 ? (
-                                    <p className="text-[13px] text-(--text-tertiary) py-8 text-center">
-                                        {activePreview
-                                            ? 'No players matched this configuration.'
-                                            : (readOnly ? 'No cards in this edition yet.' : 'No cards yet — use Manual search to build your pool.')}
-                                    </p>
+                                    activePreview
+                                        ? <EmptyState size="inline">No players matched this configuration.</EmptyState>
+                                        : <EmptyState size="panel" title="No cards yet.">
+                                            {readOnly ? 'This edition has no cards yet.' : 'Use Manual search to build your player pool.'}
+                                        </EmptyState>
                                 ) : (
                                     <div className="flex flex-col gap-4">
                                         {visibleGroups.map(group => (

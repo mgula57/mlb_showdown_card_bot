@@ -44,6 +44,7 @@ import { fetchChallengeInstance, type ChallengeInstance } from '../../api/sim';
 import { InlineError } from '../shared/InlineError';
 import { Heading } from '../shared/Heading';
 import { buttonClass } from '../shared/buttonStyles';
+import { EmptyState } from '../shared/EmptyState';
 // A team can be addressed by URL four ways: a saved UUID, a historical MLB team, an All-Star
 // team, or an Era Roster (all-time or all-decade).
 type TeamRef =
@@ -664,9 +665,16 @@ export default function TeamBuilder() {
                         Sign in to view your teams.
                     </p>
                 ) : filteredUserTeams.length === 0 ? (
-                    <p className="text-[13px] text-(--text-tertiary) py-8 text-center">
-                        {q ? `No teams match “${q}”.` : 'You haven’t created any teams yet.'}
-                    </p>
+                    q ? (
+                        <EmptyState size="inline">No teams match “{q}”.</EmptyState>
+                    ) : (
+                        <EmptyState
+                            title="No teams yet."
+                            action={<button type="button" onClick={handleNewTeam} className={buttonClass('primary')}><FaPlus className="text-[11px]" /> New team</button>}
+                        >
+                            Draft a roster of Showdown cards, then take it into a 162-game season.
+                        </EmptyState>
+                    )
                 ) : (
                     <div className={`grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-2 ${px}`}>
                         {filteredUserTeams.map(team => (

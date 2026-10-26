@@ -15,6 +15,9 @@
     /* Body face: Archivo (self-hosted variable font, normal width), a grotesque with squarer,
        sportier caps than the system UI fonts. Loaded in main.tsx. See DESIGN.md (Type). */
     --font-sans: 'Archivo Variable', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji';
+    /* `font-slab`: the heavy slab-serif caps of the 2000 Showdown print ads, only for `EmptyState`
+       headlines. Self-hosted, loaded in main.tsx. */
+    --font-slab: 'Alfa Slab One', 'Rockwell', 'Roboto Slab', Georgia, serif;
     --font-display: 'ShowdownDisplay', 'Helvetica Neue', 'Arial Narrow', sans-serif;
     --font-display-upright: 'ShowdownDisplayUpright', 'Helvetica Neue', 'Arial Narrow', sans-serif;
     --font-display-black: 'ShowdownDisplayBlack', 'Helvetica Neue', 'Arial Narrow', sans-serif;

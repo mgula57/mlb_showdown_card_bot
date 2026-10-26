@@ -10,6 +10,7 @@ import GameItem from "./GameItem";
 
 import { Heading } from '../shared/Heading';
 import { buttonClass } from '../shared/buttonStyles';
+import { EmptyState } from '../shared/EmptyState';
 type CardMap = Record<string, CardDatabaseRecord>;
 
 type GameScheduleProps = {
@@ -241,9 +242,9 @@ export default function GameSchedule({ games, dateLabel, description, sportId, s
             <GameScheduleHeader dateLabel={dateLabel} description={description} onRefresh={onRefresh} />
 
             {!sortedGames.length ? (
-                <div className="rounded-card border-2 border-dashed border-(--divider) py-10 text-center text-sm font-semibold text-(--text-secondary)">
-                    No games scheduled for this day.
-                </div>
+                <EmptyState size="panel" title="No games today." className="rounded-card border-2 border-dashed border-(--divider)">
+                    Nothing is scheduled for this day. Pick another date above.
+                </EmptyState>
             ) : (
                 <div className={`grid grid-cols-[repeat(auto-fit,minmax(270px,1fr))] gap-4 ${sortedGames.length === 1 ? "md:max-w-md" : ""}`}>
                     {sortedGames.map((game) => {

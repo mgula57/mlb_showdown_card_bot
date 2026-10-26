@@ -9,6 +9,7 @@ import { CardDetail } from '../../cards/CardDetail';
 import { Modal } from '../../shared/Modal';
 import { useCardDetailModal } from '../../../hooks/useCardDetailModal';
 import { CAPS_LABEL_CLASS } from '../../shared/fieldStyles';
+import { EmptyState } from '../../shared/EmptyState';
 
 // Mirrors PostseasonRound in models.py (oldest to newest); WS is pulled out and rendered
 // separately since it's the one round with no league.
@@ -179,7 +180,7 @@ function PostseasonGameResults({ seriesList, seriesMvps, identityFor, selectedKe
     const colCount = hasStarters ? 7 : 4;
 
     if (shown.length === 0) {
-        return <p className="text-[13px] text-(--text-tertiary) py-6 text-center">No game data available for this series.</p>;
+        return <EmptyState size="inline">No game data for this series.</EmptyState>;
     }
 
     return (

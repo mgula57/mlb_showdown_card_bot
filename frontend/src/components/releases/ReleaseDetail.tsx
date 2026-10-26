@@ -11,6 +11,7 @@ import { InlineError } from '../shared/InlineError';
 import { Heading } from '../shared/Heading';
 import { buttonClass, buttonVariantClass } from '../shared/buttonStyles';
 import { Plate } from '../shared/Plate';
+import { EmptyState } from '../shared/EmptyState';
 type ReleaseDetailProps = {
     release: Release;
     readOnly: boolean;
@@ -308,9 +309,9 @@ export function ReleaseDetail({ release, readOnly, editionSlug, onEditionChange,
                 )}
 
                 {editions.length === 0 && !(isEditing && editionForm) ? (
-                    <p className="text-[13px] text-(--text-tertiary) py-8 text-center">
+                    <EmptyState size="page" title="No editions yet.">
                         {isEditing ? 'Add an edition to start building your player pool.' : 'This release has no editions yet.'}
-                    </p>
+                    </EmptyState>
                 ) : (
                     editions.map(edition => (
                         <Tabs.Content

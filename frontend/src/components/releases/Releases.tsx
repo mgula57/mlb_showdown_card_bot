@@ -18,6 +18,7 @@ import type { ReleaseCreatePayload } from '../../api/releases';
 import { InlineError } from '../shared/InlineError';
 import { Heading } from '../shared/Heading';
 import { buttonClass } from '../shared/buttonStyles';
+import { EmptyState } from '../shared/EmptyState';
 /** A release that has been opened in this session. Each one keeps its own mounted ReleaseDetail
  *  (hidden when not addressed by the URL) so unsaved builder progress survives navigation. */
 /** Release tiles: two per row on phones, fixed-width tiles that wrap on wider screens. */
@@ -212,7 +213,7 @@ export default function Releases() {
                         className={buttonClass('primary', 'sm')}
                     >
                         <FaPlus className="text-[10px]" />
-                        <span>New<span className="hidden sm:inline"> Release</span></span>
+                        <span>New<span className="hidden sm:inline"> release</span></span>
                     </button>
                 )}
             </div>
@@ -246,9 +247,13 @@ export default function Releases() {
                         <section className={px}>
                             <Heading level="section" as="h2" className="mb-3">My Releases</Heading>
                             {userReleases.length === 0 ? (
-                                <p className="text-[13px] text-(--text-tertiary) py-4">
-                                    You haven't created any releases yet.
-                                </p>
+                                <EmptyState
+                                    size="panel"
+                                    title="No releases yet."
+                                    action={<button type="button" onClick={() => setShowCreateModal(true)} className={buttonClass('primary')}><FaPlus className="text-[11px]" /> New release</button>}
+                                >
+                                    Build your own set: pick the players, the editions and the point values.
+                                </EmptyState>
                             ) : (
                                 <div className={RELEASE_GRID}>
                                     {userReleases.map(release => (
