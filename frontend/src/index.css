@@ -12,6 +12,9 @@
        condensed bold for player names on cards. `font-display-black`: extra black condensed for
        command numbers. Their metrics are normalized by scripts/normalize_font_metrics.py so caps
        center in the line box. See DESIGN.md. */
+    /* Body face: Archivo (self-hosted variable font, normal width), a grotesque with squarer,
+       sportier caps than the system UI fonts. Loaded in main.tsx. See DESIGN.md (Type). */
+    --font-sans: 'Archivo Variable', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji';
     --font-display: 'ShowdownDisplay', 'Helvetica Neue', 'Arial Narrow', sans-serif;
     --font-display-upright: 'ShowdownDisplayUpright', 'Helvetica Neue', 'Arial Narrow', sans-serif;
     --font-display-black: 'ShowdownDisplayBlack', 'Helvetica Neue', 'Arial Narrow', sans-serif;
