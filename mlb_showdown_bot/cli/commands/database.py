@@ -191,6 +191,24 @@ def check_command_out_selections(
     print(f"{'✅ All stored cards are up to date.' if needs_rebuild_count == 0 else f'⚠️  {needs_rebuild_count} card(s) need rebuilding.'}")
 
 # -------------------------------
+# MARK: - Variable Speed
+# -------------------------------
+@app.command("backfill_variable_speed")
+def backfill_variable_speed(
+    env: str = typer.Option("dev", "--env", "-e", help="Environment to run the command in"),
+    batch_size: int = typer.Option(500, "--batch_size", "-b", help="Cards loaded and updated per batch"),
+    limit: Optional[int] = typer.Option(None, "--limit", "-l", help="Limit how many cards are processed"),
+    refresh_explore: bool = typer.Option(False, "--refresh_explore", "-exp", help="Run an incremental card_bot refresh afterwards to fill its variable speed columns"),
+):
+    """Store the variable speed version of archived 2000/2001 hitters that don't have one yet"""
+    is_production = env.lower() == "prod"
+    with PostgresDB(is_archive=is_production) as db:
+        updated_count = db.backfill_variable_speed_variants(batch_size=batch_size, limit=limit)
+        print(f"✅ Added variable speed to {updated_count} card(s).")
+        if refresh_explore and updated_count > 0:
+            db.build_card_bot_view()
+
+# -------------------------------
 # MARK: - Fangraphs
 # -------------------------------
 @app.command("snapshot_fangraphs_fielding")

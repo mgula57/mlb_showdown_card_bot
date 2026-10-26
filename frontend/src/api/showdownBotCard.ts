@@ -162,8 +162,10 @@ export async function generateCardImage(card: ShowdownBotCardAPIResponse, token?
     return res.json();
 }
 
-export async function fetchCardById(cardId: string, source: string): Promise<ShowdownBotCardAPIResponse> {
-    const res = await fetch(`${API_BASE}/cards/card?id=${encodeURIComponent(cardId)}&src=${encodeURIComponent(source)}`, {
+/** `variableSpeed` returns a 2000/2001 hitter with variable speed (no-op for every other card). */
+export async function fetchCardById(cardId: string, source: string, variableSpeed = false): Promise<ShowdownBotCardAPIResponse> {
+    const variableSpeedParam = variableSpeed ? '&variable_speed=true' : '';
+    const res = await fetch(`${API_BASE}/cards/card?id=${encodeURIComponent(cardId)}&src=${encodeURIComponent(source)}${variableSpeedParam}`, {
         method: "GET",
         headers: {
             'Content-Type': 'application/json',
@@ -193,7 +195,7 @@ export async function fetchCardsByIds(cardIds: string[], source: string): Promis
     }
 
     const { cards } = await res.json() as { cards: Record<string, ShowdownBotCardAPIResponse['card']> };
-    return Object.fromEntries(Object.entries(cards).map(([id, card]) => [id, { card }]));
+    return Object.fromEntries(Object.entries(cards).map(([id, card]) => [id, { card, error: null, error_for_user: null }]));
 }
 
 /**
