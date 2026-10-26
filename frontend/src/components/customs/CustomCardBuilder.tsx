@@ -69,6 +69,7 @@ import { formInputsFromCard, type CustomizeCardRouteState } from './customizeCar
 import { Heading } from '../shared/Heading';
 import { FIELD_LABEL_CLASS } from '../shared/fieldStyles';
 import { Tabs, type TabItem } from '../shared/Tabs';
+import { smoothScrollBehavior } from '../../hooks/usePrefersReducedMotion';
 // ----------------------------------
 // MARK: - Form Interface
 // ----------------------------------
@@ -708,13 +709,13 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
         // First try to find the preview section by ID
         const previewElement = document.getElementById('preview-section');
         if (previewElement) {
-            previewElement.scrollIntoView({ behavior: 'smooth' });
+            previewElement.scrollIntoView({ behavior: smoothScrollBehavior() });
             return;
         }
         
         // Fallback to ref method
         if (previewSectionRef.current) {
-            previewSectionRef.current.scrollIntoView({ behavior: 'smooth' });
+            previewSectionRef.current.scrollIntoView({ behavior: smoothScrollBehavior() });
         }
     };
 

@@ -120,6 +120,10 @@ The team preview tile gets the full card-front look, because the team is the sub
 
 The 2001 card-back double rule (outer `--rule-strong` border, a gap, inner `--divider` hairline) marks feature tiles like a release tile or a finished card. It isn't for ordinary panels.
 
+### Motion
+
+Motion is short and functional: a press, a panel opening, a die landing. When the viewer asks for reduced motion, one global rule at the end of `index.css` collapses animations and transitions to an instant, except spinners (still turning, slower, because they mean work is in progress). Don't add per-component `motion-reduce:` variants for ordinary motion; the global rule covers it. Signature effects that need a different reduced state (the dice toss, the advantage glow, playback tempo via `--motion-scale`, the home reel's autoplay via `usePrefersReducedMotion`) define their own.
+
 ### Loading
 
 Skeletons use the silver surface (`--background-tertiary`) and match the dimensions of the content they stand in for, plates included.

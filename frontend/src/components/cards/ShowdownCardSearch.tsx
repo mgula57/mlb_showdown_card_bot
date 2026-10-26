@@ -58,6 +58,7 @@ import { useIsSmallScreen } from '../../hooks/useIsSmallScreen';
 import { fieldClass, FIELD_LABEL_CLASS } from '../shared/fieldStyles';
 import { Heading } from '../shared/Heading';
 import { buttonClass } from '../shared/buttonStyles';
+import { smoothScrollBehavior } from '../../hooks/usePrefersReducedMotion';
 /**
  * Props for the ShowdownCardSearch component
  */
@@ -1241,7 +1242,7 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
                     const selectedElement = document.querySelector(`[data-card-id="${card.id}"]`);
                     if (selectedElement) {
                         selectedElement.scrollIntoView({
-                            behavior: 'smooth',
+                            behavior: smoothScrollBehavior(),
                             block: 'center',
                             inline: 'nearest'
                         });

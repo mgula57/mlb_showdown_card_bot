@@ -13,6 +13,7 @@ import { FaBook, FaClockRotateLeft, FaGear, FaTrophy, FaQuestion } from 'react-i
 
 import { Heading } from '../../shared/Heading';
 import { headingClass } from '../../shared/headingStyles';
+import { smoothScrollBehavior } from '../../../hooks/usePrefersReducedMotion';
 type BrowseView = 'leaderboard' | 'mine';
 
 const BROWSE_TABS: TabItem<BrowseView>[] = [
@@ -69,7 +70,7 @@ function NavTile({ icon, title, trailingIcon, onClick }: { icon: ReactNode; titl
 /** Jump-to-section tile: scrolls the given section into view rather than switching views, since
  *  challenges and the leaderboard share one page. */
 function SectionNavTile({ icon, title, targetRef }: { icon: ReactNode; title: string; targetRef: React.RefObject<HTMLDivElement | null> }) {
-    return <NavTile icon={icon} title={title} onClick={() => targetRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })} />;
+    return <NavTile icon={icon} title={title} onClick={() => targetRef.current?.scrollIntoView({ behavior: smoothScrollBehavior(), block: 'start' })} />;
 }
 
 /**

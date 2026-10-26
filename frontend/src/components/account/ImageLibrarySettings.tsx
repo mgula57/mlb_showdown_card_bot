@@ -18,6 +18,7 @@ import { deleteImageLibrary, saveImageLibrary, updateImageLibraryOrder } from '.
 
 import { FIELD_LABEL_CLASS } from '../shared/fieldStyles';
 import { buttonClass } from '../shared/buttonStyles';
+import { smoothScrollBehavior } from '../../hooks/usePrefersReducedMotion';
 const MAX_LIBRARIES = 5; // Matches UserImageLibraries.MAX_LIBRARIES
 
 const iconButton = 'p-1.5 rounded-control text-(--text-tertiary) hover:text-(--text-secondary) hover:bg-(--background-tertiary) cursor-pointer disabled:cursor-not-allowed disabled:opacity-30';
@@ -100,7 +101,7 @@ export const ImageLibrarySettings: React.FC = () => {
     useEffect(() => {
         if (location.pathname !== '/account' || location.hash !== `#${IMAGE_LIBRARIES_SECTION_ID}`) return;
         const timeout = setTimeout(() => {
-            document.getElementById(IMAGE_LIBRARIES_SECTION_ID)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            document.getElementById(IMAGE_LIBRARIES_SECTION_ID)?.scrollIntoView({ behavior: smoothScrollBehavior(), block: 'start' });
         }, 50);
         return () => clearTimeout(timeout);
     }, [location.pathname, location.hash, location.key]);

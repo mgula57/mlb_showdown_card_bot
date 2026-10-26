@@ -799,3 +799,25 @@ html, body, #root {
     outline: 2px solid var(--focus-ring);
     outline-offset: 2px;
 }
+
+/* Reduced motion: decorative animation and transitions collapse to an instant (end events still
+   fire, so collapse and drawer handlers keep working). Spinners keep turning, slower, because
+   they say work is in progress; the card-processing ring keeps its slow 4s turn. Signature
+   effects (dice toss, advantage glow, playback tempo) have their own rules above. Unlayered and
+   `!important` so it beats Tailwind's animate-* and duration-* utilities. See DESIGN.md (Motion). */
+@media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+        scroll-behavior: auto !important;
+    }
+    .animate-spin, .card-processing-spinner {
+        animation-duration: 1.5s !important;
+        animation-iteration-count: infinite !important;
+    }
+    .card-processing-ring {
+        animation-duration: 4s !important;
+        animation-iteration-count: infinite !important;
+    }
+}

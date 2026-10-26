@@ -17,6 +17,7 @@ import { Heading } from '../shared/Heading';
 import { FIELD_LABEL_CLASS, CAPS_LABEL_CLASS, fieldClass } from '../shared/fieldStyles';
 import { buttonClass } from '../shared/buttonStyles';
 import { headingClass } from '../shared/headingStyles';
+import { smoothScrollBehavior } from '../../hooks/usePrefersReducedMotion';
 type BucketProgress = { filled: number; target: number };
 
 type Props = {
@@ -80,7 +81,7 @@ export function GuidedDraftPanel(props: Props) {
     // round was left scrolled.
     const optionsScrollRef = useRef<HTMLDivElement>(null);
     useEffect(() => {
-        optionsScrollRef.current?.scrollTo({ top: 0, left: 0, behavior: 'smooth' });
+        optionsScrollRef.current?.scrollTo({ top: 0, left: 0, behavior: smoothScrollBehavior() });
     }, [rosterCount]);
 
     const progressBar = (

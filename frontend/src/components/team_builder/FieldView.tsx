@@ -12,6 +12,7 @@ import { CardDetail } from '../cards/CardDetail';
 import { SlotSavingOverlay } from './SlotSavingOverlay';
 import { CardNotFoundOverlay } from '../shared/CardNotFoundOverlay';
 import { CAPS_LABEL_CLASS } from '../shared/fieldStyles';
+import { smoothScrollBehavior } from '../../hooks/usePrefersReducedMotion';
 
 // Percentage-based [left, top] coordinates relative to the Field.png container
 export const POSITION_COORDS: Record<string, [number, number]> = {
@@ -120,7 +121,7 @@ export function FieldView({
         const target = position === 'BE' || position === 'RP'
             ? root.querySelector(`[data-slot^="${position}"][data-empty]`) ?? root.querySelector(`[data-slot^="${position}"]`)
             : root.querySelector(`[data-slot="${position}"]`);
-        target?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        target?.scrollIntoView({ behavior: smoothScrollBehavior(), block: 'center' });
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [scrollTarget?.position, scrollTarget?.key]);
 

@@ -52,6 +52,7 @@ import { Heading } from '../shared/Heading';
 import { radixVerticalTabTriggerClass } from '../shared/tabStyles';
 import { CAPS_LABEL_CLASS } from '../shared/fieldStyles';
 import { buttonClass } from "../shared/buttonStyles";
+import { smoothScrollBehavior } from '../../hooks/usePrefersReducedMotion';
 const formatScheduleDate = (date?: string): string => {
     if (!date) {
         return "Today's Games";
@@ -841,7 +842,7 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
     useEffect(() => {
         if (standingsTeam === null) return;
         requestAnimationFrame(() => {
-            standingsRosterRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+            standingsRosterRef.current?.scrollIntoView({ behavior: smoothScrollBehavior(), block: "start" });
         });
     }, [standingsTeam]);
 

@@ -16,3 +16,9 @@ export function usePrefersReducedMotion(): boolean {
 
     return prefersReduced;
 }
+
+/** The scroll behavior for programmatic scrolls (`scrollIntoView`, `scrollTo`): smooth, or instant
+ *  when the viewer prefers reduced motion. CSS `scroll-behavior` doesn't reach these calls. */
+export function smoothScrollBehavior(): ScrollBehavior {
+    return typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth";
+}
