@@ -4,6 +4,8 @@ import { FaGoogleDrive } from 'react-icons/fa';
 import { FaCheck, FaXmark } from 'react-icons/fa6';
 import { IMAGE_LIBRARIES_PATH } from '../account/useImageLibraries';
 import { NewBadge } from '../shared/NewBadge';
+import { Heading } from '../shared/Heading';
+import { CAPS_LABEL_CLASS } from '../shared/fieldStyles';
 
 type PhaseStatus = 'complete' | 'current';
 
@@ -42,7 +44,7 @@ const PhaseStep: React.FC<{ phase: typeof PHASES[number]; isLast: boolean }> = (
                     </div>
                 }
             </span>
-            <span className={`mt-1.5 text-[11px] font-bold ${isComplete ? 'text-(--success)' : 'text-primary'}`}>
+            <span className={`mt-1.5 ${CAPS_LABEL_CLASS} ${isComplete ? 'text-(--success)' : 'text-(--text-primary)'}`}>
                 {phase.label}
             </span>
             <span className="text-[10px] font-semibold text-secondary leading-tight">{phase.title}</span>
@@ -62,7 +64,7 @@ export const Set2026Notice: React.FC<{ onDismiss: () => void }> = ({ onDismiss }
             <FaXmark size={18} />
         </button>
 
-        <p className="pr-6 font-bold text-primary">2026 Set Adjustments</p>
+        <Heading level="panel" as="h3" className="pr-6">2026 Set Adjustments</Heading>
         <p className="mt-0.5 pr-6 text-secondary">
             All phases are complete! Curations and adjustments are finalized for 2026 cards.{' '}
             <a href={RELEASE_NOTES_URL} target="_blank" rel="noopener noreferrer" className="text-tertiary underline cursor-pointer hover:opacity-80">
@@ -77,11 +79,11 @@ export const Set2026Notice: React.FC<{ onDismiss: () => void }> = ({ onDismiss }
         </ol>
 
         <div className="mt-3 pt-2.5 border-t border-(--success)/20">
-            <p className="flex items-center gap-1.5 font-bold text-primary">
+            <Heading level="panel" as="h3" className="flex items-center gap-1.5">
                 <FaGoogleDrive className="text-(--success)" />
                 Google Drive Image Libraries
                 <NewBadge />
-            </p>
+            </Heading>
             <p className="mt-0.5 text-secondary">
                 Link a Google Drive folder of your own player images and cards set to Auto will use them automatically. No more uploading an image for every card.{' '}
                 <Link to={IMAGE_LIBRARIES_PATH} className="text-tertiary underline cursor-pointer hover:opacity-80">

@@ -68,6 +68,7 @@ import { formInputsFromCard, type CustomizeCardRouteState } from './customizeCar
 
 import { Heading } from '../shared/Heading';
 import { FIELD_LABEL_CLASS } from '../shared/fieldStyles';
+import { Tabs, type TabItem } from '../shared/Tabs';
 // ----------------------------------
 // MARK: - Form Interface
 // ----------------------------------
@@ -209,6 +210,14 @@ type CustomCardBuilderProps = {
     isHidden?: boolean;
 }
 
+type PreviewTab = 'preview' | 'gallery';
+
+/** The preview / gallery switch, shared by the mobile and desktop tab bars. */
+const PREVIEW_TABS: TabItem<PreviewTab>[] = [
+    { id: 'preview', label: 'Preview', shortLabel: 'Card', icon: <CardBuildIcon size="1.5em" /> },
+    { id: 'gallery', label: 'Gallery', icon: <FaImages /> },
+];
+
 /** 
  * Card Creation Page for users to create and customize their own cards. 
 */
@@ -230,7 +239,6 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
         setIsFormSettled(false);
         setIsFormCollapsed(!isFormCollapsed);
     };
-    type PreviewTab = 'preview' | 'gallery';
     const [activePreviewTab, setActivePreviewTab] = useState<PreviewTab>('preview');
     const [galleryRefreshKey, setGalleryRefreshKey] = useState(0);
     const [splitOptions, setSplitOptions] = useState<SelectOption[]>([]);
@@ -952,25 +960,8 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
             />
 
             {/* Mobile tab bar — fixed below the app header, hidden on @2xl */}
-            <div className={`flex @2xl:hidden fixed top-10 inset-x-0 z-30 border-b border-(--divider) bg-(--background-secondary)`}>
-                {([
-                    { tab: 'preview' as PreviewTab, icon: <CardBuildIcon size="1.5em" />, label: 'Card' },
-                    { tab: 'gallery' as PreviewTab, icon: <FaImages />, label: 'Gallery' },
-                ]).map(({ tab, icon, label }) => (
-                    <button
-                        key={tab}
-                        onClick={() => handleTabChange(tab)}
-                        className={`
-                            flex-1 flex items-center justify-center gap-2 py-2.5 text-sm font-semibold
-                            border-b-2 transition-colors cursor-pointer
-                            ${activePreviewTab === tab
-                                ? 'border-(--showdown-blue) text-primary'
-                                : 'border-transparent text-secondary hover:text-(--text-primary)'}
-                        `}
-                    >
-                        {icon} {label}
-                    </button>
-                ))}
+            <div className="flex @2xl:hidden fixed top-10 inset-x-0 z-30 px-2 bg-(--background-secondary)">
+                <Tabs tabs={PREVIEW_TABS} value={activePreviewTab} onChange={handleTabChange} fullWidth className="w-full" />
             </div>
 
             <div className="
@@ -1455,25 +1446,8 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
                     <div className="flex flex-col h-full">
 
                         {/* Tab bar — desktop only */}
-                        <div className="hidden @2xl:flex shrink-0 border-b border-(--divider) bg-(--background-secondary) sticky top-0 z-10">
-                            {([
-                                { tab: 'preview' as PreviewTab, icon: <CardBuildIcon size="1.5em" />, label: 'Preview' },
-                                { tab: 'gallery' as PreviewTab, icon: <FaImages />, label: 'Gallery' },
-                            ]).map(({ tab, icon, label }) => (
-                                <button
-                                    key={tab}
-                                    onClick={() => handleTabChange(tab)}
-                                    className={`
-                                        flex items-center gap-1.5 px-4 py-3 text-sm font-semibold
-                                        border-b-2 transition-colors cursor-pointer
-                                        ${activePreviewTab === tab
-                                            ? 'border-(--showdown-blue) text-primary'
-                                            : 'border-transparent text-secondary hover:text-(--text-primary)'}
-                                    `}
-                                >
-                                    {icon} {label}
-                                </button>
-                            ))}
+                        <div className="hidden @2xl:block shrink-0 px-2 bg-(--background-secondary) sticky top-0 z-10">
+                            <Tabs tabs={PREVIEW_TABS} value={activePreviewTab} onChange={handleTabChange} fullWidth />
                         </div>
 
                         {/* Tab content */}
