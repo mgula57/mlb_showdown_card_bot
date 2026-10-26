@@ -1315,10 +1315,10 @@ class PostgresDB:
 
     @staticmethod
     def card_row_as_variable_speed(row: dict) -> dict:
-        """A card_bot row as its variable speed version: the VARIABLE_SPEED_COLUMNS values swapped in,
-        plus `card_data` when the row embeds it. Rows without a variant (pitchers, sets other than
-        2000/2001) are returned unchanged. Swapped rows are flagged `is_variable_speed_00_01`, so the
-        card detail knows to load the card with variable speed.
+        """A card_bot row as its variable speed version, with the VARIABLE_SPEED_COLUMNS values swapped
+        in. Rows without a variant (pitchers, sets other than 2000/2001) are returned unchanged. Swapped
+        rows are flagged `is_variable_speed_00_01`, so the card detail knows to load the card with
+        variable speed (`/cards/card` recomputes its points breakdown).
         """
         if row.get('points_vs') is None:
             return row
@@ -1326,8 +1326,6 @@ class PostgresDB:
         for column, variable_column in VARIABLE_SPEED_COLUMNS.items():
             if row.get(variable_column) is not None:
                 variable_row[column] = row[variable_column]
-        if isinstance(row.get('card_data'), dict):
-            variable_row['card_data'] = VariableSpeedVariant.card_data_as_variable_speed(row['card_data'])
         variable_row['is_variable_speed_00_01'] = True
         return variable_row
 
@@ -1703,7 +1701,7 @@ class PostgresDB:
         expression = sql.SQL(column)
         if not strip_diagnostics:
             return expression, []
-        return sql.SQL("({column} - %s::text[]) #- %s::text[]").format(column=expression), [CARD_DATA_DIAGNOSTIC_KEYS, [VariableSpeedVariant.CARD_DATA_KEY, 'points_breakdown']]
+        return sql.SQL("{column} - %s::text[]").format(column=expression), [CARD_DATA_DIAGNOSTIC_KEYS]
 
     def fetch_command_out_selection_records(self, years: list[int], player_ids: list[str]) -> list[StoredCardSelectionRecord]:
         """Selection-related fields of stored cards that are, or could be, affected by curated command/out selections.

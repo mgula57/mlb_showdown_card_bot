@@ -1480,8 +1480,7 @@ class ShowdownPlayerCard(BaseModel):
         if not self.set.is_00_01 or not self.is_hitter or self.is_variable_speed_00_01 or not self.points_breakdown.breakdowns:
             return None
         speed = self.calculate_speed(is_variable_speed=True)
-        points_breakdown = self._points_with_speed(speed=speed.speed)
-        return VariableSpeedVariant(speed=speed, points=points_breakdown.total_points, points_breakdown=points_breakdown)
+        return VariableSpeedVariant(speed=speed, points=self._points_with_speed(speed=speed.speed).total_points)
 
     def _speed(self, sprint_speed:float, stolen_bases:int, is_sb_empty:bool, games:int = 0, is_variable_speed:bool = False) -> Speed:
         """In game speed for a position player. Will use pure sprint speed
