@@ -2385,3 +2385,22 @@ function PositionButton({ label, onClick, currentPts, projectedPts, overLimit, r
         </button>
     );
 }
+
+/** Placeholder shaped like the team page (title row, then the field and roster) while a team opens. */
+export function TeamDetailSkeleton() {
+    return (
+        <div aria-label="Loading team" className="flex flex-col gap-4 p-4 animate-pulse">
+            <div className="flex items-center gap-3">
+                <div className="h-4 w-4 rounded-plate bg-(--background-tertiary)" />
+                <div className="h-8 w-56 rounded-plate bg-(--background-tertiary)" />
+                <div className="h-5 w-16 rounded-plate bg-(--background-tertiary)" />
+            </div>
+            <div className="grid lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-4">
+                <div className="aspect-703/369 rounded-card bg-(--background-tertiary)" />
+                <div className="flex flex-col gap-1.5">
+                    {Array.from({ length: 9 }, (_, i) => <div key={i} className="h-12 rounded-card bg-(--background-tertiary)" />)}
+                </div>
+            </div>
+        </div>
+    );
+}

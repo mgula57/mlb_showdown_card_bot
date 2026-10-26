@@ -24,7 +24,7 @@ import { TeamSearchInput } from './TeamSearchInput';
 import { matchesTeamQuery } from './teamSearch';
 import { TeamPreviewCard } from './TeamPreviewCard';
 import { TeamShelf, TeamShelfSkeleton } from './TeamShelf';
-import { TeamDetail } from './TeamDetail';
+import { TeamDetail, TeamDetailSkeleton } from './TeamDetail';
 import { TeamBuilderWelcome } from './TeamBuilderWelcome';
 import { BrowseTeams } from './BrowseTeams';
 import { CollectionDetail } from './CollectionDetail';
@@ -682,9 +682,7 @@ export default function TeamBuilder() {
 
     if (view.mode === 'loading') {
         return (
-            <div className="flex flex-col h-full items-center justify-center py-12">
-                <FaSpinner className="animate-spin text-(--text-tertiary) text-xl" />
-            </div>
+            <TeamDetailSkeleton />
         );
     }
 

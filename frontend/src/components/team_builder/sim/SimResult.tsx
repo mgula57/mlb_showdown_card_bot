@@ -449,3 +449,24 @@ export function SimResult({ summary, challengeResult, challengeStanding, onOpenC
         </div>
     );
 }
+
+/** Placeholder shaped like `SimResult` (record headline, KPI row, two panels) while a finished
+ *  sim's summary loads, shared by the team and season sim views. */
+export function SimResultSkeleton() {
+    return (
+        <div aria-label="Loading results" className="flex flex-col gap-4 py-4 max-w-4xl lg:max-w-7xl mx-auto w-full md:px-4 animate-pulse">
+            <div className="px-4 space-y-2">
+                <div className="h-3 w-40 rounded-plate bg-(--background-tertiary)" />
+                <div className="h-7 w-24 rounded-plate bg-(--background-tertiary)" />
+                <div className="h-3 w-32 rounded-plate bg-(--background-tertiary)" />
+            </div>
+            <div className="px-4 grid grid-cols-2 sm:grid-cols-4 gap-2">
+                {Array.from({ length: 4 }, (_, i) => <div key={i} className="h-16 rounded-card bg-(--background-tertiary)" />)}
+            </div>
+            <div className="px-4 grid md:grid-cols-2 gap-3">
+                <div className="h-64 rounded-card bg-(--background-tertiary)" />
+                <div className="h-64 rounded-card bg-(--background-tertiary)" />
+            </div>
+        </div>
+    );
+}

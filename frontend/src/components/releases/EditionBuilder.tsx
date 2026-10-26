@@ -1410,3 +1410,22 @@ function StepButton({ number, label, isActive, onClick }: { number?: number; lab
         </button>
     );
 }
+
+/** Placeholder shaped like the edition builder (toolbar, build-method panel, player pool) while an
+ *  edition's cards load. */
+export function EditionBuilderSkeleton() {
+    return (
+        <div aria-label="Loading edition" className="flex-1 min-h-0 flex flex-col animate-pulse">
+            <div className="flex items-center gap-2 px-3 py-2 border-b border-(--divider)">
+                <div className="h-8 w-40 rounded-control bg-(--background-tertiary)" />
+                <div className="h-8 w-28 rounded-control bg-(--background-tertiary)" />
+            </div>
+            <div className="flex-1 min-h-0 flex gap-3 p-3">
+                <div className="hidden md:block w-80 shrink-0 rounded-card bg-(--background-tertiary)" />
+                <div className="flex-1 flex flex-col gap-1.5">
+                    {Array.from({ length: 8 }, (_, i) => <div key={i} className="h-16 rounded-card bg-(--background-tertiary)" />)}
+                </div>
+            </div>
+        </div>
+    );
+}

@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
-import { FaSpinner, FaTriangleExclamation } from 'react-icons/fa6';
+import { FaTriangleExclamation } from 'react-icons/fa6';
 import { cancelSimJob, fetchSimJob, fetchSimSeason, type SeasonSimSummary, type SimJob } from '../../api/sim';
 import { SimProgress } from '../team_builder/sim/SimProgress';
-import { SimResult } from '../team_builder/sim/SimResult';
+import { SimResult, SimResultSkeleton } from '../team_builder/sim/SimResult';
 import BackButton from '../shared/BackButton';
 
 // Setup phases report no game counts, so polling a little faster keeps the phase label moving.
@@ -142,9 +142,7 @@ export function SeasonSimView({ jobId, token, initialFocusAbbr, onRunAgain, onBa
             ) : polling ? (
                 <SimProgress job={job} teamName={progressLabel(job)} onCancel={token ? handleCancel : undefined} />
             ) : (
-                <div className="flex items-center justify-center py-16">
-                    <FaSpinner className="animate-spin text-(--text-tertiary) text-2xl" />
-                </div>
+                <SimResultSkeleton />
             )}
         </div>
     );

@@ -2,7 +2,7 @@ import { useState, useEffect, type ReactNode } from 'react';
 import * as Tabs from '@radix-ui/react-tabs';
 import type { Release, ReleaseEdition } from '../../api/releases';
 import { fetchEdition, createEdition, updateEdition } from '../../api/releases';
-import { EditionBuilder } from './EditionBuilder';
+import { EditionBuilder, EditionBuilderSkeleton } from './EditionBuilder';
 import FormInput from '../customs/FormInput';
 import { ModeBanner, ModeBannerButton } from '../shared/ModeBanner';
 import { FaArrowLeft, FaCheck, FaEye, FaEyeSlash, FaGlobe, FaPen, FaPlus, FaSpinner, FaXmark } from 'react-icons/fa6';
@@ -322,9 +322,7 @@ export function ReleaseDetail({ release, readOnly, editionSlug, onEditionChange,
                         >
                             {!editionCache[edition.id] ? (
                                 edition.id === activeEditionId && (
-                                    <div className="flex justify-center py-12">
-                                        <FaSpinner className="animate-spin text-(--text-tertiary) text-xl" />
-                                    </div>
+                                    <EditionBuilderSkeleton />
                                 )
                             ) : (
                                 <EditionBuilder

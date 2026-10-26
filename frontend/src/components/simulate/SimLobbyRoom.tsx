@@ -167,13 +167,25 @@ export function SimLobbyRoom({ lobbyId, initialState, token, userId, onRunning, 
 
     if (!lobby) {
         return (
-            <div className="flex flex-col items-center justify-center gap-3 py-16 px-4 text-center">
-                {error ? (
+            error ? (
+                <div className="flex flex-col items-center justify-center gap-3 py-16 px-4 text-center">
                     <p className="text-[13px] text-(--text-secondary) max-w-sm">{error}</p>
-                ) : (
-                    <FaSpinner className="animate-spin text-(--text-tertiary) text-xl" />
-                )}
-            </div>
+                </div>
+            ) : (
+                <div aria-label="Loading lobby" className="flex flex-col gap-4 max-w-2xl mx-auto w-full p-4 animate-pulse">
+                    <div className="flex items-center justify-between gap-3">
+                        <div className="space-y-2">
+                            <div className="h-7 w-44 rounded-plate bg-(--background-tertiary)" />
+                            <div className="h-3.5 w-64 rounded-plate bg-(--background-tertiary)" />
+                        </div>
+                        <div className="h-9 w-24 rounded-control bg-(--background-tertiary)" />
+                    </div>
+                    <div className="rounded-card bg-(--background-secondary) p-3 flex flex-col gap-1.5">
+                        <div className="h-3.5 w-24 rounded-plate bg-(--background-tertiary) mb-1" />
+                        {Array.from({ length: 4 }, (_, i) => <div key={i} className="h-11 rounded-control bg-(--background-tertiary)" />)}
+                    </div>
+                </div>
+            )
         );
     }
 
