@@ -10,6 +10,7 @@ import CardIcon from "./card_elements/CardIcon";
 import AdvantageBadge from "./card_elements/AdvantageBadge";
 import ChartVersionBadge from "./card_elements/ChartVersionBadge";
 import { getFirstName, getLastName, getFirstInitial } from "../../functions/names"
+import { useLayoutEffect, useRef, type Ref } from "react";
 
 // =============================================================================
 // TYPES
@@ -81,9 +82,9 @@ function getDefenseDisplay(card: ShowdownBotCardCompact | null | undefined, fiel
     return defenseAtPosition(card.positions_and_defense, fieldPosition || '') || card.positions_and_defense_string || 'N/A';
 }
 
-const CardItemCompactIcons = ({ className, iconsList, color, cardId }: { className?: string; iconsList: string[]; color: string; cardId: string }) => {
+const CardItemCompactIcons = ({ className, iconsList, color, cardId, ref }: { className?: string; iconsList: string[]; color: string; cardId: string; ref?: Ref<HTMLDivElement> }) => {
     return (
-        <div className={`flex gap-0.5 ${className || ''}`}>
+        <div ref={ref} className={`flex gap-0.5 ${className || ''}`}>
             {iconsList.map((icon, index) => (
                 <CardIcon 
                     key={`${cardId}-icon-${index}`} 
@@ -153,6 +154,35 @@ export const CardItemCompact = ({
     const firstName = getFirstName(card?.name);
     const lastName = getLastName(card?.name);
 
+    // Icons sit inline after the name when the full name and icons fit on the row, otherwise in the top-right corner
+    const nameRowRef = useRef<HTMLDivElement>(null);
+    const nameRef = useRef<HTMLSpanElement>(null);
+    const iconsRef = useRef<HTMLDivElement>(null);
+    const iconsKey = card?.icons_list?.join(',') ?? '';
+
+    useLayoutEffect(() => {
+        const row = nameRowRef.current;
+        const name = nameRef.current;
+        const icons = iconsRef.current;
+        if (!row || !name || !icons) return;
+
+        const fit = () => {
+            // Measure the name at its natural width with the icons out of the flow
+            icons.dataset.inline = 'false';
+            name.style.flexShrink = '0';
+            const nameWidth = name.getBoundingClientRect().width;
+            const iconsWidth = icons.getBoundingClientRect().width;
+            name.style.flexShrink = '';
+            icons.dataset.inline = String(iconsWidth > 0 && nameWidth + iconsWidth + 4 <= row.clientWidth);
+        };
+
+        fit();
+        const observer = new ResizeObserver(fit);
+        observer.observe(row);
+        document.fonts?.ready.then(fit).catch(() => { /* fonts API unavailable */ });
+        return () => observer.disconnect();
+    }, [card?.name, iconsKey, isRedacted]);
+
     return (
         <div
             role={onClick ? 'button' : undefined}
@@ -191,7 +221,8 @@ export const CardItemCompact = ({
             )}
 
             <div className="min-w-0 flex-1 flex flex-col justify-center gap-0.5 text-left">
-                <div className={`flex gap-x-0.5 font-display-upright uppercase text-[13px] leading-none text-(--text-primary) overflow-x-scroll scrollbar-hide truncate ${isRedacted ? 'redacted' : ''}`}>
+                <div ref={nameRowRef} className={`flex gap-x-0.5 font-display-upright uppercase text-[13px] leading-none text-(--text-primary) overflow-x-scroll scrollbar-hide truncate ${isRedacted ? 'redacted' : ''}`}>
+                    <span ref={nameRef} className="flex gap-x-0.5 min-w-0">
                     {isRedacted 
                         ? 'REDACTED NAME' 
                         : 
@@ -208,13 +239,14 @@ export const CardItemCompact = ({
                                 <span className={`max-w-15 truncate @[95px]:max-w-full`}>{lastName} </span>
                             </>
                     }
+                    </span>
                     <CardItemCompactIcons
-                        className="ml-0.5 hidden @[200px]:flex"
+                        ref={iconsRef}
+                        className="absolute -top-2 -right-0.5 shrink-0 data-[inline=true]:static data-[inline=true]:ml-0.5"
                         cardId={card?.id || 'card'}
                         iconsList={card?.icons_list || []}
                         color={secondaryColor}
                     />
-                    
                 </div>
                 {!hideTeamPoints && (
                     <div className="hidden @[75px]:flex items-center gap-1 min-w-0 overflow-x-scroll scrollbar-hide">
@@ -290,16 +322,6 @@ export const CardItemCompact = ({
             {card?.source === 'CUSTOM' && (
                 <FaWandMagicSparkles className="absolute bottom-0.5 right-0.5 w-3 h-3 text-(--secondary)" title="Custom Card" />
             )}
-
-            {/* Icons - top-right corner */}
-            <div className="absolute -top-2 -right-0.5">
-                <CardItemCompactIcons
-                    className="ml-0.5 @[200px]:hidden"
-                    cardId={card?.id || 'card'}
-                    iconsList={card?.icons_list || []}
-                    color={secondaryColor}
-                />
-            </div>
 
             {/* Optional action button — top corner */}
             {actionButton && (
