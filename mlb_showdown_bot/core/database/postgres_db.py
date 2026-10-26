@@ -4607,6 +4607,9 @@ class PostgresDB:
             # checked inside the index (no heap fetch for rejected entries) without being required
             # for the ordering - so the index still applies when those filters are absent.
             #
+            # idx_card_bot_set_points_vs: the same query with `variable_speed`, which sorts on
+            # `coalesce(points_vs, points)` (see `_card_list_column`). The expression must match it exactly.
+            #
             # idx_card_bot_name_trgm: the `search` filter is `replace(lower(name), '.', '') ILIKE
             # '%text%'`; a leading-wildcard pattern can only be indexed by pg_trgm. The expression
             # must match the filter in fetch_card_list exactly for the planner to use it.
@@ -4614,6 +4617,10 @@ class PostgresDB:
                 """
                 CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_card_bot_set_points
                     ON card_bot (showdown_set, points DESC NULLS LAST, bref_id, year, organization, is_small_sample_size);
+                """,
+                """
+                CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_card_bot_set_points_vs
+                    ON card_bot (showdown_set, (coalesce(points_vs, points)) DESC NULLS LAST, bref_id, year, organization, is_small_sample_size);
                 """,
                 "CREATE EXTENSION IF NOT EXISTS pg_trgm;",
                 """
