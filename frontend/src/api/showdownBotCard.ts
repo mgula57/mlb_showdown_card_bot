@@ -193,7 +193,7 @@ export async function fetchCardsByIds(cardIds: string[], source: string): Promis
     }
 
     const { cards } = await res.json() as { cards: Record<string, ShowdownBotCardAPIResponse['card']> };
-    return Object.fromEntries(Object.entries(cards).map(([id, card]) => [id, { card }]));
+    return Object.fromEntries(Object.entries(cards).map(([id, card]) => [id, { card, error: null, error_for_user: null }]));
 }
 
 export async function buildCards(requestedCards: Record<string, any>[]): Promise<ShowdownBotMultiCardAPIResponse> {
