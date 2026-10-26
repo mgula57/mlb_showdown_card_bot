@@ -1,7 +1,5 @@
 @import "tailwindcss";
 
-/* Tailwind CSS v4 directive; suppress the standard CSS language-service warning. */
-/* css-lint disable unknownAtRules */
 /* Design language: see frontend/DESIGN.md before adding or changing anything below. */
 @theme {
     --container-field-split: 600px;
@@ -454,7 +452,8 @@
     );
     -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
     -webkit-mask-composite: xor;
-    mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
+    mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+    mask-composite: exclude;
     animation:
         card-ring-spin 1.6s linear infinite,
         card-ring-fade-in 0.3s ease-out;
