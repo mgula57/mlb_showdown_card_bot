@@ -87,6 +87,7 @@ from ..card.showdown_player_card import ShowdownPlayerCard, Team, PlayerType, Er
 from ..card.stats.normalized_player_stats import Datasource
 from ..card.stats.award_voting import AwardVotingResult
 from ..card.command_out_selections import StoredCardSelectionRecord
+from ..card.variable_speed import VariableSpeedVariant
 from ..data.replacement_season_averages import get_replacement_hitting_avgs, get_replacement_pitching_avgs, build_replacement_level_stats_for_card
 from ..card.utils.shared_functions import convert_year_string_to_list
 from ..shared.google_drive import fetch_image_metadata
@@ -170,6 +171,20 @@ CARD_DATA_DIAGNOSTIC_KEYS = [
     'points_breakdown',
     'real_vs_projected_stats',
 ]
+
+# card_bot columns that differ under variable speed (2000/2001 hitters), mapped to the column holding
+# the variable speed value. Those columns are NULL when the card has no variant (see `VariableSpeedVariant`).
+VARIABLE_SPEED_COLUMNS = {
+    'points': 'points_vs',
+    'points_change_yoy': 'points_change_yoy_vs',
+    'speed': 'speed_vs',
+    'speed_letter': 'speed_letter_vs',
+    'speed_full': 'speed_full_vs',
+    'speed_or_ip': 'speed_or_ip_vs',
+}
+
+# Card-list sources whose rows carry the VARIABLE_SPEED_COLUMNS
+VARIABLE_SPEED_SOURCES = ('bot',)
 
 
 class ImageMatchType(str, Enum):
@@ -935,10 +950,21 @@ class PostgresDB:
         ) sub""").format(scope_clause=scope_clause)
         return from_clause, ([] if is_custom_id_lookup else [user_id])
 
-    def _card_list_filter_clauses(self, source: str, filters: dict) -> tuple[list[sql.Composable], list]:
+    @staticmethod
+    def _card_list_column(field: str, variable_speed: bool) -> sql.Composable:
+        """Column reference for a card-list filter/sort field. Under `variable_speed`, fields in
+        VARIABLE_SPEED_COLUMNS read the variable speed value, falling back to the standard one for
+        cards without a variant."""
+        variable_field = VARIABLE_SPEED_COLUMNS.get(field) if variable_speed else None
+        if variable_field is None:
+            return sql.Identifier(field)
+        return sql.SQL("coalesce({}, {})").format(sql.Identifier(variable_field), sql.Identifier(field))
+
+    def _card_list_filter_clauses(self, source: str, filters: dict, variable_speed: bool = False) -> tuple[list[sql.Composable], list]:
         """WHERE clauses (AND-ed by the caller) and their bound values for a card-list `filters`
         dict: list filters become IN / array-overlap tests, `min_`/`max_` prefixes become range
-        bounds, plus the special-cased search / multi-team / chart-slot / fielding filters."""
+        bounds, plus the special-cased search / multi-team / chart-slot / fielding filters.
+        `variable_speed` filters points/speed on their variable speed values (see `_card_list_column`)."""
         filter_clauses: list[sql.Composable] = []
         filter_values: list = []
         if not filters:
@@ -964,7 +990,7 @@ class PostgresDB:
             # like a speed or infield-defense floor would wipe out every pitcher (all speed 10, no
             # fielding ratings) and leave a challenge roster unfillable.
             if key.endswith('_hitters'):
-                base_clauses, base_values = self._card_list_filter_clauses(source, {key.removesuffix('_hitters'): value})
+                base_clauses, base_values = self._card_list_filter_clauses(source, {key.removesuffix('_hitters'): value}, variable_speed)
                 if base_clauses:
                     filter_clauses.append(sql.SQL("(player_type = 'PITCHER' OR ({}))").format(sql.SQL(" AND ").join(base_clauses)))
                     filter_values.extend(base_values)
@@ -979,7 +1005,7 @@ class PostgresDB:
             # rated at catcher passes automatically. Same reasoning as `_hitters`: a catcher-arm rule
             # applied to everyone would wipe out every non-catcher and leave the roster unfillable.
             if key.endswith('_catchers'):
-                base_clauses, base_values = self._card_list_filter_clauses(source, {key.removesuffix('_catchers'): value})
+                base_clauses, base_values = self._card_list_filter_clauses(source, {key.removesuffix('_catchers'): value}, variable_speed)
                 if base_clauses:
                     filter_clauses.append(sql.SQL("""(
                         NOT EXISTS (
@@ -1047,14 +1073,14 @@ class PostgresDB:
             if key.startswith('min_'):
                 field_name = key[4:]  # Remove 'min_' prefix
                 filter_clauses.append(sql.SQL("({field} >= %s OR {field} IS NULL)").format(
-                    field=sql.Identifier(field_name)
+                    field=self._card_list_column(field_name, variable_speed)
                 ))
                 filter_values.append(value)
 
             elif key.startswith('max_'):
                 field_name = key[4:]  # Remove 'max_' prefix
                 filter_clauses.append(sql.SQL("{field} <= %s").format(
-                    field=sql.Identifier(field_name)
+                    field=self._card_list_column(field_name, variable_speed)
                 ))
                 filter_values.append(value)
 
@@ -1138,7 +1164,7 @@ class PostgresDB:
                         # Regular IN clause for non-array fields
                         placeholders = sql.SQL(", ").join([sql.Placeholder()] * len(value))
                         filter_clauses.append(sql.SQL("{field}::text IN ({placeholders})").format(
-                            field=sql.Identifier(key),
+                            field=self._card_list_column(key, variable_speed),
                             placeholders=placeholders
                         ))
                         filter_values.extend(value)
@@ -1146,13 +1172,13 @@ class PostgresDB:
             # Handle regular equality filtering
             else:
                 filter_clauses.append(sql.SQL("{field} = %s").format(
-                    field=sql.Identifier(key)
+                    field=self._card_list_column(key, variable_speed)
                 ))
                 filter_values.append(value)
 
         return filter_clauses, filter_values
 
-    def _card_list_order_clause(self, source: str, sort_by: str, sort_direction: str) -> tuple[sql.Composable, list]:
+    def _card_list_order_clause(self, source: str, sort_by: str, sort_direction: str, variable_speed: bool = False) -> tuple[sql.Composable, list]:
         """Primary ORDER BY expression (and its bound values) for a card-list `sort_by` key,
         resolving the jsonb-backed keys (positions_and_defense_*, chart_values_*, real_stats_*)."""
         if sort_direction not in ['asc', 'desc']:
@@ -1208,7 +1234,7 @@ class PostgresDB:
                 )
             else:
                 final_sort = sql.SQL("{field} {direction} NULLS LAST").format(
-                    field=sql.Identifier(sort_by),
+                    field=self._card_list_column(sort_by, variable_speed),
                     direction=sql.SQL(sort_direction)
                 )
 
@@ -1219,8 +1245,9 @@ class PostgresDB:
 
         Args:
           filters: Query filters. `source` picks the table (BOT / WOTC / WBC / CUSTOM), `sort_by`,
-            `sort_direction`, `page` and `limit` drive ordering + pagination, and everything else
-            becomes a WHERE clause - see `_card_list_filter_clauses`. Custom-card ownership scoping
+            `sort_direction`, `page` and `limit` drive ordering + pagination, `variable_speed` returns
+            (and filters/sorts) 2000/2001 hitters with variable speed (BOT only), and everything
+            else becomes a WHERE clause - see `_card_list_filter_clauses`. Custom-card ownership scoping
             is described on `_card_list_from_clause`.
           user_id: Verified requester id (from the JWT). Required for a custom-card browse/search;
             not consulted for an id-based custom-card lookup.
@@ -1242,6 +1269,8 @@ class PostgresDB:
             page = int(filters.pop('page', 1))
             limit = int(filters.pop('limit', 50))
 
+            variable_speed = bool(filters.pop('variable_speed', False)) and source in VARIABLE_SPEED_SOURCES
+
             from_clause = self._card_list_from_clause(source, filters, user_id)
             if from_clause is None:
                 return []
@@ -1253,15 +1282,15 @@ class PostgresDB:
             )
 
             # Apply filters if any
-            filter_clauses, clause_values = self._card_list_filter_clauses(source, filters)
+            filter_clauses, clause_values = self._card_list_filter_clauses(source, filters, variable_speed)
             filter_values += clause_values
             if filter_clauses:
                 query += sql.SQL(" AND ") + sql.SQL(" AND ").join(filter_clauses)
 
             # ADD SORTING
-            final_sort, sort_values = self._card_list_order_clause(source, sort_by, sort_direction)
+            final_sort, sort_values = self._card_list_order_clause(source, sort_by, sort_direction, variable_speed)
             filter_values += sort_values
-            query += sql.SQL(" ORDER BY {}, points DESC, bref_id, year").format(final_sort)
+            query += sql.SQL(" ORDER BY {}, {} DESC, bref_id, year").format(final_sort, self._card_list_column('points', variable_speed))
 
             # ADD LIMIT AND PAGINATION
             if not isinstance(page, int) or page < 1:
@@ -1275,12 +1304,30 @@ class PostgresDB:
             result_list = self.execute_query(query=query, filter_values=tuple(filter_values))
 
             # POST PROCESSING WHEN NECESSARY
+            if variable_speed and result_list:
+                result_list = [self.card_row_as_variable_speed(row) for row in result_list]
 
             return result_list
         except Exception as e:
             print("Error fetching card data:", e)
             traceback.print_exc()
             return []
+
+    @staticmethod
+    def card_row_as_variable_speed(row: dict) -> dict:
+        """A card_bot row as its variable speed version, with the VARIABLE_SPEED_COLUMNS values swapped
+        in. Rows without a variant (pitchers, sets other than 2000/2001) are returned unchanged. Swapped
+        rows are flagged `is_variable_speed_00_01`, so the card detail knows to load the card with
+        variable speed (`/cards/card` recomputes its points breakdown).
+        """
+        if row.get('points_vs') is None:
+            return row
+        variable_row = dict(row)
+        for column, variable_column in VARIABLE_SPEED_COLUMNS.items():
+            if row.get(variable_column) is not None:
+                variable_row[column] = row[variable_column]
+        variable_row['is_variable_speed_00_01'] = True
+        return variable_row
 
     def fetch_card_sample_by_price_band(self, filters: dict, bands: list[tuple[int, int, int]], columns: Optional[list[str]] = None, user_id: Optional[str] = None) -> list[dict]:
         """Random sample of cards matching `filters`, stratified across points bands, in ONE query.
@@ -4152,7 +4199,15 @@ class PostgresDB:
                 
                 exact_img_match.image_ids as image_ids,
                 
-                NOW() as updated_at
+                NOW() as updated_at,
+
+                -- VARIABLE SPEED (2000/2001 HITTERS ONLY, NULL OTHERWISE - SEE VARIABLE_SPEED_COLUMNS)
+                cast(dim_card.card_data->'variable_speed_variant'->>'points' as int) as points_vs,
+                cast(dim_card.card_data->'variable_speed_variant'->>'points' as int) - coalesce(prior_year_card.points_vs, prior_year_card.points) as points_change_yoy_vs,
+                cast(dim_card.card_data->'variable_speed_variant'->'speed'->>'speed' as int) as speed_vs,
+                dim_card.card_data->'variable_speed_variant'->'speed'->>'letter' as speed_letter_vs,
+                (dim_card.card_data->'variable_speed_variant'->'speed'->>'letter') || '(' || (dim_card.card_data->'variable_speed_variant'->'speed'->>'speed') || ')' as speed_full_vs,
+                cast(dim_card.card_data->'variable_speed_variant'->'speed'->>'speed' as int) as speed_or_ip_vs
                 
             from player_season_stats
             join internal.dim_card as dim_card
@@ -4174,8 +4229,11 @@ class PostgresDB:
                 and exact_img_match.is_wbc = FALSE
             left join lateral (
                 -- MOST RECENTLY BUILT card_bot ROW FOR THE PRIOR YEAR, USED FOR YEAR-OVER-YEAR POINTS CHANGE
-                select prior_year_bot.points
+                -- VARIABLE SPEED POINTS COME FROM dim_card, SINCE THE PRIOR YEAR'S card_bot ROW MAY BE REFRESHED IN THIS SAME RUN
+                select prior_year_bot.points, cast(prior_year_dim.card_data->'variable_speed_variant'->>'points' as int) as points_vs
                 from card_bot as prior_year_bot
+                left join internal.dim_card as prior_year_dim
+                    on prior_year_dim.id = prior_year_bot.card_id
                 where prior_year_bot.bref_id = player_season_stats.bref_id
                     and prior_year_bot.year = player_season_stats.year - 1
                     and prior_year_bot.showdown_set = dim_card.showdown_set
@@ -4192,6 +4250,107 @@ class PostgresDB:
             ) as season_calc
         '''
         
+        # CARD_BOT COLUMNS. COLUMNS ADDED AFTER THE TABLE WAS FIRST BUILT ARE ALSO IN `added_columns`
+        # SO EXISTING TABLES PICK THEM UP WITHOUT A DROP
+        create_table_sql = """
+            CREATE TABLE {if_not_exists} card_bot (
+                id text NOT NULL,
+                year integer,
+                bref_id text,
+                mlb_id integer,
+                name text,
+                player_type text,
+                player_type_override text,
+                is_two_way boolean,
+                primary_positions text[],
+                secondary_positions text[],
+                g integer,
+                gs integer,
+                pa integer,
+                real_ip numeric,
+                lg_id text,
+                team_id text,
+                team_id_list text[],
+                team_games_played_dict jsonb,
+                team_override text,
+                stats_modified_date timestamp,
+                card_modified_date timestamp,
+                card_id text,
+                card_year text,
+                showdown_set text,
+                showdown_bot_version text,
+                expansion text,
+                edition text,
+                set_number text,
+                points integer,
+                points_estimated integer,
+                points_diff_estimated_vs_actual integer,
+                points_change integer,
+                points_change_yoy integer,
+                nationality text,
+                organization text,
+                league text,
+                team text,
+                color_primary text,
+                color_secondary text,
+                positions_and_defense jsonb,
+                positions_and_defense_string text,
+                positions_list text[],
+                ip integer,
+                speed integer,
+                hand text,
+                speed_letter text,
+                speed_full text,
+                speed_or_ip integer,
+                icons_list text[],
+                awards_list text[],
+                is_hof boolean,
+                stat_highlights_list jsonb,
+                is_small_sample_size boolean,
+                real_pa integer,
+                real_g integer,
+                real_gs integer,
+                real_bwar numeric,
+                real_dwar numeric,
+                real_batting_avg numeric,
+                real_onbase_perc numeric,
+                real_slugging_perc numeric,
+                real_onbase_plus_slugging numeric,
+                real_onbase_plus_slugging_plus numeric,
+                real_earned_run_avg numeric,
+                real_whip numeric,
+                real_h integer,
+                real_1b integer,
+                real_2b integer,
+                real_3b integer,
+                real_hr integer,
+                real_sb integer,
+                real_so integer,
+                real_bb integer,
+                real_w integer,
+                real_sv integer,
+                command integer,
+                outs integer,
+                is_pitcher boolean,
+                is_chart_outlier boolean,
+                chart_ranges jsonb,
+                chart_values jsonb,
+                is_errata boolean,
+                notes text,
+                image_match_type text,
+                image_ids jsonb,
+                updated_at timestamp,
+                points_vs integer,
+                points_change_yoy_vs integer,
+                speed_vs integer,
+                speed_letter_vs text,
+                speed_full_vs text,
+                speed_or_ip_vs integer,
+                PRIMARY KEY (id, showdown_set, showdown_bot_version)
+            );
+        """
+        added_columns = ['points_vs integer', 'points_change_yoy_vs integer', 'speed_vs integer', 'speed_letter_vs text', 'speed_full_vs text', 'speed_or_ip_vs integer']
+
         # SHOOT MESSAGE TO USER WHILE THE VIEW IS REBUILDING (IF DROPPED)
         if drop_existing:
             self.update_feature_status(
@@ -4208,194 +4367,16 @@ class PostgresDB:
             cursor.execute("SET statement_timeout = %s;", ('30min',))
             
             # CREATE TABLE IF NOT EXISTS (first time setup)
-            cursor.execute("""
-                CREATE TABLE IF NOT EXISTS card_bot (
-                    id text NOT NULL,
-                    year integer,
-                    bref_id text,
-                    mlb_id integer,
-                    name text,
-                    player_type text,
-                    player_type_override text,
-                    is_two_way boolean,
-                    primary_positions text[],
-                    secondary_positions text[],
-                    g integer,
-                    gs integer,
-                    pa integer,
-                    real_ip numeric,
-                    lg_id text,
-                    team_id text,
-                    team_id_list text[],
-                    team_games_played_dict jsonb,
-                    team_override text,
-                    stats_modified_date timestamp,
-                    card_modified_date timestamp,
-                    card_id text,
-                    card_year text,
-                    showdown_set text,
-                    showdown_bot_version text,
-                    expansion text,
-                    edition text,
-                    set_number text,
-                    points integer,
-                    points_estimated integer,
-                    points_diff_estimated_vs_actual integer,
-                    points_change integer,
-                    points_change_yoy integer,
-                    nationality text,
-                    organization text,
-                    league text,
-                    team text,
-                    color_primary text,
-                    color_secondary text,
-                    positions_and_defense jsonb,
-                    positions_and_defense_string text,
-                    positions_list text[],
-                    ip integer,
-                    speed integer,
-                    hand text,
-                    speed_letter text,
-                    speed_full text,
-                    speed_or_ip integer,
-                    icons_list text[],
-                    awards_list text[],
-                    is_hof boolean,
-                    stat_highlights_list jsonb,
-                    is_small_sample_size boolean,
-                    real_pa integer,
-                    real_g integer,
-                    real_gs integer,
-                    real_bwar numeric,
-                    real_dwar numeric,
-                    real_batting_avg numeric,
-                    real_onbase_perc numeric,
-                    real_slugging_perc numeric,
-                    real_onbase_plus_slugging numeric,
-                    real_onbase_plus_slugging_plus numeric,
-                    real_earned_run_avg numeric,
-                    real_whip numeric,
-                    real_h integer,
-                    real_1b integer,
-                    real_2b integer,
-                    real_3b integer,
-                    real_hr integer,
-                    real_sb integer,
-                    real_so integer,
-                    real_bb integer,
-                    real_w integer,
-                    real_sv integer,
-                    command integer,
-                    outs integer,
-                    is_pitcher boolean,
-                    is_chart_outlier boolean,
-                    chart_ranges jsonb,
-                    chart_values jsonb,
-                    is_errata boolean,
-                    notes text,
-                    image_match_type text,
-                    image_ids jsonb,
-                    updated_at timestamp,
-                    PRIMARY KEY (id, showdown_set, showdown_bot_version)
-                );
-            """)
+            cursor.execute(create_table_sql.format(if_not_exists="IF NOT EXISTS"))
+            for column in added_columns:
+                cursor.execute(f"ALTER TABLE card_bot ADD COLUMN IF NOT EXISTS {column};")
             print("  → Ensured card_bot table exists.")
             
             # DROP AND RECREATE IF REQUESTED
             if drop_existing:
                 cursor.execute("DROP TABLE IF EXISTS card_bot CASCADE;")
                 print("  → Dropped existing card_bot table.")
-                cursor.execute("""
-                    CREATE TABLE card_bot (
-                        id text NOT NULL,
-                        year integer,
-                        bref_id text,
-                        mlb_id integer,
-                        name text,
-                        player_type text,
-                        player_type_override text,
-                        is_two_way boolean,
-                        primary_positions text[],
-                        secondary_positions text[],
-                        g integer,
-                        gs integer,
-                        pa integer,
-                        real_ip numeric,
-                        lg_id text,
-                        team_id text,
-                        team_id_list text[],
-                        team_games_played_dict jsonb,
-                        team_override text,
-                        stats_modified_date timestamp,
-                        card_modified_date timestamp,
-                        card_id text,
-                        card_year text,
-                        showdown_set text,
-                        showdown_bot_version text,
-                        expansion text,
-                        edition text,
-                        set_number text,
-                        points integer,
-                        points_estimated integer,
-                        points_diff_estimated_vs_actual integer,
-                        points_change integer,
-                        points_change_yoy integer,
-                        nationality text,
-                        organization text,
-                        league text,
-                        team text,
-                        color_primary text,
-                        color_secondary text,
-                        positions_and_defense jsonb,
-                        positions_and_defense_string text,
-                        positions_list text[],
-                        ip integer,
-                        speed integer,
-                        hand text,
-                        speed_letter text,
-                        speed_full text,
-                        speed_or_ip integer,
-                        icons_list text[],
-                        awards_list text[],
-                        is_hof boolean,
-                        stat_highlights_list jsonb,
-                        is_small_sample_size boolean,
-                        real_pa integer,
-                        real_g integer,
-                        real_gs integer,
-                        real_bwar numeric,
-                        real_dwar numeric,
-                        real_batting_avg numeric,
-                        real_onbase_perc numeric,
-                        real_slugging_perc numeric,
-                        real_onbase_plus_slugging numeric,
-                        real_onbase_plus_slugging_plus numeric,
-                        real_earned_run_avg numeric,
-                        real_whip numeric,
-                        real_h integer,
-                        real_1b integer,
-                        real_2b integer,
-                        real_3b integer,
-                        real_hr integer,
-                        real_sb integer,
-                        real_so integer,
-                        real_bb integer,
-                        real_w integer,
-                        real_sv integer,
-                        command integer,
-                        outs integer,
-                        is_pitcher boolean,
-                        is_chart_outlier boolean,
-                        chart_ranges jsonb,
-                        chart_values jsonb,
-                        is_errata boolean,
-                        notes text,
-                        image_match_type text,
-                        image_ids jsonb,
-                        updated_at timestamp,
-                        PRIMARY KEY (id, showdown_set, showdown_bot_version)
-                    );
-                """)
+                cursor.execute(create_table_sql.format(if_not_exists=""))
                 print("  → Created new card_bot table.")
             
             # BUILD INCREMENTAL UPDATE QUERY
@@ -4445,7 +4426,8 @@ class PostgresDB:
                     real_slugging_perc, real_onbase_plus_slugging, real_onbase_plus_slugging_plus,
                     real_earned_run_avg, real_whip, real_h, real_1b, real_2b, real_3b, real_hr, real_sb,
                     real_so, real_bb, real_w, real_sv, command, outs, is_pitcher, is_chart_outlier,
-                    chart_ranges, chart_values, is_errata, notes, image_match_type, image_ids, updated_at
+                    chart_ranges, chart_values, is_errata, notes, image_match_type, image_ids, updated_at,
+                    points_vs, points_change_yoy_vs, speed_vs, speed_letter_vs, speed_full_vs, speed_or_ip_vs
                 )
                 SELECT * FROM ({full_query}) as source_data
                 ON CONFLICT (id, showdown_set, showdown_bot_version)
@@ -4536,7 +4518,13 @@ class PostgresDB:
                     notes = EXCLUDED.notes,
                     image_match_type = EXCLUDED.image_match_type,
                     image_ids = EXCLUDED.image_ids,
-                    updated_at = EXCLUDED.updated_at;
+                    updated_at = EXCLUDED.updated_at,
+                    points_vs = EXCLUDED.points_vs,
+                    points_change_yoy_vs = EXCLUDED.points_change_yoy_vs,
+                    speed_vs = EXCLUDED.speed_vs,
+                    speed_letter_vs = EXCLUDED.speed_letter_vs,
+                    speed_full_vs = EXCLUDED.speed_full_vs,
+                    speed_or_ip_vs = EXCLUDED.speed_or_ip_vs;
             """
             
             cursor.execute(upsert_query)
@@ -4617,6 +4605,9 @@ class PostgresDB:
             # checked inside the index (no heap fetch for rejected entries) without being required
             # for the ordering - so the index still applies when those filters are absent.
             #
+            # idx_card_bot_set_points_vs: the same query with `variable_speed`, which sorts on
+            # `coalesce(points_vs, points)` (see `_card_list_column`). The expression must match it exactly.
+            #
             # idx_card_bot_name_trgm: the `search` filter is `replace(lower(name), '.', '') ILIKE
             # '%text%'`; a leading-wildcard pattern can only be indexed by pg_trgm. The expression
             # must match the filter in fetch_card_list exactly for the planner to use it.
@@ -4624,6 +4615,10 @@ class PostgresDB:
                 """
                 CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_card_bot_set_points
                     ON card_bot (showdown_set, points DESC NULLS LAST, bref_id, year, organization, is_small_sample_size);
+                """,
+                """
+                CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_card_bot_set_points_vs
+                    ON card_bot (showdown_set, (coalesce(points_vs, points)) DESC NULLS LAST, bref_id, year, organization, is_small_sample_size);
                 """,
                 "CREATE EXTENSION IF NOT EXISTS pg_trgm;",
                 """
@@ -7130,6 +7125,72 @@ class PostgresDB:
             raise
         finally:
             cursor.close()
+
+    def backfill_variable_speed_variants(self, batch_size: int = 500, limit: Optional[int] = None) -> int:
+        """Add `variable_speed_variant` to archived 2000/2001 hitters built before it existed.
+        Only speed and the speed points are computed (no chart rebuild), and `modified_date` is bumped
+        so the next incremental card_bot refresh fills its variable speed columns.
+
+        Args:
+            batch_size: Cards loaded and updated per batch.
+            limit: Optional cap on the number of cards processed.
+
+        Returns:
+            Number of cards updated.
+        """
+        if self.connection is None:
+            print("ERROR: NO CONNECTION TO DB")
+            return 0
+
+        # LARGE UI-ONLY KEYS AREN'T NEEDED TO PRICE SPEED. THE UPDATE MERGES SERVER-SIDE, SO THEY'RE KEPT
+        unused_keys = [key for key in CARD_DATA_DIAGNOSTIC_KEYS if key != 'points_breakdown']
+        select_query = sql.SQL("""
+            SELECT id, card_data - %s::text[] AS card_data
+            FROM internal.dim_card
+            WHERE showdown_set IN ('2000', '2001')
+                AND card_data->'chart'->>'is_pitcher' = 'false'
+                AND NOT card_data ? %s
+                AND id > %s
+            ORDER BY id
+            LIMIT %s
+        """)
+        update_query = """
+            UPDATE internal.dim_card AS d
+            SET card_data = d.card_data || jsonb_build_object(%s, v.variant::jsonb), modified_date = NOW()
+            FROM (VALUES %%s) AS v(id, variant)
+            WHERE d.id = v.id
+        """
+
+        updated_count, last_id, failed_ids = 0, '', []
+        while limit is None or updated_count + len(failed_ids) < limit:
+            batch_limit = batch_size if limit is None else min(batch_size, limit - updated_count - len(failed_ids))
+            rows = self.execute_query(query=select_query, filter_values=(unused_keys, VariableSpeedVariant.CARD_DATA_KEY, last_id, batch_limit)) or []
+            if not rows:
+                break
+            last_id = rows[-1]['id']
+
+            updates = []
+            for row in rows:
+                try:
+                    variant = ShowdownPlayerCard(**row['card_data']).calculate_variable_speed_variant()
+                except Exception:
+                    traceback.print_exc()
+                    variant = None
+                if variant is None:
+                    failed_ids.append(row['id'])
+                    continue
+                updates.append((row['id'], extras.Json(variant.model_dump(mode='json'))))
+
+            if updates:
+                with self.connection.cursor() as cursor:
+                    execute_values(cursor, cursor.mogrify(update_query, (VariableSpeedVariant.CARD_DATA_KEY,)).decode(), updates, page_size=batch_size)
+                self.connection.commit()
+            updated_count += len(updates)
+            print(f"  ✓ Added variable speed to {updated_count} cards (through {last_id})")
+
+        if failed_ids:
+            print(f"Could not compute variable speed for {len(failed_ids)} cards: {', '.join(failed_ids[:20])}{' ...' if len(failed_ids) > 20 else ''}")
+        return updated_count
 
     @staticmethod
     def _dim_card_player_id(showdown: ShowdownPlayerCard) -> str:
