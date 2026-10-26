@@ -10,7 +10,7 @@ import { buildSimStatHighlights, SIM_STATS_TOOLTIP } from './simStatColumns';
 import { roundLabel } from './roundLabel';
 import { useCardLinks } from './useCardLinks';
 import { CAPS_LABEL_CLASS } from '../../shared/fieldStyles';
-import { headingClass } from '../../shared/headingStyles';
+import { Eyebrow } from '../../shared/Eyebrow';
 
 const CATEGORY_LABELS: Record<AwardWinner['category'], string> = {
     MVP: 'Most Valuable Player',
@@ -108,9 +108,7 @@ export function SimAwardsList({ awards, identities }: Props) {
                 if (winners.length === 0) return null;
                 return (
                     <div key={category}>
-                        <p className={`mb-3 ${headingClass('panel')}`}>
-                            {CATEGORY_LABELS[category]}
-                        </p>
+                        <Eyebrow className="block mb-3">{CATEGORY_LABELS[category]}</Eyebrow>
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                             {leagues.map(league => {
                                 const award = winners.find(w => w.league === league);
@@ -131,9 +129,7 @@ export function SimAwardsList({ awards, identities }: Props) {
 
             {seriesMvps.length > 0 && (
                 <div>
-                    <p className={`mb-3 ${headingClass('panel')}`}>
-                        Series MVP
-                    </p>
+                    <Eyebrow className="block mb-3">Series MVP</Eyebrow>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                         {seriesMvps.map((mvp, i) => (
                             <div key={i} className="flex flex-col gap-1.5">
@@ -149,9 +145,7 @@ export function SimAwardsList({ awards, identities }: Props) {
 
             {silverSluggers.length > 0 && (
                 <div>
-                    <p className={`mb-3 ${headingClass('panel')}`}>
-                        {CATEGORY_LABELS.SILVER_SLUGGER}
-                    </p>
+                    <Eyebrow className="block mb-3">{CATEGORY_LABELS.SILVER_SLUGGER}</Eyebrow>
                     <div className="grid grid-cols-1 sm:grid-cols-[repeat(auto-fit,minmax(450px,1fr))] gap-6">
                         {leagues.filter(league => silverSluggers.some(w => w.league === league)).map(league => (
                             <div key={league} className="flex flex-col gap-1.5 bg-secondary py-2 rounded-card border border-(--divider)">

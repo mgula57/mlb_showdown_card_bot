@@ -3,6 +3,7 @@ import type { IconType } from 'react-icons';
 
 import { Modal } from '../shared/Modal';
 import { NewBadge } from '../shared/NewBadge';
+import { headingClass } from '../shared/headingStyles';
 
 /** How the drafter adds players: search the card pool freely, or one Guided Draft round at a time. */
 export type DraftMode = 'search' | 'guided';
@@ -32,7 +33,7 @@ export function DraftModeChooser({ onChoose, onClose }: { onChoose: (choice: Dra
                             <Icon className="text-[15px]" />
                         </span>
                         <span className="flex flex-col gap-1 min-w-0">
-                            <span className="flex items-center gap-1.5 text-[13px] font-bold text-(--text-primary)">
+                            <span className={`flex items-center gap-1.5 ${headingClass('panel')}`}>
                                 {title}
                                 {isNew && <NewBadge />}
                             </span>

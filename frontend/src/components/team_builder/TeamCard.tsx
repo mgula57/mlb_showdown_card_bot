@@ -5,6 +5,7 @@ import { useAuth } from '../auth/AuthContext';
 import { FaLock, FaUsers, FaHeart, FaEye } from 'react-icons/fa6';
 import PointsBadge from '../cards/card_elements/PointsBadge';
 import { Plate } from '../shared/Plate';
+import { headingClass } from '../shared/headingStyles';
 
 type TeamCardProps = {
     team: TeamSummary;
@@ -64,7 +65,7 @@ export function TeamCard({ team, isSelected, onClick }: TeamCardProps) {
 
             <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-1.5">
-                    <span className="text-[13px] font-bold text-(--text-primary) truncate">
+                    <span className={`truncate ${headingClass('panel')}`}>
                         {team.name}
                     </span>
                     {!team.is_public && <FaLock className="shrink-0 text-[10px] text-(--text-tertiary)" />}

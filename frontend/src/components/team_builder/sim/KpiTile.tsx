@@ -1,6 +1,7 @@
 import { FaCaretUp, FaCaretDown, FaMinus } from 'react-icons/fa6';
 import { InfoTooltip } from '../../shared/InfoTooltip';
 import type { KpiComparison } from './simStatColumns';
+import { CAPS_LABEL_CLASS } from '../../shared/fieldStyles';
 
 /** A single labeled stat value — the small "KPI" tile shared by the season summary tab and the
  * batting/pitching tables (team totals shown above each roster). `info` adds a click-to-reveal
@@ -12,10 +13,10 @@ export function KpiTile({ label, value, info, comparison }: { label: string; val
     return (
         <div className="rounded-card flex flex-col items-center border border-(--divider) bg-(--background-secondary) px-3 py-2">
             <div className="flex items-center gap-1">
-                <p className="text-[11px] text-(--text-tertiary)">{label}</p>
+                <p className={`${CAPS_LABEL_CLASS} text-(--text-tertiary)`}>{label}</p>
                 {info && <InfoTooltip text={info} />}
             </div>
-            <p className="text-[18px] font-bold text-(--text-primary) tabular-nums">{value}</p>
+            <p className="font-display-upright text-xl leading-6 text-(--text-primary) tabular-nums">{value}</p>
             {comparison && (
                 <p className={`flex items-center gap-0.5 text-[10px] font-semibold tabular-nums ${
                     comparison.direction === 'flat' ? 'text-(--text-tertiary)' : comparison.isGood ? 'text-(--green)' : 'text-(--red)'

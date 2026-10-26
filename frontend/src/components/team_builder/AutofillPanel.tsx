@@ -15,6 +15,7 @@ import {
 import FormEnabler from '../customs/FormEnabler';
 import { FIELD_LABEL_CLASS, CAPS_LABEL_CLASS, fieldClass } from '../shared/fieldStyles';
 import { choiceClass } from '../shared/choiceStyles';
+import { Heading } from '../shared/Heading';
 type BucketSizes = {
     offense: number;   // always 9
     rotation: number;  // num_starters
@@ -201,10 +202,10 @@ export function AutofillPanel({ ptsLimit, bucketSizes, existingPts, existingPick
                 {/* Header */}
                 <div className="flex items-center justify-between px-4 pt-4 pb-3 border-b border-(--divider)">
                     <div>
-                        <div className="text-[13px] font-bold text-(--text-primary) flex items-center gap-1.5">
-                            <FaWandMagicSparkles className="text-(--showdown-red)" />
+                        <Heading level="section" className="flex items-center gap-1.5">
+                            <FaWandMagicSparkles className="text-(--showdown-red) text-base" />
                             Autofill Roster
-                        </div>
+                        </Heading>
                         <div className="text-[11px] text-(--text-secondary) mt-0.5">
                             {targetConfirmed ? (
                                 <>Budget: <span className="font-bold text-(--text-primary)">{effectiveLimit.toLocaleString()} pts</span></>
@@ -295,11 +296,11 @@ export function AutofillPanel({ ptsLimit, bucketSizes, existingPts, existingPick
                                 return (
                                     <div key={key}>
                                         <div className="flex items-baseline justify-between mb-1">
-                                            <span className="text-[11px] font-semibold text-(--text-secondary)">
+                                            <span className={`${CAPS_LABEL_CLASS} text-(--text-tertiary)`}>
                                                 {label}
                                             </span>
                                             <div className="flex items-baseline gap-2">
-                                                <span className="text-[13px] font-bold text-(--text-primary)">
+                                                <span className="text-[13px] font-bold tabular-nums text-(--text-primary)">
                                                     {pts.toLocaleString()} pts
                                                 </span>
                                                 <span className="text-[10px] text-(--text-tertiary)">

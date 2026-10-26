@@ -194,7 +194,7 @@ function GuidedOptions({ state, docked, currentPts, budget, benchPtsMultiplier, 
     if (complete) {
         return notice(<>
             <FaFlagCheckered className="text-2xl text-(--success)" />
-            <div className="text-[13px] font-bold text-(--text-primary)">Roster complete</div>
+            <Heading level="panel" as="div">Roster complete</Heading>
         </>);
     }
     if (error) {

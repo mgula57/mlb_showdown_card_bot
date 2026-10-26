@@ -314,7 +314,7 @@ export function TeamSettingsForm({ team, onChange, onArchive, archiving = false 
                 childrenWhenClosed={<SectionSummary items={cardsSummary} />}
             >
                 <div className="flex flex-wrap gap-2 col-span-full">
-                    <div className="text-sm font-semibold text-(--text-secondary) w-full">
+                    <div className={`w-full ${FIELD_LABEL_CLASS}`}>
                         Allowed Card Sources
                     </div>
                     {TEAM_CARD_SOURCES.map(s => {
@@ -401,7 +401,7 @@ export function TeamSettingsForm({ team, onChange, onArchive, archiving = false 
                     onTeamChange={values => updatePlayerFilters({ team: values })}
                 />
                 <div className="flex flex-wrap gap-2 col-span-full">
-                    <div className="text-sm font-semibold text-(--text-secondary) w-full">Bats</div>
+                    <div className={`w-full ${FIELD_LABEL_CLASS}`}>Bats</div>
                     {HAND_OPTIONS.map(({ value, label }) => {
                         const active = (pf.hand ?? []).includes(value);
                         return (
@@ -473,8 +473,8 @@ function SetToggleGroup({ label, hint, options, selected, onToggle }: SetToggleG
     return (
         <div className="flex flex-wrap gap-2 col-span-full">
             <div className="flex items-baseline gap-2 w-full">
-                <span className="text-sm font-semibold text-(--text-secondary)">{label}</span>
-                <span className="text-[11px] text-(--text-tertiary)">{hint}</span>
+                <span className={FIELD_LABEL_CLASS}>{label}</span>
+                <span className="text-[11px] text-(--text-tertiary) normal-case">{hint}</span>
             </div>
             {options.map(value => {
                 const active = selected.includes(value);

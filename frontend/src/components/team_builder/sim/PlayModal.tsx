@@ -14,6 +14,7 @@ import { challengeGoalLabel, challengeDaysLeft, challengeRestrictionsLabel } fro
 import { InlineError } from '../../shared/InlineError';
 import { buttonClass } from '../../shared/buttonStyles';
 import { CAPS_LABEL_CLASS } from '../../shared/fieldStyles';
+import { headingClass } from '../../shared/headingStyles';
 
 function errorMessage(err: unknown): string {
     return err instanceof Error ? err.message : String(err);
@@ -86,7 +87,7 @@ function ChallengeOption({ challenge, selected, blocked, onSelect }: {
             <span className="w-1 self-stretch rounded-full shrink-0" style={{ backgroundColor: `var(${category.cssVar})` }} />
             <span className="min-w-0 flex-1">
                 <span className="flex items-center gap-2 flex-wrap">
-                    <span className="text-[13px] font-bold text-(--text-primary)">{challenge.title}</span>
+                    <span className={headingClass('panel')}>{challenge.title}</span>
                     <span className={CAPS_LABEL_CLASS} style={{ color: `var(${category.cssVar})` }}>
                         {category.label}
                     </span>

@@ -7,6 +7,7 @@ import { SimEngineExplainer } from './SimEngineExplainer';
 import { SimWinPctChart } from './SimWinPctChart';
 import { SimulationGuideModal, SimulationGuidePanel } from '../../simulate/SimulationGuideModal';
 import { FaBookOpen, FaRotate } from 'react-icons/fa6';
+import { Heading } from '../../shared/Heading';
 
 type Props = {
     job: SimJob | null;
@@ -116,10 +117,10 @@ export function SimProgress({ job, teamName, onCancel }: Props) {
                         <SimDiceRoll />
 
                         <div className="text-center">
-                            <p className="flex items-center justify-center gap-2 text-[15px] font-bold text-primary">
+                            <Heading level="section" className="flex items-center justify-center gap-2">
                                 Playing the season
                                 <BetaBadge />
-                            </p>
+                            </Heading>
                             <p className="text-[13px] text-secondary">{teamName}</p>
                         </div>
 
