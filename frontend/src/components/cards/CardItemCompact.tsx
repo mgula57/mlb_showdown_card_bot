@@ -279,7 +279,7 @@ export const CardItemCompact = ({
 
             {/* Absolute positioned elements */}
             {!hideDetails && !isRedacted && !hideCommand && !statBadge && (
-                <div className="hidden @[95px]:block absolute bottom-1.5 left-0.5 bg-(--background-secondary)/80 rounded-plate">
+                <div className="hidden @[95px]:block absolute bottom-0 left-0.5 rounded-plate">
                     <SetBadge set={card?.set || ''} abbreviated size="sm" />
                 </div>
             )}
