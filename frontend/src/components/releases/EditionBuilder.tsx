@@ -1401,7 +1401,7 @@ function StepButton({ number, label, isActive, onClick }: { number?: number; lab
     return (
         <button type="button" onClick={onClick} className="group flex items-center gap-2 cursor-pointer">
             {number !== undefined && <span className={`flex items-center justify-center w-5 h-5 rounded-full text-[11px] font-semibold tabular-nums shrink-0 transition-colors
-                ${isActive ? 'bg-(--showdown-blue) text-white' : 'border border-(--text-tertiary) text-(--text-tertiary) group-hover:border-(--text-secondary) group-hover:text-(--text-secondary)'}`}>
+                ${isActive ? 'bg-(--showdown-blue-fill) text-white' : 'border border-(--text-tertiary) text-(--text-tertiary) group-hover:border-(--text-secondary) group-hover:text-(--text-secondary)'}`}>
                 {number}
             </span>}
             <span className={`${headingClass('panel')} transition-colors ${isActive ? '' : 'text-(--text-tertiary)! group-hover:text-(--text-secondary)!'}`}>

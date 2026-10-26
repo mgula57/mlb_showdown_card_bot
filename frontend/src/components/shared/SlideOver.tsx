@@ -95,7 +95,7 @@ export function SlideOver({ isOpen, onClose, title, children, handleContent }: S
                         className="
                             pointer-events-auto
                             w-12 h-12 rounded-full flex items-center justify-center
-                            bg-(--showdown-red) text-white
+                            bg-(--showdown-red-fill) text-white
                             shadow-overlay
                             cursor-pointer hover:opacity-90 transition-opacity
                         "

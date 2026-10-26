@@ -296,7 +296,7 @@ const SideMenu: React.FC<SideMenuProps> = ({ isOpen, setIsOpen, className, isMob
                     >
                         {/* Accent bar only when expanded — in the narrow rail the pill alone reads clearly */}
                         <span className={`
-                            absolute left-0 top-1/2 -translate-y-1/2 h-6 w-1 rounded-r-full bg-(--showdown-blue)
+                            absolute left-0 top-1/2 -translate-y-1/2 h-6 w-1 rounded-r-full bg-(--showdown-blue-fill)
                             transition-opacity duration-300 ease-(--side-menu-ease) motion-reduce:transition-none
                             ${isOpen ? 'opacity-100' : 'opacity-0'}
                         `} />

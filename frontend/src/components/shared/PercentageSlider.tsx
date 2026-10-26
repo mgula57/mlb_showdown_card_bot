@@ -17,7 +17,7 @@ type PercentageSliderProps = {
 const clampPercent = (n: number) => Math.min(100, Math.max(0, Math.round(n)));
 
 /** A draggable fill bar with a typeable % input at the end, for editing one share of a whole. */
-export default function PercentageSlider({ label, info, value, onChange, fillClassName = 'bg-(--showdown-red)', disabled = false }: PercentageSliderProps) {
+export default function PercentageSlider({ label, info, value, onChange, fillClassName = 'bg-(--showdown-red-fill)', disabled = false }: PercentageSliderProps) {
     // Holds the raw text while typing so clearing the field doesn't snap it back to 0.
     const [draft, setDraft] = useState<string | null>(null);
     const percent = clampPercent(value);

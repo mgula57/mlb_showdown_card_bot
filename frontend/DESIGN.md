@@ -24,7 +24,8 @@ All colors come from tokens in [`src/index.css`](src/index.css). Components neve
 | Hairline borders | `--divider` | Default border for everything |
 | Strong rule | `--rule-strong` | Frames, hover borders, `shadow-raised` edge |
 | Text | `--text-primary`, `--text-secondary`, `--text-tertiary` | Tertiary is captions and meta |
-| Brand | `--showdown-blue`, `--showdown-red` | Navy for primary actions, selection and frames; red for the active tab and emphasis |
+| Brand | `--showdown-blue`, `--showdown-red` | Navy for primary actions, selection and frames; red for the active tab and emphasis. As text, borders, rings and tints |
+| Brand fills | `--showdown-blue-fill`, `--showdown-red-fill` | Solid fills that carry white text: primary and feature buttons, navy and red plates, count badges, mode bars. Equal to the brand colors in light; a shade darker in dark so white text keeps 4.5:1. Write `bg-(--showdown-blue-fill)`, never a solid `bg-(--showdown-blue)` |
 | Stat plates | `--plate`, `--plate-ink` | Silver plate in light, raised gray plate in dark. Team-color fields use the dark `onField` plate instead |
 | Status | `--green`, `--red`, `--warning`, `--success`, `--error`, `--live` | Semantic only, never decorative |
 | Team-color fields | `--card-edge`, `--field-ink`, `--field-live` | Same in both themes; see below |
@@ -74,6 +75,7 @@ Charts keep their compact footprint: don't increase cell padding, minimum widths
   - **Raised:** `shadow-raised`, a hard 2px bottom edge, for primary buttons and pressable tiles. `shadow-feature` is the same hard edge in Showdown red, 3px, only on `feature` buttons. A floating feature button (the circular Build Card and Run Algorithm buttons on mobile) uses `shadow-feature-float`, the red edge plus the overlay shadow.
   - **Overlay:** `shadow-overlay`, the only soft shadow, for modals, menus, sheets and floating buttons. `shadow-sheet` is the same shadow cast upward, for sheets and strips anchored to the bottom edge (`BottomSheet`, `SlideOver`, the docked Guided Draft strip).
 - **No glass.** Overlays, sticky bars and footers are opaque surfaces (or a flat translucent fill over field art), never `backdrop-blur`. Modal and sheet scrims are a flat `bg-black/50`.
+- **Keyboard focus** is a 2px `--focus-ring` (navy) outline offset 2px, from one unlayered `:focus-visible` rule at the end of `index.css` that covers buttons, links, tabs and checkbox roles and wins over `outline-none`. Text fields show focus with their navy border instead. Don't add per-component focus styles, and never remove the outline without a visible replacement.
 - **Selection** is a navy outline: `border-(--showdown-blue) ring-1 ring-(--showdown-blue)`. Never an inverted fill (`bg-(--secondary) text-(--background-primary)`), which reads as a primary button, and never a glow. Rows of options use `choiceClass`. An active slot on the field art (`FieldView`) uses the white `--card-edge` ring instead, since navy disappears on the grass.
 
 ## Components

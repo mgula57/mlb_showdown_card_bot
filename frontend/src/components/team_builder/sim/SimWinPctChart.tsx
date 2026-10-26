@@ -201,7 +201,7 @@ export function SimWinPctChart({ games, playoffCutlinePct, totalGames, seedRecor
             {hasSeed && (
                 <p className="mt-1 flex items-center justify-end gap-3 text-[10px] text-tertiary">
                     <span className="flex items-center gap-1"><span className="h-1.5 w-1.5 rounded-full bg-(--showdown-gray)" />Real</span>
-                    <span className="flex items-center gap-1"><span className="h-1.5 w-1.5 rounded-full bg-(--showdown-blue)" />Simulated</span>
+                    <span className="flex items-center gap-1"><span className="h-1.5 w-1.5 rounded-full bg-(--showdown-blue-fill)" />Simulated</span>
                 </p>
             )}
         </div>

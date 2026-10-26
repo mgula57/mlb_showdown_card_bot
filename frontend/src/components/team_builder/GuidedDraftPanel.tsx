@@ -86,7 +86,7 @@ export function GuidedDraftPanel(props: Props) {
     const progressBar = (
         <div className="h-1 rounded-full overflow-hidden bg-(--background-quaternary)">
             <div
-                className="h-full rounded-full bg-(--showdown-red) transition-all"
+                className="h-full rounded-full bg-(--showdown-red-fill) transition-all"
                 style={{ width: `${rosterSize > 0 ? (rosterCount / rosterSize) * 100 : 0}%` }}
             />
         </div>
@@ -369,7 +369,7 @@ function RoundStepper({ round, buckets }: { round: GuidedRound | null; buckets: 
                         {done
                             ? <FaCircleCheck className="text-[10px] text-(--success)" />
                             : active
-                                ? <span className="w-1.5 h-1.5 rounded-full bg-(--showdown-red) animate-pulse" />
+                                ? <span className="w-1.5 h-1.5 rounded-full bg-(--showdown-red-fill) animate-pulse" />
                                 : <span className="tabular-nums">{i + 1}.</span>}
                         {label}
                     </span>

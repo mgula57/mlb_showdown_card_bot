@@ -56,7 +56,7 @@ const LibraryRow: React.FC<LibraryRowProps> = ({ entry, rank, isFirst, isLast, i
     return (
         <div className="rounded-card border border-form-element p-3">
             <div className="flex items-center gap-3">
-                <span className="w-6 h-6 shrink-0 rounded-plate bg-(--showdown-blue) text-white text-xs font-bold tabular-nums flex items-center justify-center">{rank}</span>
+                <span className="w-6 h-6 shrink-0 rounded-plate bg-(--showdown-blue-fill) text-white text-xs font-bold tabular-nums flex items-center justify-center">{rank}</span>
                 {entry.isShowdownBot
                     ? <FaRobot className="shrink-0 text-(--text-tertiary)" />
                     : <FaGoogleDrive className="shrink-0 text-(--text-tertiary)" />}

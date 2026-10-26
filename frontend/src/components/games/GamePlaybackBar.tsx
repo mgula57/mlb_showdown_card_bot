@@ -76,7 +76,7 @@ export default function GamePlaybackBar({
 
                 <div className="relative flex-1 h-2 rounded-full bg-(--background-tertiary) overflow-hidden">
                     <div
-                        className="h-full bg-(--showdown-blue) transition-[width] duration-300 ease-out pointer-events-none"
+                        className="h-full bg-(--showdown-blue-fill) transition-[width] duration-300 ease-out pointer-events-none"
                         style={{ width: `${pct}%` }}
                     />
                     <input

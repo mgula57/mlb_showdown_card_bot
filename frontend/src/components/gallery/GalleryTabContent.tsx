@@ -184,7 +184,7 @@ const GalleryStackCell: React.FC<{
                 </div>
                 {/* Count badge */}
                 <div
-                    className="absolute top-1.5 left-1.5 bg-(--showdown-blue) text-white text-[10px] font-bold tabular-nums rounded-plate min-w-5 h-5 px-1 flex items-center justify-center leading-none"
+                    className="absolute top-1.5 left-1.5 bg-(--showdown-blue-fill) text-white text-[10px] font-bold tabular-nums rounded-plate min-w-5 h-5 px-1 flex items-center justify-center leading-none"
                     style={{ zIndex: 3 }}
                 >
                     {count}

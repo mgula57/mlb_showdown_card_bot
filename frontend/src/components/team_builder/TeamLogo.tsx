@@ -97,7 +97,7 @@ export function TeamLogo({
                     {/* Persistent affordance so it's clear the logo can be changed, even without hover (mobile). */}
                     {!uploading && (
                         <span
-                            className={`absolute ${BADGE_CLASSES[size]} rounded-full bg-(--showdown-red) text-white border-2 border-(--background-primary) flex items-center justify-center`}
+                            className={`absolute ${BADGE_CLASSES[size]} rounded-full bg-(--showdown-red-fill) text-white border-2 border-(--background-primary) flex items-center justify-center`}
                         >
                             <FaCamera />
                         </span>

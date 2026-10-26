@@ -10,11 +10,11 @@ export type ButtonSize = 'sm' | 'md' | 'lg';
 
 // design-ok-start: these are the button primitives the custom-button rule points to
 const VARIANT_CLASSES: Record<ButtonVariant, string> = {
-    feature: 'bg-(--showdown-blue) text-white shadow-feature hover:brightness-110 active:translate-y-0.5 active:shadow-none font-display uppercase leading-none',
-    primary: 'bg-(--showdown-blue) text-white shadow-raised hover:brightness-110 active:translate-y-px active:shadow-none',
+    feature: 'bg-(--showdown-blue-fill) text-white shadow-feature hover:brightness-110 active:translate-y-0.5 active:shadow-none font-display uppercase leading-none',
+    primary: 'bg-(--showdown-blue-fill) text-white shadow-raised hover:brightness-110 active:translate-y-px active:shadow-none',
     secondary: 'bg-(--background-secondary) text-(--text-primary) border border-(--rule-strong) hover:bg-(--background-tertiary)',
     ghost: 'text-(--text-secondary) hover:bg-(--background-tertiary) hover:text-(--text-primary)',
-    danger: 'bg-(--showdown-red) text-white shadow-raised hover:brightness-110 active:translate-y-px active:shadow-none',
+    danger: 'bg-(--showdown-red-fill) text-white shadow-raised hover:brightness-110 active:translate-y-px active:shadow-none',
 };
 // design-ok-end
 

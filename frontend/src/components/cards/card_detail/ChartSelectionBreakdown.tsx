@@ -21,7 +21,7 @@ const PICKED_COLOR = 'var(--showdown-blue)';
 
 // Full class strings per badge (see DESIGN.md: never build class names from variables).
 const BAR_BADGE_CLASSES = {
-    curated: 'bg-(--showdown-blue) text-white',
+    curated: 'bg-(--showdown-blue-fill) text-white',
     outlier: 'bg-(--warning) text-(--field-ink)',
 } as const;
 

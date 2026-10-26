@@ -19,8 +19,8 @@ export type PlateSize = 'xs' | 'sm' | 'md' | 'lg';
 
 const VARIANT_CLASSES: Record<PlateVariant, string> = {
     ink: 'bg-(--plate) text-(--plate-ink)',
-    navy: 'bg-(--showdown-blue) text-white',
-    red: 'bg-(--showdown-red) text-white',
+    navy: 'bg-(--showdown-blue-fill) text-white',
+    red: 'bg-(--showdown-red-fill) text-white',
     outline: 'text-(--text-secondary) shadow-[inset_0_0_0_1.5px_var(--text-tertiary)]',
     success: 'text-(--green) shadow-[inset_0_0_0_1.5px_var(--green)]',
     onField: 'bg-(--field-ink) text-white',

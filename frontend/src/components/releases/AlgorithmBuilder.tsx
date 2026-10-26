@@ -64,8 +64,8 @@ const OTHER_EDITIONS_OPTIONS: { value: AlgorithmOtherEditionsRule; label: string
 ];
 
 const DISTRIBUTION_ROWS: { key: keyof AlgorithmPlayerTypeDistribution; label: string; fillClassName: string }[] = [
-    { key: 'hitters_percentage', label: 'Hitters', fillClassName: 'bg-(--showdown-blue)' },
-    { key: 'starters_percentage', label: 'Starters', fillClassName: 'bg-(--showdown-red)' },
+    { key: 'hitters_percentage', label: 'Hitters', fillClassName: 'bg-(--showdown-blue-fill)' },
+    { key: 'starters_percentage', label: 'Starters', fillClassName: 'bg-(--showdown-red-fill)' },
     { key: 'relievers_percentage', label: 'Relievers', fillClassName: 'bg-(--showdown-gray)' },
 ];
 
@@ -722,7 +722,7 @@ export function AlgorithmBuilder({ releaseId, edition, token, defaultShowdownSet
             disabled={!canRun}
             aria-label="Run algorithm"
             className="fixed md:absolute bottom-[calc(0.75rem+var(--safe-bottom))] md:bottom-3 right-3 w-16 h-16 rounded-full flex flex-col items-center justify-center gap-1 font-display uppercase leading-none text-[15px] shadow-feature-float
-                bg-(--showdown-blue) text-white hover:brightness-110 active:translate-y-0.5 active:shadow-overlay disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                bg-(--showdown-blue-fill) text-white hover:brightness-110 active:translate-y-0.5 active:shadow-overlay disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
         >
             {status === 'running' ? <FaSpinner className="animate-spin text-[18px]" /> : <FaWandMagicSparkles className="text-[18px]" />}
             {status === 'running' ? '…' : 'Run'}

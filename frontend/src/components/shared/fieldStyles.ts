@@ -34,7 +34,7 @@ export const FIELD_FRAME_CLASS =
  *  off, navy with a white check when on. The caller adds the size (`w-4 h-4 text-[9px]`). */
 export function checkBoxClass(checked: boolean): string {
     return `shrink-0 flex items-center justify-center rounded-plate border-2 transition-colors ${
-        checked ? 'bg-(--showdown-blue) border-(--showdown-blue) text-white' : 'border-(--rule-strong)'
+        checked ? 'bg-(--showdown-blue-fill) border-(--showdown-blue) text-white' : 'border-(--rule-strong)'
     }`;
 }
 

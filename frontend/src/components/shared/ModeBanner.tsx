@@ -13,8 +13,8 @@ import { bannerTokens, BANNER_TOKENS_ON_DARK, type BannerTokens } from "../../fu
 type ModeBannerTone = 'navy' | 'red';
 
 const TONE_CLASSES: Record<ModeBannerTone, string> = {
-    navy: 'bg-(--showdown-blue)',
-    red: 'bg-(--showdown-red)',
+    navy: 'bg-(--showdown-blue-fill)',
+    red: 'bg-(--showdown-red-fill)',
 };
 
 const BannerTokensContext = createContext<BannerTokens>(BANNER_TOKENS_ON_DARK);

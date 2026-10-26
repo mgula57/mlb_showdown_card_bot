@@ -255,7 +255,7 @@ const AccountPage: React.FC = () => {
                                     <span className="
                                         absolute bottom-0 right-0
                                         w-6 h-6 rounded-full
-                                        bg-(--showdown-blue) border-2 border-(--background-secondary)
+                                        bg-(--showdown-blue-fill) border-2 border-(--background-secondary)
                                         flex items-center justify-center
                                         group-hover:opacity-0 transition-opacity duration-200
                                     ">

@@ -45,11 +45,17 @@
     /* Text roles. Prefer these over --primary/--secondary in new code. */
     --text-primary: var(--primary);
     --text-secondary: var(--secondary);
-    --text-tertiary: #69717c;
+    --text-tertiary: #646c77;
 
     --showdown-blue: #1a3b5f;
     --showdown-red: #b3342b;
     --showdown-gray: #6e6e73;
+    /* Solid fills that carry white text (primary and feature buttons, navy/red plates, count
+       badges). Same as the brand colors in light; a shade darker in dark so white text keeps 4.5:1. */
+    --showdown-blue-fill: var(--showdown-blue);
+    --showdown-red-fill: var(--showdown-red);
+    /* Keyboard focus outline (see the :focus-visible rule at the end of this file). */
+    --focus-ring: var(--showdown-blue);
 
     /* Unsaved / algorithm-preview state (e.g. Release Builder preview pools) */
     --preview-accent: #6d28d9;
@@ -152,6 +158,8 @@
     --showdown-blue: #4f86cf;
     --showdown-red: #e0574d;
     --showdown-gray: #a0a0a5;
+    --showdown-blue-fill: #3775c8;
+    --showdown-red-fill: #da362a;
 
     --preview-accent: #c4b5fd;
 
@@ -781,4 +789,13 @@ html, body, #root {
 .h-lvh { height: 100lvh; }
 @supports not (height: 100lvh) {
     .h-lvh { height: 100vh; }
+}
+
+/* Keyboard focus: a navy outline, offset from the control, on anything focusable but a text field
+   (fields show focus with their navy border). Unlayered on purpose: unlayered rules beat Tailwind's
+   layered utilities, so this wins over the `outline-none` / `focus:outline-none` classes that would
+   otherwise leave keyboard users with no visible focus. See DESIGN.md (Shape and depth). */
+:where(button, a[href], summary, [role="button"], [role="tab"], [role="checkbox"], [role="switch"], [role="option"], [tabindex]:not([tabindex="-1"])):focus-visible {
+    outline: 2px solid var(--focus-ring);
+    outline-offset: 2px;
 }

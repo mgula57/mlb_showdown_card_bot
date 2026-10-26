@@ -90,7 +90,7 @@ const RULES = [
     },
     {
         id: 'custom-button',
-        pattern: /["'`](?=[^"'`]*\bbg-\(--(?:showdown-blue|showdown-red|secondary)\)(?![\w/-]))(?=[^"'`]*\btext-(?:white|\(--background-primary\))(?![\w/-]))(?=[^"'`]*\b(?:cursor-pointer|hover:))/,
+        pattern: /["'`](?=[^"'`]*\bbg-\(--(?:showdown-blue|showdown-red)(?:-fill)?\)(?![\w/-])|bg-\(--secondary\)(?![\w/-]))(?=[^"'`]*\btext-(?:white|\(--background-primary\))(?![\w/-]))(?=[^"'`]*\b(?:cursor-pointer|hover:))/,
         message: 'Hand-built filled button. Use buttonClass("primary" | "danger") from shared/buttonStyles.',
     },
     {

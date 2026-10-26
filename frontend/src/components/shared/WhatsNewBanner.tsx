@@ -32,7 +32,7 @@ export const WhatsNewBanner: React.FC<WhatsNewBannerProps> = ({ storageKey, feat
     };
 
     return (
-        <div className={`fixed top-12 right-3 z-50 ${calculatedWidth} rounded-card bg-(--showdown-blue) border-b-2 border-(--showdown-red) text-white shadow-overlay overflow-hidden`}>
+        <div className={`fixed top-12 right-3 z-50 ${calculatedWidth} rounded-card bg-(--showdown-blue-fill) border-b-2 border-(--showdown-red) text-white shadow-overlay overflow-hidden`}>
             <div className="flex items-center justify-between px-3 pt-2.5 pb-1">
                 <span className="flex items-baseline gap-1.5">
                     <span className="font-display uppercase text-base leading-none">What's New</span>

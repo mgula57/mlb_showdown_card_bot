@@ -58,11 +58,11 @@ const StepIndicator: React.FC<{ step: number }> = ({ step }) => (
             const isActive = index === step;
             return (
                 <React.Fragment key={label}>
-                    {index > 0 && <div className={`flex-1 h-px ${isDone || isActive ? 'bg-(--showdown-blue)' : 'bg-(--divider)'}`} />}
+                    {index > 0 && <div className={`flex-1 h-px ${isDone || isActive ? 'bg-(--showdown-blue-fill)' : 'bg-(--divider)'}`} />}
                     <div className="flex items-center gap-1.5 shrink-0">
                         <span className={`
                             w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold
-                            ${isDone || isActive ? 'bg-(--showdown-blue) text-white border border-(--showdown-blue)' : 'border border-(--divider) text-(--text-tertiary)'}
+                            ${isDone || isActive ? 'bg-(--showdown-blue-fill) text-white border border-(--showdown-blue)' : 'border border-(--divider) text-(--text-tertiary)'}
                         `}>
                             {isDone ? <FaCheck className="w-2.5 h-2.5" /> : index + 1}
                         </span>

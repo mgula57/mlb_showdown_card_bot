@@ -433,7 +433,7 @@ export default function Home() {
             {/* Game Ticker */}
             <div className="rounded-card border border-(--divider) overflow-hidden max-w-7xl mx-auto bg-(--background-secondary)">
                 {/* Ticker header: navy band over a red rule, from the Showdown logo */}
-                <div className="flex items-center justify-between gap-4 px-4 md:px-6 py-2.5 bg-(--showdown-blue) border-b-2 border-(--showdown-red)">
+                <div className="flex items-center justify-between gap-4 px-4 md:px-6 py-2.5 bg-(--showdown-blue-fill) border-b-2 border-(--showdown-red)">
                     <p className="flex items-center gap-2 text-white">
                         <LiveIcon size={7} title="Live" color="var(--field-live)" />
                         <Heading level="section" as="h2" style={{ color: 'white' }}>Today's Games</Heading>

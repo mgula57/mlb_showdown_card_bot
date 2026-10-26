@@ -767,7 +767,7 @@ export default function GameField({ game, cardMap, onCardSelect, expanded = fals
                                 className="
                                     pointer-events-auto group
                                     flex h-16 w-16 items-center justify-center rounded-full
-                                    bg-(--showdown-blue) text-white shadow-overlay
+                                    bg-(--showdown-blue-fill) text-white shadow-overlay
                                     cursor-pointer transition-transform duration-150 ease-out
                                     hover:scale-110 active:scale-95
                                 "

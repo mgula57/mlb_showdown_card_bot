@@ -128,7 +128,7 @@ export function SimProgress({ job, teamName, onCancel }: Props) {
                             <div className="flex items-baseline justify-between gap-3">
                                 {/* Keyed so each new phase crossfades in rather than swapping text in place. */}
                                 <span key={phase} className="fade-in flex min-w-0 items-center gap-1.5 text-[12px] font-semibold text-secondary">
-                                    <span className="live-pulse h-1.5 w-1.5 shrink-0 rounded-full bg-(--showdown-blue)" />
+                                    <span className="live-pulse h-1.5 w-1.5 shrink-0 rounded-full bg-(--showdown-blue-fill)" />
                                     <span className="truncate">{phase}</span>
                                 </span>
                                 <span className="shrink-0 text-[12px] font-bold tabular-nums text-primary">{Math.round(pct)}%</span>
@@ -136,7 +136,7 @@ export function SimProgress({ job, teamName, onCancel }: Props) {
 
                             <div className="h-2.5 overflow-hidden rounded-full bg-(--background-quaternary)">
                                 <div
-                                    className="sim-progress-sheen relative h-full overflow-hidden rounded-full bg-(--showdown-blue) transition-[width] duration-700 ease-out"
+                                    className="sim-progress-sheen relative h-full overflow-hidden rounded-full bg-(--showdown-blue-fill) transition-[width] duration-700 ease-out"
                                     style={{
                                         width: `${pct}%`,
                                         boxShadow: '0 0 10px color-mix(in srgb, var(--showdown-blue) 55%, transparent)',
