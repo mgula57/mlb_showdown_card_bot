@@ -7,10 +7,12 @@ import { FaStar } from 'react-icons/fa6';
 import { Plate } from '../shared/Plate';
 import { choiceClass } from '../shared/choiceStyles';
 import { FIELD_LABEL_CLASS } from '../shared/fieldStyles';
+import { InfoTooltip } from '../shared/InfoTooltip';
 
 /** Mirrors the backend's `_RELEASE_CARD_MAX_PREVIEW_RANK` (and the tile's fan size). */
 export const MAX_PREVIEW_RANK = 3;
 const RANKS = Array.from({ length: MAX_PREVIEW_RANK }, (_, i) => i + 1);
+const PICKER_HINT = 'Slot 1 sits in front. Needs a rendered image.';
 
 export function ReleaseCardPreviewRankBadge({ rank }: { rank: number }) {
     return (
@@ -57,7 +59,9 @@ export function ReleaseCardPreviewRankPicker({ rank, readOnly, onChange }: Relea
                     );
                 })}
             </div>
-            <span className="text-[10px] text-(--text-tertiary)">Slot 1 sits in front. Needs a rendered image.</span>
+            {/* Inline when CardDetail's action bar (an @container) has room, else behind an info icon. */}
+            <span className="hidden @4xl:inline text-[10px] text-(--text-tertiary)">{PICKER_HINT}</span>
+            <InfoTooltip text={PICKER_HINT} openOnHover className="@4xl:hidden" />
         </div>
     );
 }

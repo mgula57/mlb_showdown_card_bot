@@ -635,12 +635,12 @@ export const CardDetail = memo(function CardDetail({ showdownBotCardData: showdo
             </div>
 
             {/* Action bar — caller-supplied controls (`actionBarContent`, e.g. a release card's tags)
-                on the left, Customize and the primary `onDraft` action on the right. Inside a Modal or the
+                on the left (a size container, so they can compact themselves when it's narrow), Customize and the primary `onDraft` action on the right. Inside a Modal or the
                 search sidebar (any PinnedFooterScrollArea) it moves to the pinned footer so it stays
                 reachable while the detail scrolls; elsewhere it's a row under the header. */}
             {activeCardData?.card && (context !== 'custom' || onDraft || actionBarContent) && (
                 <PinnedFooterPortal>
-                <div className="flex flex-wrap items-center gap-x-6 gap-y-3 w-full">
+                <div className="@container flex flex-wrap items-center gap-x-6 gap-y-3 w-full">
                     {actionBarContent && (
                         <div className="flex flex-wrap items-start gap-x-6 gap-y-3 min-w-0">
                             {actionBarContent}

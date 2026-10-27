@@ -68,35 +68,29 @@ export function ReleaseCardTagsEditor({ tags, editionTags, readOnly, onChange }:
     }
 
     return (
-        <div className="flex flex-col gap-2 min-w-0">
-            <div className="flex flex-wrap items-center gap-2">
-                <span className={FIELD_LABEL_CLASS}>Tags</span>
-                <ReleaseCardTagChips tags={tags} onRemove={tag => onChange(tags.filter(t => t !== tag))} />
-                <input
-                    type="text"
-                    value={draft}
-                    onChange={e => setDraft(e.target.value)}
-                    onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addTag(draft); } }}
-                    maxLength={TAG_MAX_LENGTH}
-                    placeholder="Add tag…"
-                    className={fieldClass('sm', 'w-28 uppercase focus:outline-none')}
-                />
-            </div>
-            {suggestions.length > 0 && (
-                <div className="flex flex-wrap items-center gap-1">
-                    {suggestions.map(tag => (
-                        <button
-                            key={tag}
-                            type="button"
-                            onClick={() => addTag(tag)}
-                            className={choiceClass(false, 'sm', 'border-dashed uppercase')}
-                        >
-                            <FaPlus className="text-[9px]" />
-                            {tag}
-                        </button>
-                    ))}
-                </div>
-            )}
+        <div className="flex flex-wrap items-center gap-2 min-w-0">
+            <span className={FIELD_LABEL_CLASS}>Tags</span>
+            <ReleaseCardTagChips tags={tags} onRemove={tag => onChange(tags.filter(t => t !== tag))} />
+            <input
+                type="text"
+                value={draft}
+                onChange={e => setDraft(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addTag(draft); } }}
+                maxLength={TAG_MAX_LENGTH}
+                placeholder="Add tag…"
+                className={fieldClass('sm', 'w-28 uppercase focus:outline-none')}
+            />
+            {suggestions.map(tag => (
+                <button
+                    key={tag}
+                    type="button"
+                    onClick={() => addTag(tag)}
+                    className={choiceClass(false, 'sm', 'border-dashed uppercase')}
+                >
+                    <FaPlus className="text-[9px]" />
+                    {tag}
+                </button>
+            ))}
         </div>
     );
 }
