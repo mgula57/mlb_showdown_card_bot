@@ -235,6 +235,60 @@ def discard_release_draft(release_id: str):
         return jsonify({'error': str(exc)}), 500
 
 
+def _visible_published_release(db: PostgresDB, release_id: str, user_id: str | None) -> dict | None:
+    """The release if this viewer can open it and it's published (likes and views only count there)."""
+    release = db.get_release(release_id, user_id)
+    if release is None or not any(edition.get('is_published') for edition in release.get('editions') or []):
+        return None
+    return release
+
+
+@releases_bp.route('/releases/<release_id>/like', methods=['POST'])
+@require_auth
+def like_release(release_id: str):
+    try:
+        with PostgresDB() as db:
+            if _visible_published_release(db, release_id, g.user_id) is None:
+                return jsonify({'error': 'Release not found'}), 404
+            result = db.toggle_release_like(release_id, g.user_id)
+        return jsonify(result), 200
+    except Exception as exc:
+        traceback.print_exc()
+        return jsonify({'error': str(exc)}), 500
+
+
+@releases_bp.route('/releases/<release_id>/view', methods=['POST'])
+def record_release_view(release_id: str):
+    """Count a visit to a published release. The owner's own visits don't count."""
+    try:
+        user_id = optional_user_id()
+        with PostgresDB() as db:
+            release = _visible_published_release(db, release_id, user_id)
+            if release is None:
+                return jsonify({'error': 'Release not found'}), 404
+            if user_id is not None and release['created_by'] == user_id:
+                return jsonify({'counted': False}), 200
+            db.record_release_view(release_id)
+        return jsonify({'counted': True}), 200
+    except Exception as exc:
+        traceback.print_exc()
+        return jsonify({'error': str(exc)}), 500
+
+
+@releases_bp.route('/releases/<release_id>/versions', methods=['GET'])
+def get_release_versions(release_id: str):
+    """The release's published versions, newest first, with each one's note and change summary."""
+    try:
+        with PostgresDB() as db:
+            if db.get_release(release_id, optional_user_id()) is None:
+                return jsonify({'error': 'Release not found'}), 404
+            versions = db.get_release_versions(release_id)
+        return jsonify(versions), 200
+    except Exception as exc:
+        traceback.print_exc()
+        return jsonify({'error': str(exc)}), 500
+
+
 @releases_bp.route('/releases/<release_id>/share_image', methods=['POST'])
 def ensure_release_share_image(release_id: str):
     """The published release's link-preview image, rendered now if it's missing or out of date

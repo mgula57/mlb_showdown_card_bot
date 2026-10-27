@@ -12,6 +12,7 @@ import type { Release, ReleaseCardChange, ReleaseChanges, ReleaseEditionChanges,
 import { setReleasePublished, updateRelease } from '../../api/releases';
 import type { ReleaseReviewState } from './useReleaseReview';
 import { EmptyState } from '../shared/EmptyState';
+import { formatShortDate } from '../../functions/formatters';
 import { ReleaseItem, ReleaseItemSkeleton } from './ReleaseItem';
 import { Heading } from '../shared/Heading';
 import { Plate } from '../shared/Plate';
@@ -339,7 +340,7 @@ function PublishControls({ release, token, ready, blockerCount, checkCount, hasC
                         <Plate variant="success" size="sm">Published</Plate>
                         {release.published_at && (
                             <span className="text-[12px] text-(--text-tertiary)">
-                                v{release.published_version} · since {new Date(release.published_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
+                                v{release.published_version} · since {formatShortDate(release.published_at)}
                             </span>
                         )}
                     </div>

@@ -62,6 +62,12 @@ export type Release = {
     has_pending_changes: boolean;
     /** `card_images` path of the link-preview image, rendered when the release is published. */
     share_image_path: string | null;
+    /** When the current version was published (null for releases published before versions were kept). */
+    version_published_at: string | null;
+    view_count: number;
+    like_count: number;
+    /** Single-release fetches with a signed-in viewer only. */
+    liked_by_me?: boolean;
     created_at: string;
     updated_at: string;
 };
@@ -318,6 +324,42 @@ export async function fetchRelease(releaseId: string, token?: string): Promise<R
     const res = await fetch(`${API_BASE}/releases/${releaseId}`, { headers });
     if (!res.ok) throw new Error(`Failed to fetch release: ${res.status}`);
     return res.json();
+}
+
+/** One published version, from `internal.release_versions`. */
+export type ReleaseVersion = {
+    version: number;
+    note: string | null;
+    /** Per edition that changed: counts of added / removed / changed cards (see `EditionChanges.summary`). */
+    changes: Array<{ name: string; renamed_from: string | null; is_new: boolean; added: number; removed: number; changed: number; renumbered: number }>;
+    published_at: string | null;
+};
+
+export async function fetchReleaseVersions(releaseId: string, token?: string): Promise<ReleaseVersion[]> {
+    const headers: Record<string, string> = {};
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+    const res = await fetch(`${API_BASE}/releases/${releaseId}/versions`, { headers });
+    if (!res.ok) throw new Error(`Failed to load version history: ${res.status}`);
+    return res.json();
+}
+
+export async function toggleReleaseLike(releaseId: string, token: string): Promise<{ liked: boolean; like_count: number }> {
+    const res = await fetch(`${API_BASE}/releases/${releaseId}/like`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || `Failed to like the release: ${res.status}`);
+    }
+    return res.json();
+}
+
+/** Counts a visit. Fire-and-forget: `.catch(() => {})` it, a failure must never block the page. */
+export async function recordReleaseView(releaseId: string, token?: string): Promise<void> {
+    const headers: Record<string, string> = {};
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+    await fetch(`${API_BASE}/releases/${releaseId}/view`, { method: 'POST', headers });
 }
 
 /** The release behind a short link (`/r/<slug>`). */

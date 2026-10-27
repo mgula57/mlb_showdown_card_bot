@@ -6221,58 +6221,60 @@ class PostgresDB:
                 return None
             row = dict(row)
             if user_id is not None:
-                cur.execute(
-                    "SELECT 1 FROM internal.user_team_likes WHERE team_id = %s AND user_id = %s",
-                    (team_id, user_id),
-                )
-                row['liked_by_me'] = bool(cur.fetchone())
+                row['liked_by_me'] = self._is_liked_by('internal.user_team_likes', 'team_id', team_id, user_id)
             return self._serialize_team_row(row)
 
     def record_team_view(self, team_id: str) -> None:
         """Increment a team's view counter. Fire-and-forget — the caller (route) has already
         decided this view should count (e.g. skipping the team's own owner)."""
-        if not self.connection:
-            return
-        with self.connection.cursor() as cur:
-            cur.execute(
-                "UPDATE internal.user_teams SET view_count = view_count + 1 WHERE team_id = %s",
-                (team_id,),
-            )
+        self._record_view('internal.user_teams', 'team_id', team_id)
 
     def toggle_team_like(self, team_id: str, user_id: str) -> dict | None:
         """Like the team if user_id hasn't already liked it, else unlike it.
         Returns {'liked': bool, 'like_count': int}, or None if the team doesn't exist."""
+        return self._toggle_like('internal.user_teams', 'team_id', 'internal.user_team_likes', 'team_id', team_id, user_id)
+
+    # Likes and views for anything with `view_count` / `like_count` columns and a
+    # (`likes_id_column`, user_id) likes table: teams and releases. Table and column names are
+    # trusted internal identifiers (never user input) - they're interpolated into the SQL.
+
+    def _record_view(self, table: str, id_column: str, item_id: str) -> None:
+        if not self.connection:
+            return
+        with self.connection.cursor() as cur:
+            cur.execute(f"UPDATE {table} SET view_count = view_count + 1 WHERE {id_column} = %s", (item_id,))
+
+    def _toggle_like(self, table: str, id_column: str, likes_table: str, likes_id_column: str, item_id: str, user_id: str) -> dict | None:
         if not self.connection:
             return None
         with self.connection.cursor() as cur:
-            cur.execute("SELECT 1 FROM internal.user_teams WHERE team_id = %s", (team_id,))
+            cur.execute(f"SELECT 1 FROM {table} WHERE {id_column} = %s", (item_id,))
             if not cur.fetchone():
                 return None
-            cur.execute(
-                "DELETE FROM internal.user_team_likes WHERE team_id = %s AND user_id = %s",
-                (team_id, user_id),
-            )
+            cur.execute(f"DELETE FROM {likes_table} WHERE {likes_id_column} = %s AND user_id = %s", (item_id, user_id))
             if cur.rowcount > 0:
                 cur.execute(
-                    "UPDATE internal.user_teams SET like_count = GREATEST(like_count - 1, 0) "
-                    "WHERE team_id = %s RETURNING like_count",
-                    (team_id,),
+                    f"UPDATE {table} SET like_count = GREATEST(like_count - 1, 0) WHERE {id_column} = %s RETURNING like_count",
+                    (item_id,),
                 )
                 liked = False
             else:
                 cur.execute(
-                    "INSERT INTO internal.user_team_likes (team_id, user_id) VALUES (%s, %s) "
-                    "ON CONFLICT (team_id, user_id) DO NOTHING",
-                    (team_id, user_id),
+                    f"INSERT INTO {likes_table} ({likes_id_column}, user_id) VALUES (%s, %s) ON CONFLICT ({likes_id_column}, user_id) DO NOTHING",
+                    (item_id, user_id),
                 )
                 cur.execute(
-                    "UPDATE internal.user_teams SET like_count = like_count + 1 "
-                    "WHERE team_id = %s RETURNING like_count",
-                    (team_id,),
+                    f"UPDATE {table} SET like_count = like_count + 1 WHERE {id_column} = %s RETURNING like_count",
+                    (item_id,),
                 )
                 liked = True
             like_count = cur.fetchone()[0]
         return {'liked': liked, 'like_count': like_count}
+
+    def _is_liked_by(self, likes_table: str, likes_id_column: str, item_id: str, user_id: str) -> bool:
+        with self.connection.cursor() as cur:
+            cur.execute(f"SELECT 1 FROM {likes_table} WHERE {likes_id_column} = %s AND user_id = %s", (item_id, user_id))
+            return bool(cur.fetchone())
 
     def create_team(self, user_id: str | None, payload: dict) -> str:
         """Insert a new team row and return the generated team_id UUID string.
@@ -6767,6 +6769,20 @@ class PostgresDB:
             """)
             # The link-preview image (see `ReleaseShareImage`), rendered when the release is published
             cur.execute("ALTER TABLE internal.releases ADD COLUMN IF NOT EXISTS share_image_path TEXT;")
+            # Views and likes (see `_toggle_like`), the same shape as user_teams'
+            cur.execute("""
+                ALTER TABLE internal.releases
+                    ADD COLUMN IF NOT EXISTS view_count INT NOT NULL DEFAULT 0,
+                    ADD COLUMN IF NOT EXISTS like_count INT NOT NULL DEFAULT 0;
+            """)
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS internal.release_likes (
+                    release_id UUID NOT NULL REFERENCES internal.releases(id) ON DELETE CASCADE,
+                    user_id    TEXT NOT NULL,
+                    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+                    PRIMARY KEY (release_id, user_id)
+                );
+            """)
             cur.execute("""
                 UPDATE internal.releases r
                    SET published_at = r.updated_at, published_version = 1
@@ -6939,7 +6955,8 @@ class PostgresDB:
         SELECT
             r.id, r.name, r.description, r.created_by, r.is_official,
             r.fork_parent_id, r.slug, r.default_showdown_set, r.created_at, r.updated_at,
-            r.published_at, r.published_version, r.share_image_path,
+            r.published_at, r.published_version, r.share_image_path, r.view_count, r.like_count,
+            (SELECT MAX(v.published_at) FROM internal.release_versions v WHERE v.release_id = r.id) AS version_published_at,
             -- Unpublished work the owner hasn't published yet: an edited working copy, or a new edition
             -- of an already-published release
             EXISTS (
@@ -7041,7 +7058,10 @@ class PostgresDB:
             if not row:
                 print(f"Release {release_id} not found or access denied for user {user_id}.")
                 return None
-            return self._serialize_release_row(dict(row))
+            row = dict(row)
+            if user_id is not None:
+                row['liked_by_me'] = self._is_liked_by('internal.release_likes', 'release_id', release_id, user_id)
+            return self._serialize_release_row(row)
 
     def create_release(self, user_id: str, payload: dict) -> str:
         """Insert a new release row and return the generated release id (UUID string)."""
@@ -7087,6 +7107,23 @@ class PostgresDB:
             cur.execute(query, (release_id, user_id))
             row = cur.fetchone()
             return self._serialize_release_row(dict(row)) if row else None
+
+    def record_release_view(self, release_id: str) -> None:
+        self._record_view('internal.releases', 'id', release_id)
+
+    def toggle_release_like(self, release_id: str, user_id: str) -> dict | None:
+        """Like the release if user_id hasn't, else unlike it. {'liked', 'like_count'}, or None if it doesn't exist."""
+        return self._toggle_like('internal.releases', 'id', 'internal.release_likes', 'release_id', release_id, user_id)
+
+    def get_release_versions(self, release_id: str) -> list[dict]:
+        """Every published version of a release, newest first, with its note and change summary."""
+        if not self.connection:
+            return []
+        rows = self.execute_query("""
+            SELECT version, note, changes, published_at FROM internal.release_versions
+             WHERE release_id = %s ORDER BY version DESC
+        """, (release_id,))
+        return [{**dict(row), 'published_at': row['published_at'].isoformat() if row.get('published_at') else None} for row in rows or []]
 
     def get_release_id_by_slug(self, slug: str) -> str | None:
         """The id behind a release's short link (`/r/<slug>`). Visibility is checked by `get_release`."""
@@ -7854,6 +7891,8 @@ class PostgresDB:
             row['updated_at'] = row['updated_at'].isoformat()
         if row.get('published_at'):
             row['published_at'] = row['published_at'].isoformat()
+        if row.get('version_published_at'):
+            row['version_published_at'] = row['version_published_at'].isoformat()
         return row
 
     @staticmethod

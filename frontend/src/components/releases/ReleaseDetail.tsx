@@ -1,18 +1,21 @@
-import { useState, useEffect, useCallback, useRef, type ReactNode } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import * as Tabs from '@radix-ui/react-tabs';
 import type { Release, ReleaseEdition, ReleaseEditionSummary, ReleaseReviewItem } from '../../api/releases';
+import { recordReleaseView } from '../../api/releases';
 import { fetchEdition, createEdition, updateEdition, editionSummaryOf, releaseDraftRequest } from '../../api/releases';
 import { EditionBuilder, EditionBuilderSkeleton, type EditionNavRequest } from './EditionBuilder';
 import { ReleaseReviewPanel } from './ReleaseReviewPanel';
 import { useReleaseReview } from './useReleaseReview';
 import { ReleaseShareSheet } from './ReleaseShareSheet';
+import { ReleaseHeaderButton } from './ReleaseHeaderButton';
+import { ReleasePublicHeader } from './ReleasePublicHeader';
 import FormInput from '../customs/FormInput';
 import { ModeBanner, ModeBannerButton } from '../shared/ModeBanner';
 import { FaArrowLeft, FaCheck, FaEye, FaGlobe, FaPen, FaPlus, FaShareNodes, FaSpinner, FaXmark } from 'react-icons/fa6';
 
 import { InlineError } from '../shared/InlineError';
 import { Heading } from '../shared/Heading';
-import { buttonClass, buttonVariantClass } from '../shared/buttonStyles';
+import { buttonClass } from '../shared/buttonStyles';
 import { Plate } from '../shared/Plate';
 import { EmptyState } from '../shared/EmptyState';
 type ReleaseDetailProps = {
@@ -56,6 +59,9 @@ export function ReleaseDetail({ release, readOnly, editionSlug, onEditionChange,
     const shownOf = (edition: ReleaseEditionSummary) => isEditing && edition.draft ? edition.draft : edition;
     // A published edition without a working copy yet can't be edited, so open them first
     const needsDraft = isEditing && isStaged && release.editions.some(e => e.published_at && !e.draft);
+    // Browsing a published release gets the full public header; editing (and previewing a never-
+    // published release) keeps the compact builder header
+    const showPublicHeader = !isEditing && isPublished;
 
     /** Step 3 is release-wide, so it lives here rather than in each edition's builder. */
     const [reviewOpen, setReviewOpen] = useState(false);
@@ -83,6 +89,12 @@ export function ReleaseDetail({ release, readOnly, editionSlug, onEditionChange,
     function mergeRelease(updated: Release) {
         onReleaseUpdated({ ...release, ...updated });
     }
+
+    // Count a visit once per open (the server skips the owner's own)
+    useEffect(() => {
+        if (isPublished && !isOwner) recordReleaseView(release.id, token).catch(() => {});
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [release.id]);
 
     const draftRequested = useRef(false);
     useEffect(() => {
@@ -255,8 +267,26 @@ export function ReleaseDetail({ release, readOnly, editionSlug, onEditionChange,
                 }}
                 className="flex flex-col flex-1 min-h-0"
             >
-                {/* Desktop: one row — back + name, edition tabs, actions. Mobile: the edition tabs wrap onto their own row. */}
+                {showPublicHeader && (
+                    <ReleasePublicHeader
+                        release={release}
+                        cardCount={editions.reduce((sum, e) => sum + e.card_count, 0)}
+                        editionCount={editions.length}
+                        isOwner={isOwner}
+                        token={token}
+                        onBack={onBack}
+                        onShare={() => setShareSheet({})}
+                        onReleaseUpdated={onReleaseUpdated}
+                    >
+                        {isOwner && <ReleaseHeaderButton icon={<FaPen />} label="Edit" onClick={() => changeMode('edit')} />}
+                    </ReleasePublicHeader>
+                )}
+
+                {/* Desktop: one row — back + name, edition tabs, actions. Mobile: the edition tabs wrap onto their own row.
+                    Under the public header it's just the edition tabs. */}
                 <div className="flex flex-wrap md:flex-nowrap items-stretch gap-x-3 px-4 bg-(--background-secondary) border-b border-(--divider) shrink-0">
+                    {!showPublicHeader && (
+                    <>
                     <button type="button" onClick={onBack} aria-label="Back" className="text-(--text-tertiary) opacity-70 hover:text-(--text-primary) transition-colors shrink-0 cursor-pointer">
                         <FaArrowLeft />
                     </button>
@@ -271,7 +301,9 @@ export function ReleaseDetail({ release, readOnly, editionSlug, onEditionChange,
                         )}
                     </div>
                     <div className="hidden md:block w-px my-2.5 bg-(--divider) shrink-0" />
-                    <Tabs.List className="order-last md:order-0 w-full md:w-auto md:flex-1 flex items-stretch gap-x-3 min-w-0 overflow-x-auto scrollbar-hide border-t border-(--divider) md:border-t-0">
+                    </>
+                    )}
+                    <Tabs.List className={`order-last md:order-0 w-full md:w-auto md:flex-1 flex items-stretch gap-x-3 min-w-0 overflow-x-auto scrollbar-hide md:border-t-0 ${showPublicHeader ? '' : 'border-t border-(--divider)'}`}>
                         {editions.map(edition => (
                             <Tabs.Trigger key={edition.id} value={edition.id} className={EDITION_TAB_CLASS}>
                                 {shownOf(edition).name}
@@ -303,19 +335,11 @@ export function ReleaseDetail({ release, readOnly, editionSlug, onEditionChange,
                         )}
                     </Tabs.List>
 
-                    {!isOwner && isPublished && (
+                    {isOwner && !showPublicHeader && (
                         <div className="flex items-center gap-1.5 shrink-0 py-1.5">
-                            <HeaderButton icon={<FaShareNodes />} label="Share" collapseLabel onClick={() => setShareSheet({})} />
-                        </div>
-                    )}
-                    {isOwner && (
-                        <div className="flex items-center gap-1.5 shrink-0 py-1.5">
-                            {isPublished && !isEditing && (
-                                <HeaderButton icon={<FaShareNodes />} label="Share" collapseLabel onClick={() => setShareSheet({})} />
-                            )}
                             {isEditing ? (
                                 <>
-                                    <HeaderButton
+                                    <ReleaseHeaderButton
                                         icon={<FaEye />}
                                         label={isStaged ? 'View live' : 'Preview'}
                                         collapseLabel
@@ -323,11 +347,11 @@ export function ReleaseDetail({ release, readOnly, editionSlug, onEditionChange,
                                         title={isStaged ? 'See the published version' : 'See this release the way others will'}
                                     />
                                     {hasUnpublishedWork && !reviewOpen && (
-                                        <HeaderButton icon={<FaGlobe />} label={isStaged && isPublished ? 'Publish changes' : 'Publish'} tone="primary" onClick={openReview} title="Review the release, then publish it" />
+                                        <ReleaseHeaderButton icon={<FaGlobe />} label={isStaged && isPublished ? 'Publish changes' : 'Publish'} tone="primary" onClick={openReview} title="Review the release, then publish it" />
                                     )}
                                 </>
                             ) : (
-                                <HeaderButton icon={<FaPen />} label="Edit" onClick={() => changeMode('edit')} />
+                                <ReleaseHeaderButton icon={<FaPen />} label="Edit" onClick={() => changeMode('edit')} />
                             )}
                         </div>
                     )}
@@ -489,38 +513,5 @@ export function ReleaseDetail({ release, readOnly, editionSlug, onEditionChange,
 
             {shareSheet && <ReleaseShareSheet release={release} eyebrow={shareSheet.eyebrow} onClose={() => setShareSheet(null)} />}
         </div>
-    );
-}
-
-const HEADER_BUTTON_TONES = {
-    neutral: buttonVariantClass('secondary'),
-    primary: buttonVariantClass('primary'),
-} as const;
-
-type HeaderButtonProps = {
-    icon: ReactNode;
-    label: string;
-    onClick: () => void;
-    tone?: keyof typeof HEADER_BUTTON_TONES;
-    /** Swaps the icon for a spinner and blocks re-entry while an async action is in flight. */
-    busy?: boolean;
-    /** Icon-only below `sm`, so secondary actions don't crowd the release name on phones. */
-    collapseLabel?: boolean;
-    title?: string;
-};
-
-function HeaderButton({ icon, label, onClick, tone = 'neutral', busy = false, collapseLabel = false, title }: HeaderButtonProps) {
-    return (
-        <button
-            type="button"
-            onClick={onClick}
-            disabled={busy}
-            title={title ?? label}
-            aria-label={label}
-            className={`flex items-center justify-center gap-1.5 h-8 min-w-8 px-2 sm:px-3 rounded-control text-[12px] font-semibold whitespace-nowrap ${HEADER_BUTTON_TONES[tone]}`}
-        >
-            <span className="text-[12px]">{busy ? <FaSpinner className="animate-spin" /> : icon}</span>
-            <span className={collapseLabel ? 'hidden sm:inline' : ''}>{label}</span>
-        </button>
     );
 }
