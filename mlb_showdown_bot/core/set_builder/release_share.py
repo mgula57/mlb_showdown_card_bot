@@ -33,7 +33,7 @@ class ReleaseShareImage:
 
     WIDTH, HEIGHT = 1200, 630
     # Bump to re-render every share image after a layout change
-    VERSION = 1
+    VERSION = 2
 
     SILVER = (226, 230, 234)
     STRIPE = (205, 212, 221)
@@ -45,6 +45,8 @@ class ReleaseShareImage:
     CARD_EDGE = (244, 245, 247)
 
     BAR_HEIGHT = 150
+    # Rounded like the printed cards (and the fan on the release tile)
+    CARD_RADIUS = 18
     TEXT_LEFT = 64
     TEXT_WIDTH = 540
 
@@ -179,6 +181,12 @@ class ReleaseShareImage:
                 current = candidate
         return lines + ([current] if current else [])
 
+    @staticmethod
+    def _rounded_mask(size: tuple[int, int], radius: int) -> Image.Image:
+        mask = Image.new('L', size, 0)
+        ImageDraw.Draw(mask).rounded_rectangle([0, 0, size[0] - 1, size[1] - 1], radius=radius, fill=255)
+        return mask
+
     def _draw_fan(self, image: Image.Image, cards: list[Image.Image]) -> None:
         """Up to three cards, the first in front: the same fan as the release tile."""
         if not cards:
@@ -191,7 +199,9 @@ class ReleaseShareImage:
         for card, (offset, rotation) in zip(order, placements):
             width = int(card.width * card_height / card.height)
             framed = Image.new('RGBA', (width + 12, card_height + 12), self.CARD_EDGE + (255,))
-            framed.paste(card.resize((width, card_height), Image.LANCZOS), (6, 6))
+            # The card inside the edge, both rounded, the inner corner following the outer one
+            framed.paste(card.resize((width, card_height), Image.LANCZOS), (6, 6), self._rounded_mask((width, card_height), self.CARD_RADIUS - 6))
+            framed.putalpha(self._rounded_mask(framed.size, self.CARD_RADIUS))
             rotated = framed.rotate(rotation, expand=True, resample=Image.BICUBIC)
             shadow = Image.new('RGBA', rotated.size, (0, 0, 0, 0))
             shadow.putalpha(rotated.getchannel('A').point(lambda a: int(a * 0.35)))

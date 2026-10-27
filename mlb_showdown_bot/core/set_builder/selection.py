@@ -11,10 +11,22 @@ from ..shared.player_position import Position
 PLAYER_SUBTYPES = ('POSITION_PLAYER', 'STARTING_PITCHER', 'RELIEF_PITCHER')
 
 
+class SelectionReason(str, Enum):
+    """How a card got into the set"""
+    WEIGHTED = 'WEIGHTED'          # Won a slot on its weighted score
+    MANUAL = 'MANUAL'              # Manually included by the user
+    LEGEND = 'LEGEND'              # Guaranteed by career WAR
+    TEAM_MINIMUM = 'TEAM_MINIMUM'  # Seated to meet a team's minimum
+    POINTS_SWAP = 'POINTS_SWAP'    # Swapped in to hit a point bucket target
+
+
 class ShowdownBotSetPlayer(ExploreDataRecord):
     """Extended player record for set building"""
 
     priority_score: float = 0.0  # Weighted quality + volume + career score used for selection
+    match_score: float = 0.0  # `priority_score` as 0-100 of the most it could be under the run's weights
+    selection_reason: Optional[SelectionReason] = None  # Set once the player is picked
+    pick_score: Optional[float] = None  # Full selection score (with team balance and points fit) when picked, on the match score's scale
 
     set_number: Optional[int] = None  # Assigned set number for the player
 
@@ -177,6 +189,9 @@ class SlotGroup:
         self.accepts = accepts
         self.avg_points = avg_points
         self.members: List[ExploreDataRecord] = []
+        # Best score left out when the last slot filled, with who it was (see `WeightedPlayerSelector.add`)
+        self.cut_score: Optional[float] = None
+        self.cut_player: Optional[ExploreDataRecord] = None
 
     @property
     def remaining(self) -> int:
@@ -231,6 +246,11 @@ class WeightedPlayerSelector:
         self.selected_ids: set = set()
         self.selected_keys: set = set()
         self.selected: List[ShowdownBotSetPlayer] = []
+        # The group each selected player took a slot in, which sets their cut line
+        self.player_groups: Dict[str, SlotGroup] = {}
+        # Pick scores and cut lines are reported on the match score's 0-100 scale
+        max_priority = weights.quality + weights.volume + weights.career
+        self.score_scale = 100 / max_priority if max_priority > 0 else 0.0
 
     @classmethod
     def _team_targets(cls, player_pool: List[ExploreDataRecord], set_size: int, team_weighting: TeamWeighting) -> Dict[str, float]:
@@ -296,18 +316,19 @@ class WeightedPlayerSelector:
         """Attach each player's weighted quality + volume + career `priority_score`, the part of the score that
         doesn't change as the set fills"""
         scored: List[ShowdownBotSetPlayer] = []
+        max_priority = weights.quality + weights.volume + weights.career
         for subtype in PLAYER_SUBTYPES:
             players = [p for p in player_pool if p.player_subtype == subtype]
             quality = cls._percentile_ranks({p.id: quality_score_fn(p) for p in players})
             volume = cls._percentile_ranks({p.id: cls.volume(p) for p in players})
             career = cls._percentile_ranks({p.id: career_war_fn(p) for p in players})
-            scored.extend(
-                ShowdownBotSetPlayer(
+            for p in players:
+                priority_score = weights.quality * quality[p.id] + weights.volume * volume[p.id] + weights.career * career[p.id]
+                scored.append(ShowdownBotSetPlayer(
                     **p.model_dump(),
-                    priority_score=weights.quality * quality[p.id] + weights.volume * volume[p.id] + weights.career * career[p.id],
-                )
-                for p in players
-            )
+                    priority_score=priority_score,
+                    match_score=100 * priority_score / max_priority if max_priority > 0 else 0.0,
+                ))
         return scored
 
     def _team_balance(self, team_id: str) -> float:
@@ -318,18 +339,46 @@ class WeightedPlayerSelector:
         balance = (target - self.team_counts.get(team_id, 0)) / max(1.0, target) ** 0.5
         return max(-self.MAX_TEAM_PENALTY, balance)
 
-    def score(self, player: ShowdownBotSetPlayer, group: SlotGroup) -> float:
+    def score(self, player: ShowdownBotSetPlayer, group: Optional[SlotGroup] = None) -> float:
+        """Selection score for `player` taking a slot in `group` (no points fit without one)"""
         return (
             player.priority_score
             + self.weights.team_balance * self._team_balance(player.team_id)
-            + self.weights.points_fit * group.points_fit(player.points)
+            + (self.weights.points_fit * group.points_fit(player.points) if group else 0.0)
         )
+
+    def cut_line(self, player: ShowdownBotSetPlayer) -> Optional[float]:
+        """The cut line of the slot group the player is in, on the match score's scale"""
+        group = self.player_groups.get(player.id)
+        return group.cut_score * self.score_scale if group and group.cut_score is not None else None
+
+    def _record_cut(self, group: SlotGroup, filling_player: ShowdownBotSetPlayer) -> None:
+        """Called just before `filling_player` takes the group's last slot: the best other card the group
+        accepts is the closest call left out. Scored in the same state the last pick was judged in."""
+        best: Optional[tuple] = None
+        for player in self.player_pool:
+            if player.id == filling_player.id or not self.is_available(player) or not group.accepts(player):
+                continue
+            if self.player_key(player) == self.player_key(filling_player):
+                continue
+            score = self.score(player, group)
+            if best is None or score > best[0]:
+                best = (score, player)
+        if best is not None:
+            group.cut_score, group.cut_player = best
 
     # -------------------------------------------------------------------------
     # SELECTION
     # -------------------------------------------------------------------------
 
-    def add(self, player: ShowdownBotSetPlayer, group: Optional[SlotGroup] = None) -> None:
+    def add(self, player: ShowdownBotSetPlayer, group: Optional[SlotGroup] = None,
+            reason: SelectionReason = SelectionReason.WEIGHTED) -> None:
+        player.selection_reason = reason
+        player.pick_score = self.score(player, group) * self.score_scale
+        if group is not None:
+            if group.remaining == 1:
+                self._record_cut(group, player)
+            self.player_groups[player.id] = group
         self.selected_ids.add(player.id)
         self.selected_keys.add(self.player_key(player))
         self.selected.append(player)
@@ -383,7 +432,7 @@ class WeightedPlayerSelector:
                     group = next((g for g in groups if g.remaining and g.accepts(player)), None) \
                         or next((g for g in groups if g.remaining and g.player_subtype == player_subtype), None)
                     if group is not None:
-                        self.add(player, group)
+                        self.add(player, group, SelectionReason.TEAM_MINIMUM)
                 count = self.team_subtype_count(team, player_subtype)
                 if count < minimum:
                     shortfalls.append(f"{team} has {count} of {minimum} {player_subtype.replace('_', ' ').lower()}s")

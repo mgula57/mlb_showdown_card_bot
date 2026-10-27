@@ -126,9 +126,9 @@ export function setStyleSummary(values: CardStyleSettings, defaults: CardStyleSe
     }
     if (setNumber) summaries.push({ label: 'Set Number', value: setNumber });
 
-    if (values.add_one_to_set_year) summaries.push({ value: "Set Year +1", borderColor: 'border-(--green)' });
-    if (values.show_year_text) summaries.push({ value: "Show Year Text", borderColor: 'border-(--green)' });
-    if (values.disable_display_text_on_card) summaries.push({ value: "Hide Date Text", borderColor: 'border-(--green)' });
+    if (values.add_one_to_set_year) summaries.push({ value: "Set Year +1" });
+    if (values.show_year_text) summaries.push({ value: "Show Year Text" });
+    if (values.disable_display_text_on_card) summaries.push({ value: "Hide Date Text" });
     return summaries;
 }
 
@@ -155,8 +155,8 @@ export function imageStyleSummary(values: CardStyleSettings, defaults: CardStyle
         const nicknameOption = nicknameIndexOptions.find(opt => opt.value === values.nickname_index);
         summaries.push({ ...(nicknameOption || { value: values.nickname_index }), label: 'Nickname' });
     }
-    if (values.is_bordered !== defaults.is_bordered) summaries.push({ value: 'ADD BORDER', borderColor: 'border-(--green)' });
-    if (values.is_dark_mode !== defaults.is_dark_mode) summaries.push({ value: 'DARK MODE', borderColor: 'border-(--green)' });
-    if (values.hide_team_logo !== defaults.hide_team_logo) summaries.push({ value: 'REMOVE TEAM BRANDING', borderColor: 'border-(--green)' });
+    if (values.is_bordered !== defaults.is_bordered) summaries.push({ value: 'ADD BORDER' });
+    if (values.is_dark_mode !== defaults.is_dark_mode) summaries.push({ value: 'DARK MODE' });
+    if (values.hide_team_logo !== defaults.hide_team_logo) summaries.push({ value: 'REMOVE TEAM BRANDING' });
     return summaries;
 }

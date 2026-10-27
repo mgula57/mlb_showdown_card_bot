@@ -24,7 +24,7 @@ from ..card.images import DEFAULT_RENDER_FILE_FORMAT
 from ..card.stats.stats_period import TeamSelection
 from ..card.utils.shared_functions import convert_year_string_to_list
 from .selection import (
-    PLAYER_SUBTYPES, OtherEditionsRule, PositionTarget, SelectionWeights, ShowdownBotSetPlayer, SlotGroup, SlotPosition,
+    PLAYER_SUBTYPES, OtherEditionsRule, PositionTarget, SelectionReason, SelectionWeights, ShowdownBotSetPlayer, SlotGroup, SlotPosition,
     TeamMinimums, TeamWeighting, WeightedPlayerSelector
 )
 
@@ -130,6 +130,8 @@ class ShowdownBotSet(BaseModel):
 
     # Construction results
     final_players: Optional[List[ShowdownBotSetPlayer]] = Field(None, description="Final list of players selected for the set")
+    cut_lines: List[dict] = Field(default_factory=list, description="Per slot group, the best score left out when it filled (see `_cut_lines`)")
+    _pick_cut_lines: Dict[str, Optional[float]] = PrivateAttr(default_factory=dict)
     warnings: List[str] = Field(default_factory=list, description="Non-fatal warnings surfaced during set construction (e.g. undersized player pool)")
     
     # Selection weights and position composition
@@ -341,6 +343,8 @@ class ShowdownBotSet(BaseModel):
         
         # 4. Swap cards to hit point bucket targets across the whole set
         final_players = self._enforce_point_buckets(final_players, player_pool, selector)
+        self.cut_lines = self._cut_lines(final_players, selector)
+        self._pick_cut_lines = {p.id: selector.cut_line(p) for p in final_players}
 
         self._print_set_summary(final_players, selector.team_targets, show_team_breakdown, player_pool)
 
@@ -363,13 +367,21 @@ class ShowdownBotSet(BaseModel):
         With `variable_speed`, 2000/2001 cards get uncapped speed and recalculated points."""
         self.build_set_player_list()
 
-        set_numbers_by_id = {p.id: p.set_number for p in self.final_players or []}
+        players_by_id = {p.id: p for p in self.final_players or []}
+        set_numbers_by_id = {p.id: p.set_number for p in players_by_id.values()}
         if not set_numbers_by_id:
             return []
 
         rows = db.fetch_card_list({'id': list(set_numbers_by_id.keys()), 'showdown_set': self.showdown_sets, 'limit': len(set_numbers_by_id)})
         for row in rows:
+            player = players_by_id.get(row.get('id'))
             row['algorithm_set_number'] = set_numbers_by_id.get(row.get('id'))
+            row['algorithm_match_score'] = round(player.match_score, 1) if player else None
+            row['algorithm_selection_reason'] = player.selection_reason.value if player and player.selection_reason else None
+            row['algorithm_pick_score'] = round(player.pick_score, 1) if player and player.pick_score is not None else None
+            # Saved with the card (the run's summary isn't), so the margin over the cut still shows after saving
+            cut_line = self._pick_cut_lines.get(player.id) if player else None
+            row['algorithm_cut_line'] = round(cut_line, 1) if cut_line is not None else None
         rows.sort(key=lambda r: r.get('algorithm_set_number') or 0)
 
         if (rerun_cards or variable_speed) and rows:
@@ -412,6 +424,10 @@ class ShowdownBotSet(BaseModel):
             if row.get('points_change_yoy') is not None:
                 row['points_change_yoy'] += points_diff
             row.update(card.card_bot_columns())
+            # Like a variable speed search row, so saving it embeds the variable speed card
+            # (`_embed_variable_speed_card_data`) instead of renders loading the standard archived one
+            if card.is_variable_speed_00_01:
+                row['is_variable_speed_00_01'] = True
 
         recomputed_count = len(target_rows) - len(failed_names)
         actions = [label for label, enabled in [('Re-ran', rerun_cards), ('applied variable speed to', variable_speed)] if enabled]
@@ -731,7 +747,7 @@ class ShowdownBotSet(BaseModel):
         
         for player in selector.player_pool:
             if self._is_manually_included(player):
-                selector.add(player, next((g for g in groups if g.remaining and g.accepts(player)), None))
+                selector.add(player, next((g for g in groups if g.remaining and g.accepts(player)), None), SelectionReason.MANUAL)
         
         self._seat_legends(selector, groups)
         
@@ -752,6 +768,27 @@ class ShowdownBotSet(BaseModel):
         selector.fill([SlotGroup('ANY', self.set_size - len(selector.selected), accepts=lambda p: True)])
         return selector.selected
     
+    @staticmethod
+    def _cut_lines(selected_players: List[ShowdownBotSetPlayer], selector: WeightedPlayerSelector) -> List[dict]:
+        """Each slot group's cut line: the best score left out when its last slot filled, on the match score's
+        scale. A pick's margin is its pick score minus its group's line. Groups that never filled have none."""
+        groups: List[SlotGroup] = []
+        for player in selected_players:
+            group = selector.player_groups.get(player.id)
+            if group is not None and group.cut_player is not None and all(group is not g for g in groups):
+                groups.append(group)
+        return [
+            {
+                'group': group.key,
+                'player_subtype': group.player_subtype if group.key != 'ANY' else None,
+                'pick_score': round(group.cut_score * selector.score_scale, 1),
+                'name': group.cut_player.name,
+                'year': group.cut_player.year,
+                'team': group.cut_player.team_id,
+            }
+            for group in groups
+        ]
+
     def _seat_legends(self, selector: WeightedPlayerSelector, groups: List[SlotGroup]) -> None:
         """Give each legend their highest priority card, biggest careers first, until the set is full"""
         legends = [p for p in selector.player_pool if self._is_legend(p) and not self._is_manually_included(p)]
@@ -767,7 +804,7 @@ class ShowdownBotSet(BaseModel):
             if len(selector.selected) >= self.set_size:
                 skipped.append(player.name)
                 continue
-            selector.add(player, next((g for g in groups if g.remaining and g.accepts(player)), None))
+            selector.add(player, next((g for g in groups if g.remaining and g.accepts(player)), None), SelectionReason.LEGEND)
             seated_bref_ids.add(player.bref_id)
         if skipped:
             self._warn(f"Set is full before every legend fit, left out {len(set(skipped))} with {self.legend_min_career_war:g}+ career WAR. Raise the career WAR minimum or the set size")
@@ -889,6 +926,14 @@ class ShowdownBotSet(BaseModel):
                     outgoing = min(removable, key=lambda p: (p.team_id != incoming.team_id, p.priority_score))
                     type_players.remove(outgoing)
                     type_players.append(incoming)
+                    # The incoming card takes the outgoing card's slot (and so its cut line), judged in the final state
+                    incoming.selection_reason = SelectionReason.POINTS_SWAP
+                    incoming.pick_score = selector.score(incoming) * selector.score_scale
+                    outgoing_group = selector.player_groups.pop(outgoing.id, None)
+                    if outgoing_group is not None:
+                        selector.player_groups[incoming.id] = outgoing_group
+                    outgoing.selection_reason = None
+                    outgoing.pick_score = None
                     selected_keys.discard(selector.player_key(outgoing))
                     selected_keys.add(selector.player_key(incoming))
                 

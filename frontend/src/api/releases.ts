@@ -46,8 +46,8 @@ export type Release = {
     slug: string;
     default_showdown_set: string | null;
     editions: ReleaseEditionSummary[];
-    /** List endpoints only: up to 3 rendered card images — user-ranked cards (`preview_rank`) first,
-     * then first edition first, then highest points. */
+    /** Up to 3 rendered card images — user-ranked cards (`preview_rank`) first, then first edition
+     * first, then highest points. Single-release fetches draw from published editions only. */
     preview_images?: ReleasePreviewImage[];
     /** Creator's profile username (null if they haven't set one). */
     creator_username?: string | null;
@@ -85,7 +85,8 @@ export type ReleaseCard = {
     card_number: number | null;
     source_card_id: string | null;
     source_card_type: string | null;
-    card_snapshot: CardDatabaseRecord;
+    /** Cards saved from an Algorithm run also carry how they were picked (see `AlgorithmPickFields`) */
+    card_snapshot: CardDatabaseRecord & Partial<AlgorithmPickFields>;
     /** User labels, e.g. "FOIL" to track which cards will be printed as foils. Stored uppercase. */
     tags: string[];
     /** User-chosen slot (1-3, 1 = front) on the release's list tile; null leaves it to the default pick. */
@@ -292,7 +293,32 @@ export type AlgorithmConfig = {
     template_id?: string;
 };
 
-export type AlgorithmPreviewPlayer = CardDatabaseRecord & { algorithm_set_number: number | null };
+/** How a card got into an Algorithm run's set (mirrors the backend's `SelectionReason`) */
+export type AlgorithmSelectionReason = 'WEIGHTED' | 'MANUAL' | 'LEGEND' | 'TEAM_MINIMUM' | 'POINTS_SWAP';
+
+/** Added to each player an Algorithm run picks, and saved on the card's snapshot. */
+export type AlgorithmPickFields = {
+    /** 0-100: quality, volume and career ranked within the player's type and weighted by the run's settings */
+    algorithm_match_score: number | null;
+    algorithm_selection_reason: AlgorithmSelectionReason | null;
+    /** The full selection score (match score plus team balance and points fit) when picked; can pass 100 */
+    algorithm_pick_score: number | null;
+    /** Best pick score left out of the card's slot group when it filled; null when nobody was left out */
+    algorithm_cut_line: number | null;
+};
+
+/** One slot group's closest call: the best player left out when its last slot filled */
+export type AlgorithmCutLine = {
+    /** A position (with position targets), a player type, or 'ANY' for the final catch-all fill */
+    group: string;
+    player_subtype: 'POSITION_PLAYER' | 'STARTING_PITCHER' | 'RELIEF_PITCHER' | null;
+    pick_score: number;
+    name: string;
+    year: number;
+    team: string;
+};
+
+export type AlgorithmPreviewPlayer = CardDatabaseRecord & AlgorithmPickFields & { algorithm_set_number: number | null };
 
 export type AlgorithmPreviewResult = {
     players: AlgorithmPreviewPlayer[];
@@ -300,6 +326,8 @@ export type AlgorithmPreviewResult = {
         requested_set_size: number;
         actual_count: number;
         warnings: string[];
+        /** Per slot group, the best player left out when it filled */
+        cut_lines: AlgorithmCutLine[];
     };
 };
 

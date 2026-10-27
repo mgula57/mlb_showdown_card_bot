@@ -23,7 +23,9 @@
     --font-display-black: 'ShowdownDisplayBlack', 'Helvetica Neue', 'Arial Narrow', sans-serif;
 
     /* `rounded-card` for panels and tiles, `rounded-control` for buttons and inputs, `rounded-plate`
-       for plates, badges and skeleton bars. */
+       for plates, badges and skeleton bars. `rounded-trading-card` only on tiles that stand in for a
+       physical card (CardItem, TeamPreviewCard), echoing the printed card's rounded corners. */
+    --radius-trading-card: 10px;
     --radius-card: 5px;
     --radius-control: 4px;
     --radius-plate: 2px;
@@ -552,6 +554,16 @@
 
 .live-pulse {
     animation: live-pulse 1.6s ease-in-out infinite;
+}
+
+/* Indeterminate progress: a segment sweeps across its track (Release Builder algorithm run). */
+@keyframes indeterminate-sweep {
+    0%   { transform: translateX(-100%); }
+    100% { transform: translateX(250%); }
+}
+
+.indeterminate-sweep {
+    animation: indeterminate-sweep 1.4s ease-in-out infinite;
 }
 
 @keyframes result-pop {

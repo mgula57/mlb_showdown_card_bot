@@ -2,7 +2,8 @@
  * @fileoverview Image Library Settings
  *
  * Account section for connecting Google Drive folders as player image libraries and choosing
- * the order libraries are searched when a card uses "Auto" player images.
+ * the order libraries are searched when a card uses "Auto" player images. Its pieces
+ * (`ConnectDriveButton`, `ImageLibraryList`) are also used by `ImageLibrariesModal`.
  */
 
 import React, { useEffect, useState } from 'react';
@@ -90,26 +91,53 @@ const LibraryRow: React.FC<LibraryRowProps> = ({ entry, rank, isFirst, isLast, i
     );
 };
 
-export const ImageLibrarySettings: React.FC = () => {
-    const { token, overview, ordered, error, isLoading, setOverview } = useImageLibraries();
-    const [isSetupOpen, setIsSetupOpen] = useState(false);
-    const [busyId, setBusyId] = useState<string | null>(null);
-    const [rowErrors, setRowErrors] = useState<Record<string, string>>({});
-    const [orderError, setOrderError] = useState<string | null>(null);
-    const location = useLocation();
+/** One line on what image libraries do, with a link to the image guide. */
+export const ImageLibrariesDescription: React.FC = () => (
+    <>Use player images from your own Google Drive folders when a card's Player Image is set to Auto. <ImageLibraryGuideLink>How to make images</ImageLibraryGuideLink></>
+);
 
-    // Pages stay mounted (hidden) across routes, so the browser won't jump to the hash on its own
-    useEffect(() => {
-        if (location.pathname !== '/account' || location.hash !== `#${IMAGE_LIBRARIES_SECTION_ID}`) return;
-        const timeout = setTimeout(() => {
-            document.getElementById(IMAGE_LIBRARIES_SECTION_ID)?.scrollIntoView({ behavior: smoothScrollBehavior(), block: 'start' });
-        }, 50);
-        return () => clearTimeout(timeout);
-    }, [location.pathname, location.hash, location.key]);
+/** Opens the Google Drive folder setup flow. */
+export const ConnectDriveButton: React.FC<{ size?: 'sm' | 'md' }> = ({ size = 'md' }) => {
+    const { token, overview, isLoading, setOverview } = useImageLibraries();
+    const [isSetupOpen, setIsSetupOpen] = useState(false);
 
     const libraryCount = overview?.libraries.length ?? 0;
     const isUnavailable = !!overview && !overview.service_account_email;
 
+    return (
+        <>
+            <button
+                type="button"
+                onClick={() => setIsSetupOpen(true)}
+                disabled={isLoading || isUnavailable || libraryCount >= MAX_LIBRARIES}
+                title={libraryCount >= MAX_LIBRARIES ? `You can connect up to ${MAX_LIBRARIES} folders` : undefined}
+                className={buttonClass('primary', size)}
+            >
+                <FaPlus className="w-3 h-3" />
+                <span className="hidden sm:inline">Connect Google Drive</span>
+                <span className="sm:hidden">Connect</span>
+            </button>
+            {isSetupOpen && token && overview?.service_account_email && (
+                <DriveLibrarySetupModal
+                    token={token}
+                    serviceAccountEmail={overview.service_account_email}
+                    onClose={() => setIsSetupOpen(false)}
+                    onSaved={setOverview}
+                />
+            )}
+        </>
+    );
+};
+
+/** The user's libraries in search order, with reorder, re-test and remove controls. */
+export const ImageLibraryList: React.FC = () => {
+    const { token, overview, ordered, error, isLoading, setOverview } = useImageLibraries();
+    const [busyId, setBusyId] = useState<string | null>(null);
+    const [rowErrors, setRowErrors] = useState<Record<string, string>>({});
+    const [orderError, setOrderError] = useState<string | null>(null);
+
+    const libraryCount = overview?.libraries.length ?? 0;
+    const isUnavailable = !!overview && !overview.service_account_email;
     const setRowError = (id: string, message: string | null) => setRowErrors(prev => {
         const next = { ...prev };
         if (message) next[id] = message; else delete next[id];
@@ -158,28 +186,8 @@ export const ImageLibrarySettings: React.FC = () => {
         }
     };
 
-    const connectButton = (
-        <button
-            type="button"
-            onClick={() => setIsSetupOpen(true)}
-            disabled={isLoading || isUnavailable || libraryCount >= MAX_LIBRARIES}
-            title={libraryCount >= MAX_LIBRARIES ? `You can connect up to ${MAX_LIBRARIES} folders` : undefined}
-            className={buttonClass('primary')}
-        >
-            <FaPlus className="w-3 h-3" />
-            <span className="hidden sm:inline">Connect Google Drive</span>
-            <span className="sm:hidden">Connect</span>
-        </button>
-    );
-
     return (
-        <AccountSection
-            id={IMAGE_LIBRARIES_SECTION_ID}
-            title="Image Libraries"
-            icon={<FaImages />}
-            description={<>Use player images from your own Google Drive folders when a card's Player Image is set to Auto. <ImageLibraryGuideLink>How to make images</ImageLibraryGuideLink></>}
-            action={connectButton}
-        >
+        <>
             {error && <p className="text-sm text-(--red)">{error}</p>}
             {isUnavailable && <p className="text-sm text-(--text-tertiary) mb-3">Google Drive libraries are temporarily unavailable.</p>}
 
@@ -216,15 +224,31 @@ export const ImageLibrarySettings: React.FC = () => {
                     )}
                 </div>
             )}
+        </>
+    );
+};
 
-            {isSetupOpen && token && overview?.service_account_email && (
-                <DriveLibrarySetupModal
-                    token={token}
-                    serviceAccountEmail={overview.service_account_email}
-                    onClose={() => setIsSetupOpen(false)}
-                    onSaved={setOverview}
-                />
-            )}
+export const ImageLibrarySettings: React.FC = () => {
+    const location = useLocation();
+
+    // Pages stay mounted (hidden) across routes, so the browser won't jump to the hash on its own
+    useEffect(() => {
+        if (location.pathname !== '/account' || location.hash !== `#${IMAGE_LIBRARIES_SECTION_ID}`) return;
+        const timeout = setTimeout(() => {
+            document.getElementById(IMAGE_LIBRARIES_SECTION_ID)?.scrollIntoView({ behavior: smoothScrollBehavior(), block: 'start' });
+        }, 50);
+        return () => clearTimeout(timeout);
+    }, [location.pathname, location.hash, location.key]);
+
+    return (
+        <AccountSection
+            id={IMAGE_LIBRARIES_SECTION_ID}
+            title="Image Libraries"
+            icon={<FaImages />}
+            description={<ImageLibrariesDescription />}
+            action={<ConnectDriveButton />}
+        >
+            <ImageLibraryList />
         </AccountSection>
     );
 };

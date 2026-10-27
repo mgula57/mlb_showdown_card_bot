@@ -66,8 +66,33 @@ export function buildZipEntries(images: ReleaseCardImage[], snapshotsById: Map<s
         });
 }
 
-export const editionZipFileName = (releaseName: string, editionName: string): string =>
-    `${sanitizeFileName(`${releaseName} - ${editionName}`)}.zip`;
+export const editionZipFileName = (releaseName: string, editionName: string, suffix?: string): string =>
+    `${sanitizeFileName([`${releaseName} - ${editionName}`, suffix].filter(Boolean).join(' '))}.zip`;
+
+// Newest image time in the last complete ZIP of each edition, so the next download can be just the
+// re-rendered images. Server render times (not the local clock) keep the comparison exact.
+const lastZipStorageKey = (editionId: string) => `releaseEditionLastZip:${editionId}`;
+
+export function loadLastZipRenderedAt(editionId: string): Date | null {
+    try {
+        const saved = localStorage.getItem(lastZipStorageKey(editionId));
+        const time = saved ? Date.parse(saved) : NaN;
+        return Number.isFinite(time) ? new Date(time) : null;
+    } catch {
+        return null;
+    }
+}
+
+/** Records a ZIP that saved with every image, returning the stored time. */
+export function saveLastZipRenderedAt(editionId: string, entries: ZipEntry[]): Date | null {
+    if (entries.length === 0) return null;
+    const newest = new Date(Math.max(...entries.map(entry => entry.lastModified.getTime())));
+    try { localStorage.setItem(lastZipStorageKey(editionId), newest.toISOString()); } catch { /* storage unavailable */ }
+    return newest;
+}
+
+export const entriesRenderedAfter = (entries: ZipEntry[], since: Date): ZipEntry[] =>
+    entries.filter(entry => entry.lastModified.getTime() > since.getTime());
 
 function saveBlob(blob: Blob, fileName: string) {
     const url = URL.createObjectURL(blob);
@@ -87,9 +112,10 @@ export function useEditionZipDownload() {
     const [state, setState] = useState<ZipDownloadState>(IDLE_STATE);
     const abortRef = useRef<AbortController | null>(null);
 
-    /** Must be called straight from a click: the save picker needs the user gesture. */
-    const start = useCallback(async (entries: ZipEntry[], zipFileName: string) => {
-        if (entries.length === 0 || abortRef.current) return;
+    /** Must be called straight from a click: the save picker needs the user gesture. Resolves true
+     * when the ZIP saved with every image. */
+    const start = useCallback(async (entries: ZipEntry[], zipFileName: string): Promise<boolean> => {
+        if (entries.length === 0 || abortRef.current) return false;
 
         const savePicker = (window as SaveFilePickerWindow).showSaveFilePicker;
         if (!savePicker) {
@@ -100,7 +126,7 @@ export function useEditionZipDownload() {
                     `This is a big download (about ${sizeMb} MB) and may take a while.\n\n` +
                     "On a phone or tablet it might not finish. For large sets, Chrome or Edge on a computer works best.\n\nDownload anyway?"
                 );
-                if (!proceed) return;
+                if (!proceed) return false;
             }
         }
 
@@ -113,7 +139,7 @@ export function useEditionZipDownload() {
                 });
                 writable = await handle.createWritable();
             } catch (err) {
-                if (isAbortError(err)) return; // User closed the picker
+                if (isAbortError(err)) return false; // User closed the picker
                 writable = null; // Picker unavailable (e.g. in an iframe): fall back to an in-memory download
             }
         }
@@ -152,6 +178,7 @@ export function useEditionZipDownload() {
                 saveBlob(blob, zipFileName);
             }
             setState(prev => ({ ...prev, status: 'done', failedNames: [...failedNames] }));
+            return failedNames.length === 0;
         } catch (err) {
             if (controller.signal.aborted || isAbortError(err)) {
                 setState(prev => ({ ...prev, status: 'cancelled' }));
@@ -159,6 +186,7 @@ export function useEditionZipDownload() {
                 console.error('ZIP download failed', err);
                 setState(prev => ({ ...prev, status: 'error', error: err instanceof Error ? err.message : 'ZIP download failed.' }));
             }
+            return false;
         } finally {
             abortRef.current = null;
         }

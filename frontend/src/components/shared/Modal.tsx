@@ -26,10 +26,11 @@
  * ```
  */
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import { FaXmark } from 'react-icons/fa6';
 import PinnedFooterScrollArea from './PinnedFooterScrollArea';
+import { PanelCloseContext, type PanelClose } from './panelClose';
 
 import { Heading } from './Heading';
 // Global counter to track multiple concurrent modals for proper scroll lock management
@@ -76,7 +77,24 @@ export function Modal({ children, onClose, title, subtitle, footer, size = 'lg',
     const scrollYRef = useRef(0); // Stores scroll position for restoration
 
     /**
-     * Effect: Close when navigating to a different top-level page (ex: "Customize" → /customs).
+     * Untitled modals offer their close action to content that puts its own close button in its
+     * header row (`usePanelClose`, e.g. CardDetail); while claimed, the floating button hides.
+     * Stable value (onClose read through a ref) so callers' inline onClose doesn't re-claim per render.
+     */
+    const [closeClaims, setCloseClaims] = useState(0);
+    const onCloseRef = useRef(onClose);
+    useEffect(() => { onCloseRef.current = onClose; }, [onClose]);
+    const panelClose = useMemo<PanelClose>(() => ({
+        onClose: () => onCloseRef.current(),
+        claim: () => {
+            setCloseClaims(n => n + 1);
+            return () => setCloseClaims(n => n - 1);
+        },
+    }), []);
+    const offersPanelClose = !title && !disableCloseButton;
+
+    /**
+     * Effect: Close when navigating to a different top-level page (ex: "Open in Builder" → /customs).
      * Pages stay mounted-but-hidden across routes, so without this the modal (and its body scroll
      * lock) would linger behind the new page. Sub-route changes within a page are left alone.
      */
@@ -232,8 +250,8 @@ export function Modal({ children, onClose, title, subtitle, footer, size = 'lg',
                         {!disableCloseButton && closeButton()}
                     </div>
                 ) : (
-                    !disableCloseButton &&
-                    // Floating close button when no title is provided
+                    offersPanelClose && closeClaims === 0 &&
+                    // Floating close button when no title is provided and the content hasn't claimed it
                     <div className="absolute right-3 top-3 z-10">
                         {closeButton()}
                     </div>
@@ -242,7 +260,9 @@ export function Modal({ children, onClose, title, subtitle, footer, size = 'lg',
                 {/* Scrollable modal content area. The optional `footer` (and anything children pin via
                     PinnedFooterPortal) is pinned over its bottom edge. */}
                 <PinnedFooterScrollArea className="flex-1" footer={footer}>
-                    {children}
+                    <PanelCloseContext.Provider value={offersPanelClose ? panelClose : null}>
+                        {children}
+                    </PanelCloseContext.Provider>
                 </PinnedFooterScrollArea>
 
             </div>

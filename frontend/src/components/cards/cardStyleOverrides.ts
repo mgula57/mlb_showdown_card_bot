@@ -18,22 +18,37 @@ export type CardStyleOverrides = {
     storagePath?: string | null;
 };
 
-/** Custom Card Builder form field -> `card.image` field, mirroring the backend's `image_` prefix strip.
+/** Custom Card Builder form field -> `card.image` field, mirroring the backend's `image_` prefix strip,
+ * with converters each way (form value -> image value, image value -> form value).
  * `disable_display_text_on_card` is the exception: it lives on the stats period. */
-const IMAGE_FIELD_CONVERTERS: { [K in Exclude<keyof CardStyleSettings, 'disable_display_text_on_card'>]: [string, (value: CardStyleSettings[K]) => unknown] } = {
-    expansion: ['expansion', v => v],
-    edition: ['edition', v => v],
-    add_one_to_set_year: ['add_one_to_set_year', v => v],
-    show_year_text: ['show_year_text', v => v],
-    image_parallel: ['parallel', v => v],
-    image_coloring: ['coloring', v => v],
-    image_glow_multiplier: ['glow_multiplier', v => parseFloat(v) || 1],
-    stat_highlights_type: ['stat_highlights_type', v => v ?? 'NONE'],
-    nickname_index: ['nickname_index', v => (v && v !== 'NONE' ? parseInt(v, 10) : null)],
-    is_bordered: ['is_bordered', v => v],
-    is_dark_mode: ['is_dark_mode', v => v],
-    hide_team_logo: ['hide_team_logo', v => v],
+const IMAGE_FIELD_CONVERTERS: { [K in Exclude<keyof CardStyleSettings, 'disable_display_text_on_card'>]: [string, (value: CardStyleSettings[K]) => unknown, (value: unknown) => CardStyleSettings[K] | undefined] } = {
+    expansion: ['expansion', v => v, v => (v as string | null) ?? undefined],
+    edition: ['edition', v => v, v => (v as string | null) ?? undefined],
+    add_one_to_set_year: ['add_one_to_set_year', v => v, v => (v as boolean | null) ?? undefined],
+    show_year_text: ['show_year_text', v => v, v => (v as boolean | null) ?? undefined],
+    image_parallel: ['parallel', v => v, v => (v as string | null) ?? undefined],
+    image_coloring: ['coloring', v => v, v => (v as string | null) ?? undefined],
+    image_glow_multiplier: ['glow_multiplier', v => parseFloat(v) || 1, v => (v == null ? undefined : String(v))],
+    stat_highlights_type: ['stat_highlights_type', v => v ?? 'NONE', v => (v as string | null) ?? 'NONE'],
+    nickname_index: ['nickname_index', v => (v && v !== 'NONE' ? parseInt(v, 10) : null), v => (v == null ? 'NONE' : String(v))],
+    is_bordered: ['is_bordered', v => v, v => (v as boolean | null) ?? undefined],
+    is_dark_mode: ['is_dark_mode', v => v, v => (v as boolean | null) ?? undefined],
+    hide_team_logo: ['hide_team_logo', v => v, v => (v as boolean | null) ?? undefined],
 };
+
+/** A card's current style as Custom Card Builder style fields — the inverse of `applyCardStyleOverrides`.
+ * Fields the card doesn't carry fall back to `fallback` (e.g. the builder's form defaults). */
+export function cardStyleFromCard(card: ShowdownBotCard, fallback: CardStyleSettings): CardStyleSettings {
+    const image = card.image as unknown as Record<string, unknown>;
+    const style: Record<string, unknown> = { ...fallback };
+    for (const [key, [imageKey, , fromImage]] of Object.entries(IMAGE_FIELD_CONVERTERS)) {
+        const value = fromImage(image?.[imageKey]);
+        if (value !== undefined) style[key] = value;
+    }
+    const hideDisplayText = card.stats_period?.disable_display_text_on_card;
+    if (hideDisplayText != null) style.disable_display_text_on_card = hideDisplayText;
+    return style as CardStyleSettings;
+}
 
 /** Applies style overrides to a card and clears its rendered image so a fresh one is generated
  * (or swaps in `storagePath` when the styled image already exists). */

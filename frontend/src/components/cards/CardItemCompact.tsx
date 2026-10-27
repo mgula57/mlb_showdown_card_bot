@@ -195,7 +195,7 @@ export const CardItemCompact = ({
                 relative @container
                 w-full min-w-0
                 flex items-top gap-2
-                rounded-card pl-1 py-1
+                rounded-trading-card pl-1 py-1
                 ${backgroundSettings || 'bg-secondary'}
                 ${borderSettings}
                 ${hasAdvantage ? 'card-advantage' : ''}
@@ -317,10 +317,10 @@ export const CardItemCompact = ({
             )}
 
             {card?.source === 'WOTC' && (
-                <FaHatWizard className="absolute bottom-0.5 right-0.5 w-3 h-3 text-(--secondary) bg-(--background-primary)/50" title="WOTC Card" />
+                <FaHatWizard className="absolute bottom-1 right-1 w-3 h-3 text-(--secondary) bg-(--background-primary)/50" title="WOTC Card" />
             )}
             {card?.source === 'CUSTOM' && (
-                <FaWandMagicSparkles className="absolute bottom-0.5 right-0.5 w-3 h-3 text-(--secondary)" title="Custom Card" />
+                <FaWandMagicSparkles className="absolute bottom-1 right-1 w-3 h-3 text-(--secondary)" title="Custom Card" />
             )}
 
             {/* Optional action button — top corner */}
@@ -347,7 +347,7 @@ export const CardItemCompact = ({
             )}
 
             {isLoading && (
-                <div className="absolute inset-0 flex items-center justify-center gap-1 rounded-card bg-(--background-secondary)/80">
+                <div className="absolute inset-0 flex items-center justify-center gap-1 rounded-[inherit] bg-(--background-secondary)/80">
                     <span className="w-1.5 h-1.5 rounded-full bg-(--secondary) animate-bounce" style={{ animationDelay: '0ms' }} />
                     <span className="w-1.5 h-1.5 rounded-full bg-(--secondary) animate-bounce" style={{ animationDelay: '150ms' }} />
                     <span className="w-1.5 h-1.5 rounded-full bg-(--secondary) animate-bounce" style={{ animationDelay: '300ms' }} />
@@ -356,6 +356,20 @@ export const CardItemCompact = ({
         </div>
     );
 };
+
+/** Placeholder shaped like `CardItemCompact`. `animated={false}` gives a still placeholder, e.g. behind an empty state. */
+export function CardItemCompactSkeleton({ className, animated = true }: { className?: string; animated?: boolean }) {
+    return (
+        <div aria-hidden className={`${className ?? ''} w-full min-w-0 flex items-start gap-2 rounded-trading-card pl-1 pr-2 py-1 border border-(--divider) ${animated ? 'animate-pulse' : ''}`}>
+            <div className="w-6 h-6 mt-0.5 rounded-full bg-(--background-tertiary) shrink-0" />
+            <div className="flex-1 min-w-0 flex flex-col gap-1">
+                <div className="h-3 w-3/4 rounded-plate bg-(--background-tertiary)" />
+                <div className="h-3 w-1/2 rounded-plate bg-(--background-tertiary)" />
+                <div className="h-2 w-2/3 rounded-plate bg-(--background-tertiary)" />
+            </div>
+        </div>
+    );
+}
 
 // =============================================================================
 // WRAPPER VARIANTS

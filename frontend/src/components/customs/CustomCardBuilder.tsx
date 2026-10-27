@@ -252,7 +252,7 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
     // User Context
     const { user, session } = useAuth();
 
-    // Routing (used to receive cards handed over via "Customize")
+    // Routing (used to receive cards handed over via "Open in Builder")
     const location = useLocation();
     const navigate = useNavigate();
 
@@ -430,8 +430,8 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
                     summaries.push({ ...(eraOption || { value: form.era || "DYNAMIC" }), label: 'Era' });
 
                 }
-                if (isSet00_01 && form.is_variable_speed_00_01 !== FORM_DEFAULTS.is_variable_speed_00_01) summaries.push({ value: 'VARIABLE SPEED', borderColor: 'border-(--green)' });
-                if (form.regress_small_sample_to_replacement !== FORM_DEFAULTS.regress_small_sample_to_replacement) summaries.push({ value: 'REGRESS SMALL SAMPLE', borderColor: 'border-(--green)' });
+                if (isSet00_01 && form.is_variable_speed_00_01 !== FORM_DEFAULTS.is_variable_speed_00_01) summaries.push({ value: 'VARIABLE SPEED' });
+                if (form.regress_small_sample_to_replacement !== FORM_DEFAULTS.regress_small_sample_to_replacement) summaries.push({ value: 'REGRESS SMALL SAMPLE' });
                 break;
         }
         
@@ -843,7 +843,7 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
         handleSelectHistoryCard(userInputs as unknown as CustomCardFormState, cardResult);
     };
 
-    // Prefill from a card handed over via the "Customize" button on CardDetail. The builder stays
+    // Prefill from a card handed over via the "Open in Builder" button on CardDetail. The builder stays
     // mounted (hidden) between visits, so this watches location state rather than reading it on mount.
     useEffect(() => {
         const customizeCard = (location.state as CustomizeCardRouteState | null)?.customizeCard;

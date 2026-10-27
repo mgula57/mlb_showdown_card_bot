@@ -90,7 +90,7 @@ export function TeamPreviewCard({ team, onClick, size = 'md', className = '' }: 
             onClick={onClick}
             className={`
                 snap-start shrink-0 relative
-                ${widthClass} aspect-3/4 rounded-card
+                ${widthClass} aspect-3/4 rounded-trading-card
                 overflow-hidden
                 border-[3px] border-(--card-edge) ring-1 ring-(--rule-strong)
                 [@media(hover:hover)]:hover:scale-[1.025] [@media(hover:hover)]:active:scale-[0.975]
@@ -217,7 +217,7 @@ export function TeamPreviewCardSkeleton({ size = 'md', className = '' }: { size?
     return (
         <div
             aria-hidden
-            className={`snap-start shrink-0 ${widthClass} aspect-3/4 rounded-card bg-(--background-tertiary) animate-pulse ${className}`}
+            className={`snap-start shrink-0 ${widthClass} aspect-3/4 rounded-trading-card bg-(--background-tertiary) animate-pulse ${className}`}
         />
     );
 }

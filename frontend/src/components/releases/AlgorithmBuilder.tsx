@@ -36,6 +36,8 @@ type AlgorithmBuilderProps = {
     manualPicks: ManualPicks;
     onManualPicksChange: (picks: ManualPicks) => void;
     onPreviewResult: (result: AlgorithmPreviewResult) => void;
+    /** Fires when a run starts and finishes, so the pool can show loading skeletons. */
+    onRunningChange?: (running: boolean) => void;
     onEditionUpdated: (edition: ReleaseEdition) => void;
 };
 
@@ -266,7 +268,7 @@ function TemplateChip({ template, isActive, onSelect }: { template: AlgorithmTem
     );
 }
 
-export function AlgorithmBuilder({ releaseId, edition, token, defaultShowdownSet, manualPicks, onManualPicksChange, onPreviewResult, onEditionUpdated }: AlgorithmBuilderProps) {
+export function AlgorithmBuilder({ releaseId, edition, token, defaultShowdownSet, manualPicks, onManualPicksChange, onPreviewResult, onRunningChange, onEditionUpdated }: AlgorithmBuilderProps) {
     const [config, setConfig] = useState<AlgorithmConfig>(() => parseAlgorithmSettings(edition.attributes, defaultShowdownSet));
     // Last config persisted to the edition — the Save button is enabled only while `config` differs from it
     const [savedConfig, setSavedConfig] = useState<AlgorithmConfig>(config);
@@ -397,6 +399,7 @@ export function AlgorithmBuilder({ releaseId, edition, token, defaultShowdownSet
         if (!token || !canRun) return;
         if (isDirty) handleSave();
         setStatus('running');
+        onRunningChange?.(true);
         setError(null);
         try {
             const result = await previewAlgorithm(releaseId, edition.id, config, token, {
@@ -409,6 +412,8 @@ export function AlgorithmBuilder({ releaseId, edition, token, defaultShowdownSet
         } catch (err: any) {
             setStatus('error');
             setError(err.message ?? 'Failed to run algorithm.');
+        } finally {
+            onRunningChange?.(false);
         }
     }
 
@@ -722,8 +727,9 @@ export function AlgorithmBuilder({ releaseId, edition, token, defaultShowdownSet
             onClick={handleRun}
             disabled={!canRun}
             aria-label="Run algorithm"
-            className="fixed md:absolute bottom-[calc(0.75rem+var(--safe-bottom))] md:bottom-3 right-3 w-16 h-16 rounded-full flex flex-col items-center justify-center gap-1 font-display uppercase leading-none text-[15px] shadow-feature-float
-                bg-(--showdown-blue-fill) text-white hover:brightness-110 active:translate-y-0.5 active:shadow-overlay disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+            // A run keeps the button at full strength (just busy) so it doesn't read as unavailable
+            className={`fixed md:absolute bottom-[calc(0.75rem+var(--safe-bottom))] md:bottom-3 right-3 w-16 h-16 rounded-full flex flex-col items-center justify-center gap-1 font-display uppercase leading-none text-[15px] shadow-feature-float
+                bg-(--showdown-blue-fill) text-white hover:brightness-110 active:translate-y-0.5 active:shadow-overlay disabled:cursor-not-allowed cursor-pointer ${status === 'running' ? 'disabled:cursor-progress' : 'disabled:opacity-50'}`}
         >
             {status === 'running' ? <FaSpinner className="animate-spin text-[18px]" /> : <FaWandMagicSparkles className="text-[18px]" />}
             {status === 'running' ? '…' : 'Run'}

@@ -5,7 +5,7 @@ import { FRANCHISE_CODE, PARENT_POSITION_ORDER, parentPositionGroup } from './Su
 
 export type PoolGroupBy = 'none' | 'team' | 'league' | 'position' | 'type' | 'hand' | 'year' | 'points' | 'command' | 'speed' | 'ip' | 'chart_version' | 'image_match' | 'tag';
 export type PoolSortBy = 'set_number' | 'points' | 'name' | 'team' | 'position' | 'year' | 'command' | 'speed' | 'ip'
-    | 'obp' | 'ops' | 'ops_plus' | 'era' | 'whip';
+    | 'obp' | 'ops' | 'ops_plus' | 'era' | 'whip' | 'match_score' | 'match_margin';
 export type PoolSortDirection = 'asc' | 'desc';
 
 export type PoolGroup = { key: string; label: string; cards: ReleaseCard[] };
@@ -42,6 +42,8 @@ export const POOL_SORT_OPTIONS: { label: string; value: PoolSortBy }[] = [
     { label: 'Real OPS+', value: 'ops_plus' },
     { label: 'Real ERA', value: 'era' },
     { label: 'Real WHIP', value: 'whip' },
+    { label: 'Match Score', value: 'match_score' },
+    { label: 'Margin Over Cut', value: 'match_margin' },
 ];
 
 /** The direction that reads most naturally for each sort — best first (big numbers, except ERA/WHIP). */
@@ -60,6 +62,9 @@ export const POOL_SORT_DEFAULT_DIRECTION: Record<PoolSortBy, PoolSortDirection> 
     ops_plus: 'desc',
     era: 'asc',
     whip: 'asc',
+    match_score: 'desc',
+    // Closest to the cut line first: who barely made it
+    match_margin: 'asc',
 };
 
 // Scorecard order for hitters, then pitchers, so position groups read like a lineup card.
@@ -120,6 +125,23 @@ const SIDE_STATS: Record<SideStatKey, SideStat> = {
     era: pitcherStat('ERA', card => card.card_snapshot.real_earned_run_avg),
     whip: pitcherStat('WHIP', card => card.card_snapshot.real_whip),
 };
+
+/** Algorithm Match: how far the card's pick score cleared its slot's cut line (guaranteed picks can
+ * land below it); null for hand-added cards or slots nobody was left out of. */
+export function matchMargin(card: ReleaseCard): number | null {
+    const { algorithm_pick_score: score, algorithm_cut_line: cutLine } = card.card_snapshot;
+    return score == null || cutLine == null ? null : score - cutLine;
+}
+
+/** Algorithm match sorts; hand-added cards have no score and always trail. */
+const MATCH_SORTS: Record<'match_score' | 'match_margin', (card: ReleaseCard) => number | null> = {
+    match_score: card => card.card_snapshot.algorithm_match_score ?? null,
+    match_margin: matchMargin,
+};
+
+function isMatchSort(key: PoolSortBy): key is keyof typeof MATCH_SORTS {
+    return key in MATCH_SORTS;
+}
 
 function isSideStat(key: PoolSortBy): key is SideStatKey {
     return key in SIDE_STATS;
@@ -191,6 +213,8 @@ function compareBySort(a: ReleaseCard, b: ReleaseCard, sortBy: PoolSortBy): numb
         case 'ops_plus':
         case 'era':
         case 'whip': return (SIDE_STATS[sortBy].value(a) ?? 0) - (SIDE_STATS[sortBy].value(b) ?? 0);
+        case 'match_score':
+        case 'match_margin': return (MATCH_SORTS[sortBy](a) ?? 0) - (MATCH_SORTS[sortBy](b) ?? 0);
         case 'name': return lastName(a.card_snapshot.name).localeCompare(lastName(b.card_snapshot.name));
         case 'team': return franchiseTeam(a).localeCompare(franchiseTeam(b));
         case 'position': return POSITION_ORDER.indexOf(primaryPosition(a)) - POSITION_ORDER.indexOf(primaryPosition(b));
@@ -268,6 +292,10 @@ export function groupAndSortCards(cards: ReleaseCard[], groupBy: PoolGroupBy, so
         if (isSideStat(sortBy)) {
             const stat = SIDE_STATS[sortBy];
             return sideStatMissing(a, stat) - sideStatMissing(b, stat) || factor * compareBySort(a, b, sortBy);
+        }
+        if (isMatchSort(sortBy)) {
+            const value = MATCH_SORTS[sortBy];
+            return Number(value(a) === null) - Number(value(b) === null) || factor * compareBySort(a, b, sortBy);
         }
         return factor * compareBySort(a, b, sortBy);
     });

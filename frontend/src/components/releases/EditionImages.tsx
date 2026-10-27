@@ -6,7 +6,10 @@ import { cardImagePublicUrl } from '../../api/supabase';
 import { Modal } from '../shared/Modal';
 import { CardItemFromCardDatabaseRecord } from '../cards/CardItem';
 import { ReleaseCardPreviewRankPicker } from './ReleaseCardPreviewRank';
-import { buildZipEntries, editionZipFileName, useEditionZipDownload, type ZipDownloadState } from './editionZipDownload';
+import {
+    buildZipEntries, editionZipFileName, entriesRenderedAfter, loadLastZipRenderedAt, saveLastZipRenderedAt,
+    useEditionZipDownload, type ZipDownloadState, type ZipEntry,
+} from './editionZipDownload';
 import { FaArrowUpRightFromSquare, FaCheck, FaDownload, FaImage, FaSpinner, FaTriangleExclamation, FaWandMagicSparkles, FaXmark } from 'react-icons/fa6';
 
 import { InlineError } from '../shared/InlineError';
@@ -84,9 +87,20 @@ export function EditionImages({ releaseId, releaseName, edition, readOnly, token
     const zipDownload = useEditionZipDownload();
     const zipEntries = useMemo(() => buildZipEntries(images, snapshotsById), [images, snapshotsById]);
     const isZipping = zipDownload.state.status === 'downloading';
+    const [lastZipRenderedAt, setLastZipRenderedAt] = useState<Date | null>(() => loadLastZipRenderedAt(edition.id));
+    useEffect(() => { setLastZipRenderedAt(loadLastZipRenderedAt(edition.id)); }, [edition.id]);
+    const updatedZipEntries = useMemo(
+        () => lastZipRenderedAt ? entriesRenderedAfter(zipEntries, lastZipRenderedAt) : [],
+        [zipEntries, lastZipRenderedAt]
+    );
     const visibleImages = statusFilter ? images.filter(image => image.status === statusFilter) : images;
     // The detail modal follows its card's latest status (e.g. while a render of it runs)
     const detail = detailImage ? images.find(image => image.source_card_id === detailImage.source_card_id) ?? detailImage : null;
+
+    async function handleZipDownload(entries: ZipEntry[], fileNameSuffix?: string) {
+        const savedAll = await zipDownload.start(entries, editionZipFileName(releaseName, edition.name, fileNameSuffix));
+        if (savedAll) setLastZipRenderedAt(saveLastZipRenderedAt(edition.id, entries));
+    }
 
     async function handleRender(sourceCardIds?: string[]) {
         if (!token) return;
@@ -144,10 +158,22 @@ export function EditionImages({ releaseId, releaseName, edition, readOnly, token
 
                     {data && (
                         <div className="flex items-center gap-2 ml-auto">
+                            {updatedZipEntries.length > 0 && !isZipping && (
+                                <button
+                                    type="button"
+                                    onClick={() => handleZipDownload(updatedZipEntries, '(updated)')}
+                                    disabled={jobActive}
+                                    title={jobActive ? 'Wait for rendering to finish' : 'Download only the images rendered since your last ZIP from this browser'}
+                                    className={buttonClass('secondary', 'sm')}
+                                >
+                                    <FaDownload className="text-[12px]" /> Download Updated
+                                    <Plate size="sm">{updatedZipEntries.length}</Plate>
+                                </button>
+                            )}
                             {zipEntries.length > 0 && !isZipping && (
                                 <button
                                     type="button"
-                                    onClick={() => zipDownload.start(zipEntries, editionZipFileName(releaseName, edition.name))}
+                                    onClick={() => handleZipDownload(zipEntries)}
                                     disabled={jobActive}
                                     title={jobActive ? 'Wait for rendering to finish' : 'Download every current full-size image as a ZIP'}
                                     className={buttonClass('secondary', 'sm')}

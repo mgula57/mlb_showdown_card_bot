@@ -22,12 +22,14 @@ import { type ShowdownBotCardAPIResponse } from "../../api/showdownBotCard";
 import type { CardStyleOverrides } from "./cardStyleOverrides";
 import { Modal } from "../shared/Modal";
 import PinnedFooterScrollArea from "../shared/PinnedFooterScrollArea";
+import { PanelCloseContext, type PanelClose } from "../shared/panelClose";
+import { CARD_STYLE_DEFAULTS } from "../releases/editionStyle";
 import { useSiteSettings, showdownSets } from "../shared/SiteSettingsContext";
 import { SetBadge, setSelectOption } from "../shared/SetBadge";
 import {
     FaFilter, FaBaseballBall, FaArrowUp, FaArrowDown, FaHashtag,
-    FaDollarSign, FaMitten, FaCalendarAlt, FaChevronCircleRight, FaChevronCircleLeft,
-    FaSort, FaTable, FaImage, FaAddressCard, FaLayerGroup, FaCheck, FaGripVertical,
+    FaDollarSign, FaMitten, FaCalendarAlt,
+    FaSort, FaTable, FaImage, FaAddressCard, FaLayerGroup, FaCheck,
     FaChartLine
 } from "react-icons/fa";
 import { FaArrowRotateRight, FaTableList, FaXmark } from "react-icons/fa6";
@@ -132,6 +134,12 @@ type ShowdownCardSearchProps = {
      * filter. Off by default — currently just the Cards explorer.
      */
     enableSetOverride?: boolean;
+    /**
+     * Adds Customize to the detail modal/sidebar: restyles the selected card in place without
+     * saving (see `CardDetail`'s `localStyleDefaults`). Off by default — currently just the Cards
+     * explorer.
+     */
+    enableStyleEditor?: boolean;
     /** Extra controls rendered in the search bar after the Filter button (e.g. the release edition picker) */
     toolbarSlot?: React.ReactNode;
 
@@ -302,7 +310,8 @@ const getDefaultFilterSelections = (source: CardSource): FilterSelections => {
     // Customize defaults based on source
     switch (source) {
         case CardSource.BOT:
-            return baseDefaults;
+            // Variable speed is on by default; it only applies when 2000/2001 is searched
+            return { ...baseDefaults, variable_speed: true };
         case CardSource.WOTC:
             return {
                 sort_by: "points",
@@ -767,7 +776,7 @@ const DEFAULT_QUICK_FILTERS: Record<CardSource, { id: string; name: string; filt
  * @param disableLocalStorage - Optionally disable storing and loading from local storage
  * @param verticalOffset - Vertical offset of the content that lives above
  */
-export default function ShowdownCardSearch({ className, verticalOffset='22', source = CardSource.BOT, defaultFilters: defaultFiltersProp, defaultYears, lockedFilters, disableLocalStorage = false, compact = false, actionButton, excludeIds, resetTrigger, enableSetSwitcher = false, enableSetOverride = false, toolbarSlot, enableVariableSpeedToggle = false }: ShowdownCardSearchProps) {
+export default function ShowdownCardSearch({ className, verticalOffset='22', source = CardSource.BOT, defaultFilters: defaultFiltersProp, defaultYears, lockedFilters, disableLocalStorage = false, compact = false, actionButton, excludeIds, resetTrigger, enableSetSwitcher = false, enableSetOverride = false, enableStyleEditor = false, toolbarSlot, enableVariableSpeedToggle = false }: ShowdownCardSearchProps) {
     // =============================================================================
     // CORE STATE MANAGEMENT
     // =============================================================================
@@ -779,7 +788,6 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
     /** Currently selected card for detail view */
     const [selectedCardForModal, setSelectedCardForModal] = useState<CardDatabaseRecord | null>(null);
     const [selectedCardForSidebar, setSelectedCardForSidebar] = useState<CardDatabaseRecord | null>(null);
-    const selectedCard = window.innerWidth >= 1000 ? selectedCardForSidebar : selectedCardForModal;
 
     // Pagination state management
     /** Current page number for infinite scroll */
@@ -798,6 +806,10 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
     const [showPlayerDetailModal, setShowPlayerDetailModal] = useState(false);
     /** Show/hide player detail sidebar */
     const [showPlayerDetailSidebar, setShowPlayerDetailSidebar] = useState(false);
+    // The sidebar keeps its last card while it slides shut, so only count it as selected while open
+    const selectedCard = window.innerWidth >= 1000
+        ? (showPlayerDetailSidebar ? selectedCardForSidebar : null)
+        : selectedCardForModal;
 
     // Global application state
     /** Current user's selected Showdown set */
@@ -962,6 +974,15 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
         document.addEventListener('pointermove', onPointerMove);
         document.addEventListener('pointerup', onPointerUp);
         document.addEventListener('pointercancel', onPointerUp);
+    };
+
+    const handleSidebarResizeReset = () => {
+        setSidebarWidthPct(null);
+        try {
+            localStorage.removeItem(SIDEBAR_WIDTH_STORAGE_KEY);
+        } catch {
+            // ignore storage errors
+        }
     };
 
     // Auto-close sidebar when container shrinks below @2xl (672px)
@@ -1253,8 +1274,9 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
             setShowPlayerDetailSidebar(true);
             
             if (!isSidebarAlreadyOpen) {
-                // Auto-scroll to the selected card after the sidebar animation completes
-                setTimeout(() => {
+                // The grid makes room for the sidebar in one step (no animated reflow), so the
+                // selected card can be scrolled back into view on the next frame
+                requestAnimationFrame(() => {
                     const selectedElement = document.querySelector(`[data-card-id="${card.id}"]`);
                     if (selectedElement) {
                         selectedElement.scrollIntoView({
@@ -1263,7 +1285,7 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
                             inline: 'nearest'
                         });
                     }
-                }, 350); // Wait for sidebar animation (300ms + small buffer)
+                });
             }
         } else {
             setShowPlayerDetailModal(true);
@@ -1275,10 +1297,27 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
         setSelectedCardForModal(null);
     };
 
+    // Keep selectedCardForSidebar so the panel doesn't empty out mid-slide; reopening shows it again
     const handleCloseSidebar = () => {
         setShowPlayerDetailSidebar(false);
-        setSelectedCardForSidebar(null);
     }
+
+    // CardDetail puts the sidebar's close button in its own header row, beside the player's name.
+    // The sidebar has no floating button of its own, so claiming is a no-op.
+    const sidebarPanelClose = useMemo<PanelClose>(() => ({
+        onClose: () => setShowPlayerDetailSidebar(false),
+        claim: () => () => {},
+    }), []);
+
+    // Escape closes the sidebar (the modal handles its own)
+    useEffect(() => {
+        if (!showPlayerDetailSidebar) return;
+        const onKeyDown = (e: KeyboardEvent) => {
+            if (e.key === 'Escape') setShowPlayerDetailSidebar(false);
+        };
+        document.addEventListener('keydown', onKeyDown);
+        return () => document.removeEventListener('keydown', onKeyDown);
+    }, [showPlayerDetailSidebar]);
 
     const handleOpenFilters = () => {
         setFiltersForEditing(applyLockedFilters(filters));
@@ -1461,7 +1500,7 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
 
             {/* Search Bar and Filters */}
             <div
-                className="@container sticky top-0 z-10 flex flex-col gap-2 w-full bg-(--background-secondary) py-3 transition-[width] duration-300 ease-in-out"
+                className="@container sticky top-0 z-10 flex flex-col gap-2 w-full bg-(--background-secondary) py-3"
                 style={{ width: `calc(100% - ${showPlayerDetailSidebar ? sidebarWidth : 0}px)` }}
             >
 
@@ -1514,15 +1553,17 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
 
                         {toolbarSlot}
 
-                        {/* Showdown Set Override */}
+                        {/* Showdown Set Override. Small screens give it a fixed narrow size container so the
+                            badge abbreviates ('05); elsewhere it hugs the full badge (the menu still sizes
+                            itself to its options). */}
                         {showSetOverride && (
-                            <div className="@container shrink-0 w-24 md:w-40">
+                            <div className={isSmallScreen ? '@container shrink-0 w-24' : 'shrink-0'}>
                                 <CustomSelect
                                     className="shrink-0"
                                     size="lg"
                                     dropdownClassName="text-xs sm:text-sm"
                                     align="auto"
-                                    labelClassName="hidden @2xl:inline text-xs text-secondary whitespace-nowrap"
+                                    labelClassName="hidden"
                                     value={showdownSetOverride ?? ''}
                                     onChange={(v) => setShowdownSetOverride(v === '' ? null : v)}
                                     options={[
@@ -1537,16 +1578,14 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
                     
 
                     {/* If lg screen, show open button for side menu */}
-                    {!compact && (
+                    {!compact && !showPlayerDetailSidebar && (
                         <button
+                            type="button"
                             onClick={() => setShowPlayerDetailSidebar(true)}
-                            className={`
-                                items-center gap-2 cursor-pointer
-                                hover:bg-(--background-secondary-hover)
-                                ${showPlayerDetailSidebar ? 'hidden' : 'hidden @2xl:flex'}
-                            `}>
-                            <FaChevronCircleLeft className="text-(--tertiary) w-7 h-7" />
-                            <Heading level="section" as="span">Card Detail</Heading>
+                            aria-label="Open card detail"
+                            className={fieldClass('lg', 'hidden @2xl:flex items-center gap-2 shrink-0 cursor-pointer')}>
+                            <FaAddressCard className="text-(--text-secondary)" />
+                            <span className="hidden @5xl:inline whitespace-nowrap">Card detail</span>
                         </button>
                     )}
 
@@ -1577,8 +1616,8 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
                                 isEnabled={!!filters.variable_speed}
                                 isDisabled={isFilterLocked('variable_speed')}
                                 onChange={(isEnabled) => {
-                                    // Unset rather than false, so standard speed doesn't count as a custom filter
-                                    const variable_speed = isEnabled ? undefined : true;
+                                    // Explicit false, so an unset key falls back to the variable speed default
+                                    const variable_speed = !isEnabled;
                                     setFilters(prev => ({ ...prev, variable_speed }));
                                     setFiltersForEditing(prev => ({ ...prev, variable_speed }));
                                 }}
@@ -1634,7 +1673,7 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
                 {/* Main Content Area */}
                 <div
                     ref={cardScrollParentRef}
-                    className="relative flex-1 min-w-0 transition-all duration-300 ease-in-out md:overflow-y-auto"
+                    className="relative flex-1 min-w-0 md:overflow-y-auto"
                     style={{ marginRight: showPlayerDetailSidebar ? sidebarWidth : 0 }}
                 >
                     <div className="py-2 px-3 grid grid-cols-[repeat(auto-fit,minmax(300px,1fr))] gap-3 md:gap-4">
@@ -1718,43 +1757,41 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
                 </div>
 
                 
-                {/* Right Sidebar with Slide Animation */}
-                <div
+                {/* Right Sidebar. Only the panel's transform animates: the grid and toolbar make room
+                    in one step, so the card grid reflows once instead of on every frame. Opening
+                    eases out on the side menu's curve, closing eases in and runs a little faster. */}
+                <aside
+                    aria-label="Card detail"
+                    aria-hidden={!showPlayerDetailSidebar}
+                    inert={!showPlayerDetailSidebar}
                     style={{ top: `calc(${verticalOffset} * 0.25rem)`, width: sidebarWidth }}
                     className={`
                     fixed right-0 bottom-0 z-30
-                    bg-primary border-l-2 border-form-element
-                    transform transition-transform duration-300 ease-in-out
-                    ${showPlayerDetailSidebar ? 'translate-x-0' : 'translate-x-full'}
+                    bg-(--background-primary) border-l border-(--divider)
+                    transition-transform will-change-transform
+                    ${showPlayerDetailSidebar
+                        ? 'translate-x-0 duration-300 ease-(--side-menu-ease)'
+                        : 'translate-x-full duration-200 ease-[cubic-bezier(0.32,0,0.67,0)]'}
                     hidden @2xl:block
-                    shadow-overlay
                 `}>
-                    {/* Drag-to-resize handle */}
+                    {/* Drag-to-resize handle: a hit area straddling the left border that lights the
+                        border navy on hover or drag. Double-click resets the width. */}
                     <div
+                        role="separator"
+                        aria-orientation="vertical"
+                        aria-label="Resize card detail"
+                        title="Drag to resize, double-click to reset"
                         onPointerDown={handleSidebarResizeStart}
-                        className="absolute left-0 top-0 bottom-0 w-4 cursor-ew-resize touch-none flex items-center justify-center z-10 group"
+                        onDoubleClick={handleSidebarResizeReset}
+                        className="absolute -left-1.5 top-0 bottom-0 w-3 z-10 cursor-ew-resize touch-none group flex justify-center"
                     >
-                        <FaGripVertical className={`${showPlayerDetailSidebar ? 'block' : 'hidden'} group-hover:text-(--tertiary) transition-colors text-2xl -translate-x-2 text-secondary bg-(--divider) p-1 rounded-control`} />
+                        <div className="w-0.5 h-full bg-transparent transition-colors group-hover:bg-(--showdown-blue) group-active:bg-(--showdown-blue)" />
                     </div>
 
-                    {/* Sidebar Content */}
+                    {/* Sidebar Content — CardDetail's header (name, actions, close) pins to the top */}
                     <div className="h-full flex flex-col">
-
-                        {/* Stick header with close button */}
-                        <div className="py-8 h-12 flex items-center space-x-2 p-2 border-b border-form-element">
-                            <button
-                                type="button"
-                                aria-label="Close card detail"
-                                className="cursor-pointer"
-                                onClick={handleCloseSidebar}>
-                                <FaChevronCircleRight className="text-(--tertiary) w-7 h-7" />
-                            </button>
-                            <Heading level="section">Card Detail</Heading>
-                        </div>
-                        
-
-                        {/* Scrollable Content — CardDetail's action bar pins to the bottom of the screen */}
                         <PinnedFooterScrollArea className="flex-1">
+                            <PanelCloseContext.Provider value={sidebarPanelClose}>
                             <CardDetail
                                 showdownBotCardData={{ card: selectedCardForSidebar?.card_data } as ShowdownBotCardAPIResponse}
                                 cardId={selectedCardForSidebar?.card_id}
@@ -1769,10 +1806,12 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
                                 draftDisabled={actionButton?.disabled}
                                 draftLabel={actionButton?.detailLabel}
                                 enableSetSwitcher={enableSetSwitcher}
+                                localStyleDefaults={enableStyleEditor ? CARD_STYLE_DEFAULTS : undefined}
                             />
+                            </PanelCloseContext.Provider>
                         </PinnedFooterScrollArea>
                     </div>
-                </div>
+                </aside>
                 
 
             </div>
@@ -1807,6 +1846,7 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
                         draftDisabled={actionButton?.disabled}
                         draftLabel={actionButton?.detailLabel}
                         enableSetSwitcher={enableSetSwitcher}
+                        localStyleDefaults={enableStyleEditor ? CARD_STYLE_DEFAULTS : undefined}
                     />
                 </Modal>
             </div>

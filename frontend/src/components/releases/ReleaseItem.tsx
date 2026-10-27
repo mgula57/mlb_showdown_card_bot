@@ -10,7 +10,7 @@ import { CAPS_LABEL_CLASS } from '../shared/fieldStyles';
 
 /** Tile frame shared by ReleaseItem and its skeleton — sized like TeamPreviewCard's 'md' tile on
  *  wider screens, filling a 2-column grid cell on phones. */
-const TILE_FRAME = 'w-full sm:w-52 aspect-3/4 rounded-card';
+const TILE_FRAME = 'w-full sm:w-52 aspect-3/4 rounded-trading-card';
 
 /** Fan placement per image count: index 0 (first edition's highest-points card) sits in front. */
 const FAN_LAYOUTS: Record<number, FanPlacement[]> = {
@@ -72,7 +72,7 @@ export function ReleaseItem({ release, onClick, showPublishStatus = false }: Rel
         >
             {/* Double-rule frame from the 2001 card back: outer rule on the button, hairline here, bases on the corners */}
             <FrameCorners />
-            <div className="relative h-full flex flex-col overflow-hidden rounded-plate border border-(--divider)">
+            <div className="relative h-full flex flex-col overflow-hidden rounded-card border border-(--divider)">
                 {/* Official plate + every included set, wrapping onto a second row when there are many */}
                 <div className="absolute top-0.5 inset-x-0.5 z-1 flex items-start justify-between gap-1 pointer-events-none">
                     {release.is_official ? <Plate variant="navy" size="sm">Official</Plate> : <span />}
@@ -85,9 +85,7 @@ export function ReleaseItem({ release, onClick, showPublishStatus = false }: Rel
                 {/* Card fan on the silver card-back field */}
                 <div className="relative flex-1 min-h-0 bg-(--background-tertiary) bg-pinstripe">
                     {images.length > 0 ? (
-                        images.map((image, i) => (
-                            <FannedCardImage key={image.thumbnail_path} image={image} index={i} cardCount={images.length} />
-                        ))
+                        <ReleaseCardFan images={images} />
                     ) : !isPublished ? (
                         <BuildingFan />
                     ) : (
@@ -135,6 +133,19 @@ export function ReleaseItem({ release, onClick, showPublishStatus = false }: Rel
     );
 }
 
+/** Up to 3 rendered card images fanned across a `relative` box, opening a little further when a
+ *  `group` ancestor is hovered. Shared by the list tile and the public release header. */
+export function ReleaseCardFan({ images }: { images: ReleasePreviewImage[] }) {
+    const shown = images.slice(0, 3);
+    return (
+        <>
+            {shown.map((image, i) => (
+                <FannedCardImage key={image.thumbnail_path} image={image} index={i} cardCount={shown.length} />
+            ))}
+        </>
+    );
+}
+
 /** One card in the fan. Rest/hover transforms are passed as CSS variables so the tile's hover
  *  (`group-hover`) can animate between them; only on devices that hover, and not with reduced motion. */
 function FannedCardImage({ image, index, cardCount }: { image: ReleasePreviewImage; index: number; cardCount: number }) {
@@ -152,7 +163,7 @@ function FannedCardImage({ image, index, cardCount }: { image: ReleasePreviewIma
             loading="lazy"
             draggable={false}
             className="
-                absolute left-1/2 top-[10%] w-[48%] h-auto select-none drop-shadow-[0_2px_0_rgb(0_0_0/0.25)]
+                absolute left-1/2 top-[10%] w-[48%] h-auto rounded-card select-none drop-shadow-[0_2px_0_rgb(0_0_0/0.25)]
                 transform-(--fan-rest) transition-transform duration-300 ease-out motion-reduce:transition-none
                 [@media(hover:hover)]:motion-safe:group-hover:transform-(--fan-hover)
             "
@@ -178,7 +189,7 @@ function BuildingFan() {
                     aria-hidden
                     className="
                         release-building-card absolute left-1/2 top-[10%] w-[48%] aspect-5/7 p-0.75
-                        rounded-plate border border-(--rule-strong) bg-(--background-secondary)
+                        rounded-card border border-(--rule-strong) bg-(--background-secondary)
                         drop-shadow-[0_2px_0_rgb(0_0_0/0.25)]
                     "
                     style={{

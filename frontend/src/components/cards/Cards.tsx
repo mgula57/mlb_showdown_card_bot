@@ -71,7 +71,7 @@ export default function Cards() {
                     className="focus:outline-none data-[state=inactive]:hidden"
                     forceMount
                 >
-                    <ShowdownBotSearch source={CardSource.BOT} enableSetSwitcher enableSetOverride enableVariableSpeedToggle />
+                    <ShowdownBotSearch source={CardSource.BOT} enableSetSwitcher enableSetOverride enableVariableSpeedToggle enableStyleEditor />
                 </Tabs.Content>
             )}
             {visitedTabs.has(CardSource.WOTC) && (
@@ -80,7 +80,7 @@ export default function Cards() {
                     className="focus:outline-none data-[state=inactive]:hidden"
                     forceMount
                 >
-                    <ShowdownBotSearch source={CardSource.WOTC} enableSetSwitcher />
+                    <ShowdownBotSearch source={CardSource.WOTC} enableSetSwitcher enableStyleEditor />
                 </Tabs.Content>
             )}
             {visitedTabs.has(CardSource.RELEASE) && (

@@ -204,6 +204,15 @@ export default function Releases() {
             {releaseIdFromUrl && !activeOpenRelease && <ReleaseDetailSkeleton />}
 
             {!releaseIdFromUrl && renderList()}
+
+            {/* Outside the list's @container: container-type makes it the containing block for fixed
+                descendants, which would clip the modal to the list's height. */}
+            {showCreateModal && (
+                <NewReleaseModal
+                    onConfirm={handleCreate}
+                    onCancel={() => setShowCreateModal(false)}
+                />
+            )}
         </>
     );
 
@@ -232,13 +241,6 @@ export default function Releases() {
                     </button>
                 )}
             </div>
-
-            {showCreateModal && (
-                <NewReleaseModal
-                    onConfirm={handleCreate}
-                    onCancel={() => setShowCreateModal(false)}
-                />
-            )}
 
             {error && (
                 <div className={px}>

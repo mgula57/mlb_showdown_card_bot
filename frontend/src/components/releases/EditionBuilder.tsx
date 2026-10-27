@@ -8,8 +8,8 @@ import { parseAlgorithmSettings } from './algorithmSettings';
 import ShowdownCardSearch from '../cards/ShowdownCardSearch';
 import { CardSource } from '../../types/cardSource';
 import type { CardDatabaseRecord } from '../../api/card_db/cardDatabase';
-import { CardItemCompactFromCardDatabaseRecord } from '../cards/CardItemCompact';
-import { CardItemFromCardDatabaseRecord } from '../cards/CardItem';
+import { CardItemCompactFromCardDatabaseRecord, CardItemCompactSkeleton } from '../cards/CardItemCompact';
+import { CardItemFromCardDatabaseRecord, CardItemSkeleton } from '../cards/CardItem';
 import { CardDetail } from '../cards/CardDetail';
 import { Modal } from '../shared/Modal';
 import CustomSelect from '../shared/CustomSelect';
@@ -22,8 +22,11 @@ import { EditionStyleModal } from './EditionStyleModal';
 import { EditionImages } from './EditionImages';
 import { ReleaseCardTagChips, ReleaseCardTagsEditor } from './ReleaseCardTags';
 import { ReleaseCardPreviewRankBadge, ReleaseCardPreviewRankPicker } from './ReleaseCardPreviewRank';
+import { AlgorithmCutLineSummary, AlgorithmMatchBadge } from './AlgorithmMatch';
 import { useMediaQuery } from '../../hooks/useMediaQuery';
 import { useLiveImageMatches } from './useLiveImageMatches';
+import { ImageLibrariesButton, ReleaseDriveNotice } from './ReleaseImageLibraries';
+import { ConnectDriveButton } from '../account/ImageLibrarySettings';
 import { useCopyReleaseLink } from './useCopyReleaseLink';
 import { parseManualPicks, manualPickFor, withManualPick, type ManualPicks } from './manualPicks';
 import { relativeTime } from '../../functions/formatters';
@@ -260,6 +263,8 @@ const BUILD_PANEL_WIDTH_STORAGE_KEY = 'releaseBuilder.buildPanelWidth';
 
 type BuildMethod = 'algorithm' | 'manual';
 type EditionStep = 'pool' | 'images';
+/** Set once the owner dismisses the "connect Google Drive" notice. */
+const DRIVE_NOTICE_DISMISSED_KEY = 'releaseBuilderDriveNoticeDismissed';
 /** `build` only exists below md, where the Build Method panel moves from a side column into its own tab. */
 type PoolTab = 'build' | 'cards' | 'summary';
 /** Per-viewer, per-edition Algorithm/Manual tab, so returning to an edition reopens the last-used method. */
@@ -290,11 +295,19 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [previewResult, setPreviewResult] = useState<AlgorithmPreviewResult | null>(null);
+    const [isAlgorithmRunning, setIsAlgorithmRunning] = useState(false);
     const [numbering, setNumbering] = useState<NumberingSettings>(() => parseNumberingSettings(edition.attributes));
     const [manualPicks, setManualPicks] = useState<ManualPicks>(() => parseManualPicks(edition.attributes));
     const [editingNumbers, setEditingNumbers] = useState<Record<string, string>>({});
     const [showNumberingSettings, setShowNumberingSettings] = useState(false);
     const [showStyleModal, setShowStyleModal] = useState(false);
+    const [isDriveNoticeDismissed, setIsDriveNoticeDismissed] = useState(() => {
+        try { return localStorage.getItem(DRIVE_NOTICE_DISMISSED_KEY) === 'true'; } catch { return false; }
+    });
+    function dismissDriveNotice() {
+        try { localStorage.setItem(DRIVE_NOTICE_DISMISSED_KEY, 'true'); } catch { /* storage unavailable */ }
+        setIsDriveNoticeDismissed(true);
+    }
     const [step, setStep] = useState<EditionStep>('pool');
     // Images mount lazily on first open, then stay mounted so a running render keeps polling
     const [imagesMounted, setImagesMounted] = useState(false);
@@ -426,7 +439,8 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
     const manualSearchDefaults = useMemo<Partial<FilterSelections>>(() => ({
         showdown_set: algorithmShowdownSetsKey ? algorithmShowdownSetsKey.split(',') : undefined,
         awards: algorithmAllStarsOnly ? ['AS'] : undefined,
-        variable_speed: algorithmVariableSpeed || undefined,
+        // Explicit false overrides the search's variable speed default
+        variable_speed: algorithmVariableSpeed,
     }), [algorithmShowdownSetsKey, algorithmAllStarsOnly, algorithmVariableSpeed]);
 
     const excludeIds = useMemo(
@@ -533,6 +547,8 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
     const activeFilterCount = activePoolFilterCount(poolFilters);
     // The live image match control only shows while it affects the grid
     const isImageMatchActive = groupBy === 'image_match' || (poolFilters.image_match?.length ?? 0) > 0;
+    // Match scores only show while sorting by them, so the grid stays quiet otherwise
+    const isMatchSortActive = sortBy === 'match_score' || sortBy === 'match_margin';
     const filteredCards = useMemo(
         () => filterPoolCards(displayCards, poolFilters, poolSearch),
         [displayCards, poolFilters, poolSearch]
@@ -560,38 +576,44 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
         return () => observer.disconnect();
     }, []);
 
-    /** Non-destructive save: keeps every currently-persisted card, appends new preview players
-     * (deduped by source_card_id) until reaching the configured set size. */
-    function handleFillRemainingSlots() {
-        if (!previewResult) return;
+    /** What each way of saving the preview would do to the saved pool — drives both the handlers
+     * and the counts shown on the preview's save buttons. */
+    const previewSavePlan = useMemo(() => {
+        if (!previewCards || !activePreview) return null;
+        // Fill: keeps every saved card, appends new preview players (deduped by source_card_id) up to the set size
         const existingSourceIds = new Set(cards.map(c => c.source_card_id).filter(Boolean));
-        const remainingSlots = Math.max(0, previewResult.summary.requested_set_size - cards.length);
-        const additions = buildReleaseCardsFromPreview(previewResult.players)
-            .filter(c => !existingSourceIds.has(c.source_card_id))
-            .slice(0, remainingSlots);
-        persist(applyNumberingIfNeeded([...cards, ...additions]));
+        const remainingSlots = Math.max(0, activePreview.summary.requested_set_size - cards.length);
+        const additions = previewCards.filter(c => !existingSourceIds.has(c.source_card_id)).slice(0, remainingSlots);
+        // Replace: the pool becomes the preview; cards that survive keep their tags, preview rank, and overrides
+        const existingCards = new Map(cards.map(c => [c.source_card_id, c]));
+        const replacement = previewCards.map(c => {
+            const existing = existingCards.get(c.source_card_id);
+            return existing ? { ...c, tags: existing.tags, preview_rank: existing.preview_rank, card_overrides: existing.card_overrides } : c;
+        });
+        const newSourceIds = new Set(replacement.map(c => c.source_card_id));
+        const droppedCount = cards.filter(c => !newSourceIds.has(c.source_card_id)).length;
+        return { additions, replacement, droppedCount };
+    }, [previewCards, activePreview, cards]);
+
+    /** Non-destructive save: keeps every currently-persisted card and adds the plan's new players. */
+    function handleFillRemainingSlots() {
+        if (!previewSavePlan) return;
+        persist(applyNumberingIfNeeded([...cards, ...previewSavePlan.additions]));
         setPreviewResult(null);
     }
 
     /** Destructive save: replaces the entire pool with the preview result. Warns if it would drop
      * any currently-persisted card (manual or from a prior algorithm run — provenance isn't tracked). */
     function handleReplaceAllFromPreview() {
-        if (!previewResult) return;
-        // Cards that survive the replace keep their tags and preview rank
-        const existingCards = new Map(cards.map(c => [c.source_card_id, c]));
-        const newCards = buildReleaseCardsFromPreview(previewResult.players).map(c => {
-            const existing = existingCards.get(c.source_card_id);
-            return existing ? { ...c, tags: existing.tags, preview_rank: existing.preview_rank, card_overrides: existing.card_overrides } : c;
-        });
-        const newSourceIds = new Set(newCards.map(c => c.source_card_id));
-        const droppedCount = cards.filter(c => !newSourceIds.has(c.source_card_id)).length;
+        if (!previewSavePlan) return;
+        const { replacement, droppedCount } = previewSavePlan;
         if (droppedCount > 0) {
             const confirmed = window.confirm(
                 `Replacing will remove ${droppedCount} existing card${droppedCount === 1 ? '' : 's'} from the pool. Continue?`
             );
             if (!confirmed) return;
         }
-        persist(applyNumberingIfNeeded(newCards));
+        persist(applyNumberingIfNeeded(replacement));
         setPreviewResult(null);
     }
 
@@ -850,16 +872,19 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
                 )}
 
                 {!readOnly && (
-                    <button
-                        type="button"
-                        onClick={() => setShowStyleModal(true)}
-                        title="Default card style for this edition"
-                        className={buttonClass('secondary', 'sm', 'ml-auto min-h-5')}
-                    >
-                        <FaPalette className="text-[12px] shrink-0" />
-                        <span><span className="hidden sm:inline">Card </span>Style</span>
-                        <span className="hidden sm:contents">{formSectionSummary(styleSummary)}</span>
-                    </button>
+                    <div className="flex items-center gap-2 ml-auto">
+                        <ImageLibrariesButton onClose={liveImageMatches.refresh} />
+                        <button
+                            type="button"
+                            onClick={() => setShowStyleModal(true)}
+                            title="Default card style for this edition"
+                            className={buttonClass('secondary', 'sm', 'min-h-5')}
+                        >
+                            <FaPalette className="text-[12px] shrink-0" />
+                            <span><span className="hidden sm:inline">Card </span>Style</span>
+                            <span className="hidden sm:contents">{formSectionSummary(styleSummary)}</span>
+                        </button>
+                    </div>
                 )}
 
                 {saving && (
@@ -868,6 +893,14 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
                     </span>
                 )}
             </div>
+
+            {!readOnly && !isDriveNoticeDismissed && (
+                <ReleaseDriveNotice
+                    className="mx-4 mt-2 shrink-0"
+                    action={<ConnectDriveButton size="sm" />}
+                    onDismiss={dismissDriveNotice}
+                />
+            )}
 
             {error && (
                 <InlineError size="md" className="mx-4 mt-2 shrink-0">
@@ -971,6 +1004,7 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
                                     manualPicks={manualPicks}
                                     onManualPicksChange={persistManualPicks}
                                     onPreviewResult={handlePreviewResult}
+                                    onRunningChange={setIsAlgorithmRunning}
                                     onEditionUpdated={onEditionUpdated}
                                 />
                             </Tabs.Content>
@@ -1029,7 +1063,8 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
                         </Tabs.List>
 
                         <Tabs.Content value="cards" className="flex-1 min-h-0 flex flex-col focus:outline-none">
-                            {activePreview && (
+                            {isAlgorithmRunning && <AlgorithmRunningBanner />}
+                            {activePreview && !isAlgorithmRunning && (
                                 <div className="flex flex-col gap-2 px-3 py-2.5 border-b border-(--preview-accent)/30 bg-(--preview-accent)/10 shrink-0">
                                     <div className="flex flex-col gap-0.5">
                                         <div className={`flex items-center gap-1.5 ${headingClass('panel')} text-(--preview-accent)!`}>
@@ -1037,7 +1072,9 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
                                             Algorithm Preview — {activePreview.summary.actual_count} player{activePreview.summary.actual_count === 1 ? '' : 's'}
                                         </div>
                                         <span className="text-[11px] text-(--text-secondary)">
-                                            Not saved yet. Your saved pool has {cards.length} card{cards.length === 1 ? '' : 's'} — fill or replace it below, or discard this preview.
+                                            {cards.length === 0
+                                                ? 'Not saved yet. Save it as this edition\'s pool, or discard it.'
+                                                : `Not saved yet. Your saved pool has ${cards.length} card${cards.length === 1 ? '' : 's'} — choose how the preview should change it.`}
                                         </span>
                                     </div>
                                     {activePreview.summary.warnings.length > 0 && (
@@ -1049,21 +1086,45 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
                                             ))}
                                         </div>
                                     )}
+                                    <AlgorithmCutLineSummary cutLines={activePreview.summary.cut_lines ?? []} />
+                                    {previewSavePlan && cards.length > 0 && (
+                                        <ul className="flex flex-col gap-0.5 text-[11px] text-(--text-secondary)">
+                                            <li>
+                                                <span className="font-semibold text-(--text-primary)">Add to saved</span> — keeps all {cards.length} saved, adds {previewSavePlan.additions.length} new player{previewSavePlan.additions.length === 1 ? '' : 's'} from the preview{previewSavePlan.additions.length === 0 ? ' (pool is already full or has them all)' : ''}.
+                                            </li>
+                                            <li>
+                                                <span className="font-semibold text-(--text-primary)">Replace saved</span> — pool becomes these {previewSavePlan.replacement.length}{previewSavePlan.droppedCount > 0 ? `, removing ${previewSavePlan.droppedCount} saved card${previewSavePlan.droppedCount === 1 ? '' : 's'}` : ''}.
+                                            </li>
+                                        </ul>
+                                    )}
                                     <div className="flex flex-wrap gap-2">
-                                        <button
-                                            type="button"
-                                            onClick={handleFillRemainingSlots}
-                                            className={buttonClass('primary', 'sm')}
-                                        >
-                                            Fill remaining slots
-                                        </button>
-                                        <button
-                                            type="button"
-                                            onClick={handleReplaceAllFromPreview}
-                                            className={buttonClass('secondary', 'sm')}
-                                        >
-                                            Replace all
-                                        </button>
+                                        {cards.length === 0 ? (
+                                            <button
+                                                type="button"
+                                                onClick={handleReplaceAllFromPreview}
+                                                className={buttonClass('primary', 'sm')}
+                                            >
+                                                Save {previewSavePlan?.replacement.length ?? 0} card{previewSavePlan?.replacement.length === 1 ? '' : 's'}
+                                            </button>
+                                        ) : (
+                                            <>
+                                                <button
+                                                    type="button"
+                                                    onClick={handleFillRemainingSlots}
+                                                    disabled={!previewSavePlan?.additions.length}
+                                                    className={buttonClass('primary', 'sm')}
+                                                >
+                                                    Add {previewSavePlan?.additions.length ?? 0} to saved
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    onClick={handleReplaceAllFromPreview}
+                                                    className={buttonClass('secondary', 'sm')}
+                                                >
+                                                    Replace saved
+                                                </button>
+                                            </>
+                                        )}
                                         <button
                                             type="button"
                                             onClick={() => setPreviewResult(null)}
@@ -1310,7 +1371,9 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
 
                             {/* Card Grid */}
                             <div className={`flex-1 min-h-0 overflow-y-auto p-3 ${activePreview ? 'bg-(--preview-accent)/4' : 'bg-(--background-tertiary)'}`}>
-                                {displayCards.length > 0 && filteredCards.length === 0 ? (
+                                {isAlgorithmRunning ? (
+                                    <PoolGridSkeleton showFullCards={showFullCards} />
+                                ) : displayCards.length > 0 && filteredCards.length === 0 ? (
                                     <div className="flex flex-col items-center gap-2 py-8">
                                         <EmptyState size="inline">No cards match these filters.</EmptyState>
                                         <button
@@ -1324,9 +1387,17 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
                                 ) : displayCards.length === 0 ? (
                                     activePreview
                                         ? <EmptyState size="inline">No players matched this configuration.</EmptyState>
-                                        : <EmptyState size="panel" title="No cards yet.">
-                                            {readOnly ? 'This edition has no cards yet.' : 'Use Manual search to build your player pool.'}
-                                        </EmptyState>
+                                        : (
+                                            // Still placeholders hint at the grid the pool will fill
+                                            <div className="relative h-full overflow-hidden">
+                                                <PoolGridSkeleton showFullCards={showFullCards} animated={false} className="opacity-60" />
+                                                <div className="absolute inset-0 flex items-start justify-center pt-12 px-3">
+                                                    <EmptyState size="panel" title="No cards yet." className="rounded-card border border-(--divider) bg-(--background-secondary)">
+                                                        {readOnly ? 'This edition has no cards yet.' : 'Run an Algorithmic Pool or Manual search to build your player list.'}
+                                                    </EmptyState>
+                                                </div>
+                                            </div>
+                                        )
                                 ) : (
                                     <div className="flex flex-col gap-4">
                                         {visibleGroups.map(group => (
@@ -1340,7 +1411,7 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
                                                         </Plate>
                                                     </div>
                                                 )}
-                                                <div className={showFullCards ? 'grid grid-cols-[repeat(auto-fill,minmax(min(300px,100%),1fr))] gap-6' : 'grid grid-cols-2 sm:grid-cols-[repeat(auto-fit,minmax(min(200px,100%),1fr))] gap-4'}>
+                                                <div className={poolGridClass(showFullCards)}>
                                                     {group.cards.map(card => {
                                                         const cardProps = {
                                                             card: card.card_snapshot,
@@ -1399,6 +1470,11 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
                                                                         <ReleaseCardTagChips tags={card.tags} />
                                                                     </div>
                                                                 )}
+                                                                {isMatchSortActive && (
+                                                                    <div className="absolute -bottom-1 right-1 translate-y-1/2 z-10">
+                                                                        <AlgorithmMatchBadge card={card} />
+                                                                    </div>
+                                                                )}
                                                             </div>
                                                         </div>
                                                         );
@@ -1453,7 +1529,7 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
                         hideTrendGraphs={true}
                         context="release"
                         parent="modal"
-                        actionBarContent={detailCard && (cardLinkSlugs || detailCardTags.length > 0 || detailCardPreviewRank || (!readOnly && !activePreview)) ? (
+                        actionBarContent={detailCard && (cardLinkSlugs || detailCardTags.length > 0 || detailCardPreviewRank || detailCardCurrent?.card_snapshot.algorithm_match_score != null || (!readOnly && !activePreview)) ? (
                             <>
                                 {cardLinkSlugs && (
                                     <button type="button" onClick={cardLink.copy} title={cardLink.error ?? cardLink.url} className={buttonClass('secondary', 'sm')}>
@@ -1472,6 +1548,7 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
                                     readOnly={readOnly || !!activePreview}
                                     onChange={rank => detailCard && handlePreviewRankChange(detailCard.source_card_id, rank)}
                                 />
+                                {detailCardCurrent && <AlgorithmMatchBadge card={detailCardCurrent} labeled />}
                             </>
                         ) : undefined}
                     />
@@ -1497,6 +1574,44 @@ function StepButton({ number, label, isActive, onClick }: { number?: number; lab
 
 /** Placeholder shaped like the edition builder (toolbar, build-method panel, player pool) while an
  *  edition's cards load. */
+/** Shown over the pool while an algorithm run is in flight: a sweeping bar and elapsed time, so a long run still reads as alive. */
+function AlgorithmRunningBanner() {
+    const [elapsedSeconds, setElapsedSeconds] = useState(0);
+    useEffect(() => {
+        const startedAt = Date.now();
+        const interval = setInterval(() => setElapsedSeconds(Math.floor((Date.now() - startedAt) / 1000)), 1000);
+        return () => clearInterval(interval);
+    }, []);
+    return (
+        <div role="status" className="relative flex items-center gap-1.5 px-3 py-2.5 border-b border-(--preview-accent)/30 bg-(--preview-accent)/10 shrink-0 overflow-hidden">
+            <FaWandMagicSparkles className="text-(--preview-accent) live-pulse" />
+            <span className={`${headingClass('panel')} text-(--preview-accent)!`}>Running algorithm…</span>
+            <span className="ml-auto text-[11px] tabular-nums text-(--text-secondary)">{elapsedSeconds}s</span>
+            <div aria-hidden className="absolute bottom-0 inset-x-0 h-0.5 bg-(--preview-accent)/15">
+                <div className="indeterminate-sweep h-full w-2/5 bg-(--preview-accent)" />
+            </div>
+        </div>
+    );
+}
+
+/** The pool grid's columns: full cards get wider tracks than compact rows. */
+function poolGridClass(showFullCards: boolean) {
+    return showFullCards
+        ? 'grid grid-cols-[repeat(auto-fill,minmax(min(300px,100%),1fr))] gap-6'
+        : 'grid grid-cols-2 sm:grid-cols-[repeat(auto-fit,minmax(min(200px,100%),1fr))] gap-4';
+}
+
+/** Placeholder pool grid: pulses while the algorithm runs, sits still behind the empty state. */
+function PoolGridSkeleton({ showFullCards, animated = true, className = '' }: { showFullCards: boolean; animated?: boolean; className?: string }) {
+    return (
+        <div aria-label={animated ? 'Loading cards' : undefined} className={`${poolGridClass(showFullCards)} ${className}`}>
+            {Array.from({ length: showFullCards ? 6 : 24 }, (_, i) => showFullCards
+                ? <CardItemSkeleton key={i} className="h-28 max-w-100" animated={animated} />
+                : <CardItemCompactSkeleton key={i} animated={animated} />)}
+        </div>
+    );
+}
+
 export function EditionBuilderSkeleton() {
     return (
         <div aria-label="Loading edition" className="flex-1 min-h-0 flex flex-col animate-pulse">

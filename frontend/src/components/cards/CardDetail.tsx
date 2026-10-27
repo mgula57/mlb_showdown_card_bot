@@ -12,10 +12,10 @@ import { buttonClass } from '../shared/buttonStyles';
  * - Interactive table switching and customization options
  */
 
-import { useState, useEffect, useRef, useMemo, memo, type CSSProperties } from 'react';
+import { useState, useEffect, useRef, useMemo, useContext, memo, type CSSProperties } from 'react';
 import { useAuth } from '../auth/AuthContext';
 import { useTheme, useSiteSettings } from "../shared/SiteSettingsContext";
-import { FaPlus, FaWandMagicSparkles } from 'react-icons/fa6';
+import { FaPlus, FaWandMagicSparkles, FaXmark } from 'react-icons/fa6';
 import { type ShowdownBotCard, type ShowdownBotCardAPIResponse } from '../../api/showdownBotCard';
 import { enhanceColorVisibility } from '../../functions/colors';
 import { fetchCardData } from '../../api/card_db/cardDatabase';
@@ -32,7 +32,7 @@ import { BaselineOpponentBreakdown } from './card_detail/BaselineOpponentBreakdo
 
 // API integration
 import { generateCardImage, fetchCardById, fetchSeasonStatRanges } from '../../api/showdownBotCard';
-import { applyCardStyleOverrides, type CardStyleOverrides } from './cardStyleOverrides';
+import { applyCardStyleOverrides, cardStyleFromCard, type CardStyleOverrides } from './cardStyleOverrides';
 
 // Performance visualization
 import ChartPlayerPointsTrend from './card_detail/ChartPlayerPointsTrend';
@@ -47,9 +47,12 @@ import RealVsProjectedVisual from './card_detail/RealVsProjectedVisual';
 import PointsContributionBars from './card_detail/PointsContributionBars';
 import { CardComps } from './card_detail/CardComps';
 import { CardStyleEditor, type CardStyleEditorConfig } from './card_detail/CardStyleEditor';
-import { isCardStyleDifferent, CARD_STYLE_KEYS } from '../customs/cardStyle';
+import { isCardStyleDifferent, CARD_STYLE_KEYS, type CardStyleSettings } from '../customs/cardStyle';
 import ImageSourceBadge from './card_detail/ImageSourceBadge';
+import CardBuildIcon from '../customs/CardBuildIcon';
 import PinnedFooterPortal from '../shared/PinnedFooterPortal';
+import { PinnedFooterSlotContext } from '../shared/pinnedFooterSlot';
+import { usePanelClose } from '../shared/panelClose';
 import { cardImagePublicUrl } from '../../api/supabase';
 
 import { Heading } from '../shared/Heading';
@@ -106,7 +109,16 @@ type CardDetailProps = {
      * (instead of the Custom Card Builder) and auto-saves edits via `onSave` once they pause. The
      * caller persists them and passes updated `styleOverrides`, which re-renders the card image. */
     styleEditor?: CardStyleEditorConfig;
+    /** Enables Customize without a caller-owned `styleEditor`: edits only restyle the card here and
+     * are never saved (the Cards explorer). The card's own style is the editor's base; these fill
+     * any style field the card doesn't carry (the Card Builder's defaults). */
+    localStyleDefaults?: CardStyleSettings;
 };
+
+/** Customize while the style editor is open: the navy selection outline (DESIGN.md, Selection) with a
+ * navy tint, so it reads as a mode that's on. `!` because they replace the secondary button's own
+ * border, fill and hover fill. */
+const CUSTOMIZE_ACTIVE_CLASS = 'border-(--showdown-blue)! ring-1 ring-(--showdown-blue) bg-(--showdown-blue)/10! text-(--showdown-blue)!';
 
 // design-ok: the rendered card art has its own large corner radius; the image clip matches it
 const CARD_IMAGE_RADIUS = 'rounded-2xl';
@@ -150,16 +162,23 @@ const SectionPanel = ({ title, subtitle, isLoading, children }: { title: string;
  * />
  * ```
  */
-export const CardDetail = memo(function CardDetail({ showdownBotCardData: showdownBotCardDataProp, cardId, variableSpeed = false, isLoading, hideTrendGraphs=false, context='custom', parent, showdownSetForPlaceholder, simStats, tooltip, onDraft, draftDisabled=false, draftLabel='Draft', actionBarContent, enableSetSwitcher=false, styleOverrides: styleOverridesProp, styleEditor }: CardDetailProps) {
+export const CardDetail = memo(function CardDetail({ showdownBotCardData: showdownBotCardDataProp, cardId, variableSpeed = false, isLoading, hideTrendGraphs=false, context='custom', parent, showdownSetForPlaceholder, simStats, tooltip, onDraft, draftDisabled=false, draftLabel='Draft', actionBarContent, enableSetSwitcher=false, styleOverrides: styleOverridesProp, styleEditor, localStyleDefaults }: CardDetailProps) {
+    // Unsaved restyling (`localStyleDefaults`): Customize snapshots the card's own style as the base,
+    // and edits render through the same overrides path as a caller's `styleOverrides`
+    const [localStyleBase, setLocalStyleBase] = useState<CardStyleSettings | null>(null);
+    const [localStyle, setLocalStyle] = useState<CardStyleSettings | null>(null);
+    const styleOverridesInput: CardStyleOverrides | undefined = localStyle
+        ? { ...styleOverridesProp, style: localStyle, storagePath: undefined }
+        : styleOverridesProp;
     // Keyed on content, so a caller handing over an equal overrides object (e.g. after an unrelated
     // save returns fresh objects) doesn't regenerate the image
     const styleOverridesKey = JSON.stringify([
-        styleOverridesProp?.style && CARD_STYLE_KEYS.map(key => styleOverridesProp.style?.[key]),
-        styleOverridesProp?.setNumber,
-        styleOverridesProp?.storagePath,
+        styleOverridesInput?.style && CARD_STYLE_KEYS.map(key => styleOverridesInput.style?.[key]),
+        styleOverridesInput?.setNumber,
+        styleOverridesInput?.storagePath,
     ]);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    const styleOverrides = useMemo(() => styleOverridesProp, [styleOverridesKey]);
+    const styleOverrides = useMemo(() => styleOverridesInput, [styleOverridesKey]);
     const withStyleOverrides = (data: ShowdownBotCardAPIResponse | null | undefined) => (
         styleOverrides && data?.card ? { ...data, card: applyCardStyleOverrides(data.card, styleOverrides) } : data
     );
@@ -360,13 +379,25 @@ export const CardDetail = memo(function CardDetail({ showdownBotCardData: showdo
     const [isSwitchingSet, setIsSwitchingSet] = useState<boolean>(false);
     const [setSwitchError, setSetSwitchError] = useState<string | null>(null);
 
-    // Inline style editor (styleEditor only) — closes whenever a different card is shown
+    // Inline style editor (`styleEditor`, or the unsaved local one) — closes, and drops any local
+    // restyle, whenever a different card is shown
     const [isStyleEditorOpen, setIsStyleEditorOpen] = useState<boolean>(false);
     const styleEditorCardKey = cardId ?? `${showdownBotCardDataProp?.card?.bref_id}-${showdownBotCardDataProp?.card?.year}-${showdownBotCardDataProp?.card?.set}`;
-    const hasStyleEditor = !!styleEditor;
-    useEffect(() => { setIsStyleEditorOpen(false); }, [styleEditorCardKey, hasStyleEditor]);
-    const showStyleEditor = isStyleEditorOpen && !!styleEditor;
-    const isStyleCustomized = !!styleEditor && isCardStyleDifferent(styleEditor.style, styleEditor.defaults);
+    const hasStyleEditor = !!styleEditor || !!localStyleDefaults;
+    useEffect(() => {
+        setIsStyleEditorOpen(false);
+        setLocalStyleBase(null);
+        setLocalStyle(null);
+    }, [styleEditorCardKey, hasStyleEditor]);
+    const localStyleEditor = useMemo<CardStyleEditorConfig | undefined>(() => localStyleBase ? {
+        style: localStyle ?? localStyleBase,
+        defaults: localStyleBase,
+        revertTitle: "Revert to the card's own style",
+        onSave: (style) => setLocalStyle(isCardStyleDifferent(style, localStyleBase) ? style : null),
+    } : undefined, [localStyleBase, localStyle]);
+    const activeStyleEditor = styleEditor ?? localStyleEditor;
+    const showStyleEditor = isStyleEditorOpen && !!activeStyleEditor;
+    const isStyleCustomized = !!activeStyleEditor && isCardStyleDifferent(activeStyleEditor.style, activeStyleEditor.defaults);
 
     // Mark if isLoading or isGeneratingImage
     const isLoadingOverall = isLoading || isGeneratingImage || isLoadingFromId || isSwitchingSet;
@@ -554,6 +585,145 @@ export const CardDetail = memo(function CardDetail({ showdownBotCardData: showdo
         </>
     );
 
+    /** Inside a modal or the search sidebar: the header pins to the top of the scroll area, so the
+     * name and actions stay in reach while the detail scrolls */
+    const isInPanel = useContext(PinnedFooterSlotContext) !== undefined;
+    /** The enclosing panel's close action; its button moves into the header row */
+    const onClose = usePanelClose();
+    const card = activeCardData?.card;
+
+    const showCustomize = !!card && hasStyleEditor;
+    const showOpenInBuilder = !!card && context !== 'custom';
+    const showDraft = !!card && !!onDraft;
+    const hasHeaderActions = showCustomize || showOpenInBuilder || showDraft || !!onClose;
+
+    /** The player's name as the header title (links to Baseball Reference), with the card's set
+     * (or the set switcher) beside it */
+    const headerTitle = (
+        <div className={`flex flex-wrap items-center gap-x-3 gap-y-1 ${hasHeaderActions ? 'flex-1 min-w-0' : ''}`}>
+            {card?.name && (
+                <Heading level="page" as="h2">
+                    <a
+                        href={card.bref_url || '#'}
+                        className="hover:text-(--showdown-blue) transition-colors"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                    >
+                        {card.name.toUpperCase()}
+                    </a>
+                </Heading>
+            )}
+
+            {enableSetSwitcher && card ? (
+                <div className="flex flex-col items-start">
+                    <CustomSelect
+                        size="sm"
+                        value={card.set}
+                        onChange={handleSetSwitch}
+                        options={SET_SELECT_OPTIONS}
+                        showDropdownArrow={true}
+                        disabled={isSwitchingSet}
+                    />
+                    {setSwitchError && (
+                        <span className="text-[10px] text-(--showdown-red) font-semibold whitespace-nowrap">{setSwitchError}</span>
+                    )}
+                </div>
+            ) : (
+                card?.set && <SetBadge set={card.set} />
+            )}
+        </div>
+    );
+
+    /** Customize, Open in Builder, the primary `onDraft` action and the panel's close button */
+    const headerActions = (
+        <div className="ml-auto flex items-center gap-2 shrink-0">
+            {/* Customize edits this card's style in place (`styleEditor`, or unsaved with
+                `localStyleDefaults`). Icon-only when the panel is narrow. */}
+            {showCustomize && card && (
+                <button
+                    type="button"
+                    onClick={() => {
+                        // The local editor's base is the card as it looks before any local restyle
+                        if (!activeStyleEditor && localStyleDefaults) setLocalStyleBase(cardStyleFromCard(card, localStyleDefaults));
+                        setIsStyleEditorOpen(open => !open);
+                    }}
+                    title={showStyleEditor ? 'Close the style editor' : "Edit this card's style"}
+                    aria-label="Customize"
+                    aria-pressed={showStyleEditor}
+                    className={buttonClass('secondary', 'sm', `relative ${showStyleEditor ? CUSTOMIZE_ACTIVE_CLASS : ''}`)}
+                >
+                    <FaWandMagicSparkles className="w-3.5 h-3.5" />
+                    <span className="hidden @md:inline">Customize</span>
+                    {isStyleCustomized && (
+                        <span title="This card has its own style" className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-(--showdown-blue-fill)" />
+                    )}
+                </button>
+            )}
+
+            {/* Open in Builder hands the card to the Card Builder, prefilled. Icon-only when the panel is narrow. */}
+            {showOpenInBuilder && card && (
+                <button
+                    type="button"
+                    onClick={() => customizeCard(card)}
+                    title="Open this card in the Card Builder"
+                    aria-label="Open in Builder"
+                    className={buttonClass('secondary', 'sm')}
+                >
+                    <CardBuildIcon size="0.875rem" />
+                    <span className="hidden @md:inline">Open in Builder</span>
+                </button>
+            )}
+
+            {showDraft && (
+                <button
+                    type="button"
+                    disabled={draftDisabled}
+                    title={draftDisabled ? 'Saving your last pick…' : undefined}
+                    onClick={onDraft}
+                    className={buttonClass('feature', 'sm')}
+                >
+                    <FaPlus className="w-3.5 h-3.5" />
+                    {draftLabel}
+                </button>
+            )}
+
+            {onClose && (
+                <button
+                    type="button"
+                    onClick={onClose}
+                    aria-label="Close"
+                    title="Close (Esc)"
+                    className={buttonClass('ghost', 'sm', 'px-2')}
+                >
+                    <FaXmark className="text-base" />
+                </button>
+            )}
+        </div>
+    );
+
+    /** Player attributes (year/team, points, positions, …) */
+    const headerAttributes = (
+        <div className="flex flex-wrap items-center gap-1">
+            {Object.entries(cardAttributes)
+                .filter(([, value]) => value != null && value !== '')
+                .map(([key, value]) => (
+                <Plate key={key} size="md">
+                    <span>{value}</span>
+
+                    {/* Change in Points Weekly */}
+                    { (weeklyChangePoints && key === "points" && String(new Date().getFullYear()) === String(card?.year || "n/a")) && (
+                        <div className={`text-xs ${weeklyChangePointsColor}`}>
+                            {weeklyChangePointsSymbol} {Math.abs(weeklyChangePoints)} THIS WEEK
+                        </div>
+                    )}
+                </Plate>
+            ))}
+
+            {/* Player image source (Showdown Bot library, user's Drive library, upload, link) */}
+            <ImageSourceBadge source={card?.image?.source} />
+        </div>
+    );
+
     // MARK: MAIN CONTENT
     return (
         <div 
@@ -561,125 +731,57 @@ export const CardDetail = memo(function CardDetail({ showdownBotCardData: showdo
                 @container
                 w-full
                 overflow-visible @2xl:overflow-y-auto
-                p-4 @6xl:px-8 space-y-4
                 h-full
                 pb-24
             "
         >
 
+            {/* Header. The player's name and set lead. With actions (Customize, Open in Builder, the primary `onDraft`
+                action, the panel's close button) they sit at the right end and the attributes take the
+                row below; without any, the attributes follow the name and set and wrap when there's no room. */}
+            <div className={`
+                px-4 @6xl:px-8 pt-4 pb-3
+                ${isInPanel ? 'sticky top-0 z-20 bg-(--background-primary) border-b border-(--divider)' : ''}
+            `}>
+                {hasHeaderActions ? (
+                    <div className="space-y-2">
+                        <div className="flex items-start gap-3">
+                            {headerTitle}
+                            {headerActions}
+                        </div>
+                        {headerAttributes}
+                    </div>
+                ) : (
+                    <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+                        {headerTitle}
+                        {headerAttributes}
+                    </div>
+                )}
+            </div>
+
+            <div className="px-4 @6xl:px-8 pt-4 space-y-4">
+
             {/* Warnings */}
-            {activeCardData?.card?.warnings && activeCardData.card.warnings.length > 0 && (
+            {card?.warnings && card.warnings.length > 0 && (
                 <div className="bg-(--warning)/5 border border-(--warning) text-(--warning) p-2 rounded-card">
                     <Heading level="panel" as="h4">Warnings</Heading>
                     <ul className="list-disc list-inside">
-                        {activeCardData.card.warnings.map((warning, index) => (
+                        {card.warnings.map((warning, index) => (
                             <li key={index}>{warning}</li>
                         ))}
                     </ul>
                 </div>
             )}
 
-            {/* Name and player attributes. Right padding keeps the row clear of the Modal's floating
-                close button (most CardDetails render in a Modal). */}
-            <div className="
-                flex flex-wrap items-center
-                gap-1 mb-2 pr-8
-            ">
-                <a 
-                    href={activeCardData?.card?.bref_url || '#'} 
-                    className='font-display uppercase text-3xl leading-none text-(--text-primary) hover:text-(--showdown-blue) transition-colors pr-2'
-                    target="_blank"
-                    rel="noopener noreferrer"
-                >
-                    {activeCardData?.card?.name.toUpperCase() || ""}
-                </a>
-
-                {/* Card Set */}
-                {enableSetSwitcher && activeCardData?.card ? (
-                    <div className="flex flex-col items-start">
-                        <CustomSelect
-                            className="w-28"
-                            size="sm"
-                            value={activeCardData.card.set}
-                            onChange={handleSetSwitch}
-                            options={SET_SELECT_OPTIONS}
-                            showDropdownArrow={true}
-                            disabled={isSwitchingSet}
-                        />
-                        {setSwitchError && (
-                            <span className="text-[10px] text-(--showdown-red) font-semibold whitespace-nowrap">{setSwitchError}</span>
-                        )}
-                    </div>
-                ) : (
-                    activeCardData?.card?.set && <SetBadge set={activeCardData.card.set} />
-                )}
-
-                {/* Iterate through attributes */}
-                {Object.entries(cardAttributes)
-                    .filter(([, value]) => value != null && value !== '')
-                    .map(([key, value]) => (
-                    <Plate key={key} size="md">
-                        <span>{value}</span>
-                        
-                        {/* Change in Points Weekly */}
-                        { (weeklyChangePoints && key === "points" && String(new Date().getFullYear()) === String(activeCardData?.card?.year || "n/a")) && (
-                            <div className={`text-xs ${weeklyChangePointsColor}`}>
-                                {weeklyChangePointsSymbol} {Math.abs(weeklyChangePoints)} THIS WEEK
-                            </div>
-                        )}
-                    </Plate>
-                ))}
-
-                {/* Player image source (Showdown Bot library, user's Drive library, upload, link) */}
-                <ImageSourceBadge source={activeCardData?.card?.image?.source} />
-            </div>
-
-            {/* Action bar — caller-supplied controls (`actionBarContent`, e.g. a release card's tags)
-                on the left (a size container, so they can compact themselves when it's narrow), Customize and the primary `onDraft` action on the right. Inside a Modal or the
-                search sidebar (any PinnedFooterScrollArea) it moves to the pinned footer so it stays
-                reachable while the detail scrolls; elsewhere it's a row under the header. */}
-            {activeCardData?.card && (context !== 'custom' || onDraft || actionBarContent) && (
+            {/* Caller-supplied controls (`actionBarContent`, e.g. a release card's tags), in a size
+                container so they can compact themselves when it's narrow. Inside a Modal or the search
+                sidebar (any PinnedFooterScrollArea) they move to the pinned footer; elsewhere they're a
+                row under the header. */}
+            {card && actionBarContent && (
                 <PinnedFooterPortal>
-                <div className="@container flex flex-wrap items-center gap-x-6 gap-y-3 w-full">
-                    {actionBarContent && (
-                        <div className="flex flex-wrap items-start gap-x-6 gap-y-3 min-w-0">
-                            {actionBarContent}
-                        </div>
-                    )}
-                    <div className="ml-auto flex items-center gap-2">
-                        {/* Customize — edits this card's style inline (`styleEditor`), otherwise opens the
-                            Custom Card Builder prefilled with this card */}
-                        {context !== 'custom' && (
-                            <button
-                                type="button"
-                                onClick={() => styleEditor
-                                    ? setIsStyleEditorOpen(open => !open)
-                                    : activeCardData.card && customizeCard(activeCardData.card)}
-                                title={styleEditor ? "Edit this card's style" : 'Open in the Custom Card Builder'}
-                                className={buttonClass('secondary', 'sm', `relative ${showStyleEditor ? 'bg-(--background-tertiary)' : ''}`)}
-                            >
-                                <FaWandMagicSparkles className="w-3.5 h-3.5" />
-                                Customize
-                                {isStyleCustomized && (
-                                    <span title="This card has its own style" className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-(--showdown-blue-fill)" />
-                                )}
-                            </button>
-                        )}
-
-                        {onDraft && (
-                            <button
-                                type="button"
-                                disabled={draftDisabled}
-                                title={draftDisabled ? 'Saving your last pick…' : undefined}
-                                onClick={onDraft}
-                                className={buttonClass('feature', 'sm')}
-                            >
-                                <FaPlus className="w-3.5 h-3.5" />
-                                {draftLabel}
-                            </button>
-                        )}
+                    <div className="@container flex flex-wrap items-start gap-x-6 gap-y-3 w-full min-w-0">
+                        {actionBarContent}
                     </div>
-                </div>
                 </PinnedFooterPortal>
             )}
 
@@ -715,10 +817,10 @@ export const CardDetail = memo(function CardDetail({ showdownBotCardData: showdo
             >
                 {/* Card Style editor. Side by side, it's pulled out of flow so the card image alone sets
                     the row height — the editor matches it and scrolls its fields inside. */}
-                {showStyleEditor && styleEditor && (
+                {showStyleEditor && activeStyleEditor && (
                     <div key="style-editor" className="relative">
                         <div className="flex flex-col @xl:absolute @xl:inset-0">
-                            <CardStyleEditor {...styleEditor} card={activeCardData?.card} onClose={() => setIsStyleEditorOpen(false)} />
+                            <CardStyleEditor {...activeStyleEditor} card={activeCardData?.card} onClose={() => setIsStyleEditorOpen(false)} />
                         </div>
                     </div>
                 )}
@@ -894,6 +996,8 @@ export const CardDetail = memo(function CardDetail({ showdownBotCardData: showdo
                         isLoading={isLoadingPanels}
                     />
                 </SectionPanel>
+
+            </div>
 
             </div>
 

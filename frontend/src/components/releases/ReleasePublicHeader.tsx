@@ -7,6 +7,7 @@ import { Eyebrow } from '../shared/Eyebrow';
 import { Plate } from '../shared/Plate';
 import { ReleaseHeaderButton } from './ReleaseHeaderButton';
 import { ReleaseVersionHistory } from './ReleaseVersionHistory';
+import { ReleaseCardFan } from './ReleaseItem';
 
 type ReleasePublicHeaderProps = {
     release: Release;
@@ -30,6 +31,7 @@ export function ReleasePublicHeader({ release, cardCount, editionCount, isOwner,
     // Owners can't like their own release, and liking needs an account
     const canLike = !!token && !isOwner;
     const versionDate = release.version_published_at ?? release.published_at;
+    const previewImages = release.preview_images ?? [];
 
     async function handleToggleLike() {
         if (!token || liking) return;
@@ -48,61 +50,69 @@ export function ReleasePublicHeader({ release, cardCount, editionCount, isOwner,
         <>
         <header className="relative isolate shrink-0 border-b border-(--divider) bg-(--background-secondary)">
             <div aria-hidden className="absolute inset-0 -z-10 bg-pinstripe" />
-            <div className="flex flex-col gap-2 px-4 pt-3 pb-3.5">
+            {/* Info, the featured cards, then the actions. Below md the cards are hidden and the actions wrap under the info. */}
+            <div className="flex flex-wrap md:flex-nowrap items-stretch">
+            <div className="flex flex-col gap-2 basis-full md:basis-auto md:flex-1 min-w-0 px-4 pt-3 pb-3 md:pb-3.5">
                 <div className="flex items-center gap-3">
                     <button type="button" onClick={onBack} aria-label="Back" className="text-(--text-tertiary) opacity-70 hover:text-(--text-primary) transition-colors cursor-pointer">
                         <FaArrowLeft />
                     </button>
                     <Eyebrow>{release.is_official ? 'Official release' : 'Community release'}</Eyebrow>
                 </div>
-                <div className="flex flex-wrap items-end gap-x-4 gap-y-3">
-                    <div className="flex flex-col gap-1.5 min-w-0 flex-1 basis-72">
-                        <div className="flex items-center gap-2 min-w-0">
-                            <Heading level="page" as="h1" fit>{release.name}</Heading>
-                            {release.is_official && <Plate variant="navy" size="sm">Official</Plate>}
-                            {isOwner && !release.is_listed && <Plate variant="outline" size="sm" title="Opens from its link but isn't listed in Community or search">Link only</Plate>}
-                        </div>
-                        <div className="flex flex-wrap items-center gap-x-1.5 text-[13px] text-(--text-secondary)">
-                            {release.creator_username && (
-                                <>
-                                    <span>by <span className="font-semibold text-(--text-primary)">{release.creator_username}</span></span>
-                                    <span aria-hidden className="text-(--text-tertiary)">·</span>
-                                </>
-                            )}
-                            <span className="tabular-nums">
-                                v{release.published_version}{versionDate ? `, ${release.published_version > 1 ? 'updated' : 'published'} ${formatShortDate(versionDate)}` : ''}
-                            </span>
-                            <span aria-hidden className="text-(--text-tertiary)">·</span>
-                            <button type="button" onClick={() => setShowHistory(true)} className="font-semibold text-(--showdown-blue) hover:underline cursor-pointer">
-                                History
-                            </button>
-                        </div>
-                        {release.description && (
-                            <p className="text-[13px] text-(--text-secondary) max-w-prose">{release.description}</p>
-                        )}
-                        <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
-                            <Plate size="sm">{cardCount} card{cardCount === 1 ? '' : 's'}</Plate>
-                            <Plate size="sm">{editionCount} edition{editionCount === 1 ? '' : 's'}</Plate>
-                            <Plate variant="outline" size="sm">{release.view_count} view{release.view_count === 1 ? '' : 's'}</Plate>
-                            {!canLike && <Plate variant="outline" size="sm">{release.like_count} like{release.like_count === 1 ? '' : 's'}</Plate>}
-                        </div>
+                <div className="flex flex-col gap-1.5 min-w-0">
+                    <div className="flex items-center gap-2 min-w-0">
+                        <Heading level="page" as="h1" fit>{release.name}</Heading>
+                        {release.is_official && <Plate variant="navy" size="sm">Official</Plate>}
+                        {isOwner && !release.is_listed && <Plate variant="outline" size="sm" title="Opens from its link but isn't listed in Community or search">Link only</Plate>}
                     </div>
-                    <div className="flex items-center gap-1.5 shrink-0">
-                        {canLike && (
-                            <ReleaseHeaderButton
-                                icon={release.liked_by_me ? <FaHeart /> : <FaRegHeart />}
-                                label={release.liked_by_me ? 'Liked' : 'Like'}
-                                tone={release.liked_by_me ? 'liked' : 'neutral'}
-                                count={release.like_count}
-                                busy={liking}
-                                onClick={handleToggleLike}
-                                title={release.liked_by_me ? `Unlike ${release.name}` : `Like ${release.name}`}
-                            />
+                    <div className="flex flex-wrap items-center gap-x-1.5 text-[13px] text-(--text-secondary)">
+                        {release.creator_username && (
+                            <>
+                                <span>by <span className="font-semibold text-(--text-primary)">{release.creator_username}</span></span>
+                                <span aria-hidden className="text-(--text-tertiary)">·</span>
+                            </>
                         )}
-                        <ReleaseHeaderButton icon={<FaShareNodes />} label="Share" onClick={onShare} />
-                        {children}
+                        <span className="tabular-nums">
+                            v{release.published_version}{versionDate ? `, ${release.published_version > 1 ? 'updated' : 'published'} ${formatShortDate(versionDate)}` : ''}
+                        </span>
+                        <span aria-hidden className="text-(--text-tertiary)">·</span>
+                        <button type="button" onClick={() => setShowHistory(true)} className="font-semibold text-(--showdown-blue) hover:underline cursor-pointer">
+                            History
+                        </button>
+                    </div>
+                    {release.description && (
+                        <p className="text-[13px] text-(--text-secondary) max-w-prose">{release.description}</p>
+                    )}
+                    <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
+                        <Plate size="sm">{cardCount} card{cardCount === 1 ? '' : 's'}</Plate>
+                        <Plate size="sm">{editionCount} edition{editionCount === 1 ? '' : 's'}</Plate>
+                        <Plate variant="outline" size="sm">{release.view_count} view{release.view_count === 1 ? '' : 's'}</Plate>
+                        {!canLike && <Plate variant="outline" size="sm">{release.like_count} like{release.like_count === 1 ? '' : 's'}</Plate>}
                     </div>
                 </div>
+            </div>
+            {/* The release's featured cards, dealt up from the header's bottom edge (which crops them). The
+                side cards spill past the box sideways, under the info and actions (above the pinstripes). */}
+            {previewImages.length > 0 && (
+                <div aria-hidden className="group hidden md:block relative -z-1 w-72 lg:w-64 -ml-10 shrink-0 overflow-y-clip">
+                    <ReleaseCardFan images={previewImages} />
+                </div>
+            )}
+            <div className="flex items-center gap-1.5 shrink-0 self-end px-4 pb-3.5">
+                {canLike && (
+                    <ReleaseHeaderButton
+                        icon={release.liked_by_me ? <FaHeart /> : <FaRegHeart />}
+                        label={release.liked_by_me ? 'Liked' : 'Like'}
+                        tone={release.liked_by_me ? 'liked' : 'neutral'}
+                        count={release.like_count}
+                        busy={liking}
+                        onClick={handleToggleLike}
+                        title={release.liked_by_me ? `Unlike ${release.name}` : `Like ${release.name}`}
+                    />
+                )}
+                <ReleaseHeaderButton icon={<FaShareNodes />} label="Share" onClick={onShare} />
+                {children}
+            </div>
             </div>
         </header>
         {/* Outside the header: its `isolate` stacking context would trap the modal under the page below */}

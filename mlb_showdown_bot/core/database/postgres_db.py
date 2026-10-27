@@ -7066,10 +7066,11 @@ class PostgresDB:
 
     def get_release(self, release_id: str, user_id: str | None = None) -> dict | None:
         """Return a single release (with metadata-only editions). Enforces ownership unless
-        it has at least one published edition."""
+        it has at least one published edition. Its `preview_images` and `showdown_sets` come from
+        published editions only, for the public header."""
         if not self.connection:
             return None
-        query = self._RELEASE_BASE_SELECT + """
+        query = self._release_list_select(published_only=True) + """
             WHERE r.id = %s
               AND (
                   r.created_by = %s

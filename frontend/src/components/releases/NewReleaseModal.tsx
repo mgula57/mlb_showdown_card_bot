@@ -10,6 +10,8 @@ import { InlineError } from '../shared/InlineError';
 import { buttonClass } from '../shared/buttonStyles';
 import { FIELD_LABEL_CLASS } from '../shared/fieldStyles';
 import { Modal } from '../shared/Modal';
+import { ReleaseDriveNotice } from './ReleaseImageLibraries';
+
 type NewReleaseModalProps = {
     onConfirm: (payload: ReleaseCreatePayload) => Promise<void>;
     onCancel: () => void;
@@ -54,7 +56,7 @@ export function NewReleaseModal({ onConfirm, onCancel }: NewReleaseModalProps) {
                 >
                     {creating
                         ? <><FaSpinner className="animate-spin text-[11px]" /> Creating…</>
-                        : <><FaPlus className="text-[11px]" /> Create Release</>
+                        : <><FaPlus className="text-[11px]" /> Start Building</>
                     }
                 </button>
             </div>
@@ -93,6 +95,7 @@ export function NewReleaseModal({ onConfirm, onCancel }: NewReleaseModalProps) {
                         This is just a starting point — you can add cards from other sets too.
                     </span>
                 </div>
+                <ReleaseDriveNotice footnote="You can connect a folder anytime from Image Libraries in the builder." />
             </div>
         </Modal>
     );

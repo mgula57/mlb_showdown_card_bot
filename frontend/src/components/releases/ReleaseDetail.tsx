@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import * as Tabs from '@radix-ui/react-tabs';
 import type { Release, ReleaseEdition, ReleaseEditionSummary, ReleaseReviewItem } from '../../api/releases';
 import { recordReleaseView } from '../../api/releases';
-import { fetchEdition, createEdition, updateEdition, editionSummaryOf, releaseDraftRequest } from '../../api/releases';
+import { fetchEdition, createEdition, updateEdition, updateRelease, editionSummaryOf, releaseDraftRequest } from '../../api/releases';
 import { EditionBuilder, EditionBuilderSkeleton, type EditionNavRequest } from './EditionBuilder';
 import { ReleaseReviewPanel } from './ReleaseReviewPanel';
 import { useReleaseReview } from './useReleaseReview';
@@ -110,8 +110,8 @@ export function ReleaseDetail({ release, readOnly, editionSlug, onEditionChange,
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [needsDraft, token, release.id]);
 
-    /** Inline name form above the builder — creates a new edition or renames the active one. */
-    const [editionForm, setEditionForm] = useState<'create' | 'rename' | null>(null);
+    /** Inline name form above the builder — creates a new edition, renames the active one, or renames the release. */
+    const [editionForm, setEditionForm] = useState<'create' | 'rename' | 'renameRelease' | null>(null);
     const [editionFormName, setEditionFormName] = useState('');
     const [savingEditionForm, setSavingEditionForm] = useState(false);
     const activeEditionName = activeEdition ? shownOf(activeEdition).name : '';
@@ -182,9 +182,9 @@ export function ReleaseDetail({ release, readOnly, editionSlug, onEditionChange,
         }
     }
 
-    function openEditionForm(mode: 'create' | 'rename') {
+    function openEditionForm(mode: 'create' | 'rename' | 'renameRelease') {
         setEditionForm(mode);
-        setEditionFormName(mode === 'rename' ? activeEditionName : '');
+        setEditionFormName(mode === 'rename' ? activeEditionName : mode === 'renameRelease' ? release.name : '');
     }
 
     function closeEditionForm() {
@@ -195,6 +195,21 @@ export function ReleaseDetail({ release, readOnly, editionSlug, onEditionChange,
     async function handleSubmitEditionForm() {
         const name = editionFormName.trim();
         if (!token || !name || savingEditionForm) return;
+        if (editionForm === 'renameRelease') {
+            // Release metadata saves directly, even while staged; the slug (and share links) stay put
+            if (name === release.name) { closeEditionForm(); return; }
+            setSavingEditionForm(true);
+            setError(null);
+            try {
+                mergeRelease(await updateRelease(release.id, { name }, token));
+                closeEditionForm();
+            } catch (err) {
+                setError(err instanceof Error ? err.message : 'Failed to rename release.');
+            } finally {
+                setSavingEditionForm(false);
+            }
+            return;
+        }
         if (editionForm === 'rename') {
             if (!activeLoadedId || name === activeEditionName) { closeEditionForm(); return; }
             setSavingEditionForm(true);
@@ -296,6 +311,17 @@ export function ReleaseDetail({ release, readOnly, editionSlug, onEditionChange,
                     <div className="flex flex-col justify-center min-w-0 flex-1 md:flex-none md:max-w-[40%] py-1.5" title={release.description || undefined}>
                         <div className="flex items-center gap-2 min-w-0">
                             <Heading level="section" as="h1" fit>{release.name}</Heading>
+                            {isEditing && (
+                                <button
+                                    type="button"
+                                    onClick={() => openEditionForm('renameRelease')}
+                                    aria-label="Rename release"
+                                    title="Rename release"
+                                    className="text-(--text-tertiary) hover:text-(--text-secondary) transition-colors shrink-0 cursor-pointer"
+                                >
+                                    <FaPen className="text-[10px]" />
+                                </button>
+                            )}
                             {release.is_official && <Plate variant="navy" size="sm">Official</Plate>}
                             {isOwner && !isPublished && <Plate variant="outline" size="sm">Draft</Plate>}
                         </div>
@@ -435,7 +461,7 @@ export function ReleaseDetail({ release, readOnly, editionSlug, onEditionChange,
                                 label=""
                                 value={editionFormName}
                                 onChange={v => setEditionFormName(v ?? '')}
-                                placeholder="Edition name (e.g. 2001, Rainbow Foil)"
+                                placeholder={editionForm === 'renameRelease' ? 'Release name' : 'Edition name (e.g. 2001, Rainbow Foil)'}
                             />
                         </div>
                         <button
@@ -446,8 +472,8 @@ export function ReleaseDetail({ release, readOnly, editionSlug, onEditionChange,
                         >
                             {savingEditionForm
                                 ? <FaSpinner className="animate-spin text-[10px]" />
-                                : editionForm === 'rename' ? <FaCheck className="text-[10px]" /> : <FaPlus className="text-[10px]" />}
-                            {editionForm === 'rename' ? 'Save' : 'Create'}
+                                : editionForm === 'create' ? <FaPlus className="text-[10px]" /> : <FaCheck className="text-[10px]" />}
+                            {editionForm === 'create' ? 'Create' : 'Save'}
                         </button>
                         <button
                             type="button"

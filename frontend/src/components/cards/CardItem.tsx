@@ -230,7 +230,7 @@ export const CardItem = ({
                     relative
                     flex flex-col pl-2 pt-2 pb-1 gap-1.5
                     bg-secondary
-                    rounded-card
+                    rounded-trading-card
                     border
                     ${isClickable ? 'cursor-pointer' : ''}
                     ${borderSettings}
@@ -408,7 +408,7 @@ export const CardItem = ({
                         className="
                             absolute bottom-0 right-0
                             flex flex-row items-center gap-x-1
-                            px-0.5 py-0.5 rounded-card
+                            px-0.5 py-0.5 rounded-card rounded-br-trading-card
                             text-[9px] text-nowrap tracking-tight text-primary font-bold
                             bg-(--background-secondary)
                         "
@@ -617,9 +617,10 @@ export const CardItemFromCardDatabaseRecord = ({ card, onClick, className, isSel
     );
 }
 
-export function CardItemSkeleton({ className }: { className?: string }) {
+/** `animated={false}` gives a still placeholder, e.g. behind an empty state. */
+export function CardItemSkeleton({ className, animated = true }: { className?: string; animated?: boolean }) {
     return (
-        <div className={`${className ?? ''} relative flex flex-col p-2 gap-1.5 rounded-card border border-(--divider) animate-pulse`}>
+        <div aria-hidden className={`${className ?? ''} relative flex flex-col p-2 gap-1.5 rounded-trading-card border border-(--divider) ${animated ? 'animate-pulse' : ''}`}>
             <div className="flex flex-row gap-2 items-center">
                 <div className="w-9 h-9 rounded-full bg-(--background-tertiary) shrink-0" />
                 <div className="flex flex-col gap-1.5 flex-1 min-w-0">

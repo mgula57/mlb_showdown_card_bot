@@ -96,6 +96,10 @@ def update_release(release_id: str):
             return jsonify({'error': 'Request body must be a JSON object'}), 400
         if 'is_listed' in payload and not isinstance(payload['is_listed'], bool):
             return jsonify({'error': 'is_listed must be true or false'}), 400
+        if 'name' in payload:
+            if not isinstance(payload['name'], str) or not payload['name'].strip():
+                return jsonify({'error': 'Release name cannot be blank'}), 400
+            payload['name'] = payload['name'].strip()
         db = PostgresDB()
         updated = db.update_release(release_id, g.user_id, payload)
         if not updated:
@@ -474,6 +478,7 @@ def preview_algorithm(release_id: str, edition_id: str):
                 'requested_set_size': showdown_set.set_size,
                 'actual_count': len(players),
                 'warnings': showdown_set.warnings,
+                'cut_lines': showdown_set.cut_lines,
             },
         }), 200
     except Exception as exc:
