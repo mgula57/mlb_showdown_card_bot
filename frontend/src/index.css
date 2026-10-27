@@ -527,6 +527,22 @@
     .card-processing-logo { animation: none; }
 }
 
+/* Release Builder tile for a draft with no rendered images: blank cards deal into the fan back to
+   front, hold, then clear and deal again. Each card's resting fan transform comes in as `--fan-rest`
+   and its turn as `animation-delay`. Fill mode `backwards` keeps a card hidden until its turn; with
+   reduced motion the global rule ends the animation at once and the fan rests in place. */
+@keyframes release-building-deal {
+    0%       { opacity: 0; transform: var(--fan-rest) translateY(28%); }
+    14%      { opacity: 1; transform: var(--fan-rest); }
+    72%      { opacity: 1; transform: var(--fan-rest); }
+    86%, 100% { opacity: 0; transform: var(--fan-rest) translateY(-6%); }
+}
+
+.release-building-card {
+    transform: var(--fan-rest);
+    animation: release-building-deal 3.2s cubic-bezier(0.2, 0.8, 0.3, 1) infinite backwards;
+}
+
 /* Live-game indicators. Was declared in inline <style> blocks inside ScoreHeader and
    MatchupStrip, which re-injected the same keyframes on every render. */
 @keyframes live-pulse {

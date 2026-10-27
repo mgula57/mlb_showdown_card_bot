@@ -6,6 +6,7 @@ import { FaLayerGroup } from 'react-icons/fa6';
 import { SLANT_ROOM_CLASS } from '../shared/headingStyles';
 import { Plate } from '../shared/Plate';
 import { FrameCorners } from '../shared/FrameCorners';
+import { CAPS_LABEL_CLASS } from '../shared/fieldStyles';
 
 /** Tile frame shared by ReleaseItem and its skeleton — sized like TeamPreviewCard's 'md' tile on
  *  wider screens, filling a 2-column grid cell on phones. */
@@ -44,8 +45,8 @@ type ReleaseItemProps = {
 };
 
 /** Release tile for the Release Builder list: a fan of the release's rendered card images under the
- *  logos of every set it includes, over its name, creator, and edition/card counts. Falls back to a
- *  set icon when nothing is rendered yet. */
+ *  logos of every set it includes, over its name, creator, and edition/card counts. With nothing
+ *  rendered yet, a draft shows blank cards dealing into the fan and a published release a set icon. */
 export function ReleaseItem({ release, onClick, showPublishStatus = false }: ReleaseItemProps) {
     const totalCards = release.editions.reduce((sum, e) => sum + e.card_count, 0);
     const editionCount = release.editions.length;
@@ -87,6 +88,8 @@ export function ReleaseItem({ release, onClick, showPublishStatus = false }: Rel
                         images.map((image, i) => (
                             <FannedCardImage key={image.thumbnail_path} image={image} index={i} cardCount={images.length} />
                         ))
+                    ) : !isPublished ? (
+                        <BuildingFan />
                     ) : (
                         <div className="absolute inset-0 flex items-center justify-center text-(--text-tertiary)">
                             <FaLayerGroup className="text-5xl opacity-30" />
@@ -149,6 +152,41 @@ function FannedCardImage({ image, index, cardCount }: { image: ReleasePreviewIma
             "
             style={style}
         />
+    );
+}
+
+/** Delay between each blank card dealing into the building fan. */
+const BUILDING_DEAL_STAGGER_MS = 220;
+
+/** Draft with no rendered images: blank cards deal into the 3-card fan back to front on a loop
+ *  (`release-building-card` in index.css), the front one labeled "Building". */
+function BuildingFan() {
+    const layout = FAN_LAYOUTS[3];
+    // Back cards first, the front card (index 0) last
+    const dealOrder = [1, 2, 0];
+    return (
+        <>
+            {dealOrder.map((index, turn) => (
+                <div
+                    key={index}
+                    aria-hidden
+                    className="
+                        release-building-card absolute left-1/2 top-[10%] w-[48%] aspect-5/7 p-0.75
+                        rounded-plate border border-(--rule-strong) bg-(--background-secondary)
+                        drop-shadow-[0_2px_0_rgb(0_0_0/0.25)]
+                    "
+                    style={{
+                        zIndex: layout.length - index,
+                        '--fan-rest': fanTransform(layout[index]),
+                        animationDelay: `${turn * BUILDING_DEAL_STAGGER_MS}ms`,
+                    } as CSSProperties}
+                >
+                    <div className="h-full flex items-center justify-center rounded-plate border border-(--divider)">
+                        {index === 0 && <span className={`text-(--text-tertiary) ${CAPS_LABEL_CLASS}`}>Building</span>}
+                    </div>
+                </div>
+            ))}
+        </>
     );
 }
 
