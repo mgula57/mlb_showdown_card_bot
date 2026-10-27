@@ -29,7 +29,7 @@ import StandingsTab from "./Standings";
 import {
     FaRankingStar, FaClipboardList, FaEarthAmericas, FaCalendarDays,
     FaChevronDown, FaChevronRight, FaChevronLeft,
-    FaStar, FaRegStar, FaArrowsRotate, FaTrophy, FaXmark, FaMedal, FaDice, FaCircleQuestion
+    FaStar, FaRegStar, FaTrophy, FaXmark, FaMedal, FaDice, FaCircleQuestion
 } from "react-icons/fa6";
 
 // import ShowdownCardSearch from "../cards/ShowdownCardSearch";
@@ -172,7 +172,6 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
     const [isDatePickerOpen, setIsDatePickerOpen] = useState(false);
     const datePickerRef = useRef<HTMLDivElement>(null);
 
-    const [isLoading, setIsLoading] = useState<boolean>(false);
     const [isLoadingStandings, setIsLoadingStandings] = useState<boolean>(false);
     const [isLoadingSchedule, setIsLoadingSchedule] = useState<boolean>(false);
 
@@ -312,7 +311,6 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
     }, [settingsLoaded]);
     const hasLoadedSeasonsRef = useRef(false);
     const isLoadingSeasonsRef = useRef(false);
-    const pendingRequestsRef = useRef(0);
     const isRunningLoadAllRef = useRef(false);
     const scheduleAbortControllerRef = useRef<AbortController | null>(null);
 
@@ -327,18 +325,6 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
         document.addEventListener("mousedown", handleClickOutside);
         return () => document.removeEventListener("mousedown", handleClickOutside);
     }, [isDatePickerOpen]);
-
-    const beginLoading = () => {
-        pendingRequestsRef.current += 1;
-        setIsLoading(true);
-    };
-
-    const endLoading = () => {
-        pendingRequestsRef.current = Math.max(0, pendingRequestsRef.current - 1);
-        if (pendingRequestsRef.current === 0) {
-            setIsLoading(false);
-        }
-    };
 
     const seasonOptions: SelectOption[] = seasons
         .filter(season => season.season_id != null)
@@ -442,7 +428,6 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
         }
 
         isLoadingSeasonsRef.current = true;
-        beginLoading();
         try {
             const seasonsData = await fetchSeasons();
             console.log("Raw seasons data from API:", seasonsData);
@@ -467,7 +452,6 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
             console.error("Error fetching seasons:", error);
         } finally {
             isLoadingSeasonsRef.current = false;
-            endLoading();
         }
     };
 
@@ -492,7 +476,6 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
 
         var standingsData: { [leagueAbbreviation: string]: Standings[] } = {};
         let standingsFailed = false;
-        beginLoading();
         setIsLoadingStandings(true);
         try {
             standingsData = await fetchSeasonStandings(selectedSeason, leaguesToQuery, userShowdownSet);
@@ -502,7 +485,6 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
             console.error(`Error fetching standings for season ${selectedSeason.season_id}:`, error);
             standingsFailed = true;
         } finally {
-            endLoading();
             setIsLoadingStandings(false);
         }
 
@@ -550,7 +532,6 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
         if (!selectedSeason) return;
 
         isRunningLoadAllRef.current = true;
-        beginLoading();
 
         // Apply cached teams immediately so the list renders before network completes
         const teamsCacheKey = getTeamsCacheKey(selectedSeason.season_id.toString());
@@ -692,7 +673,6 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
             console.error(`Error in loadAll for season ${selectedSeason.season_id}:`, error);
         } finally {
             isRunningLoadAllRef.current = false;
-            endLoading();
         }
     };
 
@@ -701,7 +681,6 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
             return null;
         }
 
-        beginLoading();
         try {
             const showdownTeam = await fetchShowdownTeam(selectedSeason, team.id, selectedSport.id, team.abbreviation || team.name, team.name, userShowdownSet);
             console.log(`Fetched showdown team for ${team.name} in season ${selectedSeason.season_id}:`, showdownTeam);
@@ -716,7 +695,6 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
             console.error(`Error fetching showdown team for ${team.name} in season ${selectedSeason.season_id}:`, error);
             return null;
         } finally {
-            endLoading();
         }
     };
 
@@ -741,7 +719,6 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
         const controller = new AbortController();
         scheduleAbortControllerRef.current = controller;
 
-        beginLoading();
         setIsLoadingSchedule(true);
         try {
             const selectedDate = formatDateForApi(gamesDate);
@@ -754,7 +731,6 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
             console.error(`Error fetching games schedule for season ${selectedSeason.season_id}:`, error);
             setGamesSchedule(null);
         } finally {
-            endLoading();
             setIsLoadingSchedule(false);
         }
     };
