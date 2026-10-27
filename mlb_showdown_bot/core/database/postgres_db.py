@@ -6765,6 +6765,8 @@ class PostgresDB:
                     ADD COLUMN IF NOT EXISTS published_at      TIMESTAMP WITH TIME ZONE,
                     ADD COLUMN IF NOT EXISTS published_version INT NOT NULL DEFAULT 0;
             """)
+            # The link-preview image (see `ReleaseShareImage`), rendered when the release is published
+            cur.execute("ALTER TABLE internal.releases ADD COLUMN IF NOT EXISTS share_image_path TEXT;")
             cur.execute("""
                 UPDATE internal.releases r
                    SET published_at = r.updated_at, published_version = 1
@@ -6897,11 +6899,11 @@ class PostgresDB:
     _RELEASE_PREVIEW_IMAGES_COLUMN = """
             COALESCE((
                 SELECT json_agg(
-                           json_build_object('thumbnail_path', p.thumbnail_path, 'name', p.name)
+                           json_build_object('thumbnail_path', p.thumbnail_path, 'storage_path', p.storage_path, 'name', p.name)
                            ORDER BY p.preview_rank NULLS LAST, p.edition_name, p.points DESC NULLS LAST
                        )
                   FROM (
-                    SELECT i.thumbnail_path, rc.card_snapshot->>'name' AS name, rc.preview_rank, pe.name AS edition_name,
+                    SELECT i.thumbnail_path, i.storage_path, rc.card_snapshot->>'name' AS name, rc.preview_rank, pe.name AS edition_name,
                            CASE WHEN jsonb_typeof(rc.card_snapshot->'points') = 'number'
                                 THEN (rc.card_snapshot->>'points')::numeric END AS points
                       FROM internal.release_editions pe
@@ -6937,7 +6939,7 @@ class PostgresDB:
         SELECT
             r.id, r.name, r.description, r.created_by, r.is_official,
             r.fork_parent_id, r.slug, r.default_showdown_set, r.created_at, r.updated_at,
-            r.published_at, r.published_version,
+            r.published_at, r.published_version, r.share_image_path,
             -- Unpublished work the owner hasn't published yet: an edited working copy, or a new edition
             -- of an already-published release
             EXISTS (
@@ -7085,6 +7087,41 @@ class PostgresDB:
             cur.execute(query, (release_id, user_id))
             row = cur.fetchone()
             return self._serialize_release_row(dict(row)) if row else None
+
+    def get_release_id_by_slug(self, slug: str) -> str | None:
+        """The id behind a release's short link (`/r/<slug>`). Visibility is checked by `get_release`."""
+        if not self.connection:
+            return None
+        rows = self.execute_query("SELECT id::text AS id FROM internal.releases WHERE slug = %s", (slug,))
+        return rows[0]['id'] if rows else None
+
+    def get_public_release_tile(self, release_id: str) -> dict | None:
+        """A published release as anyone sees its tile (published editions only), for link previews
+        and its share image. None if it doesn't exist or nothing is published."""
+        if not self.connection:
+            return None
+        query = self._release_list_select(published_only=True) + """
+            WHERE r.id::text = %s
+              AND EXISTS (SELECT 1 FROM internal.release_editions pe WHERE pe.release_id = r.id AND pe.is_published)
+            GROUP BY r.id
+        """
+        with self.connection.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute(query, (release_id,))
+            row = cur.fetchone()
+            return self._serialize_release_row(dict(row)) if row else None
+
+    def set_release_share_image(self, release_id: str, share_image_path: str) -> str | None:
+        """Point the release at a new share image. Returns the path it replaced, if any."""
+        if not self.connection:
+            return None
+        with self.connection.cursor() as cur:
+            cur.execute("""
+                WITH previous AS (SELECT share_image_path FROM internal.releases WHERE id = %(id)s)
+                UPDATE internal.releases SET share_image_path = %(path)s WHERE id = %(id)s
+                RETURNING (SELECT share_image_path FROM previous)
+            """, {'id': release_id, 'path': share_image_path})
+            row = cur.fetchone()
+            return row[0] if row else None
 
     def set_release_published(self, release_id: str, user_id: str, published: bool) -> bool:
         """Publish or unpublish every edition of a release owned by user_id, in one statement so a
@@ -7466,11 +7503,15 @@ class PostgresDB:
             ]
 
     def get_all_release_card_image_paths(self) -> list[dict]:
-        """Storage paths of every release image row, for the storage janitor."""
+        """Storage paths of every release image row (and every release's share image), for the storage janitor."""
         if not self.connection:
             raise RuntimeError("No database connection")
         with self.connection.cursor(cursor_factory=RealDictCursor) as cur:
-            cur.execute("SELECT storage_path, thumbnail_path FROM internal.release_card_images WHERE storage_path IS NOT NULL")
+            cur.execute("""
+                SELECT storage_path, thumbnail_path FROM internal.release_card_images WHERE storage_path IS NOT NULL
+                UNION ALL
+                SELECT share_image_path, NULL FROM internal.releases WHERE share_image_path IS NOT NULL
+            """)
             return [dict(row) for row in cur.fetchall()]
 
     def save_release_card_image(self, edition_id: str, source_card_id: str, render_hash: str, storage_path: str, thumbnail_path: str) -> list[str] | None:

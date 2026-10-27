@@ -1,13 +1,14 @@
 import { useState } from 'react';
+import { releaseShareUrl } from '../../api/releases';
 
-/** Copies a release's link, flipping `copied` on for a moment. When the clipboard is refused the
- * link comes back in `error` so it can still be copied by hand. */
-export function useCopyReleaseLink(releaseId: string) {
+/** Copies a release's short link, flipping `copied` on for a moment. When the clipboard is refused
+ * the link comes back in `error` so it can still be copied by hand. */
+export function useCopyReleaseLink(slug: string, editionSlug?: string | null) {
     const [copied, setCopied] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const url = releaseShareUrl(slug, editionSlug);
 
     async function copy() {
-        const url = `${window.location.origin}/release-builder/${releaseId}`;
         setError(null);
         try {
             await navigator.clipboard.writeText(url);
@@ -18,5 +19,5 @@ export function useCopyReleaseLink(releaseId: string) {
         }
     }
 
-    return { copied, error, copy };
+    return { url, copied, error, copy };
 }

@@ -31,6 +31,8 @@ export type ReleaseEditionDraftSummary = {
 export type ReleasePreviewImage = {
     /** Path in the `card_images` bucket (see `cardImagePublicUrl`). */
     thumbnail_path: string;
+    /** The full-size render, for the share image. */
+    storage_path?: string | null;
     name: string | null;
 };
 
@@ -58,6 +60,8 @@ export type Release = {
     published_version: number;
     /** An already-published release has unpublished edits (a changed working copy or a new edition). */
     has_pending_changes: boolean;
+    /** `card_images` path of the link-preview image, rendered when the release is published. */
+    share_image_path: string | null;
     created_at: string;
     updated_at: string;
 };
@@ -315,6 +319,29 @@ export async function fetchRelease(releaseId: string, token?: string): Promise<R
     if (!res.ok) throw new Error(`Failed to fetch release: ${res.status}`);
     return res.json();
 }
+
+/** The release behind a short link (`/r/<slug>`). */
+export async function fetchReleaseBySlug(slug: string, token?: string): Promise<Release> {
+    const headers: Record<string, string> = {};
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+    const res = await fetch(`${API_BASE}/releases/by-slug/${encodeURIComponent(slug)}`, { headers });
+    if (!res.ok) throw new Error(res.status === 404 ? 'Release not found' : `Failed to fetch release: ${res.status}`);
+    return res.json();
+}
+
+/** The release's link-preview image path, rendered on the spot if it's missing or out of date. */
+export async function ensureReleaseShareImage(releaseId: string): Promise<string> {
+    const res = await fetch(`${API_BASE}/releases/${releaseId}/share_image`, { method: 'POST' });
+    if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || `Failed to make the preview image: ${res.status}`);
+    }
+    return (await res.json()).share_image_path;
+}
+
+/** The short link to share a release by. */
+export const releaseShareUrl = (slug: string, editionSlug?: string | null): string =>
+    `${window.location.origin}/r/${slug}${editionSlug ? `/${editionSlug}` : ''}`;
 
 export async function createRelease(payload: ReleaseCreatePayload, token: string): Promise<Release> {
     const res = await fetch(`${API_BASE}/releases`, {

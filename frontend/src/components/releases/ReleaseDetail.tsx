@@ -5,10 +5,10 @@ import { fetchEdition, createEdition, updateEdition, editionSummaryOf, releaseDr
 import { EditionBuilder, EditionBuilderSkeleton, type EditionNavRequest } from './EditionBuilder';
 import { ReleaseReviewPanel } from './ReleaseReviewPanel';
 import { useReleaseReview } from './useReleaseReview';
-import { useCopyReleaseLink } from './useCopyReleaseLink';
+import { ReleaseShareSheet } from './ReleaseShareSheet';
 import FormInput from '../customs/FormInput';
 import { ModeBanner, ModeBannerButton } from '../shared/ModeBanner';
-import { FaArrowLeft, FaCheck, FaEye, FaGlobe, FaLink, FaPen, FaPlus, FaSpinner, FaXmark } from 'react-icons/fa6';
+import { FaArrowLeft, FaCheck, FaEye, FaGlobe, FaPen, FaPlus, FaShareNodes, FaSpinner, FaXmark } from 'react-icons/fa6';
 
 import { InlineError } from '../shared/InlineError';
 import { Heading } from '../shared/Heading';
@@ -76,7 +76,8 @@ export function ReleaseDetail({ release, readOnly, editionSlug, onEditionChange,
     const [publishedVersion, setPublishedVersion] = useState<number | null>(null);
     const [confirmingDiscard, setConfirmingDiscard] = useState(false);
     const [discarding, setDiscarding] = useState(false);
-    const releaseLink = useCopyReleaseLink(release.id);
+    /** The share sheet, with an eyebrow line when it opens right after a first publish. */
+    const [shareSheet, setShareSheet] = useState<{ eyebrow?: string } | null>(null);
 
     /** Releases from publish/draft endpoints lack the list-only fields, so keep ours for those. */
     function mergeRelease(updated: Release) {
@@ -146,6 +147,8 @@ export function ReleaseDetail({ release, readOnly, editionSlug, onEditionChange,
         mergeRelease(updated);
         changeMode('browse');
         setPublishedVersion(updated.published_version);
+        // The first publish is when there's a link to send for the first time
+        if (updated.published_version === 1) setShareSheet({ eyebrow: 'Published · v1' });
     }
 
     async function handleDiscard() {
@@ -300,8 +303,16 @@ export function ReleaseDetail({ release, readOnly, editionSlug, onEditionChange,
                         )}
                     </Tabs.List>
 
+                    {!isOwner && isPublished && (
+                        <div className="flex items-center gap-1.5 shrink-0 py-1.5">
+                            <HeaderButton icon={<FaShareNodes />} label="Share" collapseLabel onClick={() => setShareSheet({})} />
+                        </div>
+                    )}
                     {isOwner && (
                         <div className="flex items-center gap-1.5 shrink-0 py-1.5">
+                            {isPublished && !isEditing && (
+                                <HeaderButton icon={<FaShareNodes />} label="Share" collapseLabel onClick={() => setShareSheet({})} />
+                            )}
                             {isEditing ? (
                                 <>
                                     <HeaderButton
@@ -324,8 +335,8 @@ export function ReleaseDetail({ release, readOnly, editionSlug, onEditionChange,
 
                 {isOwner && !isEditing && publishedVersion !== null && (
                     <ModeBanner tone="navy" label="PUBLISHED" detail={`— v${publishedVersion} is live. Anyone can browse it.`}>
-                        <ModeBannerButton onClick={releaseLink.copy}>
-                            <FaLink /> {releaseLink.copied ? 'Copied' : 'Copy link'}
+                        <ModeBannerButton onClick={() => setShareSheet({})}>
+                            <FaShareNodes /> Share
                         </ModeBannerButton>
                         <ModeBannerButton onClick={() => setPublishedVersion(null)}>
                             <FaXmark /> Dismiss
@@ -384,9 +395,9 @@ export function ReleaseDetail({ release, readOnly, editionSlug, onEditionChange,
                     </ModeBanner>
                 )}
 
-                {(error || releaseLink.error) && (
+                {error && (
                     <InlineError size="md" className="mx-4 mt-2 shrink-0">
-                        {error ?? releaseLink.error}
+                        {error}
                     </InlineError>
                 )}
 
@@ -462,6 +473,7 @@ export function ReleaseDetail({ release, readOnly, editionSlug, onEditionChange,
                                             onFix={handleReviewFix}
                                             onReleaseUpdated={handleReviewReleaseUpdated}
                                             onPublished={handlePublished}
+                                            onShare={() => setShareSheet({})}
                                             onViewAsVisitor={() => changeMode('browse')}
                                         />
                                     ) : null}
@@ -474,6 +486,8 @@ export function ReleaseDetail({ release, readOnly, editionSlug, onEditionChange,
                     })
                 )}
             </Tabs.Root>
+
+            {shareSheet && <ReleaseShareSheet release={release} eyebrow={shareSheet.eyebrow} onClose={() => setShareSheet(null)} />}
         </div>
     );
 }

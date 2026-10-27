@@ -278,6 +278,11 @@ class ReleaseImageStorage:
         return f"{cls.ROOT}/{release_id}/{edition_id}" if edition_id else f"{cls.ROOT}/{release_id}"
 
     @classmethod
+    def public_url(cls, path: str) -> str:
+        """Public URL of a file in the bucket (frontend `cardImagePublicUrl`)."""
+        return f"{os.getenv('SUPABASE_URL', '').rstrip('/')}/storage/v1/object/public/{cls.BUCKET}/{path}"
+
+    @classmethod
     def image_paths(cls, release_id: str, edition_id: str, spec: ReleaseCardImageSpec) -> tuple[str, str]:
         """(full-size path, thumbnail path). The thumbnail name matches `ShowdownPlayerCard._thumbnail_file_name`."""
         folder = cls.folder(release_id, edition_id)

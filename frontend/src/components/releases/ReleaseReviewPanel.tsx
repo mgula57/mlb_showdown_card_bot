@@ -7,11 +7,10 @@
  */
 
 import { useEffect, useRef, useState } from 'react';
-import { FaCircleCheck, FaCircleInfo, FaCircleXmark, FaGlobe, FaLink, FaSpinner, FaTriangleExclamation } from 'react-icons/fa6';
+import { FaCircleCheck, FaCircleInfo, FaCircleXmark, FaGlobe, FaShareNodes, FaSpinner, FaTriangleExclamation } from 'react-icons/fa6';
 import type { Release, ReleaseCardChange, ReleaseChanges, ReleaseEditionChanges, ReleaseReviewItem, ReleaseReviewLevel } from '../../api/releases';
 import { setReleasePublished, updateRelease } from '../../api/releases';
 import type { ReleaseReviewState } from './useReleaseReview';
-import { useCopyReleaseLink } from './useCopyReleaseLink';
 import { EmptyState } from '../shared/EmptyState';
 import { ReleaseItem, ReleaseItemSkeleton } from './ReleaseItem';
 import { Heading } from '../shared/Heading';
@@ -41,10 +40,11 @@ type ReleaseReviewPanelProps = {
     /** Unpublish and description saves. */
     onReleaseUpdated: (release: Release) => void;
     onPublished: (release: Release) => void;
+    onShare: () => void;
     onViewAsVisitor: () => void;
 };
 
-export function ReleaseReviewPanel({ release, review, unsavedPreviewEditionIds, token, onFix, onReleaseUpdated, onPublished, onViewAsVisitor }: ReleaseReviewPanelProps) {
+export function ReleaseReviewPanel({ release, review, unsavedPreviewEditionIds, token, onFix, onReleaseUpdated, onPublished, onShare, onViewAsVisitor }: ReleaseReviewPanelProps) {
     const descriptionRef = useRef<HTMLTextAreaElement>(null);
     const items = [
         ...(review.data?.items ?? []),
@@ -130,6 +130,7 @@ export function ReleaseReviewPanel({ release, review, unsavedPreviewEditionIds, 
                         hasChanges={review.data?.changes?.has_changes ?? null}
                         onReleaseUpdated={onReleaseUpdated}
                         onPublished={onPublished}
+                        onShare={onShare}
                         onBlocked={review.refresh}
                         onViewAsVisitor={onViewAsVisitor}
                     />
@@ -284,17 +285,17 @@ type PublishControlsProps = {
     hasChanges: boolean | null;
     onReleaseUpdated: (release: Release) => void;
     onPublished: (release: Release) => void;
+    onShare: () => void;
     /** The server refused because a blocker appeared since the checklist loaded. */
     onBlocked: () => void;
     onViewAsVisitor: () => void;
 };
 
-function PublishControls({ release, token, ready, blockerCount, checkCount, hasChanges, onReleaseUpdated, onPublished, onBlocked, onViewAsVisitor }: PublishControlsProps) {
+function PublishControls({ release, token, ready, blockerCount, checkCount, hasChanges, onReleaseUpdated, onPublished, onShare, onBlocked, onViewAsVisitor }: PublishControlsProps) {
     const [busy, setBusy] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [confirmingUnpublish, setConfirmingUnpublish] = useState(false);
     const [note, setNote] = useState('');
-    const releaseLink = useCopyReleaseLink(release.id);
 
     const isLive = release.editions.some(e => e.is_published);
     // A live release republishes as an update, which needs something to publish
@@ -378,13 +379,13 @@ function PublishControls({ release, token, ready, blockerCount, checkCount, hasC
                 </>
             )}
 
-            {(error || releaseLink.error) && <InlineError size="sm">{error ?? releaseLink.error}</InlineError>}
+            {error && <InlineError size="sm">{error}</InlineError>}
 
             {isLive && (
                 <div className="flex flex-col gap-2 pt-1 border-t border-(--divider)">
                     <div className="flex gap-2 pt-2">
-                        <button type="button" onClick={releaseLink.copy} className={buttonClass('secondary', 'sm', 'flex-1')}>
-                            <FaLink className="text-[10px]" /> {releaseLink.copied ? 'Copied' : 'Copy link'}
+                        <button type="button" onClick={onShare} className={buttonClass('secondary', 'sm', 'flex-1')}>
+                            <FaShareNodes className="text-[10px]" /> Share
                         </button>
                         <button type="button" onClick={onViewAsVisitor} className={buttonClass('secondary', 'sm', 'flex-1')}>
                             View live

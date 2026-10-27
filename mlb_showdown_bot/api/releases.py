@@ -10,6 +10,7 @@ from ..core.set_builder.release_card_rebuilder import ReleaseCardRebuilder, Rele
 from ..core.set_builder.release_images import EditionImagePlan, EditionImageRenderer, ReleaseImageJobCancelled, ReleaseImageStorage
 from ..core.set_builder.release_draft import ReleaseDraft
 from ..core.set_builder.release_review import ReleaseReview
+from ..core.set_builder.release_share import ReleaseShareImage
 from ..core.set_builder.selection import OtherEditionsRule
 from ..core.set_builder.showdown_bot_set import AlgorithmPreviewRequest
 from ..core.set_builder.wotc_set_profile import WotcSetProfile
@@ -51,6 +52,21 @@ def create_release():
         release = db.get_release(release_id, g.user_id)
         db.close_connection()
         return jsonify(release), 201
+    except Exception as exc:
+        traceback.print_exc()
+        return jsonify({'error': str(exc)}), 500
+
+
+@releases_bp.route('/releases/by-slug/<slug>', methods=['GET'])
+def get_release_by_slug(slug: str):
+    """The release behind a short link (`/r/<slug>`), if the caller can see it."""
+    try:
+        with PostgresDB() as db:
+            release_id = db.get_release_id_by_slug(slug)
+            release = db.get_release(release_id, optional_user_id()) if release_id else None
+        if release is None:
+            return jsonify({'error': 'Release not found'}), 404
+        return jsonify(release), 200
     except Exception as exc:
         traceback.print_exc()
         return jsonify({'error': str(exc)}), 500
@@ -173,6 +189,12 @@ def publish_release(release_id: str):
                 bump_version=changes is None or changes.has_changes, note=note,
                 changes=[edition.summary() for edition in changes.editions if edition.has_changes] if changes else None,
             )
+            try:
+                # The link preview should show what was just published
+                ReleaseShareImage(db).refresh(release_id, request.host)
+            except Exception:
+                # Link previews retry it on their own; never fail a publish over it
+                traceback.print_exc()
             release = db.get_release(release_id, g.user_id)
         ReleaseImageStorage().delete(replaced_paths or [])
         return jsonify(release), 200
@@ -211,6 +233,22 @@ def discard_release_draft(release_id: str):
     except Exception as exc:
         traceback.print_exc()
         return jsonify({'error': str(exc)}), 500
+
+
+@releases_bp.route('/releases/<release_id>/share_image', methods=['POST'])
+def ensure_release_share_image(release_id: str):
+    """The published release's link-preview image, rendered now if it's missing or out of date
+    (a no-op when it's current). The share sheet calls this, so a release published before share
+    images existed, or whose render at publish failed, still gets one."""
+    try:
+        with PostgresDB() as db:
+            path = ReleaseShareImage(db).refresh(release_id, request.host)
+        if path is None:
+            return jsonify({'error': 'Release not found or not published'}), 404
+        return jsonify({'share_image_path': path}), 200
+    except Exception as exc:
+        traceback.print_exc()
+        return jsonify({'error': f"Couldn't make the preview image: {exc}"}), 500
 
 
 @releases_bp.route('/releases/<release_id>/unpublish', methods=['POST'])

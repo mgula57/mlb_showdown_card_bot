@@ -59,6 +59,7 @@ const mlbSeasons = [
     }),
 ];
 import Releases from "./components/releases/Releases";
+import ReleaseShortLink from "./components/releases/ReleaseShortLink";
 
 /**
  * Inner application content component that handles route-based visibility
@@ -98,6 +99,8 @@ const AppContent = () => {
         if (path.startsWith('/seasons/')) return '/seasons';
         if (path.startsWith('/simulate/')) return '/simulate';
         if (path.startsWith('/release-builder/')) return '/release-builder';
+        // Short links redirect into the Release Builder, so mount it while the slug resolves
+        if (path.startsWith('/r/')) return '/release-builder';
         return path;
     };
     
@@ -179,6 +182,9 @@ const AppContent = () => {
                     <TeamBuilder />
                 </div>
             )}
+
+            {/* Release short links (/r/<slug>) redirect to the release */}
+            {location.pathname.startsWith('/r/') && <ReleaseShortLink />}
 
             {/* Releases - Mount when first visited */}
             {mountedRoutes.has('/release-builder') && (
