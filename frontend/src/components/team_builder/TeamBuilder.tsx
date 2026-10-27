@@ -783,8 +783,7 @@ export default function TeamBuilder() {
                         className={buttonClass('primary', 'md', `${px} py-3!`)}
                     >
                         {creatingTeam ? <FaSpinner className="animate-spin" /> : <FaPlus />}
-                        New
-                        <span className="hidden md:inline">Team</span>
+                        <span>New<span className="hidden md:inline"> Team</span></span>
                     </button>
                 )}
             </div>

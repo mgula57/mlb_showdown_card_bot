@@ -158,7 +158,9 @@ export default function HomeGameReel({ onCardSelect }: { onCardSelect?: (card: S
     const isShowing = !!segment && segment.game === game && !isFading;
 
     return (
-        <div ref={containerRef} className="relative w-full px-6 py-8 sm:px-10">
+        // Full-bleed on phones: the negative margin cancels Home's `px-6` gutter so the field
+        // spans the screen.
+        <div ref={containerRef} className="relative -mx-6 px-3 py-8 sm:mx-0 sm:w-full sm:px-10">
             {/* Grass backdrop, faded out on all four edges (two gradients intersected) so it
                 dissolves into the hero instead of sitting in a box. The padding above keeps the
                 content inside the fully opaque middle. Content below is a later positioned
