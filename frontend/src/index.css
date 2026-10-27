@@ -10,9 +10,11 @@
        condensed bold for player names on cards. `font-display-black`: extra black condensed for
        command numbers. Their metrics are normalized by scripts/normalize_font_metrics.py so caps
        center in the line box. See DESIGN.md. */
-    /* Body face: Archivo (self-hosted variable font, normal width), a grotesque with squarer,
-       sportier caps than the system UI fonts. Loaded in main.tsx. See DESIGN.md (Type). */
-    --font-sans: 'Archivo Variable', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji';
+    /* Body face: Inter (self-hosted variable font), a neo-grotesque in the Helvetica mold of the
+       card charts, tuned for screen legibility at small sizes. cv05/cv08 give l and I tails so they
+       don't read as 1. Loaded in main.tsx. See DESIGN.md (Type). */
+    --font-sans: 'Inter Variable', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji';
+    --font-sans--font-feature-settings: 'cv05', 'cv08';
     /* `font-slab`: the heavy slab-serif caps of the 2000 Showdown print ads, only for `EmptyState`
        headlines. Self-hosted, loaded in main.tsx. */
     --font-slab: 'Alfa Slab One', 'Rockwell', 'Roboto Slab', Georgia, serif;
