@@ -7,6 +7,7 @@ import {
     fetchRelease,
     createRelease,
     createEdition,
+    editionSummaryOf,
     type Release,
 } from '../../api/releases';
 import { ReleaseItem, ReleaseItemSkeleton } from './ReleaseItem';
@@ -152,7 +153,7 @@ export default function Releases() {
         const newRelease: Release = {
             ...created,
             editions: [
-                { id: mainEdition.id, name: mainEdition.name, attributes: mainEdition.attributes, slug: mainEdition.slug, is_published: mainEdition.is_published, card_count: 0 },
+                editionSummaryOf(mainEdition),
             ],
         };
         setUserReleases(prev => [newRelease, ...prev]);

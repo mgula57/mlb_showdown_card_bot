@@ -1,13 +1,14 @@
-import { useState, useEffect, useCallback, type ReactNode } from 'react';
+import { useState, useEffect, useCallback, useRef, type ReactNode } from 'react';
 import * as Tabs from '@radix-ui/react-tabs';
-import type { Release, ReleaseEdition, ReleaseReviewItem } from '../../api/releases';
-import { fetchEdition, createEdition, updateEdition } from '../../api/releases';
+import type { Release, ReleaseEdition, ReleaseEditionSummary, ReleaseReviewItem } from '../../api/releases';
+import { fetchEdition, createEdition, updateEdition, editionSummaryOf, releaseDraftRequest } from '../../api/releases';
 import { EditionBuilder, EditionBuilderSkeleton, type EditionNavRequest } from './EditionBuilder';
 import { ReleaseReviewPanel } from './ReleaseReviewPanel';
 import { useReleaseReview } from './useReleaseReview';
+import { useCopyReleaseLink } from './useCopyReleaseLink';
 import FormInput from '../customs/FormInput';
 import { ModeBanner, ModeBannerButton } from '../shared/ModeBanner';
-import { FaArrowLeft, FaCheck, FaEye, FaGlobe, FaPen, FaPlus, FaSpinner, FaXmark } from 'react-icons/fa6';
+import { FaArrowLeft, FaCheck, FaEye, FaGlobe, FaLink, FaPen, FaPlus, FaSpinner, FaXmark } from 'react-icons/fa6';
 
 import { InlineError } from '../shared/InlineError';
 import { Heading } from '../shared/Heading';
@@ -43,9 +44,18 @@ export function ReleaseDetail({ release, readOnly, editionSlug, onEditionChange,
     const editions = isOwner ? release.editions : release.editions.filter(e => e.is_published);
     const isPublished = release.editions.some(e => e.is_published);
     const hasDrafts = release.editions.some(e => !e.is_published);
+    // Once published, edits go to private working copies until the owner publishes them
+    const isStaged = release.published_version > 0;
+    const hasUnpublishedWork = isStaged ? release.has_pending_changes : hasDrafts;
 
     const [mode, setMode] = useState<ViewMode>(() => isPublished ? 'browse' : 'edit');
     const isEditing = isOwner && mode === 'edit';
+    /** The edition the builder loads: its working copy while editing a published release. */
+    const loadedIdOf = (edition: ReleaseEditionSummary) => isEditing && edition.draft ? edition.draft.id : edition.id;
+    /** What the tab shows for an edition: the working copy's name and count while editing it. */
+    const shownOf = (edition: ReleaseEditionSummary) => isEditing && edition.draft ? edition.draft : edition;
+    // A published edition without a working copy yet can't be edited, so open them first
+    const needsDraft = isEditing && isStaged && release.editions.some(e => e.published_at && !e.draft);
 
     /** Step 3 is release-wide, so it lives here rather than in each edition's builder. */
     const [reviewOpen, setReviewOpen] = useState(false);
@@ -57,27 +67,52 @@ export function ReleaseDetail({ release, readOnly, editionSlug, onEditionChange,
         setUnsavedPreviews(prev => prev[editionId] === hasUnsavedPreview ? prev : { ...prev, [editionId]: hasUnsavedPreview });
     }, []);
 
-    const activeEditionId = (editions.find(e => e.slug === editionSlug) ?? editions[0])?.id ?? null;
+    const activeEdition = editions.find(e => e.slug === editionSlug) ?? editions[0] ?? null;
+    const activeEditionId = activeEdition?.id ?? null;
+    const activeLoadedId = activeEdition && !needsDraft ? loadedIdOf(activeEdition) : null;
     const [editionCache, setEditionCache] = useState<Record<string, ReleaseEdition>>({});
     const [error, setError] = useState<string | null>(null);
+    /** Set right after a publish, for the confirmation strip. */
+    const [publishedVersion, setPublishedVersion] = useState<number | null>(null);
+    const [confirmingDiscard, setConfirmingDiscard] = useState(false);
+    const [discarding, setDiscarding] = useState(false);
+    const releaseLink = useCopyReleaseLink(release.id);
+
+    /** Releases from publish/draft endpoints lack the list-only fields, so keep ours for those. */
+    function mergeRelease(updated: Release) {
+        onReleaseUpdated({ ...release, ...updated });
+    }
+
+    const draftRequested = useRef(false);
+    useEffect(() => {
+        if (!needsDraft || !token || draftRequested.current) return;
+        draftRequested.current = true;
+        releaseDraftRequest(release.id, 'start', token)
+            .then(mergeRelease)
+            .catch(err => setError(err instanceof Error ? err.message : 'Failed to start editing.'))
+            .finally(() => { draftRequested.current = false; });
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [needsDraft, token, release.id]);
 
     /** Inline name form above the builder — creates a new edition or renames the active one. */
     const [editionForm, setEditionForm] = useState<'create' | 'rename' | null>(null);
     const [editionFormName, setEditionFormName] = useState('');
     const [savingEditionForm, setSavingEditionForm] = useState(false);
-    const activeEditionName = editions.find(e => e.id === activeEditionId)?.name ?? '';
+    const activeEditionName = activeEdition ? shownOf(activeEdition).name : '';
 
     useEffect(() => {
-        if (!activeEditionId || editionCache[activeEditionId]) return;
+        if (!activeLoadedId || editionCache[activeLoadedId]) return;
         setError(null);
-        fetchEdition(release.id, activeEditionId, token)
+        fetchEdition(release.id, activeLoadedId, token)
             .then(edition => setEditionCache(prev => ({ ...prev, [edition.id]: edition })))
             .catch(err => setError(err.message ?? 'Failed to load edition.'));
-    }, [activeEditionId, release.id, token]);
+    }, [activeLoadedId, release.id, token]);
 
     function changeMode(next: ViewMode) {
         setMode(next);
         if (next === 'browse') setReviewOpen(false);
+        if (next === 'edit') setPublishedVersion(null);
+        setConfirmingDiscard(false);
         closeEditionForm();
     }
 
@@ -89,20 +124,44 @@ export function ReleaseDetail({ release, readOnly, editionSlug, onEditionChange,
     /** A review fix link: leave the review for the edition and step where the item gets fixed. */
     function handleReviewFix(item: ReleaseReviewItem) {
         const fix = item.fix;
-        const edition = release.editions.find(e => e.id === fix?.edition_id);
+        const edition = release.editions.find(e => fix?.edition_id && loadedIdOf(e) === fix.edition_id);
         if (!fix || fix.step === 'details' || !edition) return;
         setReviewOpen(false);
         onEditionChange(edition.slug);
         setNavRequest({ editionId: edition.id, request: { step: fix.step, imageStatus: fix.image_status } });
     }
 
-    /** Publish/unpublish and description saves return the release without its list-only fields. */
+    /** Unpublish and description saves from the Review step. */
     function handleReviewReleaseUpdated(updated: Release) {
         const publishedById = new Map(updated.editions.map(e => [e.id, e.is_published]));
         setEditionCache(prev => Object.fromEntries(Object.entries(prev).map(([id, edition]) => [
             id, publishedById.has(id) ? { ...edition, is_published: publishedById.get(id)! } : edition,
         ])));
-        onReleaseUpdated({ ...release, ...updated, editions: updated.editions.length ? updated.editions : release.editions });
+        mergeRelease(updated);
+    }
+
+    /** Publishing replaces the live editions (and drops the working copies), so reload everything. */
+    function handlePublished(updated: Release) {
+        setEditionCache({});
+        mergeRelease(updated);
+        changeMode('browse');
+        setPublishedVersion(updated.published_version);
+    }
+
+    async function handleDiscard() {
+        if (!token || discarding) return;
+        setDiscarding(true);
+        setError(null);
+        try {
+            const updated = await releaseDraftRequest(release.id, 'discard', token);
+            setEditionCache({});
+            mergeRelease(updated);
+            changeMode('browse');
+        } catch (err) {
+            setError(err instanceof Error ? err.message : 'Failed to discard changes.');
+        } finally {
+            setDiscarding(false);
+        }
     }
 
     function openEditionForm(mode: 'create' | 'rename') {
@@ -119,11 +178,11 @@ export function ReleaseDetail({ release, readOnly, editionSlug, onEditionChange,
         const name = editionFormName.trim();
         if (!token || !name || savingEditionForm) return;
         if (editionForm === 'rename') {
-            if (!activeEditionId || name === activeEditionName) { closeEditionForm(); return; }
+            if (!activeLoadedId || name === activeEditionName) { closeEditionForm(); return; }
             setSavingEditionForm(true);
             setError(null);
             try {
-                handleEditionUpdated(await updateEdition(release.id, activeEditionId, { name }, token));
+                handleEditionUpdated(await updateEdition(release.id, activeLoadedId, { name }, token));
                 closeEditionForm();
             } catch (err: any) {
                 setError(err.message ?? 'Failed to rename edition.');
@@ -139,9 +198,10 @@ export function ReleaseDetail({ release, readOnly, editionSlug, onEditionChange,
             setEditionCache(prev => ({ ...prev, [edition.id]: edition }));
             onReleaseUpdated({
                 ...release,
+                has_pending_changes: isStaged || release.has_pending_changes,
                 editions: [
                     ...release.editions,
-                    { id: edition.id, name: edition.name, attributes: edition.attributes, slug: edition.slug, is_published: edition.is_published, card_count: 0 },
+                    editionSummaryOf(edition),
                 ].sort((a, b) => a.name.localeCompare(b.name)),
             });
             onEditionChange(edition.slug);
@@ -161,12 +221,18 @@ export function ReleaseDetail({ release, readOnly, editionSlug, onEditionChange,
         setEditionCache(prev => ({ ...prev, ...Object.fromEntries(byId) }));
         onReleaseUpdated({
             ...release,
+            // Any save while staged is unpublished work (to a working copy or a new edition)
+            has_pending_changes: isStaged || release.has_pending_changes,
             editions: release.editions.map(e => {
                 const updated = byId.get(e.id);
-                return updated
-                    ? { ...e, name: updated.name, attributes: updated.attributes, is_published: updated.is_published, card_count: updated.cards.length }
+                if (updated) {
+                    return { ...e, name: updated.name, attributes: updated.attributes, is_published: updated.is_published, card_count: updated.cards.length };
+                }
+                const updatedDraft = e.draft && byId.get(e.draft.id);
+                return updatedDraft && e.draft
+                    ? { ...e, draft: { ...e.draft, name: updatedDraft.name, card_count: updatedDraft.cards.length } }
                     : e;
-            }).sort((a, b) => a.name.localeCompare(b.name)),
+            }).sort((a, b) => shownOf(a).name.localeCompare(shownOf(b).name)),
         });
     }
 
@@ -205,8 +271,8 @@ export function ReleaseDetail({ release, readOnly, editionSlug, onEditionChange,
                     <Tabs.List className="order-last md:order-0 w-full md:w-auto md:flex-1 flex items-stretch gap-x-3 min-w-0 overflow-x-auto scrollbar-hide border-t border-(--divider) md:border-t-0">
                         {editions.map(edition => (
                             <Tabs.Trigger key={edition.id} value={edition.id} className={EDITION_TAB_CLASS}>
-                                {edition.name}
-                                <Plate size="sm" className="ml-1.5">{edition.card_count}</Plate>
+                                {shownOf(edition).name}
+                                <Plate size="sm" className="ml-1.5">{shownOf(edition).card_count}</Plate>
                                 {/* Only worth flagging per edition when the rest of the release is already public */}
                                 {isOwner && isPublished && !edition.is_published && (
                                     <Plate variant="outline" size="sm" className="ml-1.5">Draft</Plate>
@@ -238,9 +304,15 @@ export function ReleaseDetail({ release, readOnly, editionSlug, onEditionChange,
                         <div className="flex items-center gap-1.5 shrink-0 py-1.5">
                             {isEditing ? (
                                 <>
-                                    <HeaderButton icon={<FaEye />} label="Preview" collapseLabel onClick={() => changeMode('browse')} title="See this release the way others will" />
-                                    {hasDrafts && !reviewOpen && (
-                                        <HeaderButton icon={<FaGlobe />} label="Publish" tone="primary" onClick={openReview} title="Review the release, then publish it" />
+                                    <HeaderButton
+                                        icon={<FaEye />}
+                                        label={isStaged ? 'View live' : 'Preview'}
+                                        collapseLabel
+                                        onClick={() => changeMode('browse')}
+                                        title={isStaged ? 'See the published version' : 'See this release the way others will'}
+                                    />
+                                    {hasUnpublishedWork && !reviewOpen && (
+                                        <HeaderButton icon={<FaGlobe />} label={isStaged && isPublished ? 'Publish changes' : 'Publish'} tone="primary" onClick={openReview} title="Review the release, then publish it" />
                                     )}
                                 </>
                             ) : (
@@ -250,13 +322,26 @@ export function ReleaseDetail({ release, readOnly, editionSlug, onEditionChange,
                     )}
                 </div>
 
-                {isOwner && !isEditing && hasDrafts && (
+                {isOwner && !isEditing && publishedVersion !== null && (
+                    <ModeBanner tone="navy" label="PUBLISHED" detail={`— v${publishedVersion} is live. Anyone can browse it.`}>
+                        <ModeBannerButton onClick={releaseLink.copy}>
+                            <FaLink /> {releaseLink.copied ? 'Copied' : 'Copy link'}
+                        </ModeBannerButton>
+                        <ModeBannerButton onClick={() => setPublishedVersion(null)}>
+                            <FaXmark /> Dismiss
+                        </ModeBannerButton>
+                    </ModeBanner>
+                )}
+
+                {isOwner && !isEditing && publishedVersion === null && hasUnpublishedWork && (
                     <ModeBanner
                         tone="navy"
-                        label="PREVIEW"
-                        detail={isPublished
-                            ? '— editions marked DRAFT are only visible to you until published'
-                            : '— this is how your release will look to others once published'}
+                        label={isStaged ? 'LIVE VERSION' : 'PREVIEW'}
+                        detail={isStaged
+                            ? `— this is v${release.published_version}. Your unpublished changes show up once you publish them`
+                            : isPublished
+                                ? '— editions marked DRAFT are only visible to you until published'
+                                : '— this is how your release will look to others once published'}
                     >
                         <ModeBannerButton onClick={() => changeMode('edit')}>
                             Back to Editing
@@ -267,21 +352,41 @@ export function ReleaseDetail({ release, readOnly, editionSlug, onEditionChange,
                     </ModeBanner>
                 )}
 
-                {isEditing && isPublished && (
+                {isEditing && isStaged && (
                     <ModeBanner
                         tone="red"
                         label="EDITING"
-                        detail="— this release is published, so changes are live as soon as they save"
+                        detail={confirmingDiscard
+                            ? '— throw away every change since you last published? This can\'t be undone'
+                            : `— changes stay private until you publish them. Everyone else sees v${release.published_version}`}
                     >
-                        <ModeBannerButton onClick={() => changeMode('browse')}>
-                            <FaCheck /> Done
-                        </ModeBannerButton>
+                        {confirmingDiscard ? (
+                            <>
+                                <ModeBannerButton onClick={handleDiscard} disabled={discarding}>
+                                    {discarding && <FaSpinner className="animate-spin" />} Discard changes
+                                </ModeBannerButton>
+                                <ModeBannerButton onClick={() => setConfirmingDiscard(false)}>
+                                    Keep editing
+                                </ModeBannerButton>
+                            </>
+                        ) : (
+                            <>
+                                {release.has_pending_changes && (
+                                    <ModeBannerButton onClick={() => setConfirmingDiscard(true)}>
+                                        Discard changes…
+                                    </ModeBannerButton>
+                                )}
+                                <ModeBannerButton onClick={() => changeMode('browse')}>
+                                    <FaCheck /> Done
+                                </ModeBannerButton>
+                            </>
+                        )}
                     </ModeBanner>
                 )}
 
-                {error && (
+                {(error || releaseLink.error) && (
                     <InlineError size="md" className="mx-4 mt-2 shrink-0">
-                        {error}
+                        {error ?? releaseLink.error}
                     </InlineError>
                 )}
 
@@ -321,7 +426,9 @@ export function ReleaseDetail({ release, readOnly, editionSlug, onEditionChange,
                         {isEditing ? 'Add an edition to start building your player pool.' : 'This release has no editions yet.'}
                     </EmptyState>
                 ) : (
-                    editions.map(edition => (
+                    editions.map(edition => {
+                        const loadedEdition = needsDraft ? undefined : editionCache[loadedIdOf(edition)];
+                        return (
                         <Tabs.Content
                             key={edition.id}
                             value={edition.id}
@@ -329,15 +436,17 @@ export function ReleaseDetail({ release, readOnly, editionSlug, onEditionChange,
                             forceMount
                             className="flex-1 min-h-0 flex flex-col focus:outline-none data-[state=inactive]:hidden"
                         >
-                            {!editionCache[edition.id] ? (
+                            {!loadedEdition ? (
                                 edition.id === activeEditionId && (
                                     <EditionBuilderSkeleton />
                                 )
                             ) : (
                                 <EditionBuilder
+                                    // The live edition and its working copy are different builders
+                                    key={loadedEdition.id}
                                     releaseId={release.id}
                                     releaseName={release.name}
-                                    edition={editionCache[edition.id]}
+                                    edition={loadedEdition}
                                     readOnly={!isEditing}
                                     token={token}
                                     defaultShowdownSet={release.default_showdown_set}
@@ -348,10 +457,11 @@ export function ReleaseDetail({ release, readOnly, editionSlug, onEditionChange,
                                         <ReleaseReviewPanel
                                             release={release}
                                             review={review}
-                                            unsavedPreviewEditionIds={release.editions.filter(e => unsavedPreviews[e.id]).map(e => e.id)}
+                                            unsavedPreviewEditionIds={release.editions.map(loadedIdOf).filter(id => unsavedPreviews[id])}
                                             token={token}
                                             onFix={handleReviewFix}
                                             onReleaseUpdated={handleReviewReleaseUpdated}
+                                            onPublished={handlePublished}
                                             onViewAsVisitor={() => changeMode('browse')}
                                         />
                                     ) : null}
@@ -360,7 +470,8 @@ export function ReleaseDetail({ release, readOnly, editionSlug, onEditionChange,
                                 />
                             )}
                         </Tabs.Content>
-                    ))
+                        );
+                    })
                 )}
             </Tabs.Root>
         </div>

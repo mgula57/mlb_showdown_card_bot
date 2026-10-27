@@ -46,7 +46,7 @@ export function ModeBanner({ color, tone = 'navy', label, detail, pulse = false,
                     className={`w-2 h-2 rounded-full shrink-0 ${pulse ? 'animate-pulse' : ''}`}
                     style={{ backgroundColor: tokens.dot }}
                 />
-                <span className="text-[11px] font-bold flex-1 flex items-center gap-4" style={{ color: tokens.fill }}>
+                <span className="text-[11px] font-bold flex-1 flex items-center gap-2" style={{ color: tokens.fill }}>
                     {label}
                     {detail && <span className="hidden md:inline font-normal">{detail}</span>}
                 </span>

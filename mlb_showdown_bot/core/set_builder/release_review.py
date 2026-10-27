@@ -14,6 +14,7 @@ from pydantic import BaseModel
 from ..card.images import ImageLibrary, ImageMatchType
 from ..database.postgres_db import PostgresDB
 from .image_match_classifier import ImageMatchCard, ImageMatchClassifier
+from .release_draft import ReleaseChanges, ReleaseDraft
 from .release_images import EditionCardStyle, EditionImagePlan, EditionNumbering
 
 _ACTIVE_JOB_STATUSES = {'queued', 'running'}
@@ -175,18 +176,22 @@ class EditionReview:
 
 
 class ReleaseReview:
-    """The full checklist for a release the user owns: each edition's checks, then the release's own."""
+    """The full checklist for a release the user owns: each edition's checks (on the working copies,
+    once the release has been published), then the release's own."""
 
-    def __init__(self, db: PostgresDB, release: dict, user_id: str, image_libraries: Optional[list[ImageLibrary]] = None) -> None:
+    def __init__(self, db: PostgresDB, release: dict, user_id: str, image_libraries: Optional[list[ImageLibrary]] = None,
+                 changes: Optional[ReleaseChanges] = None) -> None:
         self.db = db
         self.release = release
         self.user_id = user_id
         # Photo checks search these libraries; None skips them (they can read Google Drive)
         self.image_libraries = image_libraries
+        # What republishing would change (see `ReleaseDraft.changes`), for the team impact items
+        self.changes = changes
 
     def run(self) -> list[ReviewItem]:
         editions = [
-            edition for edition in (self.db.get_edition(e['id'], self.user_id) for e in self.release.get('editions') or [])
+            edition for edition in (self.db.get_edition(edition_id, self.user_id) for edition_id in ReleaseDraft(self.db, self.release, self.user_id).working_edition_ids())
             if edition is not None
         ]
         photo_matches = self._photo_matches(editions)
@@ -220,6 +225,11 @@ class ReleaseReview:
         if not editions:
             items.append(ReviewItem(id='no_editions', level=ReviewLevel.BLOCKER, title='This release has no editions',
                                     detail='Add an edition and fill its player pool first.'))
+        repeated_names = [name for name, count in Counter(edition['name'] for edition in editions).items() if count > 1]
+        if repeated_names:
+            items.append(ReviewItem(id='edition_names', level=ReviewLevel.BLOCKER, title='Two editions share a name',
+                                    detail=f"Rename one of the {_listed(repeated_names)} editions."))
+        items.extend(self._impact_items())
         if not (self.release.get('description') or '').strip():
             items.append(ReviewItem(id='description', level=ReviewLevel.POLISH, title='No description',
                                     detail='It shows under the name on the release list.', fix=ReviewFixTarget(step='details')))
@@ -231,4 +241,28 @@ class ReleaseReview:
             items.append(ReviewItem(id='cover_cards', level=ReviewLevel.POLISH, title='Cover cards picked for you',
                                     detail="The release tile shows the highest-point cards. Pick your own from a card's image.",
                                     fix=ReviewFixTarget(step='images', edition_id=editions[0]['id'])))
+        return items
+
+    def _impact_items(self) -> list[ReviewItem]:
+        """Saved teams that publishing would change: removed cards stay on them as retired cards, and
+        changed cards update in place. League drafts keep the card that was drafted either way."""
+        if self.changes is None:
+            return []
+        removed = sum(len(edition.removed) for edition in self.changes.editions)
+        changed = sum(len(edition.changed) for edition in self.changes.editions)
+        items = []
+        if removed:
+            teams = self.changes.removed_team_count
+            items.append(ReviewItem(
+                id='removed_impact', level=ReviewLevel.CHECK, passed=teams == 0,
+                title=f"Removing {_plural(removed, 'card')} affects {_plural(teams, 'team') if teams else 'no teams'}",
+                detail="Those teams keep the card, marked as retired. It won't show in search." if teams else None,
+            ))
+        if changed:
+            teams = self.changes.changed_team_count
+            items.append(ReviewItem(
+                id='changed_impact', level=ReviewLevel.CHECK, passed=teams == 0,
+                title=f"{_plural(changed, 'changed card')} {'is' if changed == 1 else 'are'} on {_plural(teams, 'team') if teams else 'no teams'}",
+                detail='Those teams pick up the new version. League drafts keep the card they drafted.' if teams else None,
+            ))
         return items

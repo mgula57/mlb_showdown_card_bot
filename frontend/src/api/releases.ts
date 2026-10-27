@@ -14,6 +14,16 @@ export type ReleaseEditionSummary = {
     attributes: Record<string, unknown>;
     slug: string;
     is_published: boolean;
+    /** When the edition first went public. Once set, the owner edits it through a working copy. */
+    published_at: string | null;
+    card_count: number;
+    /** The owner's private working copy of this published edition, while they edit it. */
+    draft: ReleaseEditionDraftSummary | null;
+};
+
+export type ReleaseEditionDraftSummary = {
+    id: string;
+    name: string;
     card_count: number;
 };
 
@@ -44,8 +54,10 @@ export type Release = {
     showdown_sets?: string[];
     /** First publish time; null until the release is published. Kept when it's unpublished. */
     published_at: string | null;
-    /** 0 until the first publish. */
+    /** 0 until the first publish. Once published, edits are staged in working copies until republished. */
     published_version: number;
+    /** An already-published release has unpublished edits (a changed working copy or a new edition). */
+    has_pending_changes: boolean;
     created_at: string;
     updated_at: string;
 };
@@ -77,10 +89,25 @@ export type ReleaseEdition = {
     attributes: Record<string, unknown>;
     slug: string;
     is_published: boolean;
+    /** Set on a working copy: the published edition it will replace. */
+    draft_of: string | null;
+    published_at: string | null;
     cards: ReleaseCard[];
     created_at: string;
     updated_at: string;
 };
+
+/** The list-level summary of a freshly created edition. */
+export const editionSummaryOf = (edition: ReleaseEdition): ReleaseEditionSummary => ({
+    id: edition.id,
+    name: edition.name,
+    attributes: edition.attributes,
+    slug: edition.slug,
+    is_published: edition.is_published,
+    published_at: edition.published_at,
+    card_count: edition.cards.length,
+    draft: null,
+});
 
 export type ReleaseCreatePayload = {
     name: string;
@@ -133,10 +160,43 @@ export type ReleaseReviewItem = {
     fix: ReleaseReviewFixTarget | null;
 };
 
+export type ReleaseCardChange = {
+    name: string;
+    detail: string;
+    /** Saved teams holding the live card (removed and changed cards). */
+    team_count: number;
+};
+
+/** What republishing changes in one edition (its working copy against the live edition). */
+export type ReleaseEditionChanges = {
+    /** The edition being edited: the working copy, or a new edition itself. */
+    edition_id: string;
+    name: string;
+    renamed_from: string | null;
+    is_new: boolean;
+    added: ReleaseCardChange[];
+    removed: ReleaseCardChange[];
+    changed: ReleaseCardChange[];
+    renumbered: number;
+    /** Tags, cover picks and per-card style tweaks. */
+    details_changed: number;
+    settings_changed: boolean;
+    has_changes: boolean;
+};
+
+export type ReleaseChanges = {
+    editions: ReleaseEditionChanges[];
+    removed_team_count: number;
+    changed_team_count: number;
+    has_changes: boolean;
+};
+
 export type ReleaseReview = {
     items: ReleaseReviewItem[];
     /** The release as its list tile shows it to others (preview images, sets). */
     tile: Release | null;
+    /** What republishing would change; null before the first publish, when everything is new. */
+    changes: ReleaseChanges | null;
 };
 
 export type AlgorithmPlayerTypeDistribution = {
@@ -299,15 +359,30 @@ export async function fetchReleaseReview(releaseId: string, token: string): Prom
     return res.json();
 }
 
-/** Publishes or unpublishes every edition at once. Publishing is refused while a review blocker is open. */
-export async function setReleasePublished(releaseId: string, published: boolean, token: string): Promise<Release> {
+/** Publishes or unpublishes every edition at once. Publishing is refused while a review blocker is
+ * open; on an already-published release it folds the working copies in as a new version, with `note`. */
+export async function setReleasePublished(releaseId: string, published: boolean, token: string, note?: string): Promise<Release> {
     const res = await fetch(`${API_BASE}/releases/${releaseId}/${published ? 'publish' : 'unpublish'}`, {
         method: 'POST',
-        headers: { Authorization: `Bearer ${token}` },
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify(published && note ? { note } : {}),
     });
     if (!res.ok) {
         const err = await res.json().catch(() => ({}));
         throw new Error(err.error || `Failed to ${published ? 'publish' : 'unpublish'} release: ${res.status}`);
+    }
+    return res.json();
+}
+
+/** Opens (or, with `discard`, throws away) the owner's working copies of a published release. */
+export async function releaseDraftRequest(releaseId: string, action: 'start' | 'discard', token: string): Promise<Release> {
+    const res = await fetch(`${API_BASE}/releases/${releaseId}/draft`, {
+        method: action === 'start' ? 'POST' : 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || `Failed to ${action === 'start' ? 'start editing' : 'discard changes'}: ${res.status}`);
     }
     return res.json();
 }

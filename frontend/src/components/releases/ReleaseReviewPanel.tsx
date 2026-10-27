@@ -2,13 +2,17 @@
  * @fileoverview Step 3 of the Release Builder: the release-wide checklist an owner sees before
  * publishing (from `GET /releases/<id>/review`), the release tile as others will see it, and the
  * publish / unpublish controls. Publishing is release-wide, so this is one panel for every edition.
+ * Once a release is published, it also lists what republishing would change and which saved teams
+ * that touches.
  */
 
 import { useEffect, useRef, useState } from 'react';
 import { FaCircleCheck, FaCircleInfo, FaCircleXmark, FaGlobe, FaLink, FaSpinner, FaTriangleExclamation } from 'react-icons/fa6';
-import type { Release, ReleaseReviewItem, ReleaseReviewLevel } from '../../api/releases';
+import type { Release, ReleaseCardChange, ReleaseChanges, ReleaseEditionChanges, ReleaseReviewItem, ReleaseReviewLevel } from '../../api/releases';
 import { setReleasePublished, updateRelease } from '../../api/releases';
 import type { ReleaseReviewState } from './useReleaseReview';
+import { useCopyReleaseLink } from './useCopyReleaseLink';
+import { EmptyState } from '../shared/EmptyState';
 import { ReleaseItem, ReleaseItemSkeleton } from './ReleaseItem';
 import { Heading } from '../shared/Heading';
 import { Plate } from '../shared/Plate';
@@ -34,11 +38,13 @@ type ReleaseReviewPanelProps = {
     unsavedPreviewEditionIds: string[];
     token: string;
     onFix: (item: ReleaseReviewItem) => void;
+    /** Unpublish and description saves. */
     onReleaseUpdated: (release: Release) => void;
+    onPublished: (release: Release) => void;
     onViewAsVisitor: () => void;
 };
 
-export function ReleaseReviewPanel({ release, review, unsavedPreviewEditionIds, token, onFix, onReleaseUpdated, onViewAsVisitor }: ReleaseReviewPanelProps) {
+export function ReleaseReviewPanel({ release, review, unsavedPreviewEditionIds, token, onFix, onReleaseUpdated, onPublished, onViewAsVisitor }: ReleaseReviewPanelProps) {
     const descriptionRef = useRef<HTMLTextAreaElement>(null);
     const items = [
         ...(review.data?.items ?? []),
@@ -47,13 +53,17 @@ export function ReleaseReviewPanel({ release, review, unsavedPreviewEditionIds, 
     const openItems = items.filter(item => !item.passed);
     const blockerCount = openItems.filter(item => item.level === 'blocker').length;
     const checkCount = openItems.filter(item => item.level === 'check').length;
+    // Items belong to the edition being built: its working copy, once the release is published
     const sections = [
-        ...release.editions.map(edition => ({
-            key: edition.id,
-            title: edition.name,
-            cardCount: edition.card_count as number | null,
-            items: items.filter(item => item.edition_id === edition.id),
-        })),
+        ...release.editions.map(edition => {
+            const working = edition.draft ?? edition;
+            return {
+                key: working.id,
+                title: working.name,
+                cardCount: working.card_count as number | null,
+                items: items.filter(item => item.edition_id === working.id),
+            };
+        }),
         { key: 'release', title: 'Release', cardCount: null, items: items.filter(item => item.edition_id === null) },
     ].filter(section => section.items.length > 0);
 
@@ -68,6 +78,8 @@ export function ReleaseReviewPanel({ release, review, unsavedPreviewEditionIds, 
     return (
         <div className="flex-1 min-h-0 overflow-y-auto">
             <div className="max-w-5xl mx-auto p-4 grid gap-4 md:grid-cols-[minmax(0,1fr)_260px] items-start">
+                <div className="flex flex-col gap-4 min-w-0">
+                {review.data?.changes && <ChangesSummary changes={review.data.changes} version={release.published_version} />}
                 <div className={PANEL_CLASS}>
                     <div className="flex flex-wrap items-center gap-2 px-4 py-3 border-b border-(--divider)">
                         <Heading level="panel" as="h2">Before you publish</Heading>
@@ -94,6 +106,7 @@ export function ReleaseReviewPanel({ release, review, unsavedPreviewEditionIds, 
                         ))
                     )}
                 </div>
+                </div>
 
                 <div className="flex flex-col gap-4 min-w-0">
                     <div className={`${PANEL_CLASS} flex flex-col gap-3 p-4`}>
@@ -103,7 +116,7 @@ export function ReleaseReviewPanel({ release, review, unsavedPreviewEditionIds, 
                             {review.data?.tile ? <ReleaseItem release={review.data.tile} /> : <ReleaseItemSkeleton />}
                         </div>
                         <div className="flex gap-2">
-                            <StatTile label="Cards" value={release.editions.reduce((sum, e) => sum + e.card_count, 0)} />
+                            <StatTile label="Cards" value={release.editions.reduce((sum, e) => sum + (e.draft ?? e).card_count, 0)} />
                             <StatTile label={release.editions.length === 1 ? 'Edition' : 'Editions'} value={release.editions.length} />
                         </div>
                         <DescriptionField release={release} token={token} inputRef={descriptionRef} onSaved={onReleaseUpdated} onRechecked={review.refresh} />
@@ -114,7 +127,9 @@ export function ReleaseReviewPanel({ release, review, unsavedPreviewEditionIds, 
                         ready={!!review.data && !review.loading}
                         blockerCount={blockerCount}
                         checkCount={checkCount}
+                        hasChanges={review.data?.changes?.has_changes ?? null}
                         onReleaseUpdated={onReleaseUpdated}
+                        onPublished={onPublished}
                         onBlocked={review.refresh}
                         onViewAsVisitor={onViewAsVisitor}
                     />
@@ -265,29 +280,38 @@ type PublishControlsProps = {
     ready: boolean;
     blockerCount: number;
     checkCount: number;
+    /** Whether republishing would change anything; null before the first publish. */
+    hasChanges: boolean | null;
     onReleaseUpdated: (release: Release) => void;
+    onPublished: (release: Release) => void;
     /** The server refused because a blocker appeared since the checklist loaded. */
     onBlocked: () => void;
     onViewAsVisitor: () => void;
 };
 
-function PublishControls({ release, token, ready, blockerCount, checkCount, onReleaseUpdated, onBlocked, onViewAsVisitor }: PublishControlsProps) {
+function PublishControls({ release, token, ready, blockerCount, checkCount, hasChanges, onReleaseUpdated, onPublished, onBlocked, onViewAsVisitor }: PublishControlsProps) {
     const [busy, setBusy] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [confirmingUnpublish, setConfirmingUnpublish] = useState(false);
-    const [justPublished, setJustPublished] = useState(false);
-    const [copied, setCopied] = useState(false);
+    const [note, setNote] = useState('');
+    const releaseLink = useCopyReleaseLink(release.id);
 
-    const isPublished = release.editions.some(e => e.is_published);
-    const draftCount = release.editions.filter(e => !e.is_published).length;
+    const isLive = release.editions.some(e => e.is_published);
+    // A live release republishes as an update, which needs something to publish
+    const isUpdate = isLive && release.published_version > 0;
+    const canPublish = !isLive || (isUpdate && hasChanges === true);
 
     async function handleSetPublished(published: boolean) {
         setBusy(true);
         setError(null);
         try {
-            onReleaseUpdated(await setReleasePublished(release.id, published, token));
-            setJustPublished(published);
-            setConfirmingUnpublish(false);
+            const updated = await setReleasePublished(release.id, published, token, published && isUpdate ? note : undefined);
+            if (published) {
+                onPublished(updated);
+            } else {
+                onReleaseUpdated(updated);
+                setConfirmingUnpublish(false);
+            }
         } catch (err) {
             setError(err instanceof Error ? err.message : `Failed to ${published ? 'publish' : 'unpublish'} the release.`);
             if (published) onBlocked();
@@ -296,30 +320,20 @@ function PublishControls({ release, token, ready, blockerCount, checkCount, onRe
         }
     }
 
-    async function handleCopyLink() {
-        const url = `${window.location.origin}/release-builder/${release.id}`;
-        try {
-            await navigator.clipboard.writeText(url);
-            setCopied(true);
-            setTimeout(() => setCopied(false), 2000);
-        } catch {
-            setError(`Couldn't copy. The link is ${url}`);
-        }
-    }
-
     const publishNote = !ready
         ? 'Checking your release…'
         : blockerCount > 0
             ? `Fix ${blockerCount} item${blockerCount === 1 ? '' : 's'} to publish.`
-            : checkCount > 0
-                ? `You can publish with ${checkCount} check${checkCount === 1 ? '' : 's'} still open.`
-                : 'Everything checks out.';
+            : isUpdate && !hasChanges
+                ? `No changes since v${release.published_version} yet.`
+                : checkCount > 0
+                    ? `You can publish with ${checkCount} check${checkCount === 1 ? '' : 's'} still open.`
+                    : 'Everything checks out.';
 
     return (
         <div className={`${PANEL_CLASS} flex flex-col gap-3 p-4`}>
-            {isPublished && (
+            {isLive && (
                 <div className="flex flex-col gap-1">
-                    {justPublished && <Heading level="section" as="h2">{release.name} is live</Heading>}
                     <div className="flex items-center gap-2 flex-wrap">
                         <Plate variant="success" size="sm">Published</Plate>
                         {release.published_at && (
@@ -328,35 +342,52 @@ function PublishControls({ release, token, ready, blockerCount, checkCount, onRe
                             </span>
                         )}
                     </div>
-                    <span className="text-[12px] text-(--text-secondary)">Anyone can browse it and use its cards.</span>
+                    <span className="text-[12px] text-(--text-secondary)">
+                        {isUpdate ? `Everyone sees v${release.published_version} until you publish your changes.` : 'Anyone can browse it and use its cards.'}
+                    </span>
                 </div>
             )}
 
-            {draftCount > 0 && (
+            {(!isLive || isUpdate) && (
                 <>
+                    {isUpdate && (
+                        <div className="flex flex-col gap-1.5">
+                            <label htmlFor={`release-update-note-${release.id}`} className={FIELD_LABEL_CLASS}>
+                                Update note <span className="normal-case font-normal">(optional)</span>
+                            </label>
+                            <textarea
+                                id={`release-update-note-${release.id}`}
+                                value={note}
+                                onChange={e => setNote(e.target.value)}
+                                rows={2}
+                                placeholder="What changed, e.g. swapped Kent to his 2000 season."
+                                className={fieldClass('md', 'h-auto py-2 resize-y')}
+                            />
+                        </div>
+                    )}
                     <button
                         type="button"
                         onClick={() => handleSetPublished(true)}
-                        disabled={!ready || busy || blockerCount > 0}
+                        disabled={!ready || busy || blockerCount > 0 || !canPublish}
                         className={buttonClass('feature', 'md', 'w-full')}
                     >
                         {busy ? <FaSpinner className="animate-spin" /> : <FaGlobe />}
-                        {isPublished ? `Publish ${draftCount} new edition${draftCount === 1 ? '' : 's'}` : 'Publish release'}
+                        {isUpdate ? 'Publish update' : 'Publish release'}
                     </button>
                     <span className="text-[12px] text-(--text-tertiary) text-center">{publishNote}</span>
                 </>
             )}
 
-            {error && <InlineError size="sm">{error}</InlineError>}
+            {(error || releaseLink.error) && <InlineError size="sm">{error ?? releaseLink.error}</InlineError>}
 
-            {isPublished && (
+            {isLive && (
                 <div className="flex flex-col gap-2 pt-1 border-t border-(--divider)">
                     <div className="flex gap-2 pt-2">
-                        <button type="button" onClick={handleCopyLink} className={buttonClass('secondary', 'sm', 'flex-1')}>
-                            <FaLink className="text-[10px]" /> {copied ? 'Copied' : 'Copy link'}
+                        <button type="button" onClick={releaseLink.copy} className={buttonClass('secondary', 'sm', 'flex-1')}>
+                            <FaLink className="text-[10px]" /> {releaseLink.copied ? 'Copied' : 'Copy link'}
                         </button>
                         <button type="button" onClick={onViewAsVisitor} className={buttonClass('secondary', 'sm', 'flex-1')}>
-                            View as visitor
+                            View live
                         </button>
                     </div>
                     {confirmingUnpublish ? (
@@ -379,5 +410,83 @@ function PublishControls({ release, token, ready, blockerCount, checkCount, onRe
                 </div>
             )}
         </div>
+    );
+}
+
+/** Cards shown per list before "Show all". */
+const CHANGE_LIST_LIMIT = 6;
+
+/** What republishing changes, edition by edition, and the saved teams it touches. */
+function ChangesSummary({ changes, version }: { changes: ReleaseChanges; version: number }) {
+    const changed = changes.editions.filter(edition => edition.has_changes);
+    return (
+        <div className={PANEL_CLASS}>
+            <div className="flex flex-wrap items-center gap-2 px-4 py-3 border-b border-(--divider)">
+                <Heading level="panel" as="h2">Changes since v{version}</Heading>
+            </div>
+            {changed.length === 0 ? (
+                <EmptyState size="inline" className="p-4">
+                    No changes yet. Edits you make show up here before you publish them.
+                </EmptyState>
+            ) : (
+                changed.map(edition => <EditionChangesSection key={edition.edition_id} changes={edition} />)
+            )}
+        </div>
+    );
+}
+
+function EditionChangesSection({ changes }: { changes: ReleaseEditionChanges }) {
+    const [showAll, setShowAll] = useState(false);
+    const rows: { kind: 'Added' | 'Removed' | 'Changed'; change: ReleaseCardChange }[] = [
+        ...changes.removed.map(change => ({ kind: 'Removed' as const, change })),
+        ...changes.changed.map(change => ({ kind: 'Changed' as const, change })),
+        ...changes.added.map(change => ({ kind: 'Added' as const, change })),
+    ];
+    const shownRows = showAll ? rows : rows.slice(0, CHANGE_LIST_LIMIT);
+    const notes = [
+        changes.renumbered > 0 && `${changes.renumbered} renumbered`,
+        changes.details_changed > 0 && `${changes.details_changed} with new tags, cover picks or styles`,
+        changes.settings_changed && 'Card style or numbering changed',
+    ].filter(Boolean);
+
+    return (
+        <section className="border-b border-(--divider) last:border-b-0">
+            <div className="flex flex-wrap items-center gap-2 px-4 py-2 bg-(--background-tertiary)">
+                <span className="text-[13px] font-bold">{changes.name}</span>
+                {changes.is_new && <Plate variant="navy" size="sm">New edition</Plate>}
+                {changes.renamed_from && <span className="text-[12px] text-(--text-tertiary)">was {changes.renamed_from}</span>}
+            </div>
+            <div className="flex gap-2 px-4 pt-3">
+                <StatTile label="Added" value={`+${changes.added.length}`} />
+                <StatTile label="Removed" value={changes.removed.length ? `−${changes.removed.length}` : '0'} />
+                <StatTile label="Changed" value={changes.changed.length} />
+            </div>
+            {notes.length > 0 && <div className="px-4 pt-2 text-[12px] text-(--text-tertiary)">{notes.join(' · ')}</div>}
+            {rows.length > 0 && (
+                <ul className="pt-2">
+                    {shownRows.map(({ kind, change }, i) => (
+                        <li key={`${kind}-${i}`} className="flex items-center gap-2.5 px-4 py-1.5 border-t border-(--divider)">
+                            <Plate variant={kind === 'Added' ? 'success' : kind === 'Removed' ? 'red' : 'ink'} size="sm" className="w-16 justify-center shrink-0">
+                                {kind}
+                            </Plate>
+                            <div className="flex-1 min-w-0">
+                                <div className="text-[13px] font-semibold truncate">{change.name}</div>
+                                <div className="text-[12px] text-(--text-tertiary) truncate">{change.detail}</div>
+                            </div>
+                            {kind !== 'Added' && change.team_count > 0 && (
+                                <span className="shrink-0 text-[12px] font-semibold text-(--text-secondary) tabular-nums">
+                                    On {change.team_count} team{change.team_count === 1 ? '' : 's'}
+                                </span>
+                            )}
+                        </li>
+                    ))}
+                </ul>
+            )}
+            {rows.length > CHANGE_LIST_LIMIT && (
+                <button type="button" onClick={() => setShowAll(prev => !prev)} className={buttonClass('ghost', 'sm', 'mx-2 mb-2 text-(--showdown-blue)')}>
+                    {showAll ? 'Show fewer' : `Show all ${rows.length}`}
+                </button>
+            )}
+        </section>
     );
 }

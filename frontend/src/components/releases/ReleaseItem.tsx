@@ -113,10 +113,11 @@ export function ReleaseItem({ release, onClick, showPublishStatus = false }: Rel
                         </span>
                     </div>
                     {showPublishStatus && (
-                        <div className="flex">
+                        <div className="flex flex-wrap gap-1">
                             <Plate variant={isPublished ? 'success' : 'outline'} size="sm">
                                 {isPublished ? 'Published' : 'Draft'}
                             </Plate>
+                            {release.has_pending_changes && <Plate variant="outline" size="sm">Unpublished changes</Plate>}
                         </div>
                     )}
                 </div>

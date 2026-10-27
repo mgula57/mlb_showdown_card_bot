@@ -8,6 +8,7 @@ from ..core.database.postgres_db import PostgresDB
 from ..core.set_builder.image_match_classifier import ImageMatchCard, ImageMatchClassifier
 from ..core.set_builder.release_card_rebuilder import ReleaseCardRebuilder, ReleaseCardRebuildError
 from ..core.set_builder.release_images import EditionImagePlan, EditionImageRenderer, ReleaseImageJobCancelled, ReleaseImageStorage
+from ..core.set_builder.release_draft import ReleaseDraft
 from ..core.set_builder.release_review import ReleaseReview
 from ..core.set_builder.selection import OtherEditionsRule
 from ..core.set_builder.showdown_bot_set import AlgorithmPreviewRequest
@@ -106,6 +107,14 @@ def delete_release(release_id: str):
         return jsonify({'error': str(exc)}), 500
 
 
+LIVE_EDITION_ERROR = 'This edition has been published. Edit its working copy instead (reload the release).'
+
+
+def _is_live_edition(edition: dict | None) -> bool:
+    """A published edition (not a working copy). Its cards may be on teams, so it only changes by publishing."""
+    return bool(edition and edition.get('published_at') and not edition.get('draft_of'))
+
+
 def _owned_release(db: PostgresDB, release_id: str, user_id: str) -> dict | None:
     """The release if the user owns it. `get_release` alone also returns other users' published releases."""
     release = db.get_release(release_id, user_id)
@@ -121,9 +130,15 @@ def get_release_review(release_id: str):
             release = _owned_release(db, release_id, g.user_id)
             if release is None:
                 return jsonify({'error': 'Release not found or not owned by user'}), 404
-            items = ReleaseReview(db, release, g.user_id, UserImageLibraries.for_card_build(g.user_id)).run()
+            changes = ReleaseDraft(db, release, g.user_id).changes()
+            items = ReleaseReview(db, release, g.user_id, UserImageLibraries.for_card_build(g.user_id), changes=changes).run()
             tile = db.get_release_tile(release_id, g.user_id)
-        return jsonify({'items': [item.model_dump(mode='json') for item in items], 'tile': tile}), 200
+        return jsonify({
+            'items': [item.model_dump(mode='json') for item in items],
+            'tile': tile,
+            # None before the first publish, when everything is new
+            'changes': changes.model_dump(mode='json') if changes else None,
+        }), 200
     except Exception as exc:
         traceback.print_exc()
         return jsonify({'error': str(exc)}), 500
@@ -132,21 +147,66 @@ def get_release_review(release_id: str):
 @releases_bp.route('/releases/<release_id>/publish', methods=['POST'])
 @require_auth
 def publish_release(release_id: str):
-    """Publish every edition at once. Refused (409, with the blocking items) while any review blocker is open."""
+    """Publish the release: every edition goes public, and an already-published release's working
+    copies replace its live editions as a new version (optional `note` in the body). Refused (409,
+    with the blocking items) while any review blocker is open."""
     try:
+        payload = request.get_json(silent=True) or {}
+        note = payload.get('note') if isinstance(payload.get('note'), str) else None
         with PostgresDB() as db:
             release = _owned_release(db, release_id, g.user_id)
             if release is None:
                 return jsonify({'error': 'Release not found or not owned by user'}), 404
+            changes = ReleaseDraft(db, release, g.user_id).changes()
             # Blockers never depend on photo matches, so skip the Drive lookups
-            blockers = [item for item in ReleaseReview(db, release, g.user_id).run() if item.is_blocking]
+            blockers = [item for item in ReleaseReview(db, release, g.user_id, changes=changes).run() if item.is_blocking]
             if blockers:
                 return jsonify({
                     'error': f"Fix {len(blockers)} item{'' if len(blockers) == 1 else 's'} before publishing.",
                     'items': [item.model_dump(mode='json') for item in blockers],
                 }), 409
-            db.set_release_published(release_id, g.user_id, True)
+            is_live = any(edition.get('is_published') for edition in release.get('editions') or [])
+            if changes is not None and is_live and not changes.has_changes:
+                return jsonify({'error': 'There are no changes to publish.'}), 409
+            replaced_paths = db.publish_release(
+                release_id, g.user_id,
+                bump_version=changes is None or changes.has_changes, note=note,
+                changes=[edition.summary() for edition in changes.editions if edition.has_changes] if changes else None,
+            )
             release = db.get_release(release_id, g.user_id)
+        ReleaseImageStorage().delete(replaced_paths or [])
+        return jsonify(release), 200
+    except Exception as exc:
+        traceback.print_exc()
+        return jsonify({'error': str(exc)}), 500
+
+
+@releases_bp.route('/releases/<release_id>/draft', methods=['POST'])
+@require_auth
+def start_release_draft(release_id: str):
+    """Open private working copies of a published release's editions (no-op for ones that have one)."""
+    try:
+        with PostgresDB() as db:
+            if not db.start_release_draft(release_id, g.user_id):
+                return jsonify({'error': 'Release not found or not owned by user'}), 404
+            release = db.get_release(release_id, g.user_id)
+        return jsonify(release), 200
+    except Exception as exc:
+        traceback.print_exc()
+        return jsonify({'error': str(exc)}), 500
+
+
+@releases_bp.route('/releases/<release_id>/draft', methods=['DELETE'])
+@require_auth
+def discard_release_draft(release_id: str):
+    """Throw away every unpublished change: the working copies and any never-published editions."""
+    try:
+        with PostgresDB() as db:
+            orphaned_paths = db.discard_release_draft(release_id, g.user_id)
+            if orphaned_paths is None:
+                return jsonify({'error': 'Release not found or not owned by user'}), 404
+            release = db.get_release(release_id, g.user_id)
+        ReleaseImageStorage().delete(orphaned_paths)
         return jsonify(release), 200
     except Exception as exc:
         traceback.print_exc()
@@ -226,6 +286,9 @@ def update_edition(release_id: str, edition_id: str):
         if not payload or not isinstance(payload, dict):
             return jsonify({'error': 'Request body must be a JSON object'}), 400
         db = PostgresDB()
+        if _is_live_edition(db.get_edition(edition_id, g.user_id)):
+            db.close_connection()
+            return jsonify({'error': LIVE_EDITION_ERROR}), 409
         updated = db.update_edition(edition_id, g.user_id, payload)
         if not updated:
             db.close_connection()
@@ -427,6 +490,8 @@ def render_edition_images(release_id: str, edition_id: str):
             edition = _owned_edition(db, release_id, edition_id, g.user_id)
             if edition is None:
                 return jsonify({'error': 'Edition not found or not owned by user'}), 404
+            if _is_live_edition(edition):
+                return jsonify({'error': LIVE_EDITION_ERROR}), 409
             job_id = db.create_release_image_job(edition_id, g.user_id, dyno=os.environ.get('DYNO'))
             if job_id is None:
                 return jsonify({'error': 'Images are already rendering for this edition.'}), 409

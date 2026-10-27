@@ -4,6 +4,7 @@ import threading
 import uuid
 import re
 import secrets
+from contextlib import contextmanager
 from pprint import pprint
 import psycopg2
 import traceback
@@ -449,6 +450,24 @@ class PostgresDB:
 
     def __enter__(self) -> 'PostgresDB':
         return self
+
+    @contextmanager
+    def transaction(self):
+        """A cursor whose statements commit together or not at all. Pooled connections run in
+        autocommit, so this switches it off for the block (client side only - no session `SET`,
+        which the transaction-mode pooler would leak to other clients) and back on after."""
+        if not self.connection:
+            raise RuntimeError("No database connection")
+        self.connection.autocommit = False
+        try:
+            with self.connection.cursor() as cur:
+                yield cur
+            self.connection.commit()
+        except Exception:
+            self.connection.rollback()
+            raise
+        finally:
+            self.connection.autocommit = True
 
     def __exit__(self, exc_type, exc_val, exc_tb) -> None:
         self.close_connection()
@@ -1018,6 +1037,7 @@ class PostgresDB:
             ) AS card
             WHERE
                 e.id::text = ANY(%s) AND
+                rc.retired_at IS NULL AND
                 (e.is_published OR r.created_by = %s)
         ) sub""")
         return from_clause, [edition_ids, user_id]
@@ -6709,9 +6729,34 @@ class PostgresDB:
                     slug            TEXT UNIQUE NOT NULL,
                     is_published    BOOLEAN NOT NULL DEFAULT FALSE,
                     created_at      TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-                    updated_at      TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-                    CONSTRAINT unique_release_edition_name UNIQUE (release_id, name)
+                    updated_at      TIMESTAMP WITH TIME ZONE DEFAULT NOW()
                 );
+            """)
+            # A published edition's private working copy while its owner edits (see `ReleaseDraft`).
+            # Never published itself; publishing the release folds it into `draft_of` and deletes it.
+            cur.execute("""
+                ALTER TABLE internal.release_editions
+                    ADD COLUMN IF NOT EXISTS draft_of UUID REFERENCES internal.release_editions(id) ON DELETE CASCADE;
+            """)
+            # When the edition first went public. Once set, edits go through a working copy, since team
+            # rosters may hold its cards (even if the release is unpublished again later)
+            cur.execute("""
+                ALTER TABLE internal.release_editions
+                    ADD COLUMN IF NOT EXISTS published_at TIMESTAMP WITH TIME ZONE;
+            """)
+            cur.execute("""
+                UPDATE internal.release_editions SET published_at = updated_at
+                 WHERE is_published AND published_at IS NULL;
+            """)
+            # A working copy shares its edition's name, so names are unique among real editions only
+            cur.execute("ALTER TABLE internal.release_editions DROP CONSTRAINT IF EXISTS unique_release_edition_name;")
+            cur.execute("""
+                CREATE UNIQUE INDEX IF NOT EXISTS uq_release_editions_name
+                    ON internal.release_editions (release_id, name) WHERE draft_of IS NULL;
+            """)
+            cur.execute("""
+                CREATE UNIQUE INDEX IF NOT EXISTS uq_release_editions_draft_of
+                    ON internal.release_editions (draft_of) WHERE draft_of IS NOT NULL;
             """)
             # First publish time, and the published version (0 until the first publish). Releases
             # published before these columns existed count from their last update.
@@ -6726,8 +6771,11 @@ class PostgresDB:
                  WHERE r.published_at IS NULL
                    AND EXISTS (SELECT 1 FROM internal.release_editions e WHERE e.release_id = r.id AND e.is_published);
             """)
-            # release_id lookups are covered by unique_release_edition_name (release_id, name)
-            cur.execute("DROP INDEX IF EXISTS internal.idx_release_editions_release_id;")
+            # Every edition of a release, working copies included (uq_release_editions_name is partial)
+            cur.execute("""
+                CREATE INDEX IF NOT EXISTS idx_release_editions_release_id
+                    ON internal.release_editions (release_id);
+            """)
             # "has a published edition" EXISTS checks in get_release / get_public_releases
             cur.execute("""
                 CREATE INDEX IF NOT EXISTS idx_release_editions_published_release_id
@@ -6765,6 +6813,24 @@ class PostgresDB:
             cur.execute("""
                 ALTER TABLE internal.release_cards
                     ADD COLUMN IF NOT EXISTS card_overrides JSONB;
+            """)
+            # Set when a card leaves a published edition: the row stays so team rosters holding it still
+            # resolve, but editions, search and counts skip it. Re-adding the card clears it.
+            cur.execute("""
+                ALTER TABLE internal.release_cards
+                    ADD COLUMN IF NOT EXISTS retired_at TIMESTAMP WITH TIME ZONE;
+            """)
+            # One row per publish: what changed and the owner's note
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS internal.release_versions (
+                    release_id   UUID NOT NULL REFERENCES internal.releases(id) ON DELETE CASCADE,
+                    version      INT  NOT NULL,
+                    note         TEXT,
+                    changes      JSONB NOT NULL DEFAULT '[]',
+                    published_by TEXT NOT NULL,
+                    published_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+                    PRIMARY KEY (release_id, version)
+                );
             """)
             # edition_id lookups (card lists, card_count) are covered by unique_card_number (edition_id, card_number)
             cur.execute("DROP INDEX IF EXISTS internal.idx_release_cards_edition_id;")
@@ -6839,10 +6905,11 @@ class PostgresDB:
                            CASE WHEN jsonb_typeof(rc.card_snapshot->'points') = 'number'
                                 THEN (rc.card_snapshot->>'points')::numeric END AS points
                       FROM internal.release_editions pe
-                      JOIN internal.release_cards rc ON rc.edition_id = pe.id
+                      JOIN internal.release_cards rc ON rc.edition_id = pe.id AND rc.retired_at IS NULL
                       JOIN internal.release_card_images i
                         ON i.edition_id = pe.id AND i.source_card_id = rc.source_card_id
                      WHERE pe.release_id = r.id
+                       AND pe.draft_of IS NULL
                        AND i.thumbnail_path IS NOT NULL
                        {edition_filter}
                      ORDER BY rc.preview_rank NULLS LAST, edition_name, points DESC NULLS LAST
@@ -6857,8 +6924,9 @@ class PostgresDB:
             COALESCE((
                 SELECT array_agg(DISTINCT rc.card_snapshot->>'showdown_set')
                   FROM internal.release_editions pe
-                  JOIN internal.release_cards rc ON rc.edition_id = pe.id
+                  JOIN internal.release_cards rc ON rc.edition_id = pe.id AND rc.retired_at IS NULL
                  WHERE pe.release_id = r.id
+                   AND pe.draft_of IS NULL
                    AND rc.card_snapshot->>'showdown_set' IS NOT NULL
                    {edition_filter}
             ), ARRAY[]::text[]) AS showdown_sets,
@@ -6870,6 +6938,15 @@ class PostgresDB:
             r.id, r.name, r.description, r.created_by, r.is_official,
             r.fork_parent_id, r.slug, r.default_showdown_set, r.created_at, r.updated_at,
             r.published_at, r.published_version,
+            -- Unpublished work the owner hasn't published yet: an edited working copy, or a new edition
+            -- of an already-published release
+            EXISTS (
+                SELECT 1 FROM internal.release_editions pe
+                 WHERE pe.release_id = r.id
+                   AND r.published_version > 0
+                   AND ((pe.draft_of IS NOT NULL AND pe.updated_at > pe.created_at)
+                        OR (pe.draft_of IS NULL AND pe.published_at IS NULL))
+            ) AS has_pending_changes,
             (SELECT p.username FROM public.profiles p WHERE p.id::text = r.created_by) AS creator_username,
             {extra_columns}
             COALESCE(
@@ -6880,13 +6957,22 @@ class PostgresDB:
                         'attributes',    e.attributes,
                         'slug',          e.slug,
                         'is_published',  e.is_published,
-                        'card_count',    (SELECT COUNT(*) FROM internal.release_cards rc WHERE rc.edition_id = e.id)
+                        'published_at',  e.published_at,
+                        'card_count',    (SELECT COUNT(*) FROM internal.release_cards rc WHERE rc.edition_id = e.id AND rc.retired_at IS NULL),
+                        -- The owner's working copy, if they're editing the published edition
+                        'draft',         (
+                            SELECT json_build_object(
+                                       'id', d.id, 'name', d.name,
+                                       'card_count', (SELECT COUNT(*) FROM internal.release_cards rc WHERE rc.edition_id = d.id)
+                                   )
+                              FROM internal.release_editions d WHERE d.draft_of = e.id
+                        )
                     ) ORDER BY e.name
                 ) FILTER (WHERE e.id IS NOT NULL),
                 '[]'::json
             ) AS editions
         FROM internal.releases r
-        LEFT JOIN internal.release_editions e ON e.release_id = r.id
+        LEFT JOIN internal.release_editions e ON e.release_id = r.id AND e.draft_of IS NULL
     """
     _RELEASE_BASE_SELECT = _RELEASE_SELECT_TEMPLATE.format(extra_columns='')
 
@@ -7017,14 +7103,159 @@ class PostgresDB:
                  RETURNING id
                 ), e AS (
                     UPDATE internal.release_editions e
-                       SET is_published = %(published)s, updated_at = NOW()
+                       SET is_published = %(published)s,
+                           published_at = CASE WHEN %(published)s THEN COALESCE(e.published_at, NOW()) ELSE e.published_at END,
+                           updated_at = NOW()
                       FROM r
-                     WHERE e.release_id = r.id AND e.is_published IS DISTINCT FROM %(published)s
+                     WHERE e.release_id = r.id AND e.draft_of IS NULL AND e.is_published IS DISTINCT FROM %(published)s
                  RETURNING e.id
                 )
                 SELECT (SELECT COUNT(*) FROM r) AS releases, (SELECT COUNT(*) FROM e) AS editions
             """, {'published': published, 'release_id': release_id, 'user_id': user_id})
             return cur.fetchone()[0] > 0
+
+    # ---------------------------------------
+    # Release drafts (see `ReleaseDraft`)
+    # ---------------------------------------
+
+    _RELEASE_CARD_COPY_COLUMNS = "source_card_id, source_card_type, card_snapshot, card_number, tags, preview_rank, card_overrides"
+    _RELEASE_IMAGE_COPY_COLUMNS = "source_card_id, render_hash, storage_path, thumbnail_path, rendered_at, failed_hash, error"
+
+    @staticmethod
+    def _lock_owned_release(cur, release_id: str, user_id: str) -> Optional[int]:
+        """Locks the release row for the transaction (so two publishes or a publish and a discard
+        can't interleave). Returns its published version, or None if it isn't the user's."""
+        cur.execute("SELECT published_version FROM internal.releases WHERE id = %s AND created_by = %s FOR UPDATE", (release_id, user_id))
+        row = cur.fetchone()
+        return row[0] if row else None
+
+    def start_release_draft(self, release_id: str, user_id: str) -> bool:
+        """Give every edition that has ever been published a private working copy (cards and image
+        rows copied, sharing the same files) for the owner to edit. Editions that already have one
+        are left alone. Returns False if the release isn't the user's."""
+        with self.transaction() as cur:
+            if self._lock_owned_release(cur, release_id, user_id) is None:
+                return False
+            cur.execute("""
+                SELECT e.id, e.name, e.attributes FROM internal.release_editions e
+                 WHERE e.release_id = %s AND e.draft_of IS NULL AND e.published_at IS NOT NULL
+                   AND NOT EXISTS (SELECT 1 FROM internal.release_editions d WHERE d.draft_of = e.id)
+            """, (release_id,))
+            for edition_id, name, attributes in cur.fetchall():
+                slug = self._generate_unique_slug(cur, 'internal.release_editions', f"{name} draft")
+                # created_at = updated_at (one transaction, one NOW()) until the owner saves a change
+                cur.execute("""
+                    INSERT INTO internal.release_editions (release_id, name, attributes, slug, draft_of)
+                    VALUES (%s, %s, %s, %s, %s) RETURNING id
+                """, (release_id, name, extras.Json(attributes or {}), slug, edition_id))
+                draft_id = cur.fetchone()[0]
+                cur.execute(f"""
+                    INSERT INTO internal.release_cards (edition_id, {self._RELEASE_CARD_COPY_COLUMNS})
+                    SELECT %s, {self._RELEASE_CARD_COPY_COLUMNS} FROM internal.release_cards
+                     WHERE edition_id = %s AND retired_at IS NULL
+                """, (draft_id, edition_id))
+                cur.execute(f"""
+                    INSERT INTO internal.release_card_images (edition_id, {self._RELEASE_IMAGE_COPY_COLUMNS})
+                    SELECT %s, {self._RELEASE_IMAGE_COPY_COLUMNS} FROM internal.release_card_images
+                     WHERE edition_id = %s
+                """, (draft_id, edition_id))
+        return True
+
+    def discard_release_draft(self, release_id: str, user_id: str) -> Optional[list[str]]:
+        """Delete the owner's unpublished work on an already-published release: every working copy
+        and every edition that was never published. Returns the image paths nothing points to any
+        more (to delete from storage), or None if the release isn't the user's."""
+        with self.transaction() as cur:
+            version = self._lock_owned_release(cur, release_id, user_id)
+            if version is None:
+                return None
+            # Before the first publish every edition is unpublished work, and none of it is a draft
+            if version == 0:
+                return []
+            cur.execute("""
+                WITH discarded AS (
+                    SELECT e.id FROM internal.release_editions e
+                     WHERE e.release_id = %s AND (e.draft_of IS NOT NULL OR e.published_at IS NULL)
+                )
+                SELECT i.storage_path, i.thumbnail_path FROM internal.release_card_images i
+                 WHERE i.edition_id IN (SELECT id FROM discarded)
+            """, (release_id,))
+            paths = [path for row in cur.fetchall() for path in row if path]
+            cur.execute("""
+                DELETE FROM internal.release_editions
+                 WHERE release_id = %s AND (draft_of IS NOT NULL OR published_at IS NULL)
+            """, (release_id,))
+            return self._unshared_release_image_paths(cur, list(dict.fromkeys(paths)))
+
+    def publish_release(self, release_id: str, user_id: str, bump_version: bool, note: Optional[str] = None, changes: Optional[list] = None) -> Optional[list[str]]:
+        """Publish the release in one transaction: fold each working copy into its edition (name,
+        settings, cards with removed ones retired, image rows), publish every edition, and when
+        `bump_version`, record a new version with the owner's note and `changes`. Returns image paths
+        nothing points to any more, or None if the release isn't the user's."""
+        with self.transaction() as cur:
+            version = self._lock_owned_release(cur, release_id, user_id)
+            if version is None:
+                return None
+            cur.execute("""
+                SELECT id, draft_of, name, attributes FROM internal.release_editions
+                 WHERE release_id = %s AND draft_of IS NOT NULL
+            """, (release_id,))
+            replaced_paths: list[str] = []
+            for draft_id, edition_id, name, attributes in cur.fetchall():
+                cur.execute("""
+                    UPDATE internal.release_editions SET name = %s, attributes = %s, updated_at = NOW() WHERE id = %s
+                """, (name, extras.Json(attributes or {}), edition_id))
+                with self.connection.cursor(cursor_factory=RealDictCursor) as dict_cur:
+                    dict_cur.execute(f"""
+                        SELECT {self._RELEASE_CARD_COPY_COLUMNS} FROM internal.release_cards
+                         WHERE edition_id = %s AND retired_at IS NULL ORDER BY card_number
+                    """, (draft_id,))
+                    cards = [dict(row) for row in dict_cur.fetchall()]
+                self._upsert_release_cards(cur, edition_id, cards, retire_removed=True)
+                # The working copy's image rows replace the edition's; files only the old rows used become orphans
+                cur.execute("SELECT storage_path, thumbnail_path FROM internal.release_card_images WHERE edition_id = %s", (edition_id,))
+                replaced_paths.extend(path for row in cur.fetchall() for path in row if path)
+                cur.execute("DELETE FROM internal.release_card_images WHERE edition_id = %s", (edition_id,))
+                cur.execute(f"""
+                    INSERT INTO internal.release_card_images (edition_id, {self._RELEASE_IMAGE_COPY_COLUMNS}, updated_at)
+                    SELECT %s, {self._RELEASE_IMAGE_COPY_COLUMNS}, NOW() FROM internal.release_card_images
+                     WHERE edition_id = %s
+                """, (edition_id, draft_id))
+                cur.execute("DELETE FROM internal.release_editions WHERE id = %s", (draft_id,))
+            cur.execute("""
+                UPDATE internal.release_editions
+                   SET is_published = TRUE, published_at = COALESCE(published_at, NOW()), updated_at = NOW()
+                 WHERE release_id = %s AND draft_of IS NULL AND NOT is_published
+            """, (release_id,))
+            next_version = version + 1 if bump_version or version == 0 else version
+            cur.execute("""
+                UPDATE internal.releases
+                   SET published_version = %s, published_at = COALESCE(published_at, NOW()), updated_at = NOW()
+                 WHERE id = %s
+            """, (next_version, release_id))
+            if next_version != version:
+                cur.execute("""
+                    INSERT INTO internal.release_versions (release_id, version, note, changes, published_by)
+                    VALUES (%s, %s, %s, %s, %s)
+                """, (release_id, next_version, (note or '').strip() or None, extras.Json(changes or []), user_id))
+            return self._unshared_release_image_paths(cur, list(dict.fromkeys(replaced_paths)))
+
+    def count_teams_holding_release_cards(self, release_card_ids: list[str]) -> tuple[dict[str, int], int]:
+        """How many saved teams hold each release card, and how many distinct teams hold any of them."""
+        if not self.connection or not release_card_ids:
+            return {}, 0
+        with self.connection.cursor() as cur:
+            cur.execute("""
+                SELECT card_id, COUNT(DISTINCT team_id) FROM internal.user_team_roster
+                 WHERE card_source = 'RELEASE' AND card_id = ANY(%s)
+                 GROUP BY card_id
+            """, (release_card_ids,))
+            per_card = {card_id: count for card_id, count in cur.fetchall()}
+            cur.execute("""
+                SELECT COUNT(DISTINCT team_id) FROM internal.user_team_roster
+                 WHERE card_source = 'RELEASE' AND card_id = ANY(%s)
+            """, (release_card_ids,))
+            return per_card, cur.fetchone()[0]
 
     def delete_release(self, release_id: str, user_id: str) -> bool:
         """Delete a release (and its editions/cards) owned by user_id. Returns True if a row was deleted."""
@@ -7039,7 +7270,7 @@ class PostgresDB:
 
     _EDITION_BASE_SELECT = """
         SELECT
-            e.id, e.release_id, e.name, e.attributes, e.slug, e.is_published,
+            e.id, e.release_id, e.name, e.attributes, e.slug, e.is_published, e.draft_of, e.published_at,
             e.created_at, e.updated_at,
             COALESCE(
                 json_agg(
@@ -7058,7 +7289,7 @@ class PostgresDB:
             ) AS cards
         FROM internal.release_editions e
         JOIN internal.releases r ON r.id = e.release_id
-        LEFT JOIN internal.release_cards rc ON rc.edition_id = e.id
+        LEFT JOIN internal.release_cards rc ON rc.edition_id = e.id AND rc.retired_at IS NULL
     """
 
     def get_edition(self, edition_id: str, user_id: str | None = None) -> dict | None:
@@ -7090,10 +7321,17 @@ class PostgresDB:
             FROM internal.release_cards rc
             JOIN internal.release_editions e ON e.id = rc.edition_id
             JOIN internal.releases r ON r.id = e.release_id
-            WHERE e.release_id = %s AND e.id <> %s AND r.created_by = %s
+            WHERE e.release_id = %(release_id)s AND r.created_by = %(user_id)s
+              AND rc.retired_at IS NULL
+              -- Each other edition as the owner is building it: its working copy if it has one
+              AND NOT EXISTS (SELECT 1 FROM internal.release_editions d WHERE d.draft_of = e.id)
+              -- Neither this edition nor the published edition it's a working copy of
+              AND e.id <> %(edition_id)s
+              AND e.id IS DISTINCT FROM (SELECT draft_of FROM internal.release_editions WHERE id = %(edition_id)s)
+              AND e.draft_of IS DISTINCT FROM %(edition_id)s
         """
         with self.connection.cursor(cursor_factory=RealDictCursor) as cur:
-            cur.execute(query, (release_id, edition_id, user_id))
+            cur.execute(query, {'release_id': release_id, 'edition_id': edition_id, 'user_id': user_id})
             rows = cur.fetchall()
         players: Dict[str, List[str]] = {}
         for row in rows:
@@ -7164,6 +7402,8 @@ class PostgresDB:
             if cards is not None:
                 self._embed_variable_speed_card_data(cards)
                 self._upsert_release_cards(cur, edition_id, cards)
+                # A working copy's updated_at past its created_at is what marks it as changed
+                cur.execute("UPDATE internal.release_editions SET updated_at = NOW() WHERE id = %s", (edition_id,))
         return True
 
     def _embed_variable_speed_card_data(self, cards: list) -> None:
@@ -7250,7 +7490,7 @@ class PostgresDB:
                 SELECT %(edition_id)s, %(source_card_id)s, %(render_hash)s, %(storage_path)s, %(thumbnail_path)s, NOW(), NULL, NULL, NOW()
                  WHERE EXISTS (
                      SELECT 1 FROM internal.release_cards
-                      WHERE edition_id = %(edition_id)s AND source_card_id = %(source_card_id)s
+                      WHERE edition_id = %(edition_id)s AND source_card_id = %(source_card_id)s AND retired_at IS NULL
                  )
                 ON CONFLICT (edition_id, source_card_id) DO UPDATE SET
                     render_hash = EXCLUDED.render_hash, storage_path = EXCLUDED.storage_path,
@@ -7262,7 +7502,21 @@ class PostgresDB:
                 'storage_path': storage_path, 'thumbnail_path': thumbnail_path,
             })
             row = cur.fetchone()
-            return [path for path in row if path] if row else None
+            return self._unshared_release_image_paths(cur, [path for path in row if path]) if row else None
+
+    @staticmethod
+    def _unshared_release_image_paths(cur, paths: list[str]) -> list[str]:
+        """The paths no image row points to any more. A working copy starts out sharing its edition's
+        files, so a path one row dropped may still be another's live image."""
+        if not paths:
+            return []
+        cur.execute("""
+            SELECT p FROM unnest(%s::text[]) AS p
+             WHERE NOT EXISTS (
+                 SELECT 1 FROM internal.release_card_images i WHERE i.storage_path = p OR i.thumbnail_path = p
+             )
+        """, (paths,))
+        return [row[0] for row in cur.fetchall()]
 
     def record_release_card_image_failure(self, edition_id: str, source_card_id: str, failed_hash: str, error: str) -> None:
         """Mark a card's current inputs as failed, keeping any earlier image it still has."""
@@ -7274,7 +7528,7 @@ class PostgresDB:
                 SELECT %(edition_id)s, %(source_card_id)s, %(failed_hash)s, %(error)s, NOW()
                  WHERE EXISTS (
                      SELECT 1 FROM internal.release_cards
-                      WHERE edition_id = %(edition_id)s AND source_card_id = %(source_card_id)s
+                      WHERE edition_id = %(edition_id)s AND source_card_id = %(source_card_id)s AND retired_at IS NULL
                  )
                 ON CONFLICT (edition_id, source_card_id) DO UPDATE SET
                     failed_hash = EXCLUDED.failed_hash, error = EXCLUDED.error, updated_at = NOW()
@@ -7291,10 +7545,11 @@ class PostgresDB:
                    AND NOT EXISTS (
                        SELECT 1 FROM internal.release_cards rc
                         WHERE rc.edition_id = i.edition_id AND rc.source_card_id = i.source_card_id
+                          AND rc.retired_at IS NULL
                    )
                 RETURNING i.storage_path, i.thumbnail_path
             """, (edition_id,))
-            return [path for row in cur.fetchall() for path in row if path]
+            return self._unshared_release_image_paths(cur, [path for row in cur.fetchall() for path in row if path])
 
     # -----------------------------------------------------------------------
     # RELEASE IMAGE JOBS
@@ -7409,10 +7664,11 @@ class PostgresDB:
             """)
 
     @staticmethod
-    def _upsert_release_cards(cur, edition_id: str, cards: list) -> None:
+    def _upsert_release_cards(cur, edition_id: str, cards: list, retire_removed: bool = False) -> None:
         """Make an edition's release_cards match `cards`. Upserts on (edition_id, source_card_id)
         so a card that stays in the edition keeps its release_cards.id across saves - league
-        rosters reference drafted cards by that id."""
+        rosters reference drafted cards by that id. `retire_removed` (published editions) keeps
+        removed cards' rows as retired so team rosters holding them still resolve."""
         # A repeated source card would hit the same row twice in one upsert; first one wins
         seen_source_ids: set[str] = set()
         unique_cards = []
@@ -7424,10 +7680,18 @@ class PostgresDB:
             unique_cards.append(card)
         cards = unique_cards
         kept_source_ids = [card['source_card_id'] for card in cards if card.get('source_card_id')]
-        cur.execute("""
-            DELETE FROM internal.release_cards
-             WHERE edition_id = %s AND (source_card_id IS NULL OR NOT (source_card_id = ANY(%s)))
-        """, (edition_id, kept_source_ids))
+        if retire_removed:
+            cur.execute("""
+                UPDATE internal.release_cards
+                   SET retired_at = NOW(), card_number = NULL, preview_rank = NULL, updated_at = NOW()
+                 WHERE edition_id = %s AND retired_at IS NULL
+                   AND (source_card_id IS NULL OR NOT (source_card_id = ANY(%s)))
+            """, (edition_id, kept_source_ids))
+        else:
+            cur.execute("""
+                DELETE FROM internal.release_cards
+                 WHERE edition_id = %s AND (source_card_id IS NULL OR NOT (source_card_id = ANY(%s)))
+            """, (edition_id, kept_source_ids))
         if not cards:
             return
         # Renumbering can swap two kept cards' numbers, which would trip unique_card_number
@@ -7458,6 +7722,7 @@ class PostgresDB:
                 tags             = EXCLUDED.tags,
                 preview_rank     = EXCLUDED.preview_rank,
                 card_overrides   = EXCLUDED.card_overrides,
+                retired_at       = NULL,
                 updated_at       = NOW()
         """, batch)
 
@@ -7554,6 +7819,10 @@ class PostgresDB:
     def _serialize_edition_row(row: dict) -> dict:
         row['id'] = str(row['id'])
         row['release_id'] = str(row['release_id'])
+        if row.get('draft_of'):
+            row['draft_of'] = str(row['draft_of'])
+        if row.get('published_at'):
+            row['published_at'] = row['published_at'].isoformat()
         if row.get('created_at'):
             row['created_at'] = row['created_at'].isoformat()
         if row.get('updated_at'):
