@@ -7019,21 +7019,46 @@ class PostgresDB:
             cur.execute(query, (user_id,))
             return [self._serialize_release_row(dict(r)) for r in cur.fetchall()]
 
-    def get_public_releases(self, limit: int = 50, offset: int = 0) -> list[dict]:
-        """Return releases with at least one published edition, newest first."""
+    # `sort` -> ORDER BY for the public list. Popular weighs likes from the last 30 days first, so a
+    # new favorite can climb past older ones, then all-time likes and views.
+    _PUBLIC_RELEASE_SORTS = {
+        'popular': """
+            (SELECT COUNT(*) FROM internal.release_likes l
+              WHERE l.release_id = r.id AND l.created_at > NOW() - INTERVAL '30 days') DESC,
+            r.like_count DESC, r.view_count DESC, r.published_at DESC NULLS LAST""",
+        'new': "r.published_at DESC NULLS LAST, r.updated_at DESC",
+        'updated': "r.updated_at DESC",
+    }
+
+    def get_public_releases(self, limit: int = 50, offset: int = 0, section: Optional[str] = None, sort: str = 'updated',
+                            search: Optional[str] = None, exclude_user_id: Optional[str] = None) -> list[dict]:
+        """Releases with at least one published edition. `section` 'official' / 'community' splits on
+        `is_official`; `search` matches the name or creator's username; `exclude_user_id` leaves out
+        that user's own (they're listed under My Releases)."""
         if not self.connection:
             return []
+        # Escape LIKE wildcards so a search for "100%" means the text
+        escaped = re.sub(r'([%_\\])', r'\\\1', search.strip()) if search and search.strip() else None
+        pattern = f"%{escaped}%" if escaped else None
         query = self._release_list_select(published_only=True) + """
             WHERE EXISTS (
                 SELECT 1 FROM internal.release_editions pe
                 WHERE pe.release_id = r.id AND pe.is_published = TRUE
             )
+              AND (%(section)s::text IS NULL OR r.is_official = (%(section)s = 'official'))
+              AND (%(exclude_user_id)s::text IS NULL OR r.created_by <> %(exclude_user_id)s)
+              AND (%(pattern)s::text IS NULL
+                   OR r.name ILIKE %(pattern)s
+                   OR EXISTS (SELECT 1 FROM public.profiles p WHERE p.id::text = r.created_by AND p.username ILIKE %(pattern)s))
             GROUP BY r.id
-            ORDER BY r.updated_at DESC
-            LIMIT %s OFFSET %s
+            ORDER BY """ + self._PUBLIC_RELEASE_SORTS.get(sort, self._PUBLIC_RELEASE_SORTS['updated']) + """
+            LIMIT %(limit)s OFFSET %(offset)s
         """
         with self.connection.cursor(cursor_factory=RealDictCursor) as cur:
-            cur.execute(query, (limit, offset))
+            cur.execute(query, {
+                'section': section if section in ('official', 'community') else None,
+                'exclude_user_id': exclude_user_id, 'pattern': pattern, 'limit': limit, 'offset': offset,
+            })
             return [self._serialize_release_row(dict(r)) for r in cur.fetchall()]
 
     def get_release(self, release_id: str, user_id: str | None = None) -> dict | None:

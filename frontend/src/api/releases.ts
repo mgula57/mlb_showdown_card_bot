@@ -311,9 +311,29 @@ export async function fetchMyReleases(token: string): Promise<Release[]> {
     return res.json();
 }
 
-export async function fetchPublicReleases(limit = 50, offset = 0): Promise<Release[]> {
+export type PublicReleaseSort = 'popular' | 'new';
+
+export type PublicReleaseQuery = {
+    /** `official` (curated) or `community` (everyone else's); both when left out. */
+    section?: 'official' | 'community';
+    /** Most recently updated first when left out. */
+    sort?: PublicReleaseSort;
+    /** Matches the release name or its creator's username. */
+    search?: string;
+    /** Leaves out the signed-in viewer's own releases (needs `token`). */
+    excludeMine?: boolean;
+    token?: string;
+};
+
+export async function fetchPublicReleases(limit = 50, offset = 0, query: PublicReleaseQuery = {}): Promise<Release[]> {
     const params = new URLSearchParams({ limit: String(limit), offset: String(offset) });
-    const res = await fetch(`${API_BASE}/releases/public?${params}`);
+    if (query.section) params.set('section', query.section);
+    if (query.sort) params.set('sort', query.sort);
+    if (query.search?.trim()) params.set('q', query.search.trim());
+    if (query.excludeMine) params.set('exclude_mine', 'true');
+    const headers: Record<string, string> = {};
+    if (query.token) headers['Authorization'] = `Bearer ${query.token}`;
+    const res = await fetch(`${API_BASE}/releases/public?${params}`, { headers });
     if (!res.ok) throw new Error(`Failed to fetch public releases: ${res.status}`);
     return res.json();
 }

@@ -324,8 +324,14 @@ def get_public_releases():
     try:
         limit = min(request.args.get('limit', 50, type=int), 200)
         offset = request.args.get('offset', 0, type=int)
+        # `exclude_mine=true` leaves out the signed-in viewer's own releases (shown under My Releases)
+        exclude_user_id = optional_user_id() if request.args.get('exclude_mine') == 'true' else None
         db = PostgresDB()
-        releases = db.get_public_releases(limit=limit, offset=offset)
+        releases = db.get_public_releases(
+            limit=limit, offset=offset,
+            section=request.args.get('section'), sort=request.args.get('sort', 'updated'),
+            search=request.args.get('q'), exclude_user_id=exclude_user_id,
+        )
         db.close_connection()
         return jsonify(releases), 200
     except Exception as exc:

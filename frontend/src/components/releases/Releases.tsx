@@ -9,11 +9,15 @@ import {
     createEdition,
     editionSummaryOf,
     type Release,
+    type PublicReleaseSort,
 } from '../../api/releases';
+import { useCommunityReleases } from './useCommunityReleases';
+import { TeamSearchInput } from '../team_builder/TeamSearchInput';
+import { choiceClass } from '../shared/choiceStyles';
 import { ReleaseItem, ReleaseItemSkeleton } from './ReleaseItem';
 import { ReleaseDetail } from './ReleaseDetail';
 import { NewReleaseModal } from './NewReleaseModal';
-import { FaPlus } from 'react-icons/fa6';
+import { FaPlus, FaSpinner } from 'react-icons/fa6';
 import type { ReleaseCreatePayload } from '../../api/releases';
 
 import { InlineError } from '../shared/InlineError';
@@ -46,6 +50,8 @@ export default function Releases() {
     const [listLoaded, setListLoaded] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [showCreateModal, setShowCreateModal] = useState(false);
+    const [communitySort, setCommunitySort] = useState<PublicReleaseSort>('popular');
+    const [communitySearch, setCommunitySearch] = useState('');
 
     // UX Spacing — matches TeamBuilder
     const px = 'px-4 sm:px-8';
@@ -55,6 +61,8 @@ export default function Releases() {
     const [, , releaseIdFromUrl = null, editionSlugFromUrl = null] = isOnReleaseBuilder
         ? location.pathname.split('/')
         : [];
+    // Only fetched while the list is on screen, and after the session restores (it hides your own)
+    const community = useCommunityReleases(communitySort, communitySearch, token, isOnReleaseBuilder && !releaseIdFromUrl && !authLoading);
 
     // Auth change invalidates the cached list
     useEffect(() => { setListLoaded(false); }, [token]);
@@ -123,7 +131,7 @@ export default function Releases() {
         setError(null);
         try {
             const [publicReleases, myReleases] = await Promise.all([
-                fetchPublicReleases(100),
+                fetchPublicReleases(100, 0, { section: 'official', sort: 'new' }),
                 token ? fetchMyReleases(token) : Promise.resolve([]),
             ]);
             setOfficialReleases(publicReleases.filter(r => r.created_by !== session?.user?.id));
@@ -276,7 +284,7 @@ export default function Releases() {
                     {/* Official Releases */}
                     {officialReleases.length > 0 && (
                         <section className={px}>
-                            <Heading level="section" as="h2" className="mb-3">Official Releases</Heading>
+                            <Heading level="section" as="h2" className="mb-3">Official</Heading>
                             <div className={RELEASE_GRID}>
                                 {officialReleases.map(release => (
                                     <ReleaseItem
@@ -289,18 +297,85 @@ export default function Releases() {
                         </section>
                     )}
 
-                    {!token && officialReleases.length === 0 && (
-                        <p className="text-[13px] text-(--text-tertiary) py-4 text-center">
+                    {!token && (
+                        <p className="text-[13px] text-(--text-tertiary) text-center">
                             Sign in to create your own releases.
                         </p>
                     )}
                 </>
             )}
+
+            {renderCommunity()}
         </div>
         </div>
         );
     }
+
+    /** Everyone else's published releases: sorted and searched on the server, a page at a time. */
+    function renderCommunity() {
+        const { releases, loading: loadingCommunity, hasMore, error: communityError, loadMore, searching } = community;
+        return (
+            <section className={`${px} flex flex-col gap-3`}>
+                <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+                    <Heading level="section" as="h2">Community</Heading>
+                    <div className="flex gap-1.5" role="group" aria-label="Sort community releases">
+                        {COMMUNITY_SORTS.map(option => (
+                            <button
+                                key={option.value}
+                                type="button"
+                                aria-pressed={communitySort === option.value}
+                                onClick={() => setCommunitySort(option.value)}
+                                className={choiceClass(communitySort === option.value, 'sm')}
+                            >
+                                {option.label}
+                            </button>
+                        ))}
+                    </div>
+                    <TeamSearchInput
+                        value={communitySearch}
+                        onChange={setCommunitySearch}
+                        placeholder="Search by name or creator…"
+                        className="w-full sm:w-72 sm:ml-auto"
+                    />
+                </div>
+
+                {communityError && <InlineError size="md">{communityError}</InlineError>}
+
+                {releases === null ? (
+                    <div className={RELEASE_GRID}>
+                        {Array.from({ length: 6 }, (_, i) => <ReleaseItemSkeleton key={i} />)}
+                    </div>
+                ) : releases.length === 0 ? (
+                    searching ? (
+                        <EmptyState size="inline">No releases match “{communitySearch.trim()}”.</EmptyState>
+                    ) : (
+                        <EmptyState size="panel" title="No community releases yet.">
+                            Publish one of your releases and it shows up here.
+                        </EmptyState>
+                    )
+                ) : (
+                    <>
+                        <div className={`${RELEASE_GRID} ${loadingCommunity ? 'opacity-60' : ''} transition-opacity`}>
+                            {releases.map(release => (
+                                <ReleaseItem key={release.id} release={release} onClick={() => openRelease(release, true)} />
+                            ))}
+                        </div>
+                        {hasMore && (
+                            <button type="button" onClick={loadMore} disabled={loadingCommunity} className={buttonClass('secondary', 'md', 'self-center')}>
+                                {loadingCommunity && <FaSpinner className="animate-spin text-[11px]" />} Load more
+                            </button>
+                        )}
+                    </>
+                )}
+            </section>
+        );
+    }
 }
+
+const COMMUNITY_SORTS: { value: PublicReleaseSort; label: string }[] = [
+    { value: 'popular', label: 'Popular' },
+    { value: 'new', label: 'New' },
+];
 
 /** Placeholder shaped like ReleaseDetail's header + edition tab bar while a release loads. */
 function ReleaseDetailSkeleton() {

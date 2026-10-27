@@ -2,7 +2,7 @@ import type { CSSProperties } from 'react';
 import type { Release, ReleasePreviewImage } from '../../api/releases';
 import { cardImagePublicUrl } from '../../api/supabase';
 import { SetBadgeRow } from '../shared/SetBadge';
-import { FaLayerGroup } from 'react-icons/fa6';
+import { FaHeart, FaLayerGroup } from 'react-icons/fa6';
 import { SLANT_ROOM_CLASS } from '../shared/headingStyles';
 import { Plate } from '../shared/Plate';
 import { FrameCorners } from '../shared/FrameCorners';
@@ -108,8 +108,13 @@ export function ReleaseItem({ release, onClick, showPublishStatus = false }: Rel
                         </div>
                     )}
                     <div className="flex items-center justify-between gap-1.5 min-w-0">
-                        <span className="text-[11px] font-medium text-(--text-tertiary) truncate">
-                            {release.creator_username ? `by ${release.creator_username}` : ''}
+                        <span className="flex items-center gap-1 min-w-0 text-[11px] font-medium text-(--text-tertiary)">
+                            <span className="truncate">{release.creator_username ? `by ${release.creator_username}` : ''}</span>
+                            {release.like_count > 0 && (
+                                <span className="flex items-center gap-0.5 shrink-0 tabular-nums" title={`${release.like_count} like${release.like_count === 1 ? '' : 's'}`}>
+                                    <FaHeart className="text-[9px]" />{release.like_count}
+                                </span>
+                            )}
                         </span>
                         <span className="shrink-0 text-[11px] font-semibold tabular-nums text-(--text-tertiary)">
                             {editionCount} ed. · {totalCards} card{totalCards === 1 ? '' : 's'}
