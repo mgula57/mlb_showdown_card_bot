@@ -37,15 +37,20 @@ type EditionImagesProps = {
     /** Release-tile slot (1-3) by source card id, for cards that have one. */
     previewRanks: Map<string, number>;
     onPreviewRankChange: (sourceCardId: string, rank: number | null) => void;
+    /** Applies a status filter from outside (a Review fix link). A new object re-applies the same status. */
+    statusFilterRequest?: { status: ReleaseCardImageStatus } | null;
 };
 
 /** Step 2 of the Edition Builder: renders every card in the edition (with its edition style and set
  * number) to Supabase in a background job, and shows each card's image as it lands. */
-export function EditionImages({ releaseId, releaseName, edition, readOnly, token, previewRanks, onPreviewRankChange }: EditionImagesProps) {
+export function EditionImages({ releaseId, releaseName, edition, readOnly, token, previewRanks, onPreviewRankChange, statusFilterRequest }: EditionImagesProps) {
     const [data, setData] = useState<EditionImagesData | null>(null);
     const [error, setError] = useState<string | null>(null);
     const [requesting, setRequesting] = useState(false);
-    const [statusFilter, setStatusFilter] = useState<ReleaseCardImageStatus | null>(null);
+    const [statusFilter, setStatusFilter] = useState<ReleaseCardImageStatus | null>(statusFilterRequest?.status ?? null);
+    useEffect(() => {
+        if (statusFilterRequest) setStatusFilter(statusFilterRequest.status);
+    }, [statusFilterRequest]);
     const [detailImage, setDetailImage] = useState<ReleaseCardImage | null>(null);
 
     const load = useCallback(() => {

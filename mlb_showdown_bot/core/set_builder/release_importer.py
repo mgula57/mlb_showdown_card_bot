@@ -124,7 +124,7 @@ class ReleaseImporter:
         existing_editions = {e['name']: e for e in release.get('editions', [])}
         for code, cards in edition_cards.items():
             name = self.edition_name(code)
-            payload = {'name': name, 'attributes': self.edition_attributes(code), 'is_published': self.publish, 'cards': cards}
+            payload = {'name': name, 'attributes': self.edition_attributes(code), 'cards': cards}
             if name in existing_editions:
                 self.db.update_edition(existing_editions[name]['id'], self.user_id, payload)
                 action = 'Updated'
@@ -132,4 +132,5 @@ class ReleaseImporter:
                 self.db.create_edition(release['id'], self.user_id, payload)
                 action = 'Created'
             print(f"  {action} edition '{name}': {len(cards)} cards")
+        self.db.set_release_published(release['id'], self.user_id, self.publish)
         return release['id']

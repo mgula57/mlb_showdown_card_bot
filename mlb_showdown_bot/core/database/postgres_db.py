@@ -6713,6 +6713,19 @@ class PostgresDB:
                     CONSTRAINT unique_release_edition_name UNIQUE (release_id, name)
                 );
             """)
+            # First publish time, and the published version (0 until the first publish). Releases
+            # published before these columns existed count from their last update.
+            cur.execute("""
+                ALTER TABLE internal.releases
+                    ADD COLUMN IF NOT EXISTS published_at      TIMESTAMP WITH TIME ZONE,
+                    ADD COLUMN IF NOT EXISTS published_version INT NOT NULL DEFAULT 0;
+            """)
+            cur.execute("""
+                UPDATE internal.releases r
+                   SET published_at = r.updated_at, published_version = 1
+                 WHERE r.published_at IS NULL
+                   AND EXISTS (SELECT 1 FROM internal.release_editions e WHERE e.release_id = r.id AND e.is_published);
+            """)
             # release_id lookups are covered by unique_release_edition_name (release_id, name)
             cur.execute("DROP INDEX IF EXISTS internal.idx_release_editions_release_id;")
             # "has a published edition" EXISTS checks in get_release / get_public_releases
@@ -6856,6 +6869,7 @@ class PostgresDB:
         SELECT
             r.id, r.name, r.description, r.created_by, r.is_official,
             r.fork_parent_id, r.slug, r.default_showdown_set, r.created_at, r.updated_at,
+            r.published_at, r.published_version,
             (SELECT p.username FROM public.profiles p WHERE p.id::text = r.created_by) AS creator_username,
             {extra_columns}
             COALESCE(
@@ -6972,6 +6986,45 @@ class PostgresDB:
                 list(fields.values()) + [release_id, user_id],
             )
             return cur.rowcount > 0
+
+    def get_release_tile(self, release_id: str, user_id: str) -> dict | None:
+        """The owner's release as its list tile shows it (`preview_images`, `showdown_sets`)."""
+        if not self.connection:
+            return None
+        query = self._release_list_select(published_only=False) + """
+            WHERE r.id = %s AND r.created_by = %s
+            GROUP BY r.id
+        """
+        with self.connection.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute(query, (release_id, user_id))
+            row = cur.fetchone()
+            return self._serialize_release_row(dict(row)) if row else None
+
+    def set_release_published(self, release_id: str, user_id: str, published: bool) -> bool:
+        """Publish or unpublish every edition of a release owned by user_id, in one statement so a
+        release is never left partly published. The first publish stamps `published_at` and version 1;
+        unpublishing keeps both. Returns False if the release isn't the user's."""
+        if not self.connection:
+            return False
+        with self.connection.cursor() as cur:
+            cur.execute("""
+                WITH r AS (
+                    UPDATE internal.releases
+                       SET published_at      = CASE WHEN %(published)s THEN COALESCE(published_at, NOW()) ELSE published_at END,
+                           published_version = CASE WHEN %(published)s THEN GREATEST(published_version, 1) ELSE published_version END,
+                           updated_at        = NOW()
+                     WHERE id = %(release_id)s AND created_by = %(user_id)s
+                 RETURNING id
+                ), e AS (
+                    UPDATE internal.release_editions e
+                       SET is_published = %(published)s, updated_at = NOW()
+                      FROM r
+                     WHERE e.release_id = r.id AND e.is_published IS DISTINCT FROM %(published)s
+                 RETURNING e.id
+                )
+                SELECT (SELECT COUNT(*) FROM r) AS releases, (SELECT COUNT(*) FROM e) AS editions
+            """, {'published': published, 'release_id': release_id, 'user_id': user_id})
+            return cur.fetchone()[0] > 0
 
     def delete_release(self, release_id: str, user_id: str) -> bool:
         """Delete a release (and its editions/cards) owned by user_id. Returns True if a row was deleted."""
@@ -7470,7 +7523,8 @@ class PostgresDB:
     def _release_payload_fields(payload: dict) -> dict:
         return {k: v for k, v in payload.items() if k in PostgresDB._RELEASE_ALLOWED_FIELDS}
 
-    _EDITION_ALLOWED_FIELDS = frozenset({'name', 'attributes', 'is_published'})
+    # `is_published` only changes through `set_release_published`, after the publish review
+    _EDITION_ALLOWED_FIELDS = frozenset({'name', 'attributes'})
     _EDITION_JSONB_FIELDS = frozenset({'attributes'})
 
     @staticmethod
@@ -7492,6 +7546,8 @@ class PostgresDB:
             row['created_at'] = row['created_at'].isoformat()
         if row.get('updated_at'):
             row['updated_at'] = row['updated_at'].isoformat()
+        if row.get('published_at'):
+            row['published_at'] = row['published_at'].isoformat()
         return row
 
     @staticmethod

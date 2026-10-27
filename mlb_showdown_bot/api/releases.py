@@ -8,6 +8,7 @@ from ..core.database.postgres_db import PostgresDB
 from ..core.set_builder.image_match_classifier import ImageMatchCard, ImageMatchClassifier
 from ..core.set_builder.release_card_rebuilder import ReleaseCardRebuilder, ReleaseCardRebuildError
 from ..core.set_builder.release_images import EditionImagePlan, EditionImageRenderer, ReleaseImageJobCancelled, ReleaseImageStorage
+from ..core.set_builder.release_review import ReleaseReview
 from ..core.set_builder.selection import OtherEditionsRule
 from ..core.set_builder.showdown_bot_set import AlgorithmPreviewRequest
 from ..core.set_builder.wotc_set_profile import WotcSetProfile
@@ -100,6 +101,67 @@ def delete_release(release_id: str):
             return jsonify({'error': 'Release not found or not owned by user'}), 404
         ReleaseImageStorage().delete_folder(release_id)
         return jsonify({'success': True}), 200
+    except Exception as exc:
+        traceback.print_exc()
+        return jsonify({'error': str(exc)}), 500
+
+
+def _owned_release(db: PostgresDB, release_id: str, user_id: str) -> dict | None:
+    """The release if the user owns it. `get_release` alone also returns other users' published releases."""
+    release = db.get_release(release_id, user_id)
+    return release if release is not None and release['created_by'] == user_id else None
+
+
+@releases_bp.route('/releases/<release_id>/review', methods=['GET'])
+@require_auth
+def get_release_review(release_id: str):
+    """The pre-publish checklist (see `ReleaseReview`) and the release's list tile as others will see it."""
+    try:
+        with PostgresDB() as db:
+            release = _owned_release(db, release_id, g.user_id)
+            if release is None:
+                return jsonify({'error': 'Release not found or not owned by user'}), 404
+            items = ReleaseReview(db, release, g.user_id, UserImageLibraries.for_card_build(g.user_id)).run()
+            tile = db.get_release_tile(release_id, g.user_id)
+        return jsonify({'items': [item.model_dump(mode='json') for item in items], 'tile': tile}), 200
+    except Exception as exc:
+        traceback.print_exc()
+        return jsonify({'error': str(exc)}), 500
+
+
+@releases_bp.route('/releases/<release_id>/publish', methods=['POST'])
+@require_auth
+def publish_release(release_id: str):
+    """Publish every edition at once. Refused (409, with the blocking items) while any review blocker is open."""
+    try:
+        with PostgresDB() as db:
+            release = _owned_release(db, release_id, g.user_id)
+            if release is None:
+                return jsonify({'error': 'Release not found or not owned by user'}), 404
+            # Blockers never depend on photo matches, so skip the Drive lookups
+            blockers = [item for item in ReleaseReview(db, release, g.user_id).run() if item.is_blocking]
+            if blockers:
+                return jsonify({
+                    'error': f"Fix {len(blockers)} item{'' if len(blockers) == 1 else 's'} before publishing.",
+                    'items': [item.model_dump(mode='json') for item in blockers],
+                }), 409
+            db.set_release_published(release_id, g.user_id, True)
+            release = db.get_release(release_id, g.user_id)
+        return jsonify(release), 200
+    except Exception as exc:
+        traceback.print_exc()
+        return jsonify({'error': str(exc)}), 500
+
+
+@releases_bp.route('/releases/<release_id>/unpublish', methods=['POST'])
+@require_auth
+def unpublish_release(release_id: str):
+    try:
+        with PostgresDB() as db:
+            if not db.set_release_published(release_id, g.user_id, False):
+                return jsonify({'error': 'Release not found or not owned by user'}), 404
+            release = db.get_release(release_id, g.user_id)
+        return jsonify(release), 200
     except Exception as exc:
         traceback.print_exc()
         return jsonify({'error': str(exc)}), 500

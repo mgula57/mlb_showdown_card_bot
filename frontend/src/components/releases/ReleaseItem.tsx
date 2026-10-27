@@ -37,7 +37,8 @@ function hoveredPlacement(placement: FanPlacement, cardCount: number): FanPlacem
 
 type ReleaseItemProps = {
     release: Release;
-    onClick: () => void;
+    /** Leave out for a display-only tile (e.g. the Review step's preview). */
+    onClick?: () => void;
     /** Show the Draft/Published pill — only meaningful on the owner's own releases. */
     showPublishStatus?: boolean;
 };
@@ -54,16 +55,18 @@ export function ReleaseItem({ release, onClick, showPublishStatus = false }: Rel
     // Sets actually in the release's cards; before any cards are added, the default set it was created with
     const sets = release.showdown_sets?.length ? release.showdown_sets : [release.default_showdown_set];
 
+    const Frame = onClick ? 'button' : 'div';
     return (
-        <button
-            type="button"
-            onClick={onClick}
+        <Frame
+            {...(onClick ? { type: 'button' as const, onClick } : {})}
             className={`
                 ${TILE_FRAME} group relative p-0.75 text-left
                 border-2 border-(--rule-strong) bg-(--background-secondary)
-                [@media(hover:hover)]:hover:scale-[1.025] [@media(hover:hover)]:active:scale-[0.975]
-                [@media(hover:hover)]:transition-transform [@media(hover:hover)]:duration-150
-                cursor-pointer
+                ${onClick ? `
+                    [@media(hover:hover)]:hover:scale-[1.025] [@media(hover:hover)]:active:scale-[0.975]
+                    [@media(hover:hover)]:transition-transform [@media(hover:hover)]:duration-150
+                    cursor-pointer
+                ` : ''}
             `}
         >
             {/* Double-rule frame from the 2001 card back: outer rule on the button, hairline here, bases on the corners */}
@@ -118,7 +121,7 @@ export function ReleaseItem({ release, onClick, showPublishStatus = false }: Rel
                     )}
                 </div>
             </div>
-        </button>
+        </Frame>
     );
 }
 

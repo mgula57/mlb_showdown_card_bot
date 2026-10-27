@@ -1,6 +1,6 @@
-import { useState, useMemo, useRef, useEffect, useCallback } from 'react';
+import { useState, useMemo, useRef, useEffect, useCallback, type ReactNode } from 'react';
 import * as Tabs from '@radix-ui/react-tabs';
-import type { ReleaseEdition, ReleaseCard, AlgorithmPreviewResult, AlgorithmPreviewPlayer } from '../../api/releases';
+import type { ReleaseEdition, ReleaseCard, AlgorithmPreviewResult, AlgorithmPreviewPlayer, ReleaseCardImageStatus } from '../../api/releases';
 import { updateEdition, rebuildEditionCard } from '../../api/releases';
 import { SummaryCharts } from './SummaryCharts';
 import { AlgorithmBuilder } from './AlgorithmBuilder';
@@ -64,6 +64,20 @@ type EditionBuilderProps = {
     token?: string;
     defaultShowdownSet?: string | null;
     onEditionUpdated: (edition: ReleaseEdition) => void;
+    /** The release-wide Review step (step 3). Owners only: leave `onReviewOpenChange` out when browsing. */
+    reviewOpen?: boolean;
+    onReviewOpenChange?: (open: boolean) => void;
+    /** What step 3 shows; only passed to the edition on screen. */
+    review?: ReactNode;
+    /** Opens a step from outside (a Review fix link). A new object re-applies the same request. */
+    navRequest?: EditionNavRequest | null;
+    /** Reports whether an unapplied Algorithm run is showing, for the Review checklist. */
+    onUnsavedPreviewChange?: (editionId: string, hasUnsavedPreview: boolean) => void;
+};
+
+export type EditionNavRequest = {
+    step: 'pool' | 'images' | 'style';
+    imageStatus?: ReleaseCardImageStatus | null;
 };
 
 const TAB_TRIGGER_CLASS = radixTabTriggerClass('sm');
@@ -262,7 +276,7 @@ function loadSavedBuildPanelWidth(): number | null {
     }
 }
 
-export function EditionBuilder({ releaseId, releaseName, edition, readOnly, token, defaultShowdownSet, onEditionUpdated }: EditionBuilderProps) {
+export function EditionBuilder({ releaseId, releaseName, edition, readOnly, token, defaultShowdownSet, onEditionUpdated, reviewOpen = false, onReviewOpenChange, review, navRequest, onUnsavedPreviewChange }: EditionBuilderProps) {
     const [cards, setCards] = useState<ReleaseCard[]>(edition.cards);
     // Latest cards, for saves that land after an await (e.g. a chart rebuild)
     const cardsRef = useRef(cards);
@@ -281,7 +295,13 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
     function handleOpenImagesStep() {
         setImagesMounted(true);
         setStep('images');
+        onReviewOpenChange?.(false);
     }
+    function handleOpenPoolStep() {
+        setStep('pool');
+        onReviewOpenChange?.(false);
+    }
+    const [imagesStatusRequest, setImagesStatusRequest] = useState<{ status: ReleaseCardImageStatus } | null>(null);
     const editionStyle = useMemo(() => parseEditionStyle(edition.attributes), [edition.attributes]);
     const styleSummary = useMemo(() => editionStyleSummary(editionStyle), [editionStyle]);
     const numberingSettingsRef = useRef<HTMLDivElement>(null);
@@ -446,6 +466,26 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
         [activePreview]
     );
     const liveImageMatches = useLiveImageMatches(releaseId, edition.id, previewCards ?? cards, token, !readOnly);
+
+    const hasUnsavedPreview = !!activePreview;
+    useEffect(() => {
+        onUnsavedPreviewChange?.(edition.id, hasUnsavedPreview);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [edition.id, hasUnsavedPreview]);
+
+    useEffect(() => {
+        if (!navRequest) return;
+        if (navRequest.step === 'style') {
+            setShowStyleModal(true);
+        } else if (navRequest.step === 'images') {
+            handleOpenImagesStep();
+            if (navRequest.imageStatus) setImagesStatusRequest({ status: navRequest.imageStatus });
+        } else {
+            handleOpenPoolStep();
+            handlePoolTabChange('cards');
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [navRequest]);
     const displayCards = liveImageMatches.cards;
 
     // The pool can be hundreds of cards, so the grid renders in pages and loads more as the
@@ -777,9 +817,15 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
             {/* Step indicator */}
             <div className={`flex items-center gap-3 px-4 py-3 border-b border-(--divider) shrink-0 ${CHROME_SURFACE_CLASS}`}>
                 {/* Numbered as a workflow while editing; plain views while browsing */}
-                <StepButton number={readOnly ? undefined : 1} label={readOnly ? 'Cards' : 'Player Pool'} isActive={step === 'pool'} onClick={() => setStep('pool')} />
+                <StepButton number={readOnly ? undefined : 1} label={readOnly ? 'Cards' : 'Player Pool'} isActive={!reviewOpen && step === 'pool'} onClick={handleOpenPoolStep} />
                 <div className={`${readOnly ? 'w-3' : 'w-8'} h-px bg-(--divider) shrink-0`} />
-                <StepButton number={readOnly ? undefined : 2} label="Images" isActive={step === 'images'} onClick={handleOpenImagesStep} />
+                <StepButton number={readOnly ? undefined : 2} label="Images" isActive={!reviewOpen && step === 'images'} onClick={handleOpenImagesStep} />
+                {onReviewOpenChange && (
+                    <>
+                        <div className="w-8 h-px bg-(--divider) shrink-0" />
+                        <StepButton number={3} label="Review" isActive={reviewOpen} onClick={() => onReviewOpenChange(true)} />
+                    </>
+                )}
 
                 {!readOnly && (
                     <button
@@ -808,8 +854,11 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
             )}
 
             {/* Images step: mounts on first open, then stays mounted (hidden) so a running render keeps reporting */}
+            {/* Review step: release-wide, so its content comes from ReleaseDetail */}
+            {reviewOpen && review}
+
             {imagesMounted && (
-                <div className={`flex-col flex-1 min-h-0 ${step === 'images' ? 'flex' : 'hidden'}`}>
+                <div className={`flex-col flex-1 min-h-0 ${!reviewOpen && step === 'images' ? 'flex' : 'hidden'}`}>
                     <EditionImages
                         releaseId={releaseId}
                         releaseName={releaseName}
@@ -818,6 +867,7 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
                         token={token}
                         previewRanks={previewRanks}
                         onPreviewRankChange={handlePreviewRankChange}
+                        statusFilterRequest={imagesStatusRequest}
                     />
                 </div>
             )}
@@ -827,7 +877,7 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
             <Tabs.Root
                 value={activePoolTab}
                 onValueChange={value => handlePoolTabChange(value as PoolTab)}
-                className={`flex-col flex-1 min-h-0 ${step === 'pool' ? 'flex' : 'hidden'}`}
+                className={`flex-col flex-1 min-h-0 ${!reviewOpen && step === 'pool' ? 'flex' : 'hidden'}`}
             >
             {!readOnly && (
                 <Tabs.List className={`md:hidden ${TAB_LIST_CLASS}`}>

@@ -1,11 +1,13 @@
-import { useState, useEffect, type ReactNode } from 'react';
+import { useState, useEffect, useCallback, type ReactNode } from 'react';
 import * as Tabs from '@radix-ui/react-tabs';
-import type { Release, ReleaseEdition } from '../../api/releases';
+import type { Release, ReleaseEdition, ReleaseReviewItem } from '../../api/releases';
 import { fetchEdition, createEdition, updateEdition } from '../../api/releases';
-import { EditionBuilder, EditionBuilderSkeleton } from './EditionBuilder';
+import { EditionBuilder, EditionBuilderSkeleton, type EditionNavRequest } from './EditionBuilder';
+import { ReleaseReviewPanel } from './ReleaseReviewPanel';
+import { useReleaseReview } from './useReleaseReview';
 import FormInput from '../customs/FormInput';
 import { ModeBanner, ModeBannerButton } from '../shared/ModeBanner';
-import { FaArrowLeft, FaCheck, FaEye, FaEyeSlash, FaGlobe, FaPen, FaPlus, FaSpinner, FaXmark } from 'react-icons/fa6';
+import { FaArrowLeft, FaCheck, FaEye, FaGlobe, FaPen, FaPlus, FaSpinner, FaXmark } from 'react-icons/fa6';
 
 import { InlineError } from '../shared/InlineError';
 import { Heading } from '../shared/Heading';
@@ -44,7 +46,16 @@ export function ReleaseDetail({ release, readOnly, editionSlug, onEditionChange,
 
     const [mode, setMode] = useState<ViewMode>(() => isPublished ? 'browse' : 'edit');
     const isEditing = isOwner && mode === 'edit';
-    const [publishing, setPublishing] = useState(false);
+
+    /** Step 3 is release-wide, so it lives here rather than in each edition's builder. */
+    const [reviewOpen, setReviewOpen] = useState(false);
+    const isReviewing = isEditing && reviewOpen && !!token;
+    const review = useReleaseReview(release.id, token, isReviewing);
+    const [navRequest, setNavRequest] = useState<{ editionId: string; request: EditionNavRequest } | null>(null);
+    const [unsavedPreviews, setUnsavedPreviews] = useState<Record<string, boolean>>({});
+    const handleUnsavedPreviewChange = useCallback((editionId: string, hasUnsavedPreview: boolean) => {
+        setUnsavedPreviews(prev => prev[editionId] === hasUnsavedPreview ? prev : { ...prev, [editionId]: hasUnsavedPreview });
+    }, []);
 
     const activeEditionId = (editions.find(e => e.slug === editionSlug) ?? editions[0])?.id ?? null;
     const [editionCache, setEditionCache] = useState<Record<string, ReleaseEdition>>({});
@@ -66,7 +77,32 @@ export function ReleaseDetail({ release, readOnly, editionSlug, onEditionChange,
 
     function changeMode(next: ViewMode) {
         setMode(next);
+        if (next === 'browse') setReviewOpen(false);
         closeEditionForm();
+    }
+
+    function openReview() {
+        changeMode('edit');
+        setReviewOpen(true);
+    }
+
+    /** A review fix link: leave the review for the edition and step where the item gets fixed. */
+    function handleReviewFix(item: ReleaseReviewItem) {
+        const fix = item.fix;
+        const edition = release.editions.find(e => e.id === fix?.edition_id);
+        if (!fix || fix.step === 'details' || !edition) return;
+        setReviewOpen(false);
+        onEditionChange(edition.slug);
+        setNavRequest({ editionId: edition.id, request: { step: fix.step, imageStatus: fix.image_status } });
+    }
+
+    /** Publish/unpublish and description saves return the release without its list-only fields. */
+    function handleReviewReleaseUpdated(updated: Release) {
+        const publishedById = new Map(updated.editions.map(e => [e.id, e.is_published]));
+        setEditionCache(prev => Object.fromEntries(Object.entries(prev).map(([id, edition]) => [
+            id, publishedById.has(id) ? { ...edition, is_published: publishedById.get(id)! } : edition,
+        ])));
+        onReleaseUpdated({ ...release, ...updated, editions: updated.editions.length ? updated.editions : release.editions });
     }
 
     function openEditionForm(mode: 'create' | 'rename') {
@@ -138,31 +174,6 @@ export function ReleaseDetail({ release, readOnly, editionSlug, onEditionChange,
         applyEditionUpdates([updated]);
     }
 
-    /** Publishing is release-wide: every edition flips together. */
-    async function handleSetPublished(published: boolean) {
-        if (!token || publishing) return;
-        const targets = release.editions.filter(e => e.is_published !== published);
-        if (targets.length === 0) return;
-        const confirmed = window.confirm(published
-            ? `Publish "${release.name}"? Anyone will be able to browse ${targets.length === 1 ? 'it' : `its ${targets.length} unpublished editions`}.`
-            : `Unpublish "${release.name}"? It will be hidden from everyone but you.`
-        );
-        if (!confirmed) return;
-        setPublishing(true);
-        setError(null);
-        const results = await Promise.allSettled(
-            targets.map(e => updateEdition(release.id, e.id, { is_published: published }, token))
-        );
-        applyEditionUpdates(results.flatMap(r => r.status === 'fulfilled' ? [r.value] : []));
-        const failed = results.find((r): r is PromiseRejectedResult => r.status === 'rejected');
-        if (failed) {
-            setError(failed.reason?.message ?? `Failed to ${published ? 'publish' : 'unpublish'} release.`);
-        } else {
-            changeMode(published ? 'browse' : 'edit');
-        }
-        setPublishing(false);
-    }
-
     return (
         // Height-locked from md up only — on phones the page scrolls naturally so Safari's URL bar can
         // collapse (a dvh-locked shell leaves a black bar at the bottom as the bar animates).
@@ -228,11 +239,8 @@ export function ReleaseDetail({ release, readOnly, editionSlug, onEditionChange,
                             {isEditing ? (
                                 <>
                                     <HeaderButton icon={<FaEye />} label="Preview" collapseLabel onClick={() => changeMode('browse')} title="See this release the way others will" />
-                                    {isPublished && (
-                                        <HeaderButton icon={<FaEyeSlash />} label="Unpublish" collapseLabel busy={publishing} onClick={() => handleSetPublished(false)} title="Hide this release from everyone but you" />
-                                    )}
-                                    {hasDrafts && (
-                                        <HeaderButton icon={<FaGlobe />} label="Publish" tone="primary" busy={publishing} onClick={() => handleSetPublished(true)} title="Make this release visible to everyone" />
+                                    {hasDrafts && !reviewOpen && (
+                                        <HeaderButton icon={<FaGlobe />} label="Publish" tone="primary" onClick={openReview} title="Review the release, then publish it" />
                                     )}
                                 </>
                             ) : (
@@ -253,8 +261,8 @@ export function ReleaseDetail({ release, readOnly, editionSlug, onEditionChange,
                         <ModeBannerButton onClick={() => changeMode('edit')}>
                             Back to Editing
                         </ModeBannerButton>
-                        <ModeBannerButton onClick={() => handleSetPublished(true)} disabled={publishing}>
-                            {publishing ? <FaSpinner className="animate-spin" /> : <FaGlobe />} Publish
+                        <ModeBannerButton onClick={openReview}>
+                            <FaGlobe /> Review and publish
                         </ModeBannerButton>
                     </ModeBanner>
                 )}
@@ -334,6 +342,21 @@ export function ReleaseDetail({ release, readOnly, editionSlug, onEditionChange,
                                     token={token}
                                     defaultShowdownSet={release.default_showdown_set}
                                     onEditionUpdated={handleEditionUpdated}
+                                    reviewOpen={isReviewing}
+                                    onReviewOpenChange={isEditing && token ? setReviewOpen : undefined}
+                                    review={isReviewing && edition.id === activeEditionId ? (
+                                        <ReleaseReviewPanel
+                                            release={release}
+                                            review={review}
+                                            unsavedPreviewEditionIds={release.editions.filter(e => unsavedPreviews[e.id]).map(e => e.id)}
+                                            token={token}
+                                            onFix={handleReviewFix}
+                                            onReleaseUpdated={handleReviewReleaseUpdated}
+                                            onViewAsVisitor={() => changeMode('browse')}
+                                        />
+                                    ) : null}
+                                    navRequest={navRequest?.editionId === edition.id ? navRequest.request : null}
+                                    onUnsavedPreviewChange={handleUnsavedPreviewChange}
                                 />
                             )}
                         </Tabs.Content>

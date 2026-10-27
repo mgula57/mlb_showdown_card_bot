@@ -42,6 +42,10 @@ export type Release = {
     /** Distinct Showdown sets across the release's cards (published editions only in public lists).
      * List endpoints only. */
     showdown_sets?: string[];
+    /** First publish time; null until the release is published. Kept when it's unpublished. */
+    published_at: string | null;
+    /** 0 until the first publish. */
+    published_version: number;
     created_at: string;
     updated_at: string;
 };
@@ -102,8 +106,37 @@ export type ReleaseEditionCreatePayload = {
 
 export type ReleaseEditionUpdatePayload = Partial<Omit<ReleaseEditionCreatePayload, 'cards'>> & {
     cards?: ReleaseEditionCreatePayload['cards'];
-    /** Published editions are visible to everyone; a release is listed publicly once any edition is. */
-    is_published?: boolean;
+};
+
+/** `blocker` stops a publish; `check` is worth a look; `polish` is a nudge. */
+export type ReleaseReviewLevel = 'blocker' | 'check' | 'polish';
+
+/** Where the builder opens to fix a review item. `details` is the release's own name/description. */
+export type ReleaseReviewFixTarget = {
+    step: 'pool' | 'images' | 'style' | 'details';
+    /** The edition to open; null for `details`. */
+    edition_id: string | null;
+    /** Pre-filters the Images step to this status. */
+    image_status: Extract<ReleaseCardImageStatus, 'missing' | 'stale' | 'failed'> | null;
+};
+
+/** One line of the pre-publish checklist (`ReleaseReview` on the backend). */
+export type ReleaseReviewItem = {
+    id: string;
+    level: ReleaseReviewLevel;
+    /** Null for release-wide items. */
+    edition_id: string | null;
+    title: string;
+    detail: string | null;
+    /** A check that found nothing to fix, shown as a quiet tick. */
+    passed: boolean;
+    fix: ReleaseReviewFixTarget | null;
+};
+
+export type ReleaseReview = {
+    items: ReleaseReviewItem[];
+    /** The release as its list tile shows it to others (preview images, sets). */
+    tile: Release | null;
 };
 
 export type AlgorithmPlayerTypeDistribution = {
@@ -251,6 +284,30 @@ export async function updateRelease(releaseId: string, payload: ReleaseUpdatePay
     if (!res.ok) {
         const err = await res.json().catch(() => ({}));
         throw new Error(err.error || `Failed to update release: ${res.status}`);
+    }
+    return res.json();
+}
+
+export async function fetchReleaseReview(releaseId: string, token: string): Promise<ReleaseReview> {
+    const res = await fetch(`${API_BASE}/releases/${releaseId}/review`, {
+        headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || `Failed to load the review: ${res.status}`);
+    }
+    return res.json();
+}
+
+/** Publishes or unpublishes every edition at once. Publishing is refused while a review blocker is open. */
+export async function setReleasePublished(releaseId: string, published: boolean, token: string): Promise<Release> {
+    const res = await fetch(`${API_BASE}/releases/${releaseId}/${published ? 'publish' : 'unpublish'}`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || `Failed to ${published ? 'publish' : 'unpublish'} release: ${res.status}`);
     }
     return res.json();
 }
