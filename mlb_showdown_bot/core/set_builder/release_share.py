@@ -207,7 +207,10 @@ class ReleaseOpenGraph:
     into the app's `index.html`. Lookups are cached per release, and a published release with no
     share image yet gets one rendered in the background for the next preview."""
 
-    PATH_PATTERN = re.compile(r'^(?:r/(?P<slug>[^/?#]+)|release-builder/(?P<id>[0-9a-fA-F-]{36}))(?:/[^?#]*)?$')
+    PATH_PATTERN = re.compile(
+        r'^(?:r/(?P<slug>[^/?#]+)|release-builder/(?P<id>[0-9a-fA-F-]{36}))'
+        r'(?:/(?P<edition>[^/?#]+)(?:/(?P<card>[^/?#]+))?)?/?$'
+    )
     CACHE_TTL = timedelta(minutes=5)
     _cache: dict[str, tuple[Optional[dict], datetime]] = {}
     _rendering: set[str] = set()
@@ -226,6 +229,10 @@ class ReleaseOpenGraph:
         site_host = base_url.split('://', 1)[-1].rstrip('/')
         if not tile.get('share_image_path'):
             cls._render_in_background(tile['id'], site_host)
+        # A card link previews the card itself; one that no longer resolves falls back to the release
+        card = cls._card(tile, match.group('edition'), match.group('card')) if match.group('card') else None
+        if card:
+            return cls.inject(index_html, cls.card_tags(tile, card, match.group('edition'), base_url.rstrip('/')))
         return cls.inject(index_html, cls.tags(tile, base_url.rstrip('/')))
 
     @classmethod
@@ -244,6 +251,20 @@ class ReleaseOpenGraph:
         return tile
 
     @classmethod
+    def _card(cls, tile: dict, edition_slug: str, card_ref: str) -> Optional[dict]:
+        key = f"card:{tile['id']}/{edition_slug}/{card_ref}"
+        now = datetime.now(timezone.utc)
+        with cls._lock:
+            cached = cls._cache.get(key)
+        if cached and now - cached[1] < cls.CACHE_TTL:
+            return cached[0]
+        with PostgresDB() as db:
+            card = db.get_public_release_card(tile['id'], edition_slug, card_ref)
+        with cls._lock:
+            cls._cache[key] = (card, now)
+        return card
+
+    @classmethod
     def _render_in_background(cls, release_id: str, site_host: str) -> None:
         with cls._lock:
             if release_id in cls._rendering:
@@ -256,7 +277,7 @@ class ReleaseOpenGraph:
                     ReleaseShareImage(db).refresh(release_id, site_host)
                 with cls._lock:
                     # The next preview picks up the new image
-                    for key in [key for key, (tile, _) in cls._cache.items() if tile and tile['id'] == release_id]:
+                    for key in [key for key, (tile, _) in cls._cache.items() if tile and tile.get('id') == release_id]:
                         del cls._cache[key]
             except Exception:
                 traceback.print_exc()
@@ -265,6 +286,21 @@ class ReleaseOpenGraph:
                     cls._rendering.discard(release_id)
 
         threading.Thread(target=run, name=f'release-share-{release_id[:8]}', daemon=True).start()
+
+    @classmethod
+    def card_tags(cls, tile: dict, card: dict, edition_slug: str, base_url: str) -> str:
+        """Tags for one card's link: its name and number, with the card's own render as the image."""
+        number = f" #{card['card_number']}" if card.get('card_number') is not None else ''
+        byline = f" by {tile['creator_username']}" if tile.get('creator_username') else ''
+        image_path = card.get('storage_path') or tile.get('share_image_path')
+        return cls._tag_lines(
+            title=f"{card.get('name') or 'Card'} · {tile['name']}{number}",
+            description=f"From the {card['edition_name']} edition of {tile['name']}, a custom MLB Showdown set{byline}.",
+            url=f"{base_url}/r/{tile['slug']}/{edition_slug}/{card['id']}",
+            image_url=ReleaseImageStorage.public_url(image_path) if image_path else None,
+            # The card render is portrait; only the share image has a known size
+            image_size=None if card.get('storage_path') else (ReleaseShareImage.WIDTH, ReleaseShareImage.HEIGHT),
+        )
 
     @staticmethod
     def tags(tile: dict, base_url: str) -> str:
@@ -275,18 +311,25 @@ class ReleaseOpenGraph:
         byline = f" by {tile['creator_username']}" if tile.get('creator_username') else ''
         description = (tile.get('description') or '').strip() or f"A custom {sets + ' ' if sets else ''}MLB Showdown set{byline}."
         description += f" {len(published)} edition{'' if len(published) == 1 else 's'}. Browse it or build a team from it."
-        url = f"{base_url}/r/{tile['slug']}"
         image_path = tile.get('share_image_path')
+        return ReleaseOpenGraph._tag_lines(
+            title=title, description=description, url=f"{base_url}/r/{tile['slug']}",
+            image_url=ReleaseImageStorage.public_url(image_path) if image_path else None,
+            image_size=(ReleaseShareImage.WIDTH, ReleaseShareImage.HEIGHT),
+        )
+
+    @staticmethod
+    def _tag_lines(title: str, description: str, url: str, image_url: Optional[str], image_size: Optional[tuple[int, int]]) -> str:
         meta = {
             'og:type': 'website',
             'og:site_name': 'Showdown Bot',
             'og:title': title,
             'og:description': description,
             'og:url': url,
-            'og:image': ReleaseImageStorage.public_url(image_path) if image_path else None,
-            'og:image:width': str(ReleaseShareImage.WIDTH) if image_path else None,
-            'og:image:height': str(ReleaseShareImage.HEIGHT) if image_path else None,
-            'twitter:card': 'summary_large_image' if image_path else 'summary',
+            'og:image': image_url,
+            'og:image:width': str(image_size[0]) if image_url and image_size else None,
+            'og:image:height': str(image_size[1]) if image_url and image_size else None,
+            'twitter:card': 'summary_large_image' if image_url else 'summary',
         }
         lines = [f"<title>{html.escape(title)} | Showdown Bot</title>", f'<meta name="description" content="{html.escape(description)}" />']
         lines += [

@@ -405,9 +405,10 @@ export async function ensureReleaseShareImage(releaseId: string): Promise<string
     return (await res.json()).share_image_path;
 }
 
-/** The short link to share a release by. */
-export const releaseShareUrl = (slug: string, editionSlug?: string | null): string =>
-    `${window.location.origin}/r/${slug}${editionSlug ? `/${editionSlug}` : ''}`;
+/** The short link to share a release by, or one of its editions, or one card (by release card id,
+ *  which stays the same through renumbering and republishing). */
+export const releaseShareUrl = (slug: string, editionSlug?: string | null, releaseCardId?: string | null): string =>
+    `${window.location.origin}/r/${slug}${editionSlug ? `/${editionSlug}${releaseCardId ? `/${releaseCardId}` : ''}` : ''}`;
 
 export async function createRelease(payload: ReleaseCreatePayload, token: string): Promise<Release> {
     const res = await fetch(`${API_BASE}/releases`, {

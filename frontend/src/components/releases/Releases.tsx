@@ -56,9 +56,9 @@ export default function Releases() {
     // UX Spacing — matches TeamBuilder
     const px = 'px-4 sm:px-8';
 
-    // URL shape: /release-builder/:releaseId/:editionSlug
+    // URL shape: /release-builder/:releaseId/:editionSlug[/:releaseCardId] (a card link opens that card)
     const isOnReleaseBuilder = location.pathname === '/release-builder' || location.pathname.startsWith('/release-builder/');
-    const [, , releaseIdFromUrl = null, editionSlugFromUrl = null] = isOnReleaseBuilder
+    const [, , releaseIdFromUrl = null, editionSlugFromUrl = null, cardRefFromUrl = null] = isOnReleaseBuilder
         ? location.pathname.split('/')
         : [];
     // Only fetched while the list is on screen, and after the session restores (it hides your own)
@@ -190,6 +190,9 @@ export default function Releases() {
                             readOnly={readOnly}
                             editionSlug={isActive ? (editionSlugFromUrl ?? editionSlug) : editionSlug}
                             onEditionChange={slug => navigate(`/release-builder/${release.id}/${slug}`, { replace: true })}
+                            cardRef={isActive ? cardRefFromUrl : null}
+                            // Once opened, drop the card from the URL so closing it (or a reload) doesn't reopen it
+                            onCardLinkOpened={() => editionSlugFromUrl && navigate(`/release-builder/${release.id}/${editionSlugFromUrl}`, { replace: true })}
                             onBack={goBack}
                             onReleaseUpdated={handleReleaseUpdated}
                             token={token}

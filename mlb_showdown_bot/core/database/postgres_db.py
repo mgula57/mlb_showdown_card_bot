@@ -7175,6 +7175,24 @@ class PostgresDB:
             row = cur.fetchone()
             return self._serialize_release_row(dict(row)) if row else None
 
+    def get_public_release_card(self, release_id: str, edition_slug: str, release_card_id: str) -> dict | None:
+        """A live card in a published edition, by release card id (a card link,
+        `/r/<slug>/<edition>/<id>`): its name, number, edition and rendered image path. Ids stay the
+        same through renumbering and republishing, so a link keeps meaning the same card."""
+        if not self.connection:
+            return None
+        rows = self.execute_query("""
+            SELECT rc.id::text AS id, rc.card_snapshot->>'name' AS name, rc.card_number,
+                   e.name AS edition_name, i.storage_path
+              FROM internal.release_cards rc
+              JOIN internal.release_editions e ON e.id = rc.edition_id
+              LEFT JOIN internal.release_card_images i ON i.edition_id = rc.edition_id AND i.source_card_id = rc.source_card_id
+             WHERE e.release_id::text = %s AND e.slug = %s AND e.is_published AND e.draft_of IS NULL
+               AND rc.retired_at IS NULL
+               AND rc.id::text = %s
+        """, (release_id, edition_slug, release_card_id))
+        return dict(rows[0]) if rows else None
+
     def set_release_share_image(self, release_id: str, share_image_path: str) -> str | None:
         """Point the release at a new share image. Returns the path it replaced, if any."""
         if not self.connection:

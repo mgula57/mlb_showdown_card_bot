@@ -24,6 +24,7 @@ import { ReleaseCardTagChips, ReleaseCardTagsEditor } from './ReleaseCardTags';
 import { ReleaseCardPreviewRankBadge, ReleaseCardPreviewRankPicker } from './ReleaseCardPreviewRank';
 import { useMediaQuery } from '../../hooks/useMediaQuery';
 import { useLiveImageMatches } from './useLiveImageMatches';
+import { useCopyReleaseLink } from './useCopyReleaseLink';
 import { parseManualPicks, manualPickFor, withManualPick, type ManualPicks } from './manualPicks';
 import { relativeTime } from '../../functions/formatters';
 import { parseEditionStyle, editionStyleSummary, releaseCardStyle, releaseCardOverridesFor } from './editionStyle';
@@ -37,7 +38,7 @@ import {
 import { PoolFilterPanel } from './PoolFilterPanel';
 import { TeamSearchInput } from '../team_builder/TeamSearchInput';
 import { FaGripVertical } from 'react-icons/fa';
-import { FaPlus, FaXmark, FaSpinner, FaWandMagicSparkles, FaCircleCheck, FaMagnifyingGlass, FaArrowsRotate, FaGear, FaArrowUp, FaArrowDown, FaTriangleExclamation, FaTableCellsLarge, FaList, FaAnglesLeft, FaAnglesRight, FaListCheck, FaChartColumn, FaPalette, FaFilter } from 'react-icons/fa6';
+import { FaCheck, FaLink, FaPlus, FaXmark, FaSpinner, FaWandMagicSparkles, FaCircleCheck, FaMagnifyingGlass, FaArrowsRotate, FaGear, FaArrowUp, FaArrowDown, FaTriangleExclamation, FaTableCellsLarge, FaList, FaAnglesLeft, FaAnglesRight, FaListCheck, FaChartColumn, FaPalette, FaFilter } from 'react-icons/fa6';
 
 import { InlineError } from '../shared/InlineError';
 import { Plate } from '../shared/Plate';
@@ -73,6 +74,11 @@ type EditionBuilderProps = {
     navRequest?: EditionNavRequest | null;
     /** Reports whether an unapplied Algorithm run is showing, for the Review checklist. */
     onUnsavedPreviewChange?: (editionId: string, hasUnsavedPreview: boolean) => void;
+    /** A card link's release card id to open on arrival; `onCardLinkOpened` fires once handled. */
+    openCardRef?: string | null;
+    onCardLinkOpened?: () => void;
+    /** Slugs for a card's short link; null hides "Copy card link" (e.g. in a working copy, whose cards aren't live). */
+    cardLinkSlugs?: { release: string; edition: string } | null;
 };
 
 export type EditionNavRequest = {
@@ -276,7 +282,7 @@ function loadSavedBuildPanelWidth(): number | null {
     }
 }
 
-export function EditionBuilder({ releaseId, releaseName, edition, readOnly, token, defaultShowdownSet, onEditionUpdated, reviewOpen = false, onReviewOpenChange, review, navRequest, onUnsavedPreviewChange }: EditionBuilderProps) {
+export function EditionBuilder({ releaseId, releaseName, edition, readOnly, token, defaultShowdownSet, onEditionUpdated, reviewOpen = false, onReviewOpenChange, review, navRequest, onUnsavedPreviewChange, openCardRef, onCardLinkOpened, cardLinkSlugs }: EditionBuilderProps) {
     const [cards, setCards] = useState<ReleaseCard[]>(edition.cards);
     // Latest cards, for saves that land after an await (e.g. a chart rebuild)
     const cardsRef = useRef(cards);
@@ -334,6 +340,22 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
         if (tab === 'summary') setSummaryMounted(true);
     }
     const [detailCard, setDetailCard] = useState<ReleaseCard | null>(null);
+    // A card link (`/r/<slug>/<edition>/<release card id>`) opens its card once
+    function openCardFromLink(releaseCardId: string) {
+        const card = cards.find(c => c.id === releaseCardId);
+        if (card) {
+            handleOpenPoolStep();
+            setDetailCard(card);
+        } else {
+            setError("That card isn't in this edition any more. It may have been removed.");
+        }
+        onCardLinkOpened?.();
+    }
+    useEffect(() => {
+        if (openCardRef) openCardFromLink(openCardRef);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [openCardRef]);
+    const cardLink = useCopyReleaseLink(cardLinkSlugs?.release ?? '', cardLinkSlugs?.edition, detailCard?.id ?? null);
     const isResizing = useRef(false);
     const hasManuallyResized = useRef(loadSavedBuildPanelWidth() !== null);
     const splitContainerRef = useRef<HTMLDivElement>(null);
@@ -1431,8 +1453,14 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
                         hideTrendGraphs={true}
                         context="release"
                         parent="modal"
-                        actionBarContent={detailCard && (detailCardTags.length > 0 || detailCardPreviewRank || (!readOnly && !activePreview)) ? (
+                        actionBarContent={detailCard && (cardLinkSlugs || detailCardTags.length > 0 || detailCardPreviewRank || (!readOnly && !activePreview)) ? (
                             <>
+                                {cardLinkSlugs && (
+                                    <button type="button" onClick={cardLink.copy} title={cardLink.error ?? cardLink.url} className={buttonClass('secondary', 'sm')}>
+                                        {cardLink.copied ? <FaCheck className="text-[10px]" /> : <FaLink className="text-[10px]" />}
+                                        {cardLink.copied ? 'Copied' : 'Copy card link'}
+                                    </button>
+                                )}
                                 <ReleaseCardTagsEditor
                                     tags={detailCardTags}
                                     editionTags={editionTags}

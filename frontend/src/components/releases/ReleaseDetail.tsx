@@ -27,6 +27,9 @@ type ReleaseDetailProps = {
     onBack: () => void;
     onReleaseUpdated: (release: Release) => void;
     token?: string;
+    /** A card link's release card id, to open in the edition from the URL. */
+    cardRef?: string | null;
+    onCardLinkOpened?: () => void;
 };
 
 /** Owners land in `browse` once a release is published (the view everyone else gets) and in
@@ -41,7 +44,7 @@ const EDITION_TAB_CLASS =
     'data-[state=inactive]:border-transparent data-[state=inactive]:text-(--text-tertiary) data-[state=inactive]:hover:text-(--text-secondary)';
 
 
-export function ReleaseDetail({ release, readOnly, editionSlug, onEditionChange, onBack, onReleaseUpdated, token }: ReleaseDetailProps) {
+export function ReleaseDetail({ release, readOnly, editionSlug, onEditionChange, onBack, onReleaseUpdated, token, cardRef, onCardLinkOpened }: ReleaseDetailProps) {
     const isOwner = !readOnly;
     // Other users can only open published editions — the release itself still lists drafts.
     const editions = isOwner ? release.editions : release.editions.filter(e => e.is_published);
@@ -503,6 +506,10 @@ export function ReleaseDetail({ release, readOnly, editionSlug, onEditionChange,
                                     ) : null}
                                     navRequest={navRequest?.editionId === edition.id ? navRequest.request : null}
                                     onUnsavedPreviewChange={handleUnsavedPreviewChange}
+                                    openCardRef={edition.id === activeEditionId ? cardRef : null}
+                                    onCardLinkOpened={onCardLinkOpened}
+                                    // Card links point at live cards, so only while browsing what's published
+                                    cardLinkSlugs={showPublicHeader ? { release: release.slug, edition: edition.slug } : null}
                                 />
                             )}
                         </Tabs.Content>
