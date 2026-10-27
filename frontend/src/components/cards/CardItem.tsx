@@ -299,7 +299,7 @@ export const CardItem = ({
                         
                         {/* Point value and player-specific metadata */}
                         <div className="flex flex-row gap-1.5 text-[11px] text-secondary tracking-tight items-center">
-                            <Plate variant="custom" size="sm" style={colorStylingSecondary}>
+                            <Plate variant="custom" size="sm" textSize="text-[11px]" style={colorStylingSecondary}>
                                 {isRedacted ? (
                                     <span className="text-transparent">REDACTED</span>
                                 ) : hasPtsMultiplier ? (

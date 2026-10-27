@@ -28,28 +28,39 @@ const VARIANT_CLASSES: Record<PlateVariant, string> = {
     custom: '',
 };
 
-const SIZE_CLASSES: Record<PlateSize, string> = {
-    xs: 'text-[8px] px-0.5 py-[2px] gap-0.5',
-    sm: 'text-[10px] px-1 py-[3px] gap-1',
-    md: 'text-[13px] px-1.5 py-1 gap-1.5',
-    lg: 'text-[22px] px-2.5 py-1.5 gap-1.5',
+const TEXT_SIZE_CLASSES: Record<PlateSize, string> = {
+    xs: 'text-[8px]',
+    sm: 'text-[10px]',
+    md: 'text-[13px]',
+    lg: 'text-[22px]',
+};
+
+const SPACING_CLASSES: Record<PlateSize, string> = {
+    xs: 'px-0.5 py-[2px] gap-0.5',
+    sm: 'px-1 py-[3px] gap-1',
+    md: 'px-1.5 py-1 gap-1.5',
+    lg: 'px-2.5 py-1.5 gap-1.5',
 };
 
 type PlateProps = {
     children: ReactNode;
     variant?: PlateVariant;
     size?: PlateSize;
+    /** Overrides the text size from `size` while keeping its padding. Pass a `PlateSize` to stay on
+     *  the plate scale, or any text class (e.g. responsive `'text-[10px] md:text-[13px]'`). */
+    textSize?: PlateSize | string;
     className?: string;
     style?: CSSProperties;
     title?: string;
 };
 
-export function Plate({ children, variant = 'ink', size = 'md', className = '', style, title }: PlateProps) {
+export function Plate({ children, variant = 'ink', size = 'md', textSize, className = '', style, title }: PlateProps) {
+    const textClass = textSize === undefined ? TEXT_SIZE_CLASSES[size] : (TEXT_SIZE_CLASSES[textSize as PlateSize] ?? textSize);
     return (
         <span
             title={title}
             style={style}
-            className={`inline-flex items-center shrink-0 rounded-plate font-semibold uppercase leading-none whitespace-nowrap tabular-nums ${SIZE_CLASSES[size]} ${VARIANT_CLASSES[variant]} ${className}`}
+            className={`inline-flex items-center shrink-0 rounded-plate font-semibold uppercase leading-none whitespace-nowrap tabular-nums ${textClass} ${SPACING_CLASSES[size]} ${VARIANT_CLASSES[variant]} ${className}`}
         >
             {children}
         </span>
