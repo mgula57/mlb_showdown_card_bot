@@ -511,7 +511,15 @@ export function ReleaseDetail({ release, readOnly, editionSlug, onEditionChange,
                 )}
             </Tabs.Root>
 
-            {shareSheet && <ReleaseShareSheet release={release} eyebrow={shareSheet.eyebrow} onClose={() => setShareSheet(null)} />}
+            {shareSheet && (
+                <ReleaseShareSheet
+                    release={release}
+                    eyebrow={shareSheet.eyebrow}
+                    ownerToken={isOwner ? token : undefined}
+                    onReleaseUpdated={mergeRelease}
+                    onClose={() => setShareSheet(null)}
+                />
+            )}
         </div>
     );
 }

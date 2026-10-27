@@ -12,6 +12,7 @@ import type { Release, ReleaseCardChange, ReleaseChanges, ReleaseEditionChanges,
 import { setReleasePublished, updateRelease } from '../../api/releases';
 import type { ReleaseReviewState } from './useReleaseReview';
 import { EmptyState } from '../shared/EmptyState';
+import { ReleaseVisibilityChoice } from './ReleaseVisibilityChoice';
 import { formatShortDate } from '../../functions/formatters';
 import { ReleaseItem, ReleaseItemSkeleton } from './ReleaseItem';
 import { Heading } from '../shared/Heading';
@@ -121,6 +122,7 @@ export function ReleaseReviewPanel({ release, review, unsavedPreviewEditionIds, 
                             <StatTile label={release.editions.length === 1 ? 'Edition' : 'Editions'} value={release.editions.length} />
                         </div>
                         <DescriptionField release={release} token={token} inputRef={descriptionRef} onSaved={onReleaseUpdated} onRechecked={review.refresh} />
+                        <ReleaseVisibilityChoice release={release} token={token} onReleaseUpdated={onReleaseUpdated} />
                     </div>
                     <PublishControls
                         release={release}

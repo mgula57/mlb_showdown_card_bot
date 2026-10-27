@@ -94,6 +94,8 @@ def update_release(release_id: str):
         payload = request.get_json(silent=True)
         if not payload or not isinstance(payload, dict):
             return jsonify({'error': 'Request body must be a JSON object'}), 400
+        if 'is_listed' in payload and not isinstance(payload['is_listed'], bool):
+            return jsonify({'error': 'is_listed must be true or false'}), 400
         db = PostgresDB()
         updated = db.update_release(release_id, g.user_id, payload)
         if not updated:

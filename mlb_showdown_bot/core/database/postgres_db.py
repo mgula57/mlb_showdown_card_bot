@@ -6769,6 +6769,8 @@ class PostgresDB:
             """)
             # The link-preview image (see `ReleaseShareImage`), rendered when the release is published
             cur.execute("ALTER TABLE internal.releases ADD COLUMN IF NOT EXISTS share_image_path TEXT;")
+            # Link-only releases (FALSE) open from their link but stay out of the public list and card search
+            cur.execute("ALTER TABLE internal.releases ADD COLUMN IF NOT EXISTS is_listed BOOLEAN NOT NULL DEFAULT TRUE;")
             # Views and likes (see `_toggle_like`), the same shape as user_teams'
             cur.execute("""
                 ALTER TABLE internal.releases
@@ -6955,7 +6957,7 @@ class PostgresDB:
         SELECT
             r.id, r.name, r.description, r.created_by, r.is_official,
             r.fork_parent_id, r.slug, r.default_showdown_set, r.created_at, r.updated_at,
-            r.published_at, r.published_version, r.share_image_path, r.view_count, r.like_count,
+            r.published_at, r.published_version, r.share_image_path, r.view_count, r.like_count, r.is_listed,
             (SELECT MAX(v.published_at) FROM internal.release_versions v WHERE v.release_id = r.id) AS version_published_at,
             -- Unpublished work the owner hasn't published yet: an edited working copy, or a new edition
             -- of an already-published release
@@ -7032,7 +7034,7 @@ class PostgresDB:
 
     def get_public_releases(self, limit: int = 50, offset: int = 0, section: Optional[str] = None, sort: str = 'updated',
                             search: Optional[str] = None, exclude_user_id: Optional[str] = None) -> list[dict]:
-        """Releases with at least one published edition. `section` 'official' / 'community' splits on
+        """Listed releases with at least one published edition. `section` 'official' / 'community' splits on
         `is_official`; `search` matches the name or creator's username; `exclude_user_id` leaves out
         that user's own (they're listed under My Releases)."""
         if not self.connection:
@@ -7045,6 +7047,7 @@ class PostgresDB:
                 SELECT 1 FROM internal.release_editions pe
                 WHERE pe.release_id = r.id AND pe.is_published = TRUE
             )
+              AND r.is_listed
               AND (%(section)s::text IS NULL OR r.is_official = (%(section)s = 'official'))
               AND (%(exclude_user_id)s::text IS NULL OR r.created_by <> %(exclude_user_id)s)
               AND (%(pattern)s::text IS NULL
@@ -7885,7 +7888,7 @@ class PostgresDB:
                 return slug
             slug = f"{base_slug}-{secrets.token_hex(3)}"
 
-    _RELEASE_ALLOWED_FIELDS = frozenset({'name', 'description', 'default_showdown_set'})
+    _RELEASE_ALLOWED_FIELDS = frozenset({'name', 'description', 'default_showdown_set', 'is_listed'})
 
     @staticmethod
     def _release_payload_fields(payload: dict) -> dict:

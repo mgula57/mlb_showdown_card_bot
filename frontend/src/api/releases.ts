@@ -66,6 +66,8 @@ export type Release = {
     version_published_at: string | null;
     view_count: number;
     like_count: number;
+    /** False for a link-only release: it opens from its link but stays out of the public list and search. */
+    is_listed: boolean;
     /** Single-release fetches with a signed-in viewer only. */
     liked_by_me?: boolean;
     created_at: string;
@@ -125,7 +127,9 @@ export type ReleaseCreatePayload = {
     default_showdown_set?: string | null;
 };
 
-export type ReleaseUpdatePayload = Partial<ReleaseCreatePayload>;
+export type ReleaseUpdatePayload = Partial<ReleaseCreatePayload> & {
+    is_listed?: boolean;
+};
 
 export type ReleaseEditionCreatePayload = {
     name: string;

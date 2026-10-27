@@ -8,12 +8,16 @@ import { InlineError } from '../shared/InlineError';
 import { buttonClass } from '../shared/buttonStyles';
 import { fieldClass } from '../shared/fieldStyles';
 import { useCopyReleaseLink } from './useCopyReleaseLink';
+import { ReleaseVisibilityChoice } from './ReleaseVisibilityChoice';
 
 type ReleaseShareSheetProps = {
     release: Release;
     onClose: () => void;
     /** Shown above the title, e.g. "Published · v1" right after publishing. */
     eyebrow?: string;
+    /** The owner's session, to switch between listed and link-only from here. */
+    ownerToken?: string;
+    onReleaseUpdated?: (release: Release) => void;
 };
 
 /** The release's preview image, asked for when the sheet opens: the server renders it if it's missing
@@ -42,7 +46,7 @@ function useShareImage(release: Release) {
 
 /** Everything for sending a release to someone: its short link (copied, or handed to the phone's
  *  share sheet) and the preview image chat apps show for it, which can also be saved. */
-export function ReleaseShareSheet({ release, onClose, eyebrow }: ReleaseShareSheetProps) {
+export function ReleaseShareSheet({ release, onClose, eyebrow, ownerToken, onReleaseUpdated }: ReleaseShareSheetProps) {
     const link = useCopyReleaseLink(release.slug);
     const [downloading, setDownloading] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -138,6 +142,10 @@ export function ReleaseShareSheet({ release, onClose, eyebrow }: ReleaseShareShe
                         </button>
                     )}
                 </div>
+
+                {ownerToken && onReleaseUpdated && (
+                    <ReleaseVisibilityChoice release={release} token={ownerToken} onReleaseUpdated={onReleaseUpdated} />
+                )}
 
                 {(error || link.error) && <InlineError size="md">{error ?? link.error}</InlineError>}
             </div>

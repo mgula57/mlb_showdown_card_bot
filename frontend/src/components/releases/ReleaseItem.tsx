@@ -125,6 +125,7 @@ export function ReleaseItem({ release, onClick, showPublishStatus = false }: Rel
                             <Plate variant={isPublished ? 'success' : 'outline'} size="sm">
                                 {isPublished ? 'Published' : 'Draft'}
                             </Plate>
+                            {isPublished && !release.is_listed && <Plate variant="outline" size="sm">Link only</Plate>}
                             {release.has_pending_changes && <Plate variant="outline" size="sm">Unpublished changes</Plate>}
                         </div>
                     )}
