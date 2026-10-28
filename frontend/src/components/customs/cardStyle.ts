@@ -57,22 +57,40 @@ export const editionOptions: SelectOption[] = [
 ];
 // design-ok-end
 
-export const imageParallelOptions: SelectOption[] = [
+/** Zoomed-in and full-card samples rendered by `mlb_showdown_bot/scripts/parallel_samples.py` (keyed by the backend enum name). */
+const parallelSample = (imageName: string) => ({
+    image: `/images/parallels/${imageName}.webp`,
+    fullImage: `/images/parallels/${imageName}-full.webp`,
+});
+
+/** Set the parallel samples were rendered on, since some parallels look different per set. */
+export const PARALLEL_SAMPLE_SET = '2001';
+
+/** Every parallel but Base carries a sample and description; Base is the card without one. */
+export type ImageParallelOption = SelectOption & { fullImage?: string; description?: string };
+
+export const imageParallelOptions: ImageParallelOption[] = [
+    // Ungrouped options must come first, or they render under the previous group's header
     { "label": "Base", "value": "NONE", 'symbol': '―' },
-    { "label": "Rainbow Foil", "value": "RF", 'symbol': '🌈' },
-    { "label": "Team Color Blast", "value": "TCB", 'symbol': '💥' },
-    { "label": "Galaxy", "value": "GALAXY", 'symbol': '🌌' },
-    { "label": "Gold", "value": "GOLD", "borderColor": "border-(--gold)", 'symbol': '🟡' },
-    { "label": "Gold Rush", "value": "GOLDRUSH", 'symbol': '✨' },
-    { "label": "Gold Frame", "value": "GF", 'symbol': '🖼️' },
-    { "label": "Sapphire", "value": "SPH", 'symbol': '💎' },
-    { "label": "Black and White", "value": "B&W", 'symbol': '📰' },
-    { "label": "Radial", "value": "RAD", 'symbol': '☀' },
-    { "label": "Comic Book Hero", "value": "CB", 'symbol': '🦸' },
-    { "label": "White Smoke", "value": "WS", 'symbol': '💨' },
-    { "label": "Flames", "value": "FLAMES", 'symbol': '🔥' },
-    { "label": "Mystery", "value": "MYSTERY", 'symbol': '❓' },
-    { "label": "Moonlight", "value": "MOONLIGHT", 'symbol': '🌙' },
+    { "label": "Mystery", "value": "MYSTERY", ...parallelSample('mystery'), "description": "Hides the player's name and photo behind a silhouette." },
+
+    // Groups render a header when `group` changes, so keep each group contiguous
+    { "label": "Gold", "value": "GOLD", "borderColor": "border-(--gold)", ...parallelSample('gold'), "description": "A solid gold background behind the team logo.", "group": "Gold" },
+    { "label": "Gold Rush", "value": "GOLDRUSH", ...parallelSample('gold-rush'), "description": "Gold rays bursting out from behind the player.", "group": "Gold" },
+    { "label": "Gold Frame", "value": "GF", ...parallelSample('gold-frame'), "description": "A gold border around a faded vintage photo background.", "group": "Gold" },
+
+    { "label": "Rainbow Foil", "value": "RF", ...parallelSample('rainbow-foil'), "description": "A shifting rainbow foil sheen over the background.", "group": "Shine" },
+    { "label": "Sapphire", "value": "SPH", ...parallelSample('sapphire'), "description": "A faceted blue gem texture over the background.", "group": "Shine" },
+    { "label": "Galaxy", "value": "GALAXY", ...parallelSample('galaxy'), "description": "Replaces the background with a starfield.", "group": "Shine" },
+    { "label": "Moonlight", "value": "MOONLIGHT", ...parallelSample('moonlight'), "description": "A dim, muted wash over the background.", "group": "Shine" },
+
+    { "label": "Team Color Blast", "value": "TCB", ...parallelSample('team-color-blast'), "description": "A white background with a burst of team color behind the player.", "group": "Backgrounds" },
+    { "label": "Radial", "value": "RAD", ...parallelSample('radial'), "description": "Team-color rays radiating from behind the player.", "group": "Backgrounds" },
+    { "label": "White Smoke", "value": "WS", ...parallelSample('white-smoke'), "description": "A clean white, smoky background.", "group": "Backgrounds" },
+    { "label": "Flames", "value": "FLAMES", ...parallelSample('flames'), "description": "Replaces the background with fire.", "group": "Backgrounds" },
+
+    { "label": "Comic Book Hero", "value": "CB", ...parallelSample('comic-book-hero'), "description": "Comic-style action lines behind the player.", "group": "Stylized" },
+    { "label": "Black and White", "value": "B&W", ...parallelSample('black-and-white'), "description": "The whole image, player included, in black and white.", "group": "Stylized" },
 ];
 
 export const imageColoringOptions: SelectOption[] = [
@@ -136,8 +154,9 @@ export function setStyleSummary(values: CardStyleSettings, defaults: CardStyleSe
 export function imageStyleSummary(values: CardStyleSettings, defaults: CardStyleSettings, includeParallel: boolean = true): SelectOption[] {
     const summaries: SelectOption[] = [];
     if (includeParallel && values.image_parallel !== defaults.image_parallel) {
+        // Named rather than pictured: the sample photo is unreadable at chip size
         const parallelOption = imageParallelOptions.find(opt => opt.value === values.image_parallel);
-        summaries.push(parallelOption || { label: 'Parallel', value: values.image_parallel });
+        summaries.push({ label: 'Parallel', value: parallelOption?.label ?? values.image_parallel, borderColor: parallelOption?.borderColor });
     }
     if (values.image_coloring !== defaults.image_coloring) {
         const coloringOption = imageColoringOptions.find(opt => opt.value === values.image_coloring);

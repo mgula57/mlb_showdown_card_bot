@@ -81,6 +81,8 @@ export type CustomSelectProps = {
     buttonClassName?: string;
     /** Optional CSS class for option images */
     imageClassName?: string;
+    /** Optional CSS class for option images in the open menu (falls back to `imageClassName`), e.g. larger previews */
+    menuImageClassName?: string;
     /** Optional CSS class for `imageCompact` images (falls back to `imageClassName`) */
     compactImageClassName?: string;
     /** Optional CSS class for option labels */
@@ -119,7 +121,7 @@ export type CustomSelectProps = {
  * @param props - Component props
  * @returns A customizable select dropdown component
  */
-const CustomSelect: React.FC<CustomSelectProps> = ({ value, onChange, options, className = "", suffix = null, prefix, size = 'md', buttonClassName = "", imageClassName = "", compactImageClassName = "", labelClassName = "", dropdownClassName = "", disabled = false, placeholder, showDropdownArrow = true, dropdownArrowSize = 11, align = 'left' }) => {
+const CustomSelect: React.FC<CustomSelectProps> = ({ value, onChange, options, className = "", suffix = null, prefix, size = 'md', buttonClassName = "", imageClassName = "", menuImageClassName = "", compactImageClassName = "", labelClassName = "", dropdownClassName = "", disabled = false, placeholder, showDropdownArrow = true, dropdownArrowSize = 11, align = 'left' }) => {
 
     // State management for dropdown behavior and positioning
     /** Controls whether the dropdown menu is visible */
@@ -381,7 +383,7 @@ const CustomSelect: React.FC<CustomSelectProps> = ({ value, onChange, options, c
                                     `}
                                     onClick={() => handleOptionClick(option.value)}
                                 >
-                                    { renderImage(option.image) }
+                                    { renderImage(option.image, "", menuImageClassName || imageClassName) }
                                     { renderSymbol(option.symbol) }
                                     { renderIcon(option.icon) }
                                     <span className="flex flex-1">{option.label}</span>

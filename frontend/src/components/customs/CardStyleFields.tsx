@@ -13,6 +13,7 @@ import FormEnabler from './FormEnabler';
 import FormSection from './FormSection';
 import { formSectionSummary } from './FormSectionSummary';
 import { InfoTooltip } from '../shared/InfoTooltip';
+import { ParallelPreview } from './ParallelPreview';
 import {
     canHideDisplayText, expansionOptions, editionOptions, imageParallelOptions, imageColoringOptions,
     outerGlowOptions, statHighlightsTypeOptions, nicknameIndexOptions, setStyleSummary, imageStyleSummary,
@@ -81,6 +82,10 @@ export function SetStyleFields({ values, onChange, afterEdition }: StyleFieldsPr
 /** Image section fields after the image source inputs. Parallel only applies to auto images, so
  * the Custom Card Builder hides it for linked/uploaded images. */
 export function ImageStyleFields({ values, onChange, hideParallel = false }: StyleFieldsProps & { hideParallel?: boolean }) {
+    // Base needs no preview; it's what the card looks like without a parallel
+    const previewParallel = hideParallel || values.image_parallel === 'NONE'
+        ? undefined
+        : imageParallelOptions.find(option => option.value === values.image_parallel);
     return (
         <>
             <FormDropdown
@@ -89,7 +94,10 @@ export function ImageStyleFields({ values, onChange, hideParallel = false }: Sty
                 options={imageParallelOptions}
                 selectedOption={values.image_parallel}
                 onChange={(value) => onChange({ image_parallel: value })}
+                imageClassName="mr-2 w-5 h-5 shrink-0 object-cover rounded-plate"
+                menuImageClassName="mr-2 w-9 h-10 shrink-0 object-cover rounded-control"
             />
+            {previewParallel && <ParallelPreview parallel={previewParallel} />}
 
             <FormDropdown
                 label="Image Coloring"
