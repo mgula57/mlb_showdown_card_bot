@@ -14,16 +14,20 @@ _TEMPLATE_DIR = Path(__file__).parent / "templates"
 _SHEET_SIZE = (1080, 1350)
 _CAPTURE_HEADROOM = 200
 
-# BRAND ASSETS, EMBEDDED AS DATA URIS SO THE RENDERED PAGE IS ONE SELF-CONTAINED FILE. THE FONT
-# IS THE SAME CONDENSED HEAVY OBLIQUE THE FRONTEND SHIPS AS `ShowdownSetItalic`.
-# THE LOGO IS THE FRONTEND'S OWN LIGHT-MODE WORDMARK, READ STRAIGHT FROM THE REPO RATHER THAN
-# COPIED INTO THE PACKAGE - THESE REPORTS ARE LOCAL CLI TOOLS RUN FROM A CHECKOUT.
+# BRAND ASSETS, EMBEDDED AS DATA URIS SO THE RENDERED PAGE IS ONE SELF-CONTAINED FILE. THE LOGO
+# AND THE DESIGN-LANGUAGE FONTS (frontend/DESIGN.md "Type": THE METRIC-NORMALIZED DISPLAY FACES AND
+# INTER FOR BODY COPY) ARE THE FRONTEND'S OWN, READ STRAIGHT FROM THE REPO RATHER THAN COPIED INTO
+# THE PACKAGE - THESE REPORTS ARE LOCAL CLI TOOLS RUN FROM A CHECKOUT.
 _REPO_ROOT = Path(__file__).resolve().parents[3]
 _LOGO_PATH = _REPO_ROOT / "frontend" / "public" / "images" / "logos" / "logo-light.png"
-_FONT_DIR = Path(__file__).parent.parent / "card" / "fonts"
-_FONT_PATH = _FONT_DIR / "HelveticaNeueCondensedHeavyOblique.otf"
-# UPRIGHT EXTRA BLACK FOR THE HERO TITLE - HEAVY LIKE THE WORDMARK ABOVE IT.
-_TITLE_FONT_PATH = _FONT_DIR / "HelveticaNeueLtStd107ExtraBlack.otf"
+_FRONTEND_FONT_DIR = _REPO_ROOT / "frontend" / "src" / "assets" / "fonts"
+_FONT_PATH = _FRONTEND_FONT_DIR / "HelveticaNeueCondensedHeavyOblique.otf"
+_UPRIGHT_FONT_PATH = _FRONTEND_FONT_DIR / "HelveticaNeueBoldCondensed.ttf"
+# INTER COMES FROM THE FRONTEND'S `@fontsource-variable/inter` PACKAGE, SO IT'S ONLY THERE AFTER AN
+# `npm install`; WITHOUT IT THE PAGE FALLS BACK TO THE SYSTEM SANS.
+_BODY_FONT_PATH = _REPO_ROOT / "frontend" / "node_modules" / "@fontsource-variable" / "inter" / "files" / "inter-latin-wght-normal.woff2"
+# UPRIGHT EXTRA BLACK FOR THE POSTSEASON HERO TITLE - HEAVY LIKE THE WORDMARK ABOVE IT.
+_TITLE_FONT_PATH = Path(__file__).parent.parent / "card" / "fonts" / "HelveticaNeueLtStd107ExtraBlack.otf"
 
 # WHERE TO LOOK FOR A CHROME/CHROMIUM BINARY FOR PDF EXPORT. `CHROME_PATH` WINS WHEN SET.
 _CHROME_CANDIDATES = [
@@ -69,6 +73,8 @@ class SocialSheetReport:
             logo_src=self.data_uri(_LOGO_PATH, "image/png"),
             font_src=self.data_uri(_FONT_PATH, "font/otf"),
             title_font_src=self.data_uri(_TITLE_FONT_PATH, "font/otf"),
+            upright_font_src=self.data_uri(_UPRIGHT_FONT_PATH, "font/ttf"),
+            body_font_src=self.data_uri(_BODY_FONT_PATH, "font/woff2") if _BODY_FONT_PATH.exists() else "",
             **self.context(),
         )
 

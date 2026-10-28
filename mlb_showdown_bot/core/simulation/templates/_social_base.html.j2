@@ -17,25 +17,56 @@
     font-weight: 900;
     font-style: normal;
   }
+  @font-face {
+    font-family: 'ShowdownUpright';
+    src: url('{{ upright_font_src }}') format('truetype');
+    font-weight: 400 900;
+    font-style: normal;
+  }
+  {% if body_font_src %}
+  @font-face {
+    font-family: 'ShowdownBody';
+    src: url('{{ body_font_src }}') format('woff2');
+    font-weight: 100 900;
+    font-style: normal;
+  }
+  {% endif %}
   /* MIRRORS THE FRONTEND'S LIGHT-THEME TOKENS (frontend/src/index.css :root). */
   :root {
-    --primary: #000000;
-    --secondary: #292929;
+    --primary: #101317;
+    --secondary: #2a2f36;
+    --text-primary: var(--primary);
+    --text-secondary: var(--secondary);
+    --text-tertiary: #646c77;
     --showdown-blue: #1a3b5f;
-    --showdown-red: #9a362f;
+    --showdown-red: #b3342b;
     --showdown-gray: #6e6e73;
-    --background-primary: #f5f3f0;
-    --background-secondary: #fdfcfa;
-    --background-tertiary: #ebe8e3;
-    --divider: #e2ded8;
+    --background-primary: #eef0f3;
+    --background-secondary: #ffffff;
+    --background-tertiary: #e2e6ea;
+    --divider: #d3d8de;
+    --rule-strong: #9aa3ad;
+    --plate: #d6dbe1;
+    --plate-ink: #101317;
+    --stripe: rgb(26 59 95 / 0.07);
+    --challenge-legendary: #c8962b;
+    --challenge-budget: #2f6bd6;
+    --challenge-superteam: #7c4dd0;
+    --challenge-themed: #e0654f;
+    --shadow-raised: 0 2px 0 var(--rule-strong);
+    --shadow-overlay: 0 12px 32px rgb(0 0 0 / 0.18);
     --background-gradient: linear-gradient(to bottom right, rgb(235, 232, 227), rgb(253, 252, 250), rgb(228, 222, 214));
+    /* WHAT EACH SHEET SITS ON. A TEMPLATE ON THE DESIGN LANGUAGE SETS IT TO THE FLAT
+       `--background-primary` (DESIGN.md: NO DECORATIVE GRADIENTS). */
+    --sheet-background: var(--background-gradient);
   }
   * { box-sizing: border-box; }
   body {
     margin: 0; background: var(--background-primary); color: var(--primary);
-    font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    font-family: 'ShowdownBody', ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    font-feature-settings: 'cv05', 'cv08';
   }
-  .page { width: 1080px; margin: 0 auto; background: var(--background-gradient); }
+  .page { width: 1080px; margin: 0 auto; background: var(--sheet-background); }
   .stripe { height: 10px; background: linear-gradient(115deg, #3b82f6, var(--showdown-blue), var(--showdown-red), #ef4444); }
   .inner { padding: 44px 56px 36px; }
   .display { font-family: 'ShowdownSetItalic', "Helvetica Neue", sans-serif; font-style: italic; text-transform: uppercase; }
@@ -50,6 +81,22 @@
   h2 { margin: 0 0 12px; font-size: 20px; font-weight: 900; text-transform: uppercase; color: var(--secondary); }
   h2 small { font-size: 12px; font-weight: 700; letter-spacing: .06em; color: var(--showdown-gray); margin-left: 8px; }
   .panel { background: var(--background-secondary); border: 1px solid var(--divider); border-radius: 12px; padding: 16px 20px; }
+
+  /* DESIGN-LANGUAGE PRIMITIVES (frontend/DESIGN.md), SCALED UP FOR A 1080px SLIDE. */
+  .upright { font-family: 'ShowdownUpright', "Helvetica Neue", sans-serif; text-transform: uppercase; }
+  .caps-label { font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: .06em; color: var(--text-tertiary); }
+  /* `Plate`: THE CARD-FRONT STAT BOX - 2px CORNER, SEMIBOLD BODY-FACE CAPS, TABULAR FIGURES. */
+  .plate { display: inline-flex; align-items: center; gap: 6px; border-radius: 2px; padding: 5px 8px; font-size: 14px; font-weight: 600; line-height: 1; text-transform: uppercase; white-space: nowrap; font-variant-numeric: tabular-nums; background: var(--plate); color: var(--plate-ink); }
+  .plate.lg { padding: 8px 12px; font-size: 20px; }
+  .plate.navy { background: var(--showdown-blue); color: #fff; }
+  .plate.outline { background: none; color: var(--text-secondary); box-shadow: inset 0 0 0 1.5px var(--text-tertiary); }
+  /* `PinstripeBackdrop`: CARD-BACK PINSTRIPES BEHIND THE TOP OF A SHEET, FADING INTO THE CONTENT. */
+  .sheet { position: relative; isolation: isolate; }
+  .pinstripes {
+    position: absolute; inset: 0 0 auto; height: 720px; z-index: -1; pointer-events: none;
+    background-image: repeating-linear-gradient(90deg, var(--stripe) 0 1px, transparent 1px 12px);
+    -webkit-mask-image: linear-gradient(to bottom, black 40%, transparent); mask-image: linear-gradient(to bottom, black 40%, transparent);
+  }
 
   footer { margin-top: 32px; display: flex; justify-content: space-between; align-items: center; color: var(--showdown-gray); font-size: 13px; border-top: 1px solid var(--divider); padding-top: 16px; }
   footer strong { color: var(--showdown-blue); font-weight: 900; }
@@ -66,7 +113,7 @@
   html.pdf body { background: var(--background-tertiary); }
   html.pdf .page { width: auto; background: none; }
   html.pdf .sheet {
-    width: 1080px; height: 1350px; margin: 0 auto 24px; overflow: hidden; background: var(--background-gradient);
+    width: 1080px; height: 1350px; margin: 0 auto 24px; overflow: hidden; background: var(--sheet-background);
     display: flex; flex-direction: column; break-after: page;
   }
   html.pdf .sheet:last-child { break-after: auto; }

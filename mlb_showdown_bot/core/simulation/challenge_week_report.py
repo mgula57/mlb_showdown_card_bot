@@ -19,13 +19,13 @@ from .challenge_generator import ERA_LOCK_YEARS_KEY, REQUIRED_PLAYERS_KEY, BeatT
 from .social_report import SocialSheetReport
 from .takeover import TakeoverOptions
 
-# MIRRORS THE FRONTEND'S `challengeCategory.ts` (LABEL + DISPLAY ORDER) AND THE LIGHT-THEME
-# `--challenge-*` TOKENS IN frontend/src/index.css.
+# MIRRORS THE FRONTEND'S `challengeCategory.ts` (LABEL, `--challenge-*` TOKEN, DISPLAY ORDER). THE
+# TOKENS THEMSELVES ARE DEFINED IN _social_base.html.j2.
 _CATEGORY_META = {
-    ChallengeCategory.LEGENDARY.value: ("Legendary", "#c8962b"),
-    ChallengeCategory.BUDGET_CAP.value: ("Budget Cap", "#2f6bd6"),
-    ChallengeCategory.SUPERTEAM.value: ("Superteam", "#7c4dd0"),
-    ChallengeCategory.THEMED.value: ("Themed", "#e0654f"),
+    ChallengeCategory.LEGENDARY.value: ("Legendary", "var(--challenge-legendary)"),
+    ChallengeCategory.BUDGET_CAP.value: ("Budget Cap", "var(--challenge-budget)"),
+    ChallengeCategory.SUPERTEAM.value: ("Superteam", "var(--challenge-superteam)"),
+    ChallengeCategory.THEMED.value: ("Themed", "var(--challenge-themed)"),
 }
 _CATEGORY_ORDER = list(_CATEGORY_META)
 
