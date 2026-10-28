@@ -75,7 +75,8 @@ Everything else should carry at least one filter that changes who's worth drafti
   (e.g. `_if` only) also drops every OF/C-only hitter. For a "good defense" theme use the combined
   `min_fielding_hitters` (best rating at any position); to scope a rule to one kind of player use a
   suffix: `_hitters` (pitchers pass) or `_catchers` (non-catchers pass, e.g. `max_fielding_ca_catchers: 4`
-  for weak-armed catchers). A per-IF/OF-position rule doesn't exist yet.
+  for weak-armed catchers). For a whole-defense theme, prefer the roster-level `min_team_defense_if` / `min_team_defense_of`
+  (lineup IF/OF totals, see `CHALLENGES.md`): a per-player floor can't fill 1B or the corner OF.
 - To check fillability, call `PostgresDB(is_archive=True).fetch_card_list(filters={'min_year': y,
   'max_year': y, 'limit': 5000, **filters})` (keep `limit` <= 5000, bigger falls back to 50 rows)
   and dedupe on `r['id']` (one row per set per player).
