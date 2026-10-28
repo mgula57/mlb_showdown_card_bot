@@ -8192,12 +8192,12 @@ class PostgresDB:
             additional_attributes: Additional attributes to log, if any.
 
         Returns:
-            Error message if any, otherwise None.
+            The new row's id, or None if it wasn't logged.
         """
 
         if not self.connection:
             print("No database connection available for logging.")
-            return 
+            return None 
         
         # Helper function to convert enum values to strings
         def convert_enum_values(obj):
@@ -8290,11 +8290,13 @@ class PostgresDB:
         columns = ', '.join(column_list)
         placeholders = ', '.join(['%s'] * len(column_list))
         values = list(card_submission.values())
-        sql = f"INSERT INTO internal.log_custom_card_bot ({columns}) VALUES ({placeholders})"
+        sql = f"INSERT INTO internal.log_custom_card_bot ({columns}) VALUES ({placeholders}) RETURNING id"
         try:
             with self.connection.cursor() as cur:
                 cur.execute(sql, values)
+                row = cur.fetchone()
                 self.connection.commit()
+                return str(row[0]) if row else None
         except Exception as error:
             traceback.print_exc()
             print(f"Error logging card submission to DB: {error}")

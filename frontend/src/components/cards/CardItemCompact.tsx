@@ -473,7 +473,8 @@ export const CardItemCompactFromCardDatabaseRecord = ({ card, className, isSelec
             card={{
                 id: card?.id || '',
                 name: card?.name || 'Unknown Player',
-                year: card?.year || '----',
+                // A custom card's `year` is its first year; `card_year` keeps the range (e.g. "1999-2000")
+                year: (card?.source === 'CUSTOM' && card?.card_year) || card?.year || '----',
                 set: card?.showdown_set || '---',
                 team: card?.wbc_team || card?.team || 'N/A',
                 points: card?.points ?? 0,

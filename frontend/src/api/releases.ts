@@ -647,6 +647,26 @@ export async function rebuildEditionCard(releaseId: string, editionId: string, s
     return data.card_snapshot;
 }
 
+/** The release card snapshot of one of the user's Custom Card Builder cards (date ranges,
+ * multi-year cards, etc.), with the full card embedded. Doesn't persist — save the returned
+ * snapshot through `updateEdition`. */
+export async function customEditionCard(releaseId: string, editionId: string, customCardId: string, token: string): Promise<CardDatabaseRecord> {
+    const res = await fetch(`${API_BASE}/releases/${releaseId}/editions/${editionId}/cards/custom`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ custom_card_id: customCardId }),
+    });
+    if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || `Failed to add custom card: ${res.status}`);
+    }
+    const data = await res.json();
+    return data.card_snapshot;
+}
+
 // =============================================================================
 // MARK: - API CALLS: EDITION IMAGES
 // =============================================================================

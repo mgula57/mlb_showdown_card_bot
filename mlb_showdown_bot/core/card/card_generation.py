@@ -1,5 +1,5 @@
 from pprint import pprint
-from typing import Any
+from typing import Any, Optional
 from prettytable import PrettyTable
 from datetime import date, datetime, timedelta
 import traceback
@@ -121,18 +121,19 @@ def generate_card(image_libraries: list[ImageLibrary] = None, **kwargs) -> dict[
     caller_db_for_logs = kwargs.get('db_connection', None)
     user_id = kwargs.get('user_id', None)
 
-    def log_submission(card: ShowdownPlayerCard, additional_attributes: dict[str, Any]) -> None:
-        """Log the submission, borrowing a connection only for the duration of the write (unless the caller supplied one)."""
+    def log_submission(card: ShowdownPlayerCard, additional_attributes: dict[str, Any]) -> Optional[str]:
+        """Log the submission, borrowing a connection only for the duration of the write (unless the caller supplied one).
+        Returns the logged custom card's id, which is how it's referenced later (e.g. added to a release)."""
         if not log_to_db:
-            return
+            return None
         try:
             if caller_db_for_logs is not None:
-                caller_db_for_logs.log_custom_card_submission(card=card, user_inputs=kwargs, additional_attributes=additional_attributes)
-            else:
-                with PostgresDB() as db:
-                    db.log_custom_card_submission(card=card, user_inputs=kwargs, additional_attributes=additional_attributes)
+                return caller_db_for_logs.log_custom_card_submission(card=card, user_inputs=kwargs, additional_attributes=additional_attributes)
+            with PostgresDB() as db:
+                return db.log_custom_card_submission(card=card, user_inputs=kwargs, additional_attributes=additional_attributes)
         except Exception as e:
             print(f"Failed to log card submission: {e}")
+            return None
 
     try:
 
@@ -225,10 +226,11 @@ def generate_card(image_libraries: list[ImageLibrary] = None, **kwargs) -> dict[
 
             additional_logs['error'] = None
             additional_logs['error_for_user'] = None
-            log_submission(card=preprocessed_card, additional_attributes=additional_logs)
+            custom_card_id = log_submission(card=preprocessed_card, additional_attributes=additional_logs)
 
             final_card_payload = additional_logs
             final_card_payload['card'] = preprocessed_card.as_json()
+            final_card_payload['custom_card_id'] = custom_card_id
 
             return final_card_payload # STOP PROCESSING
 
@@ -462,11 +464,12 @@ def generate_card(image_libraries: list[ImageLibrary] = None, **kwargs) -> dict[
         additional_logs['scraper_load_time'] = scraper_load_time
 
         # ADD CODE TO LOG CARD TO DB
-        log_submission(card=card, additional_attributes=additional_logs)
+        custom_card_id = log_submission(card=card, additional_attributes=additional_logs)
 
         # CONVERT CARD TO DICT AND RETURN IT
         final_card_payload = additional_logs
         final_card_payload['card'] = card.as_json()
+        final_card_payload['custom_card_id'] = custom_card_id
 
         return final_card_payload
 

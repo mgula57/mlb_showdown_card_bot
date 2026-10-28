@@ -1,7 +1,7 @@
 import { useState, useMemo, useRef, useEffect, useCallback, type ReactNode } from 'react';
 import * as Tabs from '@radix-ui/react-tabs';
 import type { ReleaseEdition, ReleaseCard, AlgorithmPreviewResult, AlgorithmPreviewPlayer, ReleaseCardImageStatus } from '../../api/releases';
-import { updateEdition, rebuildEditionCard } from '../../api/releases';
+import { updateEdition, rebuildEditionCard, customEditionCard } from '../../api/releases';
 import { SummaryCharts } from './SummaryCharts';
 import { AlgorithmBuilder } from './AlgorithmBuilder';
 import { parseAlgorithmSettings } from './algorithmSettings';
@@ -17,6 +17,7 @@ import { SetBadgeRow } from '../shared/SetBadge';
 import type { ShowdownBotCardAPIResponse } from '../../api/showdownBotCard';
 import type { FilterSelections } from '../cards/ShowdownCardSearch';
 import FormEnabler from '../customs/FormEnabler';
+import CustomCardBuilder, { type CustomCardBuilderEmbed } from '../customs/CustomCardBuilder';
 import { formSectionSummary } from '../customs/FormSectionSummary';
 import { EditionStyleModal } from './EditionStyleModal';
 import { EditionImages } from './EditionImages';
@@ -42,7 +43,7 @@ import {
 import { PoolFilterPanel } from './PoolFilterPanel';
 import { TeamSearchInput } from '../team_builder/TeamSearchInput';
 import { FaGripVertical } from 'react-icons/fa';
-import { FaCheck, FaLink, FaPlus, FaXmark, FaSpinner, FaWandMagicSparkles, FaCircleCheck, FaMagnifyingGlass, FaArrowsRotate, FaGear, FaArrowUp, FaArrowDown, FaTriangleExclamation, FaTableCellsLarge, FaList, FaAnglesLeft, FaAnglesRight, FaListCheck, FaChartColumn, FaPalette, FaFilter, FaScissors } from 'react-icons/fa6';
+import { FaCheck, FaLink, FaPlus, FaXmark, FaSpinner, FaWandMagicSparkles, FaCircleCheck, FaMagnifyingGlass, FaArrowsRotate, FaGear, FaArrowUp, FaArrowDown, FaTriangleExclamation, FaTableCellsLarge, FaList, FaAnglesLeft, FaAnglesRight, FaListCheck, FaChartColumn, FaPalette, FaFilter, FaScissors, FaPenRuler } from 'react-icons/fa6';
 
 import { InlineError } from '../shared/InlineError';
 import { Plate } from '../shared/Plate';
@@ -58,8 +59,8 @@ import { EmptyState } from '../shared/EmptyState';
 const MIN_POOL_PANEL_WIDTH = 280;
 /** Narrowest the Build Method panel can be dragged to. */
 const MIN_BUILD_PANEL_WIDTH = 320;
-/** Default Build Method widths until the user drags the divider — Manual needs a bit more room for search results. */
-const DEFAULT_BUILD_PANEL_WIDTH = { algorithm: 480, manual: 560 } as const;
+/** Default Build Method widths until the user drags the divider — the searches need a bit more room for results. */
+const DEFAULT_BUILD_PANEL_WIDTH = { algorithm: 480, manual: 560, custom: 560 } as const;
 
 type EditionBuilderProps = {
     releaseId: string;
@@ -262,19 +263,21 @@ function PoolStatusBadge({ isPreview }: { isPreview: boolean }) {
 /** Per-viewer Build Method panel width, saved once they drag the divider. */
 const BUILD_PANEL_WIDTH_STORAGE_KEY = 'releaseBuilder.buildPanelWidth';
 
-type BuildMethod = 'algorithm' | 'manual';
+type BuildMethod = 'algorithm' | 'manual' | 'custom';
+const BUILD_METHODS: readonly BuildMethod[] = ['algorithm', 'manual', 'custom'];
 type EditionStep = 'pool' | 'images';
 /** Set once the owner dismisses the "connect Google Drive" notice. */
 const DRIVE_NOTICE_DISMISSED_KEY = 'releaseBuilderDriveNoticeDismissed';
 /** `build` only exists below md, where the Build Method panel moves from a side column into its own tab.
  * `cutoff` is owners only: it explains an Algorithm run, which browsers never see. */
 type PoolTab = 'build' | 'cards' | 'summary' | 'cutoff';
-/** Per-viewer, per-edition Algorithm/Manual tab, so returning to an edition reopens the last-used method. */
+/** Per-viewer, per-edition Algorithm/Manual/Customs tab, so returning to an edition reopens the last-used method. */
 const buildMethodStorageKey = (editionId: string) => `releaseBuilder.buildMethod.${editionId}`;
 
 function loadSavedBuildMethod(editionId: string): BuildMethod {
     try {
-        return localStorage.getItem(buildMethodStorageKey(editionId)) === 'manual' ? 'manual' : 'algorithm';
+        const saved = localStorage.getItem(buildMethodStorageKey(editionId)) as BuildMethod | null;
+        return saved && BUILD_METHODS.includes(saved) ? saved : 'algorithm';
     } catch {
         return 'algorithm';
     }
@@ -640,34 +643,72 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
         }
     }
 
-    function handleAddCard(record: CardDatabaseRecord) {
+    /** Adds `snapshot` as the edition's next card. `manualPicks` are saved with it when given. */
+    function addCardSnapshot(snapshot: CardDatabaseRecord, nextManualPicks?: ManualPicks) {
+        const currentCards = cardsRef.current;
         const nextNumber = numbering.mode === 'manual'
-            ? (cards.length > 0 ? Math.max(0, ...cards.map(c => c.card_number ?? 0)) + 1 : 1)
+            ? (currentCards.length > 0 ? Math.max(0, ...currentCards.map(c => c.card_number ?? 0)) + 1 : 1)
             : null;
         const newCard: ReleaseCard = {
-            id: `pending-${record.id}`,
+            id: `pending-${snapshot.id}`,
             card_number: nextNumber,
-            source_card_id: record.id,
-            source_card_type: record.source,
-            card_snapshot: record,
+            source_card_id: snapshot.id,
+            source_card_type: snapshot.source,
+            card_snapshot: snapshot,
             tags: [],
             preview_rank: null,
             card_overrides: null,
         };
-        persist(applyNumberingIfNeeded([...cards, newCard]), manualPicksWith(record, 'included'));
+        persist(applyNumberingIfNeeded([...currentCards, newCard]), nextManualPicks);
     }
 
-    /** Removing a card also excludes that player-year from future Algorithm runs. In a preview, it just
-     * drops the card from the (unsaved) preview. */
+    function handleAddCard(record: CardDatabaseRecord) {
+        addCardSnapshot(record, manualPicksWith(record, 'included'));
+    }
+
+    /** A Card Builder custom (date range, multi-year...) has no archived card, so the backend builds
+     * its snapshot from the card itself. It isn't a player-year, so it never touches manual picks. */
+    async function addCustomCard(customCardId: string) {
+        if (!token) return;
+        addCardSnapshot(await customEditionCard(releaseId, edition.id, customCardId, token));
+    }
+
+    async function handleAddCustomCard(record: CardDatabaseRecord) {
+        setError(null);
+        try {
+            await addCustomCard(record.id);
+        } catch (err) {
+            setError(err instanceof Error ? err.message : 'Failed to add custom card.');
+        }
+    }
+
+    // The Card Builder, in a modal, for building a custom without leaving the edition. Closing it
+    // remounts the Customs search so cards built (but not added) show up there.
+    const [customBuilderOpen, setCustomBuilderOpen] = useState(false);
+    const [customSearchKey, setCustomSearchKey] = useState(0);
+    function closeCustomBuilder() {
+        setCustomBuilderOpen(false);
+        setCustomSearchKey(k => k + 1);
+    }
+    const customBuilderEmbed = useMemo<CustomCardBuilderEmbed>(() => ({
+        showdownSet: algorithmShowdownSetsKey ? algorithmShowdownSetsKey.split(',')[0] : defaultShowdownSet,
+        actionLabel: 'Add to Edition',
+        completedIds: excludeIds,
+        onAction: addCustomCard,
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }), [algorithmShowdownSetsKey, defaultShowdownSet, excludeIds, numbering, token]);
+
+    /** Removing a card also excludes that player-year from future Algorithm runs (not a custom card,
+     * which isn't one). In a preview, it just drops the card from the (unsaved) preview. */
     function handleRemoveCard(card: ReleaseCard) {
-        const nextManualPicks = manualPicksWith(card.card_snapshot, 'excluded');
+        const nextManualPicks = card.source_card_type === CardSource.CUSTOM ? undefined : manualPicksWith(card.card_snapshot, 'excluded');
         if (activePreview) {
             setPreviewResult(prev => {
                 if (!prev) return prev;
                 const players = prev.players.filter(p => p.id !== card.source_card_id);
                 return { ...prev, players, summary: { ...prev.summary, actual_count: players.length } };
             });
-            persistManualPicks(nextManualPicks);
+            if (nextManualPicks) persistManualPicks(nextManualPicks);
             return;
         }
         persist(applyNumberingIfNeeded(cards.filter(c => c.id !== card.id)), nextManualPicks);
@@ -1019,6 +1060,9 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
                                 <Tabs.Trigger value="manual" className={TAB_TRIGGER_CLASS}>
                                     <FaMagnifyingGlass className="text-[10px]" /> Manual
                                 </Tabs.Trigger>
+                                <Tabs.Trigger value="custom" className={TAB_TRIGGER_CLASS}>
+                                    <FaPenRuler className="text-[10px]" /> Customs
+                                </Tabs.Trigger>
                             </Tabs.List>
                             <Tabs.Content value="algorithm" className="flex-1 min-h-0 flex flex-col focus:outline-none">
                                 <AlgorithmBuilder
@@ -1047,6 +1091,29 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
                                         detailLabel: 'Add to Edition',
                                         emphasis: 'primary',
                                         onClick: handleAddCard,
+                                    }}
+                                />
+                            </Tabs.Content>
+                            <Tabs.Content value="custom" className="flex-1 min-h-0 flex flex-col focus:outline-none">
+                                <div className={`flex items-center gap-3 px-3 py-2 border-b border-(--divider) ${CHROME_SURFACE_CLASS}`}>
+                                    <p className="flex-1 text-[12px] leading-snug text-(--text-tertiary)">
+                                        Cards you made in the Card Builder: date ranges, multi-year, splits and more.
+                                    </p>
+                                    <button type="button" onClick={() => setCustomBuilderOpen(true)} className={buttonClass('secondary', 'sm')}>
+                                        <FaPlus className="text-[10px]" /> Build New
+                                    </button>
+                                </div>
+                                <ShowdownCardSearch
+                                    key={customSearchKey}
+                                    source={CardSource.CUSTOM}
+                                    compact={true}
+                                    excludeIds={excludeIds}
+                                    actionButton={{
+                                        icon: <FaPlus />,
+                                        label: 'Add',
+                                        detailLabel: 'Add to Edition',
+                                        emphasis: 'primary',
+                                        onClick: handleAddCustomCard,
                                     }}
                                 />
                             </Tabs.Content>
@@ -1549,6 +1616,18 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
                     onClose={() => setShowStyleModal(false)}
                     onEditionUpdated={onEditionUpdated}
                 />
+            )}
+
+            {/* Card Builder for the Customs tab. Mounted only while open, so it starts from the saved form each time. */}
+            {customBuilderOpen && (
+                <Modal
+                    onClose={closeCustomBuilder}
+                    title="Build a Custom Card"
+                    subtitle="Date ranges, multi-year, splits and more. Add each card you build to this edition."
+                    size="xl"
+                >
+                    <CustomCardBuilder embed={customBuilderEmbed} />
+                </Modal>
             )}
 
             {/* Player Pool card detail */}

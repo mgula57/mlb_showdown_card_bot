@@ -306,6 +306,9 @@ export type ShowdownBotCardAPIResponse = {
 
     /** Generic extra stat attribute. Used to display things like badges, icons, or other visual indicators */
     extra_stat?: Record<string, any> | null;
+
+    /** The built card's id in the user's custom card history (`CardSource.CUSTOM`), when it was logged */
+    custom_card_id?: string | null;
 };
 
 export type ShowdownBotMultiCardAPIResponse = {

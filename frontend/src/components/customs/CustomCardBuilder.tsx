@@ -210,7 +210,20 @@ const loadFormSettings = (): CustomCardFormState => {
 type CustomCardBuilderProps = {
     // Mark as hidden, disables actions
     isHidden?: boolean;
+    /** Runs the builder inside another screen (e.g. a Release Builder modal) instead of as its own page */
+    embed?: CustomCardBuilderEmbed;
 }
+
+/** The embedded builder drops the page chrome (Gallery tab, What's New, page-height layout) and offers
+ * `actionLabel` on each card it builds, handing the card's custom card id to `onAction`. */
+export type CustomCardBuilderEmbed = {
+    /** Showdown set the builder starts on, and resets to */
+    showdownSet?: string | null;
+    actionLabel: string;
+    /** Custom card ids `onAction` already ran for; their action shows as done */
+    completedIds?: string[];
+    onAction: (customCardId: string) => Promise<void>;
+};
 
 type PreviewTab = 'preview' | 'gallery';
 
@@ -223,11 +236,12 @@ const PREVIEW_TABS: TabItem<PreviewTab>[] = [
 /** 
  * Card Creation Page for users to create and customize their own cards. 
 */
-function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
+function CustomCardBuilder({ isHidden, embed }: CustomCardBuilderProps) {
 
     // Card States
     const { userShowdownSet } = useSiteSettings();
-    const [showdownSetOverride, setShowdownSetOverride] = useState<string | null>(null);
+    const defaultShowdownSetOverride = embed?.showdownSet && embed.showdownSet !== userShowdownSet ? embed.showdownSet : null;
+    const [showdownSetOverride, setShowdownSetOverride] = useState<string | null>(defaultShowdownSetOverride);
     const effectiveShowdownSet = showdownSetOverride ?? userShowdownSet;
     const isSet00_01 = hasVariableSpeedSet([effectiveShowdownSet]);
     const [showdownBotCardData, setShowdownBotCardData] = useState<ShowdownBotCardAPIResponse | null>(null);
@@ -636,7 +650,7 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
 
         // Reset form to initial state
         setForm(FORM_DEFAULTS);
-        setShowdownSetOverride(null);
+        setShowdownSetOverride(defaultShowdownSetOverride);
     };
 
     // Handle Enter key press
@@ -843,6 +857,23 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
         handleSelectHistoryCard(userInputs as unknown as CustomCardFormState, cardResult);
     };
 
+    // Embedded action (e.g. "Add to Edition") on the card just built. Cards loaded back into the
+    // form from history carry no id, so they don't get one.
+    const builtCustomCardId = showdownBotCardData?.custom_card_id ?? null;
+    const [isRunningEmbedAction, setIsRunningEmbedAction] = useState(false);
+    const isEmbedActionDone = !!builtCustomCardId && !!embed?.completedIds?.includes(builtCustomCardId);
+    const handleEmbedAction = async () => {
+        if (!embed || !builtCustomCardId || isRunningEmbedAction) return;
+        setIsRunningEmbedAction(true);
+        try {
+            await embed.onAction(builtCustomCardId);
+        } catch (err) {
+            setErrorMessage(err instanceof Error ? err.message : String(err));
+        } finally {
+            setIsRunningEmbedAction(false);
+        }
+    };
+
     // Prefill from a card handed over via the "Open in Builder" button on CardDetail. The builder stays
     // mounted (hidden) between visits, so this watches location state rather than reading it on mount.
     useEffect(() => {
@@ -951,7 +982,7 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
         // In larger screens, it will be split into two sections
         <div className='@container'>
 
-            <WhatsNewBanner
+            {!embed && <WhatsNewBanner
                 storageKey="customCardBuilderWhatsNew_v4.42"
                 version="4.42"
                 features={[
@@ -959,19 +990,20 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
                     { icon: <FaListOl />, text: 'Choose whether Auto images check your folders or Showdown Bot first in Account settings' },
                     { icon: <FaImage />, text: "Cards now show where their player image came from" },
                 ]}
-            />
+            />}
 
-            {/* Mobile tab bar — fixed below the app header, hidden on @2xl */}
-            <div className="flex @2xl:hidden fixed top-10 inset-x-0 z-30 px-2 bg-(--background-secondary)">
-                <Tabs tabs={PREVIEW_TABS} value={activePreviewTab} onChange={handleTabChange} fullWidth className="w-full" />
-            </div>
+            {/* Mobile tab bar — fixed below the app header, hidden on @2xl. Embedded builders have no Gallery tab. */}
+            {!embed && (
+                <div className="flex @2xl:hidden fixed top-10 inset-x-0 z-30 px-2 bg-(--background-secondary)">
+                    <Tabs tabs={PREVIEW_TABS} value={activePreviewTab} onChange={handleTabChange} fullWidth className="w-full" />
+                </div>
+            )}
 
-            <div className="
+            <div className={`
                 @container flex flex-col @2xl:flex-row
                 @2xl:overflow-hidden
-                @2xl:h-[calc(100dvh-2.5rem)]
-                pt-11 @2xl:pt-0
-            ">
+                ${embed ? '@2xl:h-[calc(85vh-3.5rem)]' : '@2xl:h-[calc(100dvh-2.5rem)] pt-11 @2xl:pt-0'}
+            `}>
                 {/* Loading Indicator */}
                 <ToastMessage
                     loadingStatus={loadingStatus}
@@ -1448,9 +1480,11 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
                     <div className="flex flex-col h-full">
 
                         {/* Tab bar — desktop only */}
-                        <div className="hidden @2xl:block shrink-0 px-2 bg-(--background-secondary) sticky top-0 z-10">
-                            <Tabs tabs={PREVIEW_TABS} value={activePreviewTab} onChange={handleTabChange} fullWidth />
-                        </div>
+                        {!embed && (
+                            <div className="hidden @2xl:block shrink-0 px-2 bg-(--background-secondary) sticky top-0 z-10">
+                                <Tabs tabs={PREVIEW_TABS} value={activePreviewTab} onChange={handleTabChange} fullWidth />
+                            </div>
+                        )}
 
                         {/* Tab content */}
                         <div className="flex-1 @2xl:overflow-y-auto scrollbar-hide">
@@ -1459,16 +1493,21 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
                                     showdownBotCardData={showdownBotCardData}
                                     showdownSetForPlaceholder={showdownSetOverride || undefined}
                                     isLoading={isProcessingCard}
+                                    onDraft={embed && builtCustomCardId && !isProcessingCard ? handleEmbedAction : undefined}
+                                    draftLabel={isEmbedActionDone ? 'Added' : embed?.actionLabel}
+                                    draftDisabled={isEmbedActionDone || isRunningEmbedAction}
                                 />
                             </div>
-                            <div className={activePreviewTab === 'gallery' ? 'block h-full' : 'hidden'}>
-                                <GalleryTabContent
-                                    user={user}
-                                    token={session?.access_token ?? null}
-                                    onReload={user ? handleGalleryReload : undefined}
-                                    refreshKey={galleryRefreshKey}
-                                />
-                            </div>
+                            {!embed && (
+                                <div className={activePreviewTab === 'gallery' ? 'block h-full' : 'hidden'}>
+                                    <GalleryTabContent
+                                        user={user}
+                                        token={session?.access_token ?? null}
+                                        onReload={user ? handleGalleryReload : undefined}
+                                        refreshKey={galleryRefreshKey}
+                                    />
+                                </div>
+                            )}
                         </div>
 
                     </div>

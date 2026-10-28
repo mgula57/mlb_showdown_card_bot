@@ -576,7 +576,8 @@ export const CardItemFromCardDatabaseRecord = ({ card, onClick, className, isSel
 
     return (
         <CardItem
-            cardId={card?.card_id}
+            // Custom release cards have no archived `card_id`; without an id the item renders redacted
+            cardId={card ? (card.card_id || card.id) : undefined}
             cardTeam={card?.wbc_team || card?.team}
             cardName={card?.name}
             cardYear={hideYear ? undefined : card?.card_year}

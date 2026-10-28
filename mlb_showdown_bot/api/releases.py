@@ -8,6 +8,7 @@ from ..core.database.postgres_db import PostgresDB
 from ..core.set_builder.image_match_classifier import ImageMatchCard, ImageMatchClassifier
 from ..core.set_builder.release_card_rebuilder import ReleaseCardRebuilder, ReleaseCardRebuildError
 from ..core.set_builder.release_images import EditionImagePlan, EditionImageRenderer, ReleaseImageJobCancelled, ReleaseImageStorage
+from ..core.set_builder.release_custom_card import ReleaseCustomCard, ReleaseCustomCardError
 from ..core.set_builder.release_draft import ReleaseDraft
 from ..core.set_builder.release_review import ReleaseReview
 from ..core.set_builder.release_share import ReleaseShareImage
@@ -512,6 +513,31 @@ def rebuild_edition_card(release_id: str, edition_id: str):
                 )
             except ReleaseCardRebuildError as exc:
                 return jsonify({'error': str(exc)}), 400
+
+        return jsonify({'card_snapshot': snapshot}), 200
+    except Exception as exc:
+        traceback.print_exc()
+        return jsonify({'error': str(exc)}), 500
+
+
+@releases_bp.route('/releases/<release_id>/editions/<edition_id>/cards/custom', methods=['POST'])
+@require_auth
+def custom_edition_card(release_id: str, edition_id: str):
+    """The release card snapshot of one of the user's Custom Card Builder cards. Does not persist —
+    the frontend saves the returned snapshot via the PUT /editions/<edition_id> `cards` mechanism."""
+    try:
+        payload = request.get_json(silent=True) or {}
+        custom_card_id = str(payload.get('custom_card_id') or '').strip()
+        if not custom_card_id:
+            return jsonify({'error': 'custom_card_id is required'}), 400
+
+        with PostgresDB() as db:
+            if _owned_edition(db, release_id, edition_id, g.user_id) is None:
+                return jsonify({'error': 'Edition not found or not owned by user'}), 404
+            try:
+                snapshot = ReleaseCustomCard(db).snapshot(custom_card_id)
+            except ReleaseCustomCardError as exc:
+                return jsonify({'error': str(exc)}), 404
 
         return jsonify({'card_snapshot': snapshot}), 200
     except Exception as exc:
