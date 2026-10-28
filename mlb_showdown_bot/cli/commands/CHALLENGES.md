@@ -137,6 +137,16 @@ missing any of them (bench counts). It's a convention key, not a card filter: th
 it. It still counts against `--pts-limit`, so size the cap with their points in mind. Use it with a fixed `--year-pool`
 (the card is `{year}-{bref_id}-{set}`).
 
+### Team defense minimums
+
+`--player-filters '{"min_team_defense_if": 10, "min_team_defense_of": 6}'` sets a floor on the starting lineup's summed
+infield (1B+2B+3B+SS) / outfield (LF+CF+RF) defense, each player read at the position he's slotted at - the same totals the
+sim rolls double plays and extra bases against. Use it for a "good defense" theme instead of a per-player fielding floor,
+which can't cover 1B or the corner OF (almost no one is +3 there). Like `required_players` it's a roster rule, not a card
+filter: the card queries and per-card checks skip it, and `start_season_sim` / the eligible-teams picker reject a lineup
+under either total (bench ignored). The challenge card shows "Team IF defense 10+". For calibration, a 2015 lineup of median
+fielders totals about IF 6 / OF 4, a 75th-percentile one IF 9 / OF 4, and the best possible about IF 16 / OF 8-9.
+
 ### Era-locking a rotating year_pool
 
 `--player-filters '{"era_lock_years": 5}'` locks eligible players to within 5 years of whatever

@@ -12,6 +12,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
 
+from ..card.team_builder.player_filters import TEAM_DEFENSE_KEYS
 from ..database.postgres_db import PostgresDB
 from .takeover import TakeoverOptions
 
@@ -97,13 +98,18 @@ def validate_year_pool(year_pool: str) -> None:
 
 def validate_player_filters(player_filters: dict | None) -> None:
     """Raise ChallengeError if `player_filters` misuses a convention key the generator itself
-    interprets (`era_lock_years`, `required_players`). Everything else in the dict is a passthrough
+    interprets (`era_lock_years`, `required_players`, `min_team_defense_*`). Everything else in the dict is a passthrough
     validated generically by `fetch_card_list`/`PlayerFilterSet` at use time, not here."""
     if not player_filters:
         return
     era_lock = player_filters.get(ERA_LOCK_YEARS_KEY)
     if era_lock is not None and (isinstance(era_lock, bool) or not isinstance(era_lock, int) or era_lock < 0):
         raise ChallengeError(f"{ERA_LOCK_YEARS_KEY} must be a non-negative integer")
+
+    for key in TEAM_DEFENSE_KEYS:
+        minimum = player_filters.get(key)
+        if minimum is not None and (isinstance(minimum, bool) or not isinstance(minimum, int) or minimum < 0):
+            raise ChallengeError(f"{key} must be a non-negative integer")
 
     required = player_filters.get(REQUIRED_PLAYERS_KEY)
     if required is None:

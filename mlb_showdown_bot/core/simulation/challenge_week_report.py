@@ -13,6 +13,7 @@ from PIL import Image
 from pydantic import BaseModel
 
 from ..card.images import DEFAULT_RENDER_FILE_FORMAT
+from ..card.team_builder.player_filters import ROSTER_RULE_KEYS
 from ..database.postgres_db import PostgresDB
 from .challenge_generator import ERA_LOCK_YEARS_KEY, REQUIRED_PLAYERS_KEY, BeatTarget, ChallengeCategory, GoalType
 from .social_report import SocialSheetReport
@@ -29,6 +30,7 @@ _CATEGORY_META = {
 _CATEGORY_ORDER = list(_CATEGORY_META)
 
 _FIELDING_GROUP_LABELS = {'if': 'IF', 'of': 'OF', 'ca': 'C'}
+_TEAM_DEFENSE_PATTERN = re.compile(r'^min_team_defense_(if|of)$')
 _SCOPE_LABELS = {'hitters': 'Hitters', 'catchers': 'Catchers'}
 _SCOPED_FILTER_PATTERN = re.compile(r'^(min|max)_(.+)_(hitters|catchers)$')
 
@@ -121,6 +123,10 @@ class ChallengeSpotlight(BaseModel):
             else:
                 stat = base.upper()
             parts.append(f"{_SCOPE_LABELS[scope]} {amount} {stat}")
+        for key, value in pf.items():
+            match = _TEAM_DEFENSE_PATTERN.match(key)
+            if match and value is not None:
+                parts.append(f"Team {_FIELDING_GROUP_LABELS[match.group(1)]} defense {value}+")
         required = pf.get(REQUIRED_PLAYERS_KEY) or []
         if required:
             parts.append(f"Must roster {' & '.join(p.get('name') or p['bref_id'] for p in required)}")
@@ -231,7 +237,7 @@ class ChallengeWeek:
         season can price like a star (e.g. 1965 Satchel Paige) but isn't who you'd build around."""
         required = challenge.player_filters.get(REQUIRED_PLAYERS_KEY) or []
         ids = [f"{challenge.year}-{p['bref_id']}-{self.showdown_set}" for p in required]
-        filters = {k: v for k, v in challenge.player_filters.items() if k not in (REQUIRED_PLAYERS_KEY, ERA_LOCK_YEARS_KEY)}
+        filters = {k: v for k, v in challenge.player_filters.items() if k not in ROSTER_RULE_KEYS and k != ERA_LOCK_YEARS_KEY}
         min_year, max_year = challenge.year_range
         filters.update(min_year=min_year, max_year=max_year, showdown_set=self.showdown_set, sort_by='points', sort_direction='desc', limit=25)
         ids += [r['card_id'] for r in (self.db.fetch_card_list(filters=filters) or []) if not r.get('is_small_sample_size')]

@@ -2,11 +2,21 @@ import re
 
 from pydantic import BaseModel
 
-from ...shared.player_position import Position
+from ...shared.player_position import Position, PositionSlot, PositionSlotParent
 
 _FIELDING_VALUE_RE = re.compile(r'^-?[0-9]+$')
 # MATCHES challenge_generator.REQUIRED_PLAYERS_KEY (NOT IMPORTED - THAT MODULE IMPORTS THE DB LAYER)
 REQUIRED_PLAYERS_KEY = 'required_players'
+# Roster-level minimums on the lineup's summed infield (1B/2B/3B/SS) / outfield (LF/CF/RF)
+# defense - the same totals the sim rolls double plays / extra bases against (see
+# `simulation.team.Team`). Like `required_players`, they judge the whole roster rather than one
+# card, so they're skipped by the per-card checks (here and in `PostgresDB.fetch_card_list`).
+TEAM_DEFENSE_KEYS = {
+    'min_team_defense_if': PositionSlotParent.INFIELD,
+    'min_team_defense_of': PositionSlotParent.OUTFIELD,
+}
+ROSTER_RULE_KEYS = {REQUIRED_PLAYERS_KEY, *TEAM_DEFENSE_KEYS}
+_TEAM_DEFENSE_LABELS = {PositionSlotParent.INFIELD: 'infield', PositionSlotParent.OUTFIELD: 'outfield'}
 
 
 def _chart_slot_count(range_str: str | None) -> int:
@@ -57,10 +67,39 @@ class PlayerFilterSet(BaseModel):
             if entry['bref_id'] not in on_roster
         ]
 
+    @staticmethod
+    def team_defense_totals(roster: list[dict]) -> dict[PositionSlotParent, int]:
+        """Summed in-game defense of the lineup's infield and outfield, each player read at his
+        assigned `roster_position` (falling back to IF/OF group ratings, as the sim does via
+        `PositionSlot.valid_positions`). Slots without defense (C, DH, bench, pitchers) are skipped."""
+        totals = {parent: 0 for parent in _TEAM_DEFENSE_LABELS}
+        for slot in roster:
+            position_slot = next((ps for ps in PositionSlot if ps.value == slot.get('roster_position')), None)
+            if position_slot is None or position_slot.parent not in totals:
+                continue
+            positions = slot.get('positions_and_defense') or {}
+            rating = next((positions[p.value] for p in position_slot.valid_positions if p.value in positions), 0)
+            if _FIELDING_VALUE_RE.match(str(rating)):
+                totals[position_slot.parent] += int(rating)
+        return totals
+
+    def team_defense_shortfalls(self, roster: list[dict]) -> list[str]:
+        """Human-readable reasons `roster` misses a `min_team_defense_*` rule, e.g. "infield defense
+        of 8, under the minimum of 10" - empty when every rule is met (or none are set)."""
+        rules = {parent: self.filters[key] for key, parent in TEAM_DEFENSE_KEYS.items() if self.filters.get(key) is not None}
+        if not rules:
+            return []
+        totals = self.team_defense_totals(roster)
+        return [
+            f"{_TEAM_DEFENSE_LABELS[parent]} defense of {totals[parent]}, under the minimum of {minimum}"
+            for parent, minimum in rules.items()
+            if totals[parent] < minimum
+        ]
+
     def ineligible_reason(self, card: dict) -> str | None:
         """None if `card` satisfies every filter, otherwise a human-readable reason it doesn't."""
         for key, value in self.filters.items():
-            if value is None or key == REQUIRED_PLAYERS_KEY:
+            if value is None or key in ROSTER_RULE_KEYS:
                 continue
             if key.endswith('_hitters'):
                 # Hitters-only variant of the base filter - mirrors the SQL builder's
