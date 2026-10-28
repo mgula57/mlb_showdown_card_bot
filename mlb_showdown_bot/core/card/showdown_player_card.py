@@ -6037,8 +6037,10 @@ class ShowdownPlayerCard(BaseModel):
           Float representing the match score for image name.
         """
 
+        # CASE-INSENSITIVE, USER LIBRARY FILES CAN HAVE LOWERCASE TAGS (EX: "(cle)")
+        img_name_upper = img_name.upper()
         additional_substring_search_list = self._img_match_keyword_list()
-        match_score = sum(val in img_name for val in additional_substring_search_list)
+        match_score = sum(str(val).upper() in img_name_upper for val in additional_substring_search_list)
 
         # ADD DISTANCE FROM YEAR                
         year_from_img_name = img_name.split(f"-")[1] if len(img_name.split(f"-")) > 1 else 1000
@@ -6062,15 +6064,15 @@ class ShowdownPlayerCard(BaseModel):
 
         # ADD TYPE OVERRIDE
         if self.player_type_override:
-            if self.player_type_override.override_string in img_name.upper():
+            if self.player_type_override.override_string.upper() in img_name_upper:
                 match_score += 1
 
         # IF POSTSEASON IMAGE BUT NOT POSTSEASON CARD, REDUCE ACCURACY
-        if '(POST)' in img_name and self.stats_period.type != StatsPeriodType.POSTSEASON:
+        if '(POST)' in img_name_upper and self.stats_period.type != StatsPeriodType.POSTSEASON:
             match_score -= 2
 
         # IF WBC IMAGE BUT NOT WBC CARD, REDUCE ACCURACY
-        if '(WBC_' in img_name and self.image.special_edition != SpecialEdition.WBC:
+        if '(WBC_' in img_name_upper and self.image.special_edition != SpecialEdition.WBC:
             match_score -= 2
 
         
