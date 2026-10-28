@@ -5,7 +5,7 @@ import {
     FaCompass, FaCalendar, FaAward
 } from 'react-icons/fa';
 import CardBuildIcon from './customs/CardBuildIcon';
-import { FaXmark, FaPeopleGroup } from 'react-icons/fa6';
+import { FaXmark, FaPeopleGroup, FaLayerGroup } from 'react-icons/fa6';
 import LiveIcon from './shared/icons/LiveIcon';
 import { FaDiscord } from 'react-icons/fa';
 import { useState, useEffect, useRef } from 'react';
@@ -85,14 +85,14 @@ type HomeNavTileData = {
  * A Home quick-nav tile. Shares the "NEW" badge state with the side menu — visiting
  * the destination from either surface clears the badge on both.
  */
-function HomeNavTile({ tile }: { tile: HomeNavTileData }) {
+function HomeNavTile({ tile, className = '' }: { tile: HomeNavTileData; className?: string }) {
     const { label, desc, Icon, to, iconColor } = tile;
     const isNew = useNavItemIsNew(to, tile.isNew);
     return (
         <Link
             to={to}
             onClick={() => markNavItemSeen(to)}
-            className="relative overflow-hidden rounded-card p-4 flex flex-col gap-1 border border-(--divider) bg-(--background-secondary) hover:border-(--rule-strong) transition-[transform,border-color] duration-200 hover:scale-[1.03] active:scale-95 cursor-pointer"
+            className={`relative overflow-hidden rounded-card p-4 flex flex-col gap-1 border border-(--divider) bg-(--background-secondary) hover:border-(--rule-strong) transition-[transform,border-color] duration-200 hover:scale-[1.03] active:scale-95 cursor-pointer ${className}`}
         >
             <Icon className="absolute -bottom-2 -right-2 text-7xl opacity-5" />
             <Icon className={`text-3xl mb-1 ${iconColor}`} />
@@ -412,16 +412,18 @@ export default function Home() {
                         </p>
                     </div>
 
-                    {/* Quick Nav */}
+                    {/* Quick Nav — Build tools on the first row, Explore on the second (matches the side menu) */}
                     <div className="w-full pt-1">
-                        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-2 xl:grid-cols-4 gap-3 max-w-3xl">
+                        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-2 xl:grid-cols-3 gap-3 max-w-3xl">
                             {([
-                                { label: 'Card Builder',  desc: 'Build and customize your own cards', Icon: CardBuildIcon,   to: '/customs', iconColor: 'text-(--showdown-red)' },
-                                { label: 'Card Explorer', desc: 'Browse our library of 100K+ cards', Icon: FaCompass,  to: '/cards',   iconColor: 'text-(--showdown-blue)' },
-                                { label: 'Team Builder',  desc: 'Build teams and play 162 game sim challenges',   Icon: FaPeopleGroup, to: '/teams', iconColor: 'text-(--showdown-red)', isNew: true },
-                                { label: 'Seasons',       desc: 'Live games, stats, and full-season simulations',   Icon: FaCalendar, to: '/seasons', iconColor: 'text-(--showdown-blue)', isNew: true },
-                            ] as const).map((tile) => (
-                                <HomeNavTile key={tile.to} tile={tile} />
+                                { label: 'Card Builder',    desc: 'Build and customize your own cards', Icon: CardBuildIcon,   to: '/customs', iconColor: 'text-(--showdown-red)' },
+                                { label: 'Team Builder',    desc: 'Build teams and play 162 game sim challenges',   Icon: FaPeopleGroup, to: '/teams', iconColor: 'text-(--showdown-red)', isNew: true },
+                                { label: 'Release Builder', desc: 'Build, publish, and browse custom card sets',   Icon: FaLayerGroup, to: '/release-builder', iconColor: 'text-(--showdown-red)', isNew: true },
+                                { label: 'Card Explorer',   desc: 'Browse our library of 100K+ cards', Icon: FaCompass,  to: '/cards',   iconColor: 'text-(--showdown-blue)' },
+                                { label: 'Seasons',         desc: 'Live games, stats, and full-season simulations',   Icon: FaCalendar, to: '/seasons', iconColor: 'text-(--showdown-blue)', isNew: true },
+                            ] as const).map((tile, i, tiles) => (
+                                // Odd tile count: the last one spans the row in the two-column layouts
+                                <HomeNavTile key={tile.to} tile={tile} className={i === tiles.length - 1 ? 'col-span-2 sm:col-span-1 lg:col-span-2 xl:col-span-1' : ''} />
                             ))}
                         </div>
                     </div>
