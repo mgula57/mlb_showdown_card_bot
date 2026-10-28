@@ -1,6 +1,7 @@
 from bisect import bisect_left, bisect_right
 from enum import Enum
-from typing import Callable, Dict, List, Optional
+from heapq import nlargest
+from typing import Callable, Dict, List, NamedTuple, Optional
 
 from pydantic import BaseModel, Field, field_validator
 
@@ -20,6 +21,26 @@ class SelectionReason(str, Enum):
     POINTS_SWAP = 'POINTS_SWAP'    # Swapped in to hit a point bucket target
 
 
+class ScoreBreakdown(NamedTuple):
+    """A selection score split into the parts that make it up"""
+    match: float  # Weighted quality + volume + career, the part that never changes as the set fills
+    team_balance: float  # Positive while the player's team is under its share, negative once over it
+    points_fit: float  # Credit for landing near the points average the group's remaining slots need
+
+    @property
+    def total(self) -> float:
+        return self.match + self.team_balance + self.points_fit
+
+    def scaled(self, scale: float) -> Dict[str, float]:
+        """Rounded parts and total on the match score's 0-100 scale"""
+        return {
+            'match': round(self.match * scale, 1),
+            'team_balance': round(self.team_balance * scale, 1),
+            'points_fit': round(self.points_fit * scale, 1),
+            'total': round(self.total * scale, 1),
+        }
+
+
 class ShowdownBotSetPlayer(ExploreDataRecord):
     """Extended player record for set building"""
 
@@ -27,6 +48,7 @@ class ShowdownBotSetPlayer(ExploreDataRecord):
     match_score: float = 0.0  # `priority_score` as 0-100 of the most it could be under the run's weights
     selection_reason: Optional[SelectionReason] = None  # Set once the player is picked
     pick_score: Optional[float] = None  # Full selection score (with team balance and points fit) when picked, on the match score's scale
+    pick_breakdown: Optional[Dict[str, float]] = None  # `pick_score` split into its parts (see `ScoreBreakdown.scaled`)
 
     set_number: Optional[int] = None  # Assigned set number for the player
 
@@ -189,9 +211,18 @@ class SlotGroup:
         self.accepts = accepts
         self.avg_points = avg_points
         self.members: List[ExploreDataRecord] = []
-        # Best score left out when the last slot filled, with who it was (see `WeightedPlayerSelector.add`)
-        self.cut_score: Optional[float] = None
-        self.cut_player: Optional[ExploreDataRecord] = None
+        # Best scores left out when the last slot filled, best first (see `WeightedPlayerSelector._record_cut`)
+        self.near_misses: List[tuple] = []  # (ScoreBreakdown, player)
+        # Picks a point bucket swap later took the slot from, with their pick breakdown and the card that replaced them
+        self.swapped_out: List[tuple] = []  # (player, pick_breakdown, replaced_by)
+
+    @property
+    def cut_score(self) -> Optional[float]:
+        return self.near_misses[0][0].total if self.near_misses else None
+
+    @property
+    def cut_player(self) -> Optional[ExploreDataRecord]:
+        return self.near_misses[0][1] if self.near_misses else None
 
     @property
     def remaining(self) -> int:
@@ -230,6 +261,8 @@ class WeightedPlayerSelector:
 
     # Team balance is clipped so one runaway team can't dominate every other factor
     MAX_TEAM_PENALTY = 2.0
+    # Closest calls kept per group, for showing where its cutoff fell
+    NEAR_MISS_COUNT = 5
     # Share of a team's target that follows its strength under `TeamWeighting.STRENGTH` (the rest is an even
     # share), which keeps the spread near WOTC's 2002-2005 range instead of giving a juggernaut 3x a rebuilder
     STRENGTH_BLEND = 0.5
@@ -339,13 +372,22 @@ class WeightedPlayerSelector:
         balance = (target - self.team_counts.get(team_id, 0)) / max(1.0, target) ** 0.5
         return max(-self.MAX_TEAM_PENALTY, balance)
 
-    def score(self, player: ShowdownBotSetPlayer, group: Optional[SlotGroup] = None) -> float:
-        """Selection score for `player` taking a slot in `group` (no points fit without one)"""
-        return (
-            player.priority_score
-            + self.weights.team_balance * self._team_balance(player.team_id)
-            + (self.weights.points_fit * group.points_fit(player.points) if group else 0.0)
+    def score_breakdown(self, player: ShowdownBotSetPlayer, group: Optional[SlotGroup] = None) -> ScoreBreakdown:
+        """Selection score for `player` taking a slot in `group`, by part (no points fit without a group)"""
+        return ScoreBreakdown(
+            match=player.priority_score,
+            team_balance=self.weights.team_balance * self._team_balance(player.team_id),
+            points_fit=self.weights.points_fit * group.points_fit(player.points) if group else 0.0,
         )
+
+    def score(self, player: ShowdownBotSetPlayer, group: Optional[SlotGroup] = None) -> float:
+        return self.score_breakdown(player, group).total
+
+    def record_pick_score(self, player: ShowdownBotSetPlayer, group: Optional[SlotGroup] = None) -> None:
+        """Judge `player` in the current state and keep the result as their pick score"""
+        breakdown = self.score_breakdown(player, group)
+        player.pick_score = breakdown.total * self.score_scale
+        player.pick_breakdown = breakdown.scaled(self.score_scale)
 
     def cut_line(self, player: ShowdownBotSetPlayer) -> Optional[float]:
         """The cut line of the slot group the player is in, on the match score's scale"""
@@ -353,19 +395,21 @@ class WeightedPlayerSelector:
         return group.cut_score * self.score_scale if group and group.cut_score is not None else None
 
     def _record_cut(self, group: SlotGroup, filling_player: ShowdownBotSetPlayer) -> None:
-        """Called just before `filling_player` takes the group's last slot: the best other card the group
-        accepts is the closest call left out. Scored in the same state the last pick was judged in."""
-        best: Optional[tuple] = None
+        """Called just before `filling_player` takes the group's last slot: the best other cards the group
+        accepts are the closest calls left out. Scored in the same state the last pick was judged in, and
+        only each player's best card counts, so one player's seasons don't crowd the list."""
+        best_by_key: Dict[str, tuple] = {}
+        filling_key = self.player_key(filling_player)
         for player in self.player_pool:
             if player.id == filling_player.id or not self.is_available(player) or not group.accepts(player):
                 continue
-            if self.player_key(player) == self.player_key(filling_player):
+            key = self.player_key(player)
+            if key == filling_key:
                 continue
-            score = self.score(player, group)
-            if best is None or score > best[0]:
-                best = (score, player)
-        if best is not None:
-            group.cut_score, group.cut_player = best
+            breakdown = self.score_breakdown(player, group)
+            if key not in best_by_key or breakdown.total > best_by_key[key][0].total:
+                best_by_key[key] = (breakdown, player)
+        group.near_misses = nlargest(self.NEAR_MISS_COUNT, best_by_key.values(), key=lambda miss: miss[0].total)
 
     # -------------------------------------------------------------------------
     # SELECTION
@@ -374,7 +418,7 @@ class WeightedPlayerSelector:
     def add(self, player: ShowdownBotSetPlayer, group: Optional[SlotGroup] = None,
             reason: SelectionReason = SelectionReason.WEIGHTED) -> None:
         player.selection_reason = reason
-        player.pick_score = self.score(player, group) * self.score_scale
+        self.record_pick_score(player, group)
         if group is not None:
             if group.remaining == 1:
                 self._record_cut(group, player)

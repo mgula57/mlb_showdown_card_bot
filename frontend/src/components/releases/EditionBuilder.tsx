@@ -23,6 +23,7 @@ import { EditionImages } from './EditionImages';
 import { ReleaseCardTagChips, ReleaseCardTagsEditor } from './ReleaseCardTags';
 import { ReleaseCardPreviewRankBadge, ReleaseCardPreviewRankPicker } from './ReleaseCardPreviewRank';
 import { AlgorithmCutLineSummary, AlgorithmMatchBadge } from './AlgorithmMatch';
+import { AlgorithmCutoff } from './AlgorithmCutoff';
 import { useMediaQuery } from '../../hooks/useMediaQuery';
 import { useLiveImageMatches } from './useLiveImageMatches';
 import { ImageLibrariesButton, ReleaseDriveNotice } from './ReleaseImageLibraries';
@@ -41,7 +42,7 @@ import {
 import { PoolFilterPanel } from './PoolFilterPanel';
 import { TeamSearchInput } from '../team_builder/TeamSearchInput';
 import { FaGripVertical } from 'react-icons/fa';
-import { FaCheck, FaLink, FaPlus, FaXmark, FaSpinner, FaWandMagicSparkles, FaCircleCheck, FaMagnifyingGlass, FaArrowsRotate, FaGear, FaArrowUp, FaArrowDown, FaTriangleExclamation, FaTableCellsLarge, FaList, FaAnglesLeft, FaAnglesRight, FaListCheck, FaChartColumn, FaPalette, FaFilter } from 'react-icons/fa6';
+import { FaCheck, FaLink, FaPlus, FaXmark, FaSpinner, FaWandMagicSparkles, FaCircleCheck, FaMagnifyingGlass, FaArrowsRotate, FaGear, FaArrowUp, FaArrowDown, FaTriangleExclamation, FaTableCellsLarge, FaList, FaAnglesLeft, FaAnglesRight, FaListCheck, FaChartColumn, FaPalette, FaFilter, FaScissors } from 'react-icons/fa6';
 
 import { InlineError } from '../shared/InlineError';
 import { Plate } from '../shared/Plate';
@@ -265,8 +266,9 @@ type BuildMethod = 'algorithm' | 'manual';
 type EditionStep = 'pool' | 'images';
 /** Set once the owner dismisses the "connect Google Drive" notice. */
 const DRIVE_NOTICE_DISMISSED_KEY = 'releaseBuilderDriveNoticeDismissed';
-/** `build` only exists below md, where the Build Method panel moves from a side column into its own tab. */
-type PoolTab = 'build' | 'cards' | 'summary';
+/** `build` only exists below md, where the Build Method panel moves from a side column into its own tab.
+ * `cutoff` is owners only: it explains an Algorithm run, which browsers never see. */
+type PoolTab = 'build' | 'cards' | 'summary' | 'cutoff';
 /** Per-viewer, per-edition Algorithm/Manual tab, so returning to an edition reopens the last-used method. */
 const buildMethodStorageKey = (editionId: string) => `releaseBuilder.buildMethod.${editionId}`;
 
@@ -295,6 +297,8 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [previewResult, setPreviewResult] = useState<AlgorithmPreviewResult | null>(null);
+    // The latest run's summary outlives saving its preview, so the Cutoff tab can still explain the saved picks
+    const [lastRunSummary, setLastRunSummary] = useState<AlgorithmPreviewResult['summary'] | null>(null);
     const [isAlgorithmRunning, setIsAlgorithmRunning] = useState(false);
     const [numbering, setNumbering] = useState<NumberingSettings>(() => parseNumberingSettings(edition.attributes));
     const [manualPicks, setManualPicks] = useState<ManualPicks>(() => parseManualPicks(edition.attributes));
@@ -347,7 +351,7 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
     const [poolTab, setPoolTab] = useState<PoolTab>('cards');
     const isDesktop = useMediaQuery('(min-width: 768px)');
     // The Build tab has nothing to show on desktop (the panel sits beside the pool) or when browsing
-    const activePoolTab: PoolTab = poolTab === 'build' && (isDesktop || readOnly) ? 'cards' : poolTab;
+    const activePoolTab: PoolTab = (poolTab === 'build' && (isDesktop || readOnly)) || (poolTab === 'cutoff' && readOnly) ? 'cards' : poolTab;
     function handlePoolTabChange(tab: PoolTab) {
         setPoolTab(tab);
         if (tab === 'summary') setSummaryMounted(true);
@@ -839,7 +843,23 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
     /** On phones the Build panel is its own tab, so jump to the pool once a run produces results. */
     function handlePreviewResult(result: AlgorithmPreviewResult | null) {
         setPreviewResult(result);
-        if (result) setPoolTab(tab => tab === 'build' ? 'cards' : tab);
+        if (result) {
+            setLastRunSummary(result.summary);
+            setPoolTab(tab => tab === 'build' ? 'cards' : tab);
+        }
+    }
+
+    /** A discarded run no longer explains anything in the pool, so its cutoff goes with it. */
+    function handleDiscardPreview() {
+        setPreviewResult(null);
+        setLastRunSummary(null);
+    }
+
+    const cutoffSummary = activePreview?.summary ?? lastRunSummary;
+    const poolSourceIds = useMemo(() => new Set(displayCards.map(c => c.source_card_id).filter((id): id is string => !!id)), [displayCards]);
+    function handleOpenCutoffPick(sourceCardId: string) {
+        const card = displayCards.find(c => c.source_card_id === sourceCardId);
+        if (card) setDetailCard(card);
     }
 
     // Shared by the desktop pool tab strip and the phone strip (which adds Build in front)
@@ -853,6 +873,11 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
             <Tabs.Trigger value="summary" className={TAB_TRIGGER_CLASS}>
                 <FaChartColumn className="text-[10px]" /> Summary
             </Tabs.Trigger>
+            {!readOnly && (
+                <Tabs.Trigger value="cutoff" className={TAB_TRIGGER_CLASS}>
+                    <FaScissors className="text-[10px]" /> Cutoff
+                </Tabs.Trigger>
+            )}
         </>
     );
 
@@ -1127,7 +1152,7 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
                                         )}
                                         <button
                                             type="button"
-                                            onClick={() => setPreviewResult(null)}
+                                            onClick={handleDiscardPreview}
                                             className={buttonClass('ghost', 'sm')}
                                         >
                                             Discard preview
@@ -1497,6 +1522,18 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
                                 className="flex-1 min-h-0 overflow-y-auto focus:outline-none data-[state=inactive]:hidden"
                             >
                                 <SummaryCharts cards={displayCards} editionId={edition.id} />
+                            </Tabs.Content>
+                        )}
+
+                        {!readOnly && (
+                            <Tabs.Content value="cutoff" className="flex-1 min-h-0 overflow-y-auto focus:outline-none">
+                                <AlgorithmCutoff
+                                    cutLines={cutoffSummary?.cut_lines ?? []}
+                                    isPreview={!!activePreview}
+                                    isRunning={isAlgorithmRunning}
+                                    openablePickIds={poolSourceIds}
+                                    onOpenPick={handleOpenCutoffPick}
+                                />
                             </Tabs.Content>
                         )}
                     </div>

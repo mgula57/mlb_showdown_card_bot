@@ -307,6 +307,25 @@ export type AlgorithmPickFields = {
     algorithm_cut_line: number | null;
 };
 
+/** A selection score split into its parts, on the match score's scale (`total` = the three summed) */
+export type AlgorithmScoreBreakdown = {
+    match: number;
+    team_balance: number;
+    points_fit: number;
+    total: number;
+};
+
+/** A player on either side of a cut line, with their score in the state they were judged in */
+export type AlgorithmCutLinePlayer = {
+    /** The `card_bot` row id; for picks, the preview player's id */
+    id: string;
+    name: string;
+    year: number;
+    team: string;
+    points: number | null;
+    breakdown: AlgorithmScoreBreakdown | null;
+};
+
 /** One slot group's closest call: the best player left out when its last slot filled */
 export type AlgorithmCutLine = {
     /** A position (with position targets), a player type, or 'ANY' for the final catch-all fill */
@@ -316,6 +335,14 @@ export type AlgorithmCutLine = {
     name: string;
     year: number;
     team: string;
+    /** Cards the group ended up with */
+    slot_count?: number;
+    /** The group's lowest scoring picks, lowest first */
+    picks?: (AlgorithmCutLinePlayer & { selection_reason: AlgorithmSelectionReason | null })[];
+    /** The closest calls left out when the last slot filled, best first (the first is the line itself) */
+    near_misses?: AlgorithmCutLinePlayer[];
+    /** Picks a point bucket swap took the slot from, scored as they were when picked */
+    swapped_out?: (AlgorithmCutLinePlayer & { replaced_by: string })[];
 };
 
 export type AlgorithmPreviewPlayer = CardDatabaseRecord & AlgorithmPickFields & { algorithm_set_number: number | null };

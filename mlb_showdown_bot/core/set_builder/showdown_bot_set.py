@@ -1,5 +1,5 @@
 from pprint import pprint
-from typing import List, Dict, Optional, Tuple
+from typing import ClassVar, List, Dict, Optional, Tuple
 import statistics
 import os
 import traceback
@@ -768,26 +768,55 @@ class ShowdownBotSet(BaseModel):
         selector.fill([SlotGroup('ANY', self.set_size - len(selector.selected), accepts=lambda p: True)])
         return selector.selected
     
-    @staticmethod
-    def _cut_lines(selected_players: List[ShowdownBotSetPlayer], selector: WeightedPlayerSelector) -> List[dict]:
+    # Lowest scoring picks reported per group, the ones that sit just above its cut line
+    CUT_LINE_PICK_COUNT: ClassVar[int] = 5
+
+    @classmethod
+    def _cut_lines(cls, selected_players: List[ShowdownBotSetPlayer], selector: WeightedPlayerSelector) -> List[dict]:
         """Each slot group's cut line: the best score left out when its last slot filled, on the match score's
-        scale. A pick's margin is its pick score minus its group's line. Groups that never filled have none."""
+        scale. A pick's margin is its pick score minus its group's line. Groups that never filled have none.
+
+        Each line also carries what sits around it, so the cutoff can be drawn: the group's lowest scoring
+        picks, its closest calls left out, and picks a point bucket swap pushed out."""
         groups: List[SlotGroup] = []
+        group_picks: Dict[int, List[ShowdownBotSetPlayer]] = {}
         for player in selected_players:
             group = selector.player_groups.get(player.id)
-            if group is not None and group.cut_player is not None and all(group is not g for g in groups):
+            if group is None or group.cut_player is None:
+                continue
+            if all(group is not g for g in groups):
                 groups.append(group)
-        return [
-            {
+            group_picks.setdefault(id(group), []).append(player)
+
+        def player_fields(player: ExploreDataRecord) -> dict:
+            return {'id': player.id, 'name': player.name, 'year': player.year, 'team': player.team_id, 'points': player.points}
+
+        lines: List[dict] = []
+        for group in groups:
+            picks = group_picks[id(group)]
+            lowest_picks = sorted(picks, key=lambda p: p.pick_score if p.pick_score is not None else 0.0)[:cls.CUT_LINE_PICK_COUNT]
+            lines.append({
                 'group': group.key,
                 'player_subtype': group.player_subtype if group.key != 'ANY' else None,
                 'pick_score': round(group.cut_score * selector.score_scale, 1),
                 'name': group.cut_player.name,
                 'year': group.cut_player.year,
                 'team': group.cut_player.team_id,
-            }
-            for group in groups
-        ]
+                'slot_count': len(picks),
+                'picks': [
+                    {**player_fields(p), 'breakdown': p.pick_breakdown, 'selection_reason': p.selection_reason.value if p.selection_reason else None}
+                    for p in lowest_picks
+                ],
+                'near_misses': [
+                    {**player_fields(p), 'breakdown': breakdown.scaled(selector.score_scale)}
+                    for breakdown, p in group.near_misses
+                ],
+                'swapped_out': [
+                    {**player_fields(p), 'breakdown': breakdown, 'replaced_by': replaced_by.name}
+                    for p, breakdown, replaced_by in group.swapped_out
+                ],
+            })
+        return lines
 
     def _seat_legends(self, selector: WeightedPlayerSelector, groups: List[SlotGroup]) -> None:
         """Give each legend their highest priority card, biggest careers first, until the set is full"""
@@ -928,12 +957,14 @@ class ShowdownBotSet(BaseModel):
                     type_players.append(incoming)
                     # The incoming card takes the outgoing card's slot (and so its cut line), judged in the final state
                     incoming.selection_reason = SelectionReason.POINTS_SWAP
-                    incoming.pick_score = selector.score(incoming) * selector.score_scale
+                    selector.record_pick_score(incoming)
                     outgoing_group = selector.player_groups.pop(outgoing.id, None)
                     if outgoing_group is not None:
                         selector.player_groups[incoming.id] = outgoing_group
+                        outgoing_group.swapped_out.append((outgoing, outgoing.pick_breakdown, incoming))
                     outgoing.selection_reason = None
                     outgoing.pick_score = None
+                    outgoing.pick_breakdown = None
                     selected_keys.discard(selector.player_key(outgoing))
                     selected_keys.add(selector.player_key(incoming))
                 

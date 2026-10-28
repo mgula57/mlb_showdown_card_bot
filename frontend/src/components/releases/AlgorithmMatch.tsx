@@ -3,40 +3,10 @@
  * and its margin over the cut line (the best player of its type left out).
  */
 
-import type { AlgorithmCutLine, AlgorithmSelectionReason, ReleaseCard } from '../../api/releases';
+import type { AlgorithmCutLine, ReleaseCard } from '../../api/releases';
 import { Plate } from '../shared/Plate';
 import { matchMargin } from './poolGrouping';
-
-const SELECTION_REASON_LABELS: Record<AlgorithmSelectionReason, string> = {
-    WEIGHTED: 'Weighted pick',
-    MANUAL: 'Manual include',
-    LEGEND: 'Legend',
-    TEAM_MINIMUM: 'Team minimum',
-    POINTS_SWAP: 'Points swap',
-};
-
-/** Short plate text for picks that skipped the weighted score */
-const SELECTION_REASON_SHORT: Partial<Record<AlgorithmSelectionReason, string>> = {
-    MANUAL: 'MAN',
-    LEGEND: 'LGND',
-    TEAM_MINIMUM: 'TM MIN',
-    POINTS_SWAP: 'PTS SWAP',
-};
-
-const CUT_LINE_GROUP_LABELS: Record<string, string> = {
-    POSITION_PLAYER: 'Hitters',
-    STARTING_PITCHER: 'Starters',
-    RELIEF_PITCHER: 'Relievers',
-    ANY: 'Any',
-};
-
-function formatScore(value: number): string {
-    return value.toFixed(1);
-}
-
-function formatMargin(margin: number): string {
-    return `${margin >= 0 ? '+' : '−'}${formatScore(Math.abs(margin))}`;
-}
+import { SELECTION_REASON_LABELS, SELECTION_REASON_SHORT, cutLineGroupLabel, formatMargin, formatScore } from './algorithmScores';
 
 /** Score plate (with margin) for a card picked by an Algorithm run; nothing for hand-added cards.
  * `labeled` spells out how the card got in, for roomier spots like the card detail modal. */
@@ -73,7 +43,7 @@ export function AlgorithmCutLineSummary({ cutLines }: { cutLines: AlgorithmCutLi
             <span className="font-semibold text-(--text-primary)">Just missed</span>
             {cutLines.map(line => (
                 <span key={line.group} title={`Pick score ${formatScore(line.pick_score)}, the best left out when this slot filled`}>
-                    {CUT_LINE_GROUP_LABELS[line.group] ?? line.group}:{' '}
+                    {cutLineGroupLabel(line.group)}:{' '}
                     <span className="text-(--text-primary)">{line.name}</span> ({line.team} {line.year})
                 </span>
             ))}

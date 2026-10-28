@@ -48,7 +48,7 @@ export function ReleaseVisibilityChoice({ release, token, onReleaseUpdated }: Re
                         aria-checked={release.is_listed === option.isListed}
                         onClick={() => handleChange(option.isListed)}
                         disabled={saving !== null}
-                        className={choiceClass(release.is_listed === option.isListed, 'md', 'flex-col items-start! text-left h-auto py-2 whitespace-normal')}
+                        className={choiceClass(release.is_listed === option.isListed, 'md', 'flex-col items-start! text-left h-auto min-w-0 py-2 whitespace-normal!')}
                     >
                         <span className="flex items-center gap-1.5">
                             {saving === option.isListed && <FaSpinner className="animate-spin text-[10px]" />}
