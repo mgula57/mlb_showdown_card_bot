@@ -1088,9 +1088,10 @@ class PostgresDB:
                     filter_values.extend(base_values)
                 continue
 
-            # `required_players` is a challenge convention key (players a roster must contain), not a
-            # column filter - see `PlayerFilterSet.missing_required_players`.
-            if key == 'required_players':
+            # `required_players` / `min_team_defense_*` are challenge roster-level rules (players a
+            # roster must contain, lineup defense totals), not column filters - see
+            # `PlayerFilterSet.ROSTER_RULE_KEYS`.
+            if key in ('required_players', 'min_team_defense_if', 'min_team_defense_of'):
                 continue
 
             # Catchers-only variant of any other filter (e.g. max_fielding_ca_catchers) - anyone not
