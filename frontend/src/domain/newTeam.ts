@@ -58,15 +58,19 @@ export function buildDefaultTeamPayload({ displayName, showdownSet, defaultPrima
 /** A player a challenge requires on the roster (`required_players` in its `player_filters`). */
 export type RequiredPlayer = { bref_id: string; position: string; name?: string };
 
+/** Challenge-only roster rules (mirrors `PlayerFilterSet.ROSTER_RULE_KEYS`): they judge the whole
+ *  roster at launch - required players, lineup IF/OF defense totals - rather than filter cards. */
+const ROSTER_RULE_KEYS = new Set(['required_players', 'min_team_defense_if', 'min_team_defense_of']);
+
 /** Splits a challenge's `player_filters` into the real picker filters and its `required_players`.
- *  The latter is a challenge-only convention key, so it's kept off the team's own filters. */
+ *  The roster rules are kept off the team's own filters. */
 export function splitRequiredPlayers(playerFilters: Record<string, unknown> | null | undefined): {
     filters: Record<string, unknown> | null;
     required: RequiredPlayer[];
 } {
     if (!playerFilters) return { filters: null, required: [] };
-    const { required_players, ...filters } = playerFilters;
-    return { filters: Object.keys(filters).length ? filters : null, required: (required_players as RequiredPlayer[] | undefined) ?? [] };
+    const filters = Object.fromEntries(Object.entries(playerFilters).filter(([key]) => !ROSTER_RULE_KEYS.has(key)));
+    return { filters: Object.keys(filters).length ? filters : null, required: (playerFilters.required_players as RequiredPlayer[] | undefined) ?? [] };
 }
 
 /** Roster slots that pre-populate a challenge's new team with its required players, each at the
