@@ -30,12 +30,28 @@ type ReelSegment = { game: ShowcaseGame; timeline: GameTimeline; cardMap: CardMa
 /** How long the finished half-inning sits on screen before the reel moves on. */
 const SEGMENT_HOLD_MS = 3000;
 const CROSSFADE_MS = 400;
-/** How far (as a % of the width) the grass fades in from each side — one value so the left and
- *  right edges always match. */
-const GRASS_FADE_X_PCT = 9;
+/** How far the grass fades in from each side, in px so the left and right edges match at any width. */
+const GRASS_FADE_X_PX = 64;
+/** Stops sampled along each fade ramp: enough that the curve reads as smooth, not stepped. */
+const FADE_STEPS = 12;
+
+/**
+ * Mask stops for an eased fade from transparent at `from` to opaque at `to` (CSS lengths). The
+ * opacity follows smoothstep, so it starts and lands gently instead of with a linear ramp's
+ * visible seams where the fade begins and ends.
+ */
+function easedFadeStops(from: string, to: string, reverse = false): string[] {
+    return Array.from({ length: FADE_STEPS + 1 }, (_, i) => {
+        const t = i / FADE_STEPS;
+        const alpha = t * t * (3 - 2 * t);
+        const position = `calc((${from}) + ((${to}) - (${from})) * ${t.toFixed(3)})`;
+        return `rgb(0 0 0 / ${(reverse ? 1 - alpha : alpha).toFixed(3)}) ${position}`;
+    });
+}
+
 const GRASS_FADE_MASK = [
-    "linear-gradient(to bottom, transparent 0%, black 14%, black 65%, transparent 100%)",
-    `linear-gradient(to right, transparent 0%, black ${GRASS_FADE_X_PCT}%, black ${100 - GRASS_FADE_X_PCT}%, transparent 100%)`,
+    `linear-gradient(to bottom, ${[...easedFadeStops('0%', '14%'), ...easedFadeStops('65%', '100%', true)].join(', ')})`,
+    `linear-gradient(to right, ${[...easedFadeStops('0px', `${GRASS_FADE_X_PX}px`), ...easedFadeStops(`100% - ${GRASS_FADE_X_PX}px`, '100%', true)].join(', ')})`,
 ].join(", ");
 const GRASS_FADE_STYLE: React.CSSProperties = {
     maskImage: GRASS_FADE_MASK,
