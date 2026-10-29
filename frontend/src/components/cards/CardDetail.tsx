@@ -49,6 +49,7 @@ import { CardComps } from './card_detail/CardComps';
 import { CardStyleEditor, type CardStyleEditorConfig } from './card_detail/CardStyleEditor';
 import { isCardStyleDifferent, CARD_STYLE_KEYS, type CardStyleSettings } from '../customs/cardStyle';
 import ImageSourceBadge from './card_detail/ImageSourceBadge';
+import ReleaseSourceBadge, { type CardReleaseSource } from './card_detail/ReleaseSourceBadge';
 import CardBuildIcon from '../customs/CardBuildIcon';
 import PinnedFooterPortal from '../shared/PinnedFooterPortal';
 import { PinnedFooterSlotContext } from '../shared/pinnedFooterSlot';
@@ -113,6 +114,9 @@ type CardDetailProps = {
      * are never saved (the Cards explorer). The card's own style is the editor's base; these fill
      * any style field the card doesn't carry (the Card Builder's defaults). */
     localStyleDefaults?: CardStyleSettings;
+    /** The release edition the card came from (Card Explorer's Releases tab), shown with the
+     * attributes as a link to the card in the Release Builder. */
+    releaseSource?: CardReleaseSource | null;
 };
 
 /** Customize while the style editor is open: the navy selection outline (DESIGN.md, Selection) with a
@@ -162,7 +166,7 @@ const SectionPanel = ({ title, subtitle, isLoading, children }: { title: string;
  * />
  * ```
  */
-export const CardDetail = memo(function CardDetail({ showdownBotCardData: showdownBotCardDataProp, cardId, variableSpeed = false, isLoading, hideTrendGraphs=false, context='custom', parent, showdownSetForPlaceholder, simStats, tooltip, onDraft, draftDisabled=false, draftLabel='Draft', actionBarContent, enableSetSwitcher=false, styleOverrides: styleOverridesProp, styleEditor, localStyleDefaults }: CardDetailProps) {
+export const CardDetail = memo(function CardDetail({ showdownBotCardData: showdownBotCardDataProp, cardId, variableSpeed = false, isLoading, hideTrendGraphs=false, context='custom', parent, showdownSetForPlaceholder, simStats, tooltip, onDraft, draftDisabled=false, draftLabel='Draft', actionBarContent, enableSetSwitcher=false, styleOverrides: styleOverridesProp, styleEditor, localStyleDefaults, releaseSource }: CardDetailProps) {
     // Unsaved restyling (`localStyleDefaults`): Customize snapshots the card's own style as the base,
     // and edits render through the same overrides path as a caller's `styleOverrides`
     const [localStyleBase, setLocalStyleBase] = useState<CardStyleSettings | null>(null);
@@ -718,6 +722,9 @@ export const CardDetail = memo(function CardDetail({ showdownBotCardData: showdo
                     )}
                 </Plate>
             ))}
+
+            {/* Release edition the card is from, linking to it in the Release Builder */}
+            <ReleaseSourceBadge source={releaseSource} />
 
             {/* Player image source (Showdown Bot library, user's Drive library, upload, link) */}
             <ImageSourceBadge source={card?.image?.source} />

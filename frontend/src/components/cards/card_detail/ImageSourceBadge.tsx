@@ -17,6 +17,14 @@ const describeImageSource = (source: ShowdownBotCardImageSource | null | undefin
     return { icon: <FaGoogleDrive />, label: source.library_name, title: `Player image from your Google Drive library "${source.library_name}"` };
 };
 
+/** Frame shared by the attribute row's source tags (this one and `ReleaseSourceBadge`). */
+export const SOURCE_BADGE_CLASS = `
+    flex items-center gap-1.5 max-w-56
+    py-1 px-3 rounded-plate
+    border border-(--divider)
+    text-xs font-semibold text-(--text-secondary)
+`;
+
 /** Plate-style tag showing the player image's source (Showdown Bot library, a user's Drive library, upload, or link). */
 export const ImageSourceBadge: React.FC<{ source?: ShowdownBotCardImageSource | null }> = ({ source }) => {
     const description = describeImageSource(source);
@@ -24,12 +32,7 @@ export const ImageSourceBadge: React.FC<{ source?: ShowdownBotCardImageSource | 
     return (
         <div
             title={description.title}
-            className="
-                flex items-center gap-1.5 max-w-56
-                py-1 px-3 rounded-plate
-                border border-(--divider)
-                text-xs font-semibold text-(--text-secondary)
-            "
+            className={SOURCE_BADGE_CLASS}
         >
             <span className="shrink-0 w-3 h-3 flex items-center">{description.icon}</span>
             <span className="min-w-0 truncate">{description.label}</span>

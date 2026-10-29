@@ -18,6 +18,7 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { type CardDatabaseRecord, fetchCardData, IMAGE_MATCH_TYPE_OPTIONS } from "../../api/card_db/cardDatabase";
 import { CardDetail } from "./CardDetail";
+import type { CardReleaseSource } from "./card_detail/ReleaseSourceBadge";
 import { type ShowdownBotCardAPIResponse } from "../../api/showdownBotCard";
 import type { CardStyleOverrides } from "./cardStyleOverrides";
 import { Modal } from "../shared/Modal";
@@ -923,6 +924,16 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
     const sidebarStyleOverrides = useMemo(() => releaseImageOverrides(selectedCardForSidebar), [selectedCardForSidebar]);
     const modalStyleOverrides = useMemo(() => releaseImageOverrides(selectedCardForModal), [selectedCardForModal]);
 
+    /** A release card's edition, linking to the card in the Release Builder (`id` is the release card's own id). */
+    const releaseSourceOf = (card: CardDatabaseRecord | null): CardReleaseSource | null =>
+        card?.release_id && card.release_edition_slug && card.release_name && card.release_edition_name ? {
+            releaseName: card.release_name,
+            editionName: card.release_edition_name,
+            path: `/release-builder/${card.release_id}/${card.release_edition_slug}/${card.id}`,
+        } : null;
+    const sidebarReleaseSource = useMemo(() => releaseSourceOf(selectedCardForSidebar), [selectedCardForSidebar]);
+    const modalReleaseSource = useMemo(() => releaseSourceOf(selectedCardForModal), [selectedCardForModal]);
+
     /** Initial load with nothing to show yet: render card skeletons instead of the spinner overlay */
     const showSkeletons = isLoading && (!displayedCards || displayedCards.length === 0);
 
@@ -1807,6 +1818,7 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
                                 draftLabel={actionButton?.detailLabel}
                                 enableSetSwitcher={enableSetSwitcher}
                                 localStyleDefaults={enableStyleEditor ? CARD_STYLE_DEFAULTS : undefined}
+                                releaseSource={sidebarReleaseSource}
                             />
                             </PanelCloseContext.Provider>
                         </PinnedFooterScrollArea>
@@ -1847,6 +1859,7 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
                         draftLabel={actionButton?.detailLabel}
                         enableSetSwitcher={enableSetSwitcher}
                         localStyleDefaults={enableStyleEditor ? CARD_STYLE_DEFAULTS : undefined}
+                        releaseSource={modalReleaseSource}
                     />
                 </Modal>
             </div>

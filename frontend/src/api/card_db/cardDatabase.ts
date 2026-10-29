@@ -74,6 +74,8 @@ export type CardDatabaseRecord = {
     card_number?: number | null;
     release_edition_id?: string;
     release_edition_name?: string;
+    release_edition_slug?: string;
+    release_id?: string;
     release_name?: string;
     /** `card_images` storage path of the card's rendered edition image, if one exists */
     release_image_path?: string | null;

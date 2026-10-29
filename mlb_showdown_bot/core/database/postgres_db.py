@@ -1005,8 +1005,9 @@ class PostgresDB:
         Each card's `card_snapshot` is a serialized card_bot row, so `jsonb_populate_record` against the
         card_bot row type rebuilds exactly the columns the generic filter/sort logic expects. `id` is the
         release card's own id (the same card can sit in several editions); `card_id` still points at the
-        live card for detail lookups, `set_number` carries the edition's card number, and
-        `release_image_path` is the card's rendered edition image, if one exists.
+        live card for detail lookups, `set_number` carries the edition's card number,
+        `release_image_path` is the card's rendered edition image, if one exists, and `release_id` /
+        `release_edition_slug` build the card's Release Builder link.
         """
         edition_ids = filters.pop('release_edition_id', None) or []
         if isinstance(edition_ids, str):
@@ -1022,6 +1023,8 @@ class PostgresDB:
                 rc.tags AS release_tags,
                 e.id::text AS release_edition_id,
                 e.name AS release_edition_name,
+                e.slug AS release_edition_slug,
+                r.id::text AS release_id,
                 r.name AS release_name,
                 i.storage_path AS release_image_path
             FROM internal.release_cards rc
