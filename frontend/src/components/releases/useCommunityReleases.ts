@@ -6,9 +6,9 @@ export const COMMUNITY_PAGE_SIZE = 24;
 /** Wait for typing to pause before searching. */
 const SEARCH_DEBOUNCE_MS = 300;
 
-/** Everyone else's published releases for the Community list, sorted and searched on the server,
+/** Every listed community release for the Community list, the viewer's own included, sorted and searched on the server,
  *  a page at a time. A new sort or search starts over from the first page. */
-export function useCommunityReleases(sort: PublicReleaseSort, search: string, token: string | undefined, enabled: boolean) {
+export function useCommunityReleases(sort: PublicReleaseSort, search: string, enabled: boolean) {
     const [releases, setReleases] = useState<Release[] | null>(null);
     const [loading, setLoading] = useState(false);
     const [hasMore, setHasMore] = useState(false);
@@ -28,7 +28,7 @@ export function useCommunityReleases(sort: PublicReleaseSort, search: string, to
         setError(null);
         try {
             const page = await fetchPublicReleases(COMMUNITY_PAGE_SIZE, offset, {
-                section: 'community', sort, search: debouncedSearch, excludeMine: !!token, token,
+                section: 'community', sort, search: debouncedSearch,
             });
             if (seq !== requestSeq.current) return;
             setReleases(prev => offset === 0 || !prev ? page : [...prev, ...page]);
@@ -38,7 +38,7 @@ export function useCommunityReleases(sort: PublicReleaseSort, search: string, to
         } finally {
             if (seq === requestSeq.current) setLoading(false);
         }
-    }, [enabled, sort, debouncedSearch, token]);
+    }, [enabled, sort, debouncedSearch]);
 
     useEffect(() => { load(0); }, [load]);
 

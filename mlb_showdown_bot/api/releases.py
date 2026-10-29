@@ -264,6 +264,36 @@ def like_release(release_id: str):
         return jsonify({'error': str(exc)}), 500
 
 
+@releases_bp.route('/releases/<release_id>/save', methods=['POST'])
+@require_auth
+def save_release(release_id: str):
+    """Save someone else's published release (or unsave it), so its cards show in the user's card search."""
+    try:
+        with PostgresDB() as db:
+            release = _visible_published_release(db, release_id, g.user_id)
+            if release is None:
+                return jsonify({'error': 'Release not found'}), 404
+            if release['created_by'] == g.user_id:
+                return jsonify({'error': 'Your own releases are already in your card search'}), 400
+            saved = db.toggle_release_save(release_id, g.user_id)
+        return jsonify({'saved': saved}), 200
+    except Exception as exc:
+        traceback.print_exc()
+        return jsonify({'error': str(exc)}), 500
+
+
+@releases_bp.route('/releases/saved', methods=['GET'])
+@require_auth
+def get_saved_releases():
+    try:
+        with PostgresDB() as db:
+            releases = db.get_saved_releases(g.user_id)
+        return jsonify(releases), 200
+    except Exception as exc:
+        traceback.print_exc()
+        return jsonify({'error': str(exc)}), 500
+
+
 @releases_bp.route('/releases/<release_id>/view', methods=['POST'])
 def record_release_view(release_id: str):
     """Count a visit to a published release. The owner's own visits don't count."""
@@ -331,13 +361,11 @@ def get_public_releases():
     try:
         limit = min(request.args.get('limit', 50, type=int), 200)
         offset = request.args.get('offset', 0, type=int)
-        # `exclude_mine=true` leaves out the signed-in viewer's own releases (shown under My Releases)
-        exclude_user_id = optional_user_id() if request.args.get('exclude_mine') == 'true' else None
         db = PostgresDB()
         releases = db.get_public_releases(
             limit=limit, offset=offset,
             section=request.args.get('section'), sort=request.args.get('sort', 'updated'),
-            search=request.args.get('q'), exclude_user_id=exclude_user_id,
+            search=request.args.get('q'),
         )
         db.close_connection()
         return jsonify(releases), 200

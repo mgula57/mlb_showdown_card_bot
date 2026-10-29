@@ -70,6 +70,8 @@ export type Release = {
     is_listed: boolean;
     /** Single-release fetches with a signed-in viewer only. */
     liked_by_me?: boolean;
+    /** Saved to the viewer's card search. Single-release fetches with a signed-in viewer, and the saved list. */
+    saved_by_me?: boolean;
     created_at: string;
     updated_at: string;
 };
@@ -370,6 +372,15 @@ export async function fetchMyReleases(token: string): Promise<Release[]> {
     return res.json();
 }
 
+/** Other users' published releases the viewer saved, most recently saved first. */
+export async function fetchSavedReleases(token: string): Promise<Release[]> {
+    const res = await fetch(`${API_BASE}/releases/saved`, {
+        headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) throw new Error(`Failed to fetch saved releases: ${res.status}`);
+    return res.json();
+}
+
 export type PublicReleaseSort = 'popular' | 'new';
 
 export type PublicReleaseQuery = {
@@ -379,9 +390,6 @@ export type PublicReleaseQuery = {
     sort?: PublicReleaseSort;
     /** Matches the release name or its creator's username. */
     search?: string;
-    /** Leaves out the signed-in viewer's own releases (needs `token`). */
-    excludeMine?: boolean;
-    token?: string;
 };
 
 export async function fetchPublicReleases(limit = 50, offset = 0, query: PublicReleaseQuery = {}): Promise<Release[]> {
@@ -389,10 +397,7 @@ export async function fetchPublicReleases(limit = 50, offset = 0, query: PublicR
     if (query.section) params.set('section', query.section);
     if (query.sort) params.set('sort', query.sort);
     if (query.search?.trim()) params.set('q', query.search.trim());
-    if (query.excludeMine) params.set('exclude_mine', 'true');
-    const headers: Record<string, string> = {};
-    if (query.token) headers['Authorization'] = `Bearer ${query.token}`;
-    const res = await fetch(`${API_BASE}/releases/public?${params}`, { headers });
+    const res = await fetch(`${API_BASE}/releases/public?${params}`);
     if (!res.ok) throw new Error(`Failed to fetch public releases: ${res.status}`);
     return res.json();
 }
@@ -430,6 +435,19 @@ export async function toggleReleaseLike(releaseId: string, token: string): Promi
     if (!res.ok) {
         const err = await res.json().catch(() => ({}));
         throw new Error(err.error || `Failed to like the release: ${res.status}`);
+    }
+    return res.json();
+}
+
+/** Saves someone else's release (or unsaves it) so its cards show in the Card Explorer's Releases tab. */
+export async function toggleReleaseSave(releaseId: string, token: string): Promise<{ saved: boolean }> {
+    const res = await fetch(`${API_BASE}/releases/${releaseId}/save`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || `Failed to save the release: ${res.status}`);
     }
     return res.json();
 }

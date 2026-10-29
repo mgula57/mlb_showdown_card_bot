@@ -6786,6 +6786,16 @@ class PostgresDB:
                     PRIMARY KEY (release_id, user_id)
                 );
             """)
+            # Releases a user saved from someone else, so their cards show up in the user's card search
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS internal.release_saves (
+                    release_id UUID NOT NULL REFERENCES internal.releases(id) ON DELETE CASCADE,
+                    user_id    TEXT NOT NULL,
+                    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+                    PRIMARY KEY (release_id, user_id)
+                );
+            """)
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_release_saves_user_id ON internal.release_saves (user_id, created_at DESC);")
             cur.execute("""
                 UPDATE internal.releases r
                    SET published_at = r.updated_at, published_version = 1
@@ -7034,10 +7044,9 @@ class PostgresDB:
     }
 
     def get_public_releases(self, limit: int = 50, offset: int = 0, section: Optional[str] = None, sort: str = 'updated',
-                            search: Optional[str] = None, exclude_user_id: Optional[str] = None) -> list[dict]:
+                            search: Optional[str] = None) -> list[dict]:
         """Listed releases with at least one published edition. `section` 'official' / 'community' splits on
-        `is_official`; `search` matches the name or creator's username; `exclude_user_id` leaves out
-        that user's own (they're listed under My Releases)."""
+        `is_official`; `search` matches the name or creator's username."""
         if not self.connection:
             return []
         # Escape LIKE wildcards so a search for "100%" means the text
@@ -7050,7 +7059,6 @@ class PostgresDB:
             )
               AND r.is_listed
               AND (%(section)s::text IS NULL OR r.is_official = (%(section)s = 'official'))
-              AND (%(exclude_user_id)s::text IS NULL OR r.created_by <> %(exclude_user_id)s)
               AND (%(pattern)s::text IS NULL
                    OR r.name ILIKE %(pattern)s
                    OR EXISTS (SELECT 1 FROM public.profiles p WHERE p.id::text = r.created_by AND p.username ILIKE %(pattern)s))
@@ -7061,7 +7069,7 @@ class PostgresDB:
         with self.connection.cursor(cursor_factory=RealDictCursor) as cur:
             cur.execute(query, {
                 'section': section if section in ('official', 'community') else None,
-                'exclude_user_id': exclude_user_id, 'pattern': pattern, 'limit': limit, 'offset': offset,
+                'pattern': pattern, 'limit': limit, 'offset': offset,
             })
             return [self._serialize_release_row(dict(r)) for r in cur.fetchall()]
 
@@ -7091,6 +7099,7 @@ class PostgresDB:
             row = dict(row)
             if user_id is not None:
                 row['liked_by_me'] = self._is_liked_by('internal.release_likes', 'release_id', release_id, user_id)
+                row['saved_by_me'] = self._is_liked_by('internal.release_saves', 'release_id', release_id, user_id)
             return self._serialize_release_row(row)
 
     def create_release(self, user_id: str, payload: dict) -> str:
@@ -7144,6 +7153,38 @@ class PostgresDB:
     def toggle_release_like(self, release_id: str, user_id: str) -> dict | None:
         """Like the release if user_id hasn't, else unlike it. {'liked', 'like_count'}, or None if it doesn't exist."""
         return self._toggle_like('internal.releases', 'id', 'internal.release_likes', 'release_id', release_id, user_id)
+
+    def toggle_release_save(self, release_id: str, user_id: str) -> bool:
+        """Save the release for user_id if they haven't, else unsave it. Returns whether it's now saved."""
+        if not self.connection:
+            raise RuntimeError("No database connection")
+        with self.connection.cursor() as cur:
+            cur.execute("DELETE FROM internal.release_saves WHERE release_id = %s AND user_id = %s", (release_id, user_id))
+            if cur.rowcount > 0:
+                return False
+            cur.execute(
+                "INSERT INTO internal.release_saves (release_id, user_id) VALUES (%s, %s) ON CONFLICT DO NOTHING",
+                (release_id, user_id),
+            )
+            return True
+
+    def get_saved_releases(self, user_id: str) -> list[dict]:
+        """Releases user_id saved that are still published, most recently saved first. Link-only ones
+        count (the user opened them from the link); tiles and editions come from published editions."""
+        if not self.connection:
+            return []
+        query = self._release_list_select(published_only=True) + """
+            JOIN internal.release_saves s ON s.release_id = r.id AND s.user_id = %s
+            WHERE EXISTS (
+                SELECT 1 FROM internal.release_editions pe
+                WHERE pe.release_id = r.id AND pe.is_published = TRUE
+            )
+            GROUP BY r.id, s.created_at
+            ORDER BY s.created_at DESC
+        """
+        with self.connection.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute(query, (user_id,))
+            return [self._serialize_release_row({**dict(r), 'saved_by_me': True}) for r in cur.fetchall()]
 
     def get_release_versions(self, release_id: str) -> list[dict]:
         """Every published version of a release, newest first, with its note and change summary."""

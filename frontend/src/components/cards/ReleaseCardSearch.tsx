@@ -1,7 +1,8 @@
 /**
  * @fileoverview ReleaseCardSearch - card search over Release Builder editions. Wraps ShowdownCardSearch
  * (source RELEASE) with an edition picker in its search bar; the picked editions are fed in as a locked
- * `release_edition_id` filter so the rest of the filter/sort UI works unchanged. Nothing is searched
+ * `release_edition_id` filter so the rest of the filter/sort UI works unchanged. Only the signed-in
+ * user's own releases and the ones they saved in the Release Builder are offered. Nothing is searched
  * until the user picks at least one edition; the picks are remembered in localStorage.
  */
 
@@ -9,7 +10,7 @@ import { useEffect, useMemo, useState } from 'react';
 import ShowdownCardSearch, { type FilterSelections } from './ShowdownCardSearch';
 import SetMultiSelect, { type SetMultiSelectOption } from './SetMultiSelect';
 import { CardSource } from '../../types/cardSource';
-import { fetchMyReleases, fetchPublicReleases, type Release } from '../../api/releases';
+import { fetchMyReleases, fetchSavedReleases, type Release } from '../../api/releases';
 import { useAuth } from '../auth/AuthContext';
 
 const SELECTED_EDITIONS_STORAGE_KEY = 'release-card-search-editions';
@@ -33,10 +34,10 @@ const saveSelectedEditions = (editionIds: string[]) => {
 };
 
 /** One option per searchable edition, grouped under its release: every edition of the user's own
- * releases (drafts included), published editions of everyone else's. */
-const editionOptions = (myReleases: Release[], publicReleases: Release[]): SetMultiSelectOption[] => {
+ * releases (drafts included), published editions of the ones they saved. */
+const editionOptions = (myReleases: Release[], savedReleases: Release[]): SetMultiSelectOption[] => {
     const myReleaseIds = new Set(myReleases.map(r => r.id));
-    const releases = [...myReleases, ...publicReleases.filter(r => !myReleaseIds.has(r.id))];
+    const releases = [...myReleases, ...savedReleases.filter(r => !myReleaseIds.has(r.id))];
     return releases.flatMap(release => release.editions
         .filter(edition => myReleaseIds.has(release.id) || edition.is_published)
         .map(edition => ({
@@ -58,12 +59,12 @@ export default function ReleaseCardSearch() {
         let cancelled = false;
         Promise.all([
             token ? fetchMyReleases(token).catch(() => []) : Promise.resolve([]),
-            fetchPublicReleases(200).catch(() => []),
-        ]).then(([mine, published]) => {
+            token ? fetchSavedReleases(token).catch(() => []) : Promise.resolve([]),
+        ]).then(([mine, saved]) => {
             if (cancelled) return;
-            const nextOptions = editionOptions(mine, published);
+            const nextOptions = editionOptions(mine, saved);
             setOptions(nextOptions);
-            // Drop saved picks that are no longer searchable (deleted, unpublished, signed out)
+            // Drop remembered picks that are no longer searchable (deleted, unpublished, unsaved, signed out)
             const available = new Set(nextOptions.map(o => o.value));
             setSelectedEditionIds(prev => {
                 const kept = prev.filter(id => available.has(id));
@@ -91,7 +92,7 @@ export default function ReleaseCardSearch() {
             options={options}
             selections={selectedEditionIds}
             onChange={handleSelectionChange}
-            placeholder={options.length === 0 ? 'No editions' : 'Pick editions'}
+            placeholder={options.length === 0 ? (token ? 'No releases' : 'Sign in') : 'Pick editions'}
             disabled={options.length === 0}
         />
     );

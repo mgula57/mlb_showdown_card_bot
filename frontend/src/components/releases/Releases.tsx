@@ -4,6 +4,7 @@ import { useAuth } from '../auth/AuthContext';
 import {
     fetchMyReleases,
     fetchPublicReleases,
+    fetchSavedReleases,
     fetchRelease,
     createRelease,
     createEdition,
@@ -45,6 +46,7 @@ export default function Releases() {
     const token = session?.access_token;
 
     const [userReleases, setUserReleases] = useState<Release[]>([]);
+    const [savedReleases, setSavedReleases] = useState<Release[]>([]);
     const [officialReleases, setOfficialReleases] = useState<Release[]>([]);
     const [openReleases, setOpenReleases] = useState<Record<string, OpenRelease>>({});
     const [loading, setLoading] = useState(true);
@@ -62,8 +64,8 @@ export default function Releases() {
     const [, , releaseIdFromUrl = null, editionSlugFromUrl = null, cardRefFromUrl = null] = isOnReleaseBuilder
         ? location.pathname.split('/')
         : [];
-    // Only fetched while the list is on screen, and after the session restores (it hides your own)
-    const community = useCommunityReleases(communitySort, communitySearch, token, isOnReleaseBuilder && !releaseIdFromUrl && !authLoading);
+    // Only fetched while the list is on screen
+    const community = useCommunityReleases(communitySort, communitySearch, isOnReleaseBuilder && !releaseIdFromUrl);
 
     // Auth change invalidates the cached list
     useEffect(() => { setListLoaded(false); }, [token]);
@@ -131,12 +133,14 @@ export default function Releases() {
         setLoading(true);
         setError(null);
         try {
-            const [publicReleases, myReleases] = await Promise.all([
+            const [publicReleases, myReleases, saved] = await Promise.all([
                 fetchPublicReleases(100, 0, { section: 'official', sort: 'new' }),
                 token ? fetchMyReleases(token) : Promise.resolve([]),
+                token ? fetchSavedReleases(token) : Promise.resolve([]),
             ]);
             setOfficialReleases(publicReleases.filter(r => r.created_by !== session?.user?.id));
             setUserReleases(myReleases);
+            setSavedReleases(saved);
             setListLoaded(true);
         } catch (err: any) {
             setError(err.message ?? 'Failed to load releases.');
@@ -148,6 +152,12 @@ export default function Releases() {
     function openRelease(release: Release, readOnly: boolean) {
         mountRelease(release, readOnly);
         navigate('/release-builder/' + release.id);
+        // List tiles lack the viewer's like/save state, which the header's buttons need
+        if (readOnly && token && release.liked_by_me === undefined) {
+            fetchRelease(release.id, token)
+                .then(full => handleReleaseUpdated({ ...release, liked_by_me: full.liked_by_me, saved_by_me: full.saved_by_me }))
+                .catch(() => {});
+        }
     }
 
     function goBack() {
@@ -173,6 +183,14 @@ export default function Releases() {
 
     function handleReleaseUpdated(updated: Release) {
         setUserReleases(prev => prev.map(r => r.id === updated.id ? updated : r));
+        // Saving or unsaving in the release's header adds it to (or drops it from) the Saved section
+        if (updated.saved_by_me !== undefined) {
+            setSavedReleases(prev => {
+                const rest = prev.filter(r => r.id !== updated.id);
+                if (!updated.saved_by_me) return rest;
+                return prev.some(r => r.id === updated.id) ? prev.map(r => r.id === updated.id ? updated : r) : [updated, ...rest];
+            });
+        }
         setOpenReleases(prev => prev[updated.id]
             ? { ...prev, [updated.id]: { ...prev[updated.id], release: updated } }
             : prev
@@ -288,6 +306,22 @@ export default function Releases() {
                         </section>
                     )}
 
+                    {/* Saved - other users' releases whose cards the user searches in the Card Explorer */}
+                    {savedReleases.length > 0 && (
+                        <section className={px}>
+                            <Heading level="section" as="h2" className="mb-3">Saved</Heading>
+                            <div className={RELEASE_GRID}>
+                                {savedReleases.map(release => (
+                                    <ReleaseItem
+                                        key={release.id}
+                                        release={release}
+                                        onClick={() => openRelease(release, true)}
+                                    />
+                                ))}
+                            </div>
+                        </section>
+                    )}
+
                     {/* Official Releases */}
                     {officialReleases.length > 0 && (
                         <section className={px}>
@@ -318,7 +352,7 @@ export default function Releases() {
         );
     }
 
-    /** Everyone else's published releases: sorted and searched on the server, a page at a time. */
+    /** Every listed community release, the user's own included: sorted and searched on the server, a page at a time. */
     function renderCommunity() {
         const { releases, loading: loadingCommunity, hasMore, error: communityError, loadMore, searching } = community;
         return (
@@ -362,7 +396,8 @@ export default function Releases() {
                     <>
                         <div className={`${RELEASE_GRID} ${loadingCommunity ? 'opacity-60' : ''} transition-opacity`}>
                             {releases.map(release => (
-                                <ReleaseItem key={release.id} release={release} onClick={() => openRelease(release, true)} />
+                                // The user's own open in the builder, as from My Releases
+                                <ReleaseItem key={release.id} release={release} onClick={() => openRelease(release, release.created_by !== userId)} />
                             ))}
                         </div>
                         {hasMore && (

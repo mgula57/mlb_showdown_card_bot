@@ -1,6 +1,6 @@
 import { useState, type ReactNode } from 'react';
-import { FaArrowLeft, FaHeart, FaRegHeart, FaShareNodes } from 'react-icons/fa6';
-import { toggleReleaseLike, type Release } from '../../api/releases';
+import { FaArrowLeft, FaBookmark, FaHeart, FaRegBookmark, FaRegHeart, FaShareNodes } from 'react-icons/fa6';
+import { toggleReleaseLike, toggleReleaseSave, type Release } from '../../api/releases';
 import { formatShortDate } from '../../functions/formatters';
 import { Heading } from '../shared/Heading';
 import { Eyebrow } from '../shared/Eyebrow';
@@ -24,9 +24,10 @@ type ReleasePublicHeaderProps = {
 };
 
 /** The top of a published release when browsing it: what it is, who made it, which version this is,
- *  and the visitor's actions (like, share). Editing uses the builder's compact header instead. */
+ *  and the visitor's actions (like, save, share). Editing uses the builder's compact header instead. */
 export function ReleasePublicHeader({ release, cardCount, editionCount, isOwner, token, onBack, onShare, onReleaseUpdated, children }: ReleasePublicHeaderProps) {
     const [liking, setLiking] = useState(false);
+    const [saving, setSaving] = useState(false);
     const [showHistory, setShowHistory] = useState(false);
     // Owners can't like their own release, and liking needs an account
     const canLike = !!token && !isOwner;
@@ -43,6 +44,19 @@ export function ReleasePublicHeader({ release, cardCount, editionCount, isOwner,
             // The count just stays where it was
         } finally {
             setLiking(false);
+        }
+    }
+
+    async function handleToggleSave() {
+        if (!token || saving) return;
+        setSaving(true);
+        try {
+            const { saved } = await toggleReleaseSave(release.id, token);
+            onReleaseUpdated({ ...release, saved_by_me: saved });
+        } catch {
+            // Stays as it was
+        } finally {
+            setSaving(false);
         }
     }
 
@@ -108,6 +122,17 @@ export function ReleasePublicHeader({ release, cardCount, editionCount, isOwner,
                         busy={liking}
                         onClick={handleToggleLike}
                         title={release.liked_by_me ? `Unlike ${release.name}` : `Like ${release.name}`}
+                    />
+                )}
+                {/* Same rule as liking: your own releases are always in your card search */}
+                {canLike && (
+                    <ReleaseHeaderButton
+                        icon={release.saved_by_me ? <FaBookmark /> : <FaRegBookmark />}
+                        label={release.saved_by_me ? 'Saved' : 'Save'}
+                        tone={release.saved_by_me ? 'primary' : 'neutral'}
+                        busy={saving}
+                        onClick={handleToggleSave}
+                        title={release.saved_by_me ? `Remove ${release.name} from your card search` : `Save ${release.name} to search its cards in the Card Explorer`}
                     />
                 )}
                 <ReleaseHeaderButton icon={<FaShareNodes />} label="Share" onClick={onShare} />
