@@ -36,7 +36,7 @@ import AppLayout from "./components/AppLayout";
 import CustomCardBuilder from "./components/customs/CustomCardBuilder";
 import { SiteSettingsProvider } from "./components/shared/SiteSettingsContext";
 import { AuthProvider } from "./components/auth/AuthContext";
-import Cards from "./components/cards/Cards";
+import CardExplorer from "./components/cards/CardExplorer";
 import Home from "./components/Home";
 import AccountPage from "./components/account/AccountPage";
 import Seasons from "./components/seasons/Seasons";
@@ -148,10 +148,10 @@ const AppContent = () => {
                 </div>
             )}
 
-            {/* Cards - Mount when first visited */}
+            {/* Card Explorer - Mount when first visited */}
             {mountedRoutes.has('/cards') && (
                 <div className={isActive('/cards') ? 'block' : 'hidden'}>
-                    <Cards />
+                    <CardExplorer />
                 </div>
             )}
 

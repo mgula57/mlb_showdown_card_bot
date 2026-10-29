@@ -1,5 +1,5 @@
 /**
- * @fileoverview Cards - Advanced card database browser and filter system
+ * @fileoverview CardExplorer - Advanced card database browser and filter system
  * 
  * This component provides a comprehensive interface for exploring the MLB Showdown card database
  * with advanced filtering, sorting, and team hierarchy navigation capabilities.
@@ -16,7 +16,7 @@ import { radixTabTriggerClass } from "../shared/tabStyles";
 
 const TAB_TRIGGER_CLASS = radixTabTriggerClass();
 
-export default function Cards() {
+export default function CardExplorer() {
 
     // State - Initialize from localStorage or default to BOT
     const [tab, setTab] = useState<CardSource>(() => {
@@ -44,7 +44,7 @@ export default function Cards() {
         }
     };
 
-    // Cards Component Layout
+    // CardExplorer Component Layout
     return (
         <Tabs.Root value={tab} onValueChange={handleTabChange}>
             {/* Tab Selection */}
