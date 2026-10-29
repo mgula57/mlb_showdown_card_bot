@@ -655,8 +655,9 @@ export default function Home() {
                             : recentCards.map((item, index) => (
                                 <button
                                     key={index}
-                                    className="shrink-0 w-40 text-left group/card cursor-zoom-in"
-                                    onClick={() => setRecentCardModal(item.fullUrl)}
+                                    // Opens the card's details; older records saved without card data fall back to the image lightbox
+                                    className={`shrink-0 w-40 text-left group/card ${item.record.card_result ? 'cursor-pointer' : 'cursor-zoom-in'}`}
+                                    onClick={() => item.record.card_result ? setSelectedModalCard(item.record.card_result) : setRecentCardModal(item.fullUrl)}
                                 >
                                     <div
                                         className="w-full rounded-card overflow-hidden bg-(--background-tertiary) relative"
