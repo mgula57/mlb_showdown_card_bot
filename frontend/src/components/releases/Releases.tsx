@@ -22,6 +22,7 @@ import type { ReleaseCreatePayload } from '../../api/releases';
 
 import { InlineError } from '../shared/InlineError';
 import { Heading } from '../shared/Heading';
+import { BetaBadge } from '../shared/BetaBadge';
 import { buttonClass } from '../shared/buttonStyles';
 import { EmptyState } from '../shared/EmptyState';
 import { PinstripeBackdrop } from '../shared/PinstripeBackdrop';
@@ -225,7 +226,10 @@ export default function Releases() {
             {/* Header */}
             <div className={`flex items-center ${px} justify-between`}>
                 <div>
-                    <Heading level="page">Release Builder</Heading>
+                    <Heading level="page" className="flex items-center gap-2">
+                        Release Builder
+                        <BetaBadge />
+                    </Heading>
                     <p className="text-[13px] text-(--text-secondary)">
                         Browse official card sets or build your own
                     </p>
@@ -253,9 +257,7 @@ export default function Releases() {
             {loading ? (
                 <section className={px}>
                     <div className="h-3 w-24 rounded-plate bg-(--background-tertiary) animate-pulse mb-2" />
-                    <div className={RELEASE_GRID}>
-                        {Array.from({ length: 6 }, (_, i) => <ReleaseItemSkeleton key={i} />)}
-                    </div>
+                    <ReleaseSkeletonRow />
                 </section>
             ) : (
                 <>
@@ -347,9 +349,7 @@ export default function Releases() {
                 {communityError && <InlineError size="md">{communityError}</InlineError>}
 
                 {releases === null ? (
-                    <div className={RELEASE_GRID}>
-                        {Array.from({ length: 6 }, (_, i) => <ReleaseItemSkeleton key={i} />)}
-                    </div>
+                    <ReleaseSkeletonRow />
                 ) : releases.length === 0 ? (
                     searching ? (
                         <EmptyState size="inline">No releases match “{communitySearch.trim()}”.</EmptyState>
@@ -381,6 +381,20 @@ const COMMUNITY_SORTS: { value: PublicReleaseSort; label: string }[] = [
     { value: 'popular', label: 'Popular' },
     { value: 'new', label: 'New' },
 ];
+
+/** A single row of tile skeletons: two on phones; on wider screens the row is clipped to one tile
+ *  height (sm:w-52 at 3/4 aspect), so tiles that would wrap stay hidden. */
+function ReleaseSkeletonRow() {
+    return (
+        <div className={`${RELEASE_GRID} sm:h-[calc(13rem*4/3)] sm:overflow-hidden`}>
+            {Array.from({ length: 8 }, (_, i) => (
+                <div key={i} className={i >= 2 ? 'max-sm:hidden' : undefined}>
+                    <ReleaseItemSkeleton />
+                </div>
+            ))}
+        </div>
+    );
+}
 
 /** Placeholder shaped like ReleaseDetail's header + edition tab bar while a release loads. */
 function ReleaseDetailSkeleton() {

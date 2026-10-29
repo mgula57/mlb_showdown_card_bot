@@ -33,16 +33,32 @@ _era_teams_cache: dict[str, tuple[dict, datetime]] = {}
 # Era Teams "See all" grid, which ignores whatever single era the shelf was scoped to.
 ALL_ERAS_KEY = 'ALL'
 
+# A clinched World Series is final, so True is cached for good; False is rechecked after the TTL.
+WORLD_SERIES_OVER_CACHE_TTL = timedelta(minutes=15)
+_world_series_over_cache: dict[str, tuple[bool, datetime]] = {}
+
 AWARDS_CACHE_TTL = timedelta(hours=24)
 _awards_cache: dict[str, tuple[dict, datetime]] = {}
 AWARD_TYPES = ['MVP', 'CY', 'ROY', 'GG', 'SS']
 AWARD_LEAGUES = ['AL', 'NL']
+
+def _is_world_series_over(season_id: str) -> bool:
+    cached = _world_series_over_cache.get(season_id)
+    if cached and (cached[0] or datetime.now() - cached[1] < WORLD_SERIES_OVER_CACHE_TTL):
+        return cached[0]
+    is_over = _mlb_stats_api.games.is_world_series_over(int(season_id))
+    _world_series_over_cache[season_id] = (is_over, datetime.now())
+    return is_over
 
 @seasons_bp.route('/seasons/list', methods=["GET"])
 def fetch_season_list():
     """Fetch list of seasons from the database"""
     try:
         season_list = _mlb_stats_api.seasons.get_seasons()
+        today = datetime.now().date().isoformat()
+        for season in season_list:
+            if season.post_season_start_date and season.season_end_date and season.post_season_start_date <= today <= season.season_end_date:
+                season.postseason_complete = _is_world_series_over(str(season.season_id))
         seasons_data = [season.model_dump() for season in season_list]
         return jsonify({'seasons': seasons_data}), 200
 

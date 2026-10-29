@@ -79,6 +79,8 @@ type HomeNavTileData = {
     to: string;
     iconColor: string;
     isNew?: boolean;
+    /** Pulses on each Home visit while still NEW, to draw attention to a new feature. */
+    spotlight?: boolean;
 };
 
 /**
@@ -92,8 +94,10 @@ function HomeNavTile({ tile, className = '' }: { tile: HomeNavTileData; classNam
         <Link
             to={to}
             onClick={() => markNavItemSeen(to)}
-            className={`relative overflow-hidden rounded-card p-4 flex flex-col gap-1 border border-(--divider) bg-(--background-secondary) hover:border-(--rule-strong) transition-[transform,border-color] duration-200 hover:scale-[1.03] active:scale-95 cursor-pointer ${className}`}
+            className={`relative isolate overflow-hidden rounded-card p-4 flex flex-col gap-1 border border-(--divider) bg-(--background-secondary) hover:border-(--rule-strong) transition-[transform,border-color] duration-200 hover:scale-[1.03] active:scale-95 cursor-pointer ${className}`}
         >
+            {/* Behind the tile's content (z-index -1 inside the isolated tile) */}
+            {isNew && tile.spotlight && <span aria-hidden className="nav-spotlight" />}
             <Icon className="absolute -bottom-2 -right-2 text-7xl opacity-5" />
             <Icon className={`text-3xl mb-1 ${iconColor}`} />
             <span className="font-display uppercase text-[17px] leading-none text-(--text-primary)">{label}</span>
@@ -209,6 +213,7 @@ export default function Home() {
         fetchSeasons().then(seasons => {
             const today = new Date();
             const active = seasons.find(s => {
+                if (s.postseason_complete) return false;
                 const start = new Date(s.regular_season_start_date);
                 const end = new Date(s.season_end_date);
                 return today >= start && today <= end;
@@ -418,7 +423,7 @@ export default function Home() {
                             {([
                                 { label: 'Card Builder',    desc: 'Build and customize your own cards', Icon: CardBuildIcon,   to: '/customs', iconColor: 'text-(--showdown-red)' },
                                 { label: 'Team Builder',    desc: 'Build teams and play 162 game sim challenges',   Icon: FaPeopleGroup, to: '/teams', iconColor: 'text-(--showdown-red)', isNew: true },
-                                { label: 'Release Builder', desc: 'Build, publish, and browse custom card sets',   Icon: FaLayerGroup, to: '/release-builder', iconColor: 'text-(--showdown-red)', isNew: true },
+                                { label: 'Release Builder', desc: 'Build, publish, and browse custom card sets',   Icon: FaLayerGroup, to: '/release-builder', iconColor: 'text-(--showdown-red)', isNew: true, spotlight: true },
                                 { label: 'Card Explorer',   desc: 'Browse our library of 100K+ cards', Icon: FaCompass,  to: '/cards',   iconColor: 'text-(--showdown-blue)' },
                                 { label: 'Seasons',         desc: 'Live games, stats, and full-season simulations',   Icon: FaCalendar, to: '/seasons', iconColor: 'text-(--showdown-blue)', isNew: true },
                             ] as const).map((tile, i, tiles) => (
@@ -433,18 +438,17 @@ export default function Home() {
                 <HomeGameReel onCardSelect={setSelectedModalCard} />
             </div>
 
-            {/* Game Ticker */}
+            {/* Game Ticker — only while a season is in progress (hidden in the offseason) */}
+            {tickerSeason && (
             <div className="rounded-card border border-(--divider) overflow-hidden max-w-7xl mx-auto bg-(--background-secondary)">
                 {/* Ticker header: navy band over a red rule, from the Showdown logo */}
                 <div className="flex items-center justify-between gap-4 px-4 md:px-6 py-2.5 bg-(--showdown-blue-fill) border-b-2 border-(--showdown-red)">
                     <p className="flex items-center gap-2 text-white">
                         <LiveIcon size={7} title="Live" color="var(--field-live)" />
                         <Heading level="section" as="h2" style={{ color: 'white' }}>Today's Games</Heading>
-                        {tickerSeason && (
-                            <span className="text-xs text-white/70">
-                                {new Date().toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
-                            </span>
-                        )}
+                        <span className="text-xs text-white/70">
+                            {new Date().toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
+                        </span>
                     </p>
                     <Link to="/seasons" className="text-xs font-semibold text-white/80 hover:text-white flex items-center gap-1 shrink-0">
                         Full season details <FaChevronRight className="text-[10px]" />
@@ -475,7 +479,7 @@ export default function Home() {
                             <EmptyState size="inline" className="w-full">No games scheduled today.</EmptyState>
                         )}
                         {!isLoadingGames && todaysGames.map((game) => fromScheduledGame(game)).sort((a, b) => {
-                            const seasonId = tickerSeason?.season_id ?? '';
+                            const seasonId = tickerSeason.season_id;
                             const aStarred = starredTeamKeys.includes(`${a.away.team.id}-${seasonId}`) || starredTeamKeys.includes(`${a.home.team.id}-${seasonId}`);
                             const bStarred = starredTeamKeys.includes(`${b.away.team.id}-${seasonId}`) || starredTeamKeys.includes(`${b.home.team.id}-${seasonId}`);
                             if (aStarred !== bStarred) return aStarred ? -1 : 1;
@@ -486,8 +490,8 @@ export default function Home() {
                             const isLive = game.state === 'LIVE';
                             const inning = game.situation?.inning;
                             const inningHalf = game.situation?.isTop ? '▲' : game.situation ? '▼' : '';
-                            const isAwayStarred = starredTeamKeys.includes(`${game.away.team.id}-${tickerSeason?.season_id}`);
-                            const isHomeStarred = starredTeamKeys.includes(`${game.home.team.id}-${tickerSeason?.season_id}`);
+                            const isAwayStarred = starredTeamKeys.includes(`${game.away.team.id}-${tickerSeason.season_id}`);
+                            const isHomeStarred = starredTeamKeys.includes(`${game.home.team.id}-${tickerSeason.season_id}`);
                             const statusLabel = game.date
                                 ? new Date(game.date).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
                                 : game.detailedState ?? '';
@@ -495,7 +499,7 @@ export default function Home() {
                             return (
                                 <Link
                                     key={game.id}
-                                    to={`/seasons/game/${game.id}${tickerSeason ? `?season=${tickerSeason.season_id}` : ''}`}
+                                    to={`/seasons/game/${game.id}?season=${tickerSeason.season_id}`}
                                     className="w-36 shrink-0 px-4 py-3 border-r border-(--divider) transition-colors hover:bg-(--background-tertiary)"
                                 >
                                     {/* Status */}
@@ -564,6 +568,7 @@ export default function Home() {
                     })}
                 </div>
             </div>
+            )}
 
             {/* Your Recent Cards - logged in users only */}
             {user && (isLoadingRecentCards || recentCards.length > 0) && (

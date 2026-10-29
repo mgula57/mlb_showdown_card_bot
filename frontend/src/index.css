@@ -397,6 +397,26 @@
     .side-menu-icon-pop { animation: none; }
 }
 
+/* Home: draws the eye to a new feature's nav tile with three red beats, then rests. An inset ring
+   so the overflow-hidden tile doesn't clip it. */
+@keyframes nav-spotlight {
+    0%   { box-shadow: inset 0 0 0 0 transparent; background-color: transparent; }
+    30%  { box-shadow: inset 0 0 0 2px var(--showdown-red); background-color: color-mix(in srgb, var(--showdown-red) 12%, transparent); }
+    100% { box-shadow: inset 0 0 0 0 transparent; background-color: transparent; }
+}
+.nav-spotlight {
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    border-radius: inherit;
+    pointer-events: none;
+    animation: nav-spotlight 1.3s ease-out 0.8s 3 backwards;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .nav-spotlight { animation: none; }
+}
+
 @keyframes card-glow-pulse {
     0%, 100% {
         box-shadow:

@@ -8,14 +8,12 @@
  * - Responsive sidebar navigation (desktop collapsible, mobile overlay)
  * - Fixed/sticky header with adaptive behavior for iOS Safari
  * - Main content area with proper spacing and overflow handling
- * - Modal system integration for feature announcements
  * 
  * **Advanced Features:**
  * - Dual sidebar state management (desktop/mobile with separate localStorage)
  * - iOS Safari-specific viewport handling to prevent URL bar jitter
  * - Route-based header title and icon detection
  * - Global Showdown set selection in header
- * - Automatic "What's New" modal system with version tracking
  * 
  * **Responsive Behavior:**
  * - Desktop: Collapsible sidebar with content padding adjustment
@@ -27,7 +25,6 @@
  * - Sidebar open/closed state saved to localStorage
  * - Separate mobile and desktop sidebar preferences
  * - User's Showdown set selection persistence
- * - "What's New" modal acknowledgment tracking
  * 
  * @component
  * @example
@@ -47,7 +44,6 @@ import { SET_SELECT_OPTIONS_LG } from "./shared/SetBadge";
 import CustomSelect from "./shared/CustomSelect";
 import { FiMenu } from "react-icons/fi";
 import { sideMenuItems } from "./side_menu/sideMenuConfig";
-import { WhatsNewModal, hasSeenWhatsNew, markWhatsNewAsSeen } from "./side_menu/WhatsNewModal";
 import { fetchFeatureStatuses, type FeatureStatus } from "../api/status/feature_status";
 import { FaExclamationCircle } from 'react-icons/fa';
 import { AccountIcon } from "./auth/AccountIcon";
@@ -168,9 +164,6 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
         checkFeatures();
     }, []);
 
-    // Modal state for "What's New" feature announcements
-    const [showWhatsNewModal, setShowWhatsNewModal] = useState(false);
-    
     // Modal state for login
     const [showLoginModal, setShowLoginModal] = useState(false);
     
@@ -207,32 +200,6 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
             console.warn('Failed to save side menu state to localStorage:', error);
         }
     }, [isSideMenuOpen]);
-
-    /**
-     * Effect: Initialize "What's New" modal display
-     * 
-     * Checks if user has seen the current version's announcements and
-     * displays the modal after a brief delay to allow the app to settle.
-     * The delay prevents jarring modal appearance during initial load.
-     */
-    useEffect(() => {
-        const timer = setTimeout(() => {
-            if (!hasSeenWhatsNew()) {
-                // setShowWhatsNewModal(true); DISABLED FOR 4.01
-            }
-        }, 1000); // 1 second delay for smooth UX
-
-        return () => clearTimeout(timer);
-    }, []);
-
-    /**
-     * Handles closing of the "What's New" modal
-     * Marks the current version as seen and closes the modal
-     */
-    const handleWhatsNewClose = () => {
-        setShowWhatsNewModal(false);
-        markWhatsNewAsSeen();
-    };
 
     /**
      * Handles successful login
@@ -403,12 +370,6 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
                 </main>
             </div>
 
-            {/* Feature Announcement Modal - Global modal for version updates */}
-            <WhatsNewModal 
-                isOpen={showWhatsNewModal} 
-                onClose={handleWhatsNewClose} 
-            />
-            
             {/* Login Modal - Global modal for authentication */}
             {showLoginModal && (
                 <LoginModal 

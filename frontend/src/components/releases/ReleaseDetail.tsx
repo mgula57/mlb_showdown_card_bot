@@ -9,6 +9,8 @@ import { useReleaseReview } from './useReleaseReview';
 import { ReleaseShareSheet } from './ReleaseShareSheet';
 import { ReleaseHeaderButton } from './ReleaseHeaderButton';
 import { ReleasePublicHeader } from './ReleasePublicHeader';
+import { ReleaseOnboardingContext, useReleaseOnboardingState } from './releaseOnboardingState';
+import { ReleaseOnboardingScope, ReleaseOnboardingWelcome, ReleaseTip } from './ReleaseOnboarding';
 import FormInput from '../customs/FormInput';
 import { ModeBanner, ModeBannerButton } from '../shared/ModeBanner';
 import { FaArrowLeft, FaCheck, FaEye, FaGlobe, FaPen, FaPlus, FaShareNodes, FaSpinner, FaXmark } from 'react-icons/fa6';
@@ -88,6 +90,11 @@ export function ReleaseDetail({ release, readOnly, editionSlug, onEditionChange,
     /** The share sheet, with an eyebrow line when it opens right after a first publish. */
     const [shareSheet, setShareSheet] = useState<{ eyebrow?: string } | null>(null);
 
+    // The first-build tour: owners editing a release that has never been published, outside the Review step
+    const onboarding = useReleaseOnboardingState(isEditing && !!token && !isStaged && !reviewOpen);
+    const [publishButton, setPublishButton] = useState<HTMLButtonElement | null>(null);
+    const totalCardCount = release.editions.reduce((sum, e) => sum + shownOf(e).card_count, 0);
+
     /** Releases from publish/draft endpoints lack the list-only fields, so keep ours for those. */
     function mergeRelease(updated: Release) {
         onReleaseUpdated({ ...release, ...updated });
@@ -162,6 +169,7 @@ export function ReleaseDetail({ release, readOnly, editionSlug, onEditionChange,
         mergeRelease(updated);
         changeMode('browse');
         setPublishedVersion(updated.published_version);
+        onboarding.finish();
         // The first publish is when there's a link to send for the first time
         if (updated.published_version === 1) setShareSheet({ eyebrow: 'Published · v1' });
     }
@@ -274,8 +282,9 @@ export function ReleaseDetail({ release, readOnly, editionSlug, onEditionChange,
     }
 
     return (
-        // Height-locked from md up only — on phones the page scrolls naturally so Safari's URL bar can
-        // collapse (a dvh-locked shell leaves a black bar at the bottom as the bar animates).
+        <ReleaseOnboardingContext.Provider value={onboarding}>
+        {/* Height-locked from md up only — on phones the page scrolls naturally so Safari's URL bar can
+            collapse (a dvh-locked shell leaves a black bar at the bottom as the bar animates). */}
         <div className="flex flex-col md:h-[calc(100dvh-2.5rem)] md:overflow-hidden">
             <Tabs.Root
                 value={activeEditionId ?? undefined}
@@ -376,8 +385,14 @@ export function ReleaseDetail({ release, readOnly, editionSlug, onEditionChange,
                                         title={isStaged ? 'See the published version' : 'See this release the way others will'}
                                     />
                                     {hasUnpublishedWork && !reviewOpen && (
-                                        <ReleaseHeaderButton icon={<FaGlobe />} label={isStaged && isPublished ? 'Publish changes' : 'Publish'} tone="primary" onClick={openReview} title="Review the release, then publish it" />
+                                        <ReleaseHeaderButton ref={setPublishButton} icon={<FaGlobe />} label={isStaged && isPublished ? 'Publish changes' : 'Publish'} tone="primary" onClick={openReview} title="Review the release, then publish it" />
                                     )}
+                                    <ReleaseTip
+                                        id="publish"
+                                        show={hasUnpublishedWork && totalCardCount > 0 && onboarding.hasSeen('imagesStep')}
+                                        anchor={publishButton}
+                                        placement="bottom-end"
+                                    />
                                 </>
                             ) : (
                                 <ReleaseHeaderButton icon={<FaPen />} label="Edit" onClick={() => changeMode('edit')} />
@@ -505,6 +520,7 @@ export function ReleaseDetail({ release, readOnly, editionSlug, onEditionChange,
                                     <EditionBuilderSkeleton />
                                 )
                             ) : (
+                                <ReleaseOnboardingScope active={edition.id === activeEditionId}>
                                 <EditionBuilder
                                     // The live edition and its working copy are different builders
                                     key={loadedEdition.id}
@@ -537,6 +553,7 @@ export function ReleaseDetail({ release, readOnly, editionSlug, onEditionChange,
                                     // Card links point at live cards, so only while browsing what's published
                                     cardLinkSlugs={showPublicHeader ? { release: release.slug, edition: edition.slug } : null}
                                 />
+                                </ReleaseOnboardingScope>
                             )}
                         </Tabs.Content>
                         );
@@ -553,6 +570,9 @@ export function ReleaseDetail({ release, readOnly, editionSlug, onEditionChange,
                     onClose={() => setShareSheet(null)}
                 />
             )}
+
+            <ReleaseOnboardingWelcome />
         </div>
+        </ReleaseOnboardingContext.Provider>
     );
 }

@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import type { ReactNode, Ref } from 'react';
 import { FaSpinner } from 'react-icons/fa6';
 import { buttonVariantClass } from '../shared/buttonStyles';
 
@@ -21,12 +21,14 @@ type ReleaseHeaderButtonProps = {
     /** A tally after the label, e.g. the like count. Hidden at 0. */
     count?: number;
     title?: string;
+    ref?: Ref<HTMLButtonElement>;
 };
 
 /** The compact action buttons in the Release Builder's headers. */
-export function ReleaseHeaderButton({ icon, label, onClick, tone = 'neutral', busy = false, collapseLabel = false, count, title }: ReleaseHeaderButtonProps) {
+export function ReleaseHeaderButton({ icon, label, onClick, tone = 'neutral', busy = false, collapseLabel = false, count, title, ref }: ReleaseHeaderButtonProps) {
     return (
         <button
+            ref={ref}
             type="button"
             onClick={onClick}
             disabled={busy}

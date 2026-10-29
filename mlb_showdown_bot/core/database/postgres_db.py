@@ -10391,7 +10391,9 @@ class PostgresDB:
             ) id_map ON TRUE
             WHERE 1=1 {mlb_id_filter}
         '''
-        filter_values = (list(seasons), list(mlb_ids)) if mlb_ids else (list(seasons),)
+        # SEASONS CAN ARRIVE AS STRINGS FROM API PAYLOADS, WHICH PSYCOPG SENDS AS text[] AGAINST AN INT COLUMN
+        season_values = [int(s) for s in seasons]
+        filter_values = (season_values, list(mlb_ids)) if mlb_ids else (season_values,)
         try:
             results = self.execute_query(query=query_sql, filter_values=filter_values)
             return [AwardVotingResult(**row) for row in results]

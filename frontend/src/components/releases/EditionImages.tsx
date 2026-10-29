@@ -6,6 +6,7 @@ import { cardImagePublicUrl } from '../../api/supabase';
 import { Modal } from '../shared/Modal';
 import { CardItemFromCardDatabaseRecord } from '../cards/CardItem';
 import { ReleaseCardPreviewRankPicker } from './ReleaseCardPreviewRank';
+import { ReleaseTip } from './ReleaseOnboarding';
 import {
     buildZipEntries, editionZipFileName, entriesRenderedAfter, loadLastZipRenderedAt, saveLastZipRenderedAt,
     useEditionZipDownload, type ZipDownloadState, type ZipEntry,
@@ -55,6 +56,7 @@ export function EditionImages({ releaseId, releaseName, edition, readOnly, token
         if (statusFilterRequest) setStatusFilter(statusFilterRequest.status);
     }, [statusFilterRequest]);
     const [detailImage, setDetailImage] = useState<ReleaseCardImage | null>(null);
+    const [renderButton, setRenderButton] = useState<HTMLButtonElement | null>(null);
 
     const load = useCallback(() => {
         return fetchEditionImages(releaseId, edition.id, token)
@@ -193,6 +195,7 @@ export function EditionImages({ releaseId, releaseName, edition, readOnly, token
                                 </button>
                             ) : needsRenderCount > 0 ? (
                                 <button
+                                    ref={setRenderButton}
                                     type="button"
                                     onClick={() => handleRender()}
                                     disabled={requesting || !token}
@@ -211,6 +214,7 @@ export function EditionImages({ releaseId, releaseName, edition, readOnly, token
                 </div>
 
                 {job && <RenderJobStatus job={job} />}
+                <ReleaseTip id="render" show={!!data && !jobActive && needsRenderCount > 0} anchor={renderButton} placement="bottom-end" />
 
                 {zipDownload.state.status !== 'idle' && (
                     <ZipDownloadStatus state={zipDownload.state} onCancel={zipDownload.cancel} onDismiss={zipDownload.reset} />

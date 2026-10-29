@@ -396,6 +396,8 @@ export interface Season {
     season_id: string;
     regular_season_start_date: string;
     season_end_date: string;
+    /** World Series has a winner (set by the backend during the postseason window). */
+    postseason_complete?: boolean;
 }
 
 export interface League {

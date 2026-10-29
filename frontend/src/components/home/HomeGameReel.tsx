@@ -222,12 +222,13 @@ function ReelSegmentPlayer({ segment, isActive, autoplay, onDone, onCardSelect }
     const isAtEnd = state.cursor === lastIndex && state.phase === "idle";
 
     // Play only while visible. Pausing interrupts the play in flight, so resuming replays it from
-    // its pitch rather than mid-run.
+    // its pitch rather than mid-run. No cursor check here: on mount the cursor still reads as the
+    // last frame (the hook parks it on frame 0 in its own effect), and playing at the end is a
+    // no-op anyway.
     useEffect(() => {
         if (!autoplay) return;
-        if (isActive && state.cursor < lastIndex) controlsRef.current.play();
-        else if (!isActive) controlsRef.current.pause();
-        // eslint-disable-next-line react-hooks/exhaustive-deps
+        if (isActive) controlsRef.current.play();
+        else controlsRef.current.pause();
     }, [isActive, autoplay]);
 
     // Hold on the finished half-inning, then hand off to the next game.

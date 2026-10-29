@@ -95,7 +95,7 @@ type ShowdownCardSearchProps = {
     /** Optionally disable storing and loading from local storage */
     disableLocalStorage?: boolean;
     /**
-     * Compact mode: hides the WhatsNew banner and sidebar toggle, removes the
+     * Compact mode: hides the sidebar toggle, removes the
      * fixed-height container so the component fills its parent. Use when
      * embedding inside a panel or bottom sheet.
      */

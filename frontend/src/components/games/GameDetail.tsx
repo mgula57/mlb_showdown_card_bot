@@ -109,10 +109,12 @@ export default function GameDetail({ gamePk, sportId, season, showdownSet, isAct
         return () => { isCancelled = true; };
     }, [gamePk]);
 
+    // A loaded sim shows the cards it was played with (possibly another user's set), not the viewer's.
+    const cardShowdownSet = simResult?.showdown_set ?? showdownSet;
     const {
         boxscore, bufferedBoxscore, cardMap, isLoading, isRefreshing, isLoadingCards, error,
         setLivePaused, applyBuffer,
-    } = useGameDetailData({ gamePk, sportId, season, showdownSet, isActive, simResult });
+    } = useGameDetailData({ gamePk, sportId, season, showdownSet: cardShowdownSet, isActive, simResult });
 
     // Deep-linked from a "Sim this" badge — open the setup modal as soon as we know the game is
     // still simulatable. Guarded by a ref (not just the prop) since the caller clears the

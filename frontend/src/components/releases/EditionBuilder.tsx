@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef, useEffect, useCallback, type ReactNode } from 'react';
+import { useState, useMemo, useRef, useEffect, useCallback, type ReactNode, type Ref } from 'react';
 import * as Tabs from '@radix-ui/react-tabs';
 import type { ReleaseEdition, ReleaseCard, AlgorithmPreviewResult, AlgorithmPreviewPlayer, ReleaseCardImageStatus } from '../../api/releases';
 import { updateEdition, rebuildEditionCard, customEditionCard } from '../../api/releases';
@@ -41,6 +41,7 @@ import {
     type PoolGroupBy, type PoolSortBy, type PoolSortDirection, type PoolFilters,
 } from './poolGrouping';
 import { PoolFilterPanel } from './PoolFilterPanel';
+import { ReleaseTip } from './ReleaseOnboarding';
 import { TeamSearchInput } from '../team_builder/TeamSearchInput';
 import { FaGripVertical } from 'react-icons/fa';
 import { FaCheck, FaLink, FaPlus, FaXmark, FaSpinner, FaWandMagicSparkles, FaCircleCheck, FaMagnifyingGlass, FaArrowsRotate, FaGear, FaArrowUp, FaArrowDown, FaTriangleExclamation, FaTableCellsLarge, FaList, FaAnglesLeft, FaAnglesRight, FaListCheck, FaChartColumn, FaPalette, FaFilter, FaScissors, FaPenRuler } from 'react-icons/fa6';
@@ -903,6 +904,17 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
         if (card) setDetailCard(card);
     }
 
+    // First-build tour anchors (see ReleaseOnboarding)
+    const [buildMethodTabs, setBuildMethodTabs] = useState<HTMLDivElement | null>(null);
+    const [buildPanelRail, setBuildPanelRail] = useState<HTMLButtonElement | null>(null);
+    const [phoneBuildTab, setPhoneBuildTab] = useState<HTMLButtonElement | null>(null);
+    const [previewSaveActions, setPreviewSaveActions] = useState<HTMLDivElement | null>(null);
+    const [styleButton, setStyleButton] = useState<HTMLButtonElement | null>(null);
+    const [imagesStepButton, setImagesStepButton] = useState<HTMLButtonElement | null>(null);
+    const buildMethodAnchor = isDesktop
+        ? (buildPanelHidden ? buildPanelRail : buildMethodTabs)
+        : (activePoolTab === 'build' ? buildMethodTabs : phoneBuildTab);
+
     // Shared by the desktop pool tab strip and the phone strip (which adds Build in front)
     const poolTabTriggers = (
         <>
@@ -929,7 +941,7 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
                 {/* Numbered as a workflow while editing; plain views while browsing */}
                 <StepButton number={readOnly ? undefined : 1} label={readOnly ? 'Cards' : 'Player Pool'} isActive={!reviewOpen && step === 'pool'} onClick={handleOpenPoolStep} />
                 <div className={`${readOnly ? 'w-3' : 'w-8'} h-px bg-(--divider) shrink-0`} />
-                <StepButton number={readOnly ? undefined : 2} label="Images" isActive={!reviewOpen && step === 'images'} onClick={handleOpenImagesStep} />
+                <StepButton ref={setImagesStepButton} number={readOnly ? undefined : 2} label="Images" isActive={!reviewOpen && step === 'images'} onClick={handleOpenImagesStep} />
                 {onReviewOpenChange && (
                     <>
                         <div className="w-8 h-px bg-(--divider) shrink-0" />
@@ -939,8 +951,9 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
 
                 {!readOnly && (
                     <div className="flex items-center gap-2 ml-auto">
-                        <ImageLibrariesButton onClose={liveImageMatches.refresh} />
+                        <ImageLibrariesButton onClose={liveImageMatches.refresh} tipMoment={!reviewOpen && step === 'images' && cards.length > 0} />
                         <button
+                            ref={setStyleButton}
                             type="button"
                             onClick={() => setShowStyleModal(true)}
                             title="Default card style for this edition"
@@ -959,6 +972,11 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
                     </span>
                 )}
             </div>
+
+            <ReleaseTip id="buildMethod" show={cards.length === 0 && !activePreview && !isAlgorithmRunning} anchor={buildMethodAnchor} placement={isDesktop ? 'right-start' : 'bottom-start'} />
+            <ReleaseTip id="savePreview" show={!!activePreview && !isAlgorithmRunning} anchor={previewSaveActions} placement="bottom-start" />
+            <ReleaseTip id="cardStyle" show={cards.length > 0 && !showStyleModal} anchor={styleButton} placement="bottom-end" />
+            <ReleaseTip id="imagesStep" show={cards.length > 0 && step === 'pool'} anchor={imagesStepButton} placement="bottom-start" />
 
             {!readOnly && !isDriveNoticeDismissed && (
                 <ReleaseDriveNotice
@@ -1002,7 +1020,7 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
             >
             {!readOnly && (
                 <Tabs.List className={`md:hidden ${TAB_LIST_CLASS}`}>
-                    <Tabs.Trigger value="build" className={TAB_TRIGGER_CLASS}>
+                    <Tabs.Trigger ref={setPhoneBuildTab} value="build" className={TAB_TRIGGER_CLASS}>
                         <FaWandMagicSparkles className="text-[10px]" /> Build
                     </Tabs.Trigger>
                     {poolTabTriggers}
@@ -1012,6 +1030,7 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
                 {/* Collapsed rail for the hidden Build panel */}
                 {!readOnly && buildPanelHidden && (
                     <button
+                        ref={setBuildPanelRail}
                         type="button"
                         onClick={toggleBuildPanelHidden}
                         title="Show build method"
@@ -1053,7 +1072,7 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
                             onValueChange={v => handleBuildMethodChange(v as BuildMethod)}
                             className="flex flex-col flex-1 min-h-0"
                         >
-                            <Tabs.List className={TAB_LIST_CLASS}>
+                            <Tabs.List ref={setBuildMethodTabs} className={TAB_LIST_CLASS}>
                                 <Tabs.Trigger value="algorithm" className={TAB_TRIGGER_CLASS}>
                                     <FaWandMagicSparkles className="text-[10px]" /> Algorithm
                                 </Tabs.Trigger>
@@ -1189,7 +1208,7 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
                                             </li>
                                         </ul>
                                     )}
-                                    <div className="flex flex-wrap gap-2">
+                                    <div ref={setPreviewSaveActions} className="flex flex-wrap gap-2">
                                         {cards.length === 0 ? (
                                             <button
                                                 type="button"
@@ -1674,9 +1693,9 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
     );
 }
 
-function StepButton({ number, label, isActive, onClick }: { number?: number; label: string; isActive: boolean; onClick: () => void }) {
+function StepButton({ number, label, isActive, onClick, ref }: { number?: number; label: string; isActive: boolean; onClick: () => void; ref?: Ref<HTMLButtonElement> }) {
     return (
-        <button type="button" onClick={onClick} className="group flex items-center gap-2 cursor-pointer">
+        <button ref={ref} type="button" onClick={onClick} className="group flex items-center gap-2 cursor-pointer">
             {number !== undefined && <span className={`flex items-center justify-center w-5 h-5 rounded-full text-[11px] font-semibold tabular-nums shrink-0 transition-colors
                 ${isActive ? 'bg-(--showdown-blue-fill) text-white' : 'border border-(--text-tertiary) text-(--text-tertiary) group-hover:border-(--text-secondary) group-hover:text-(--text-secondary)'}`}>
                 {number}

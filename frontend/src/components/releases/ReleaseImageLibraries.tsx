@@ -6,6 +6,7 @@ import { ImageLibrariesModal } from '../account/ImageLibrariesModal';
 import ImageLibraryGuideLink from '../account/ImageLibraryGuideLink';
 import { buttonClass } from '../shared/buttonStyles';
 import { Heading } from '../shared/Heading';
+import { ReleaseTip } from './ReleaseOnboarding';
 
 /** Release card images search the owner's image libraries. True once loaded with no Drive folder connected. */
 function useHasNoDriveLibrary(): boolean {
@@ -54,14 +55,19 @@ export function ReleaseDriveNotice({ action, onDismiss, footnote, className = ''
 }
 
 /** Step bar button that opens image library settings in place, so the builder keeps its state.
- * `onClose` lets the builder re-check image matches against any library changes. */
-export function ImageLibrariesButton({ onClose }: { onClose?: () => void }) {
+ * `onClose` lets the builder re-check image matches against any library changes. `tipMoment` is
+ * when the first-build tour may point here (until a Drive folder is connected). */
+export function ImageLibrariesButton({ onClose, tipMoment = false }: { onClose?: () => void; tipMoment?: boolean }) {
     const [isOpen, setIsOpen] = useState(false);
+    const [button, setButton] = useState<HTMLButtonElement | null>(null);
     const { overview } = useImageLibraries();
+    const hasNoDriveLibrary = useHasNoDriveLibrary();
     const driveCount = overview?.libraries.length ?? 0;
     return (
         <>
+            <ReleaseTip id="imageLibraries" show={tipMoment && hasNoDriveLibrary && !isOpen} anchor={button} placement="bottom-end" />
             <button
+                ref={setButton}
                 type="button"
                 onClick={() => setIsOpen(true)}
                 title="Google Drive folders your card images come from"

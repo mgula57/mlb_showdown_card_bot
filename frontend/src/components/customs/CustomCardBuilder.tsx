@@ -37,7 +37,6 @@ import type { SelectOption } from '../shared/CustomSelect';
 import { useSiteSettings, showdownSets } from '../shared/SiteSettingsContext';
 import { hasVariableSpeedSet } from '../../functions/showdownSets';
 import { setSelectOption } from '../shared/SetBadge';
-import { WhatsNewBanner } from '../shared/WhatsNewBanner';
 import { InfoTooltip } from '../shared/InfoTooltip';
 
 // Popovers
@@ -53,14 +52,13 @@ import { fetchSplits } from '../../api/mlbAPI';
 import {
     FaTable, FaImage, FaLayerGroup, FaUser, FaBaseballBall, FaExclamationCircle,
     FaChevronCircleRight, FaChevronCircleLeft, FaChevronCircleUp, FaChevronCircleDown,
-    FaImages, FaGoogleDrive, FaListOl
+    FaImages
 } from 'react-icons/fa';
 import {
     FaShuffle, FaXmark, FaRotateLeft, FaCircleCheck, FaArrowDown
 } from 'react-icons/fa6';
 import CardBuildIcon from './CardBuildIcon';
 import ImageLibraryOrderHint from './ImageLibraryOrderHint';
-import Set2026Notice from './Set2026Notice';
 import { SetStyleFields, ImageStyleFields } from './CardStyleFields';
 import { NewBadge } from '../shared/NewBadge';
 import { setStyleSummary, imageStyleSummary, chartVersionOptions } from './cardStyle';
@@ -175,7 +173,6 @@ const isMultiYearInput = (year: string): boolean => {
 
 const STORAGE_KEY = 'customCardFormSettings-V2';
 /** Bump when the 2026 notice content changes so previously dismissed users see it again. */
-const SET_2026_NOTICE_KEY = 'customCardBuilder2026Phase4Notice';
 
 /** Save form settings to localStorage */
 const saveFormSettings = (formData: CustomCardFormState) => {
@@ -258,9 +255,6 @@ function CustomCardBuilder({ isHidden, embed }: CustomCardBuilderProps) {
     const [activePreviewTab, setActivePreviewTab] = useState<PreviewTab>('preview');
     const [galleryRefreshKey, setGalleryRefreshKey] = useState(0);
     const [splitOptions, setSplitOptions] = useState<SelectOption[]>([]);
-    const [is2026NoticeDismissed, setIs2026NoticeDismissed] = useState(
-        () => localStorage.getItem(SET_2026_NOTICE_KEY) === 'true'
-    );
     const previewSectionRef = useRef<HTMLDivElement>(null);
 
     // User Context
@@ -982,16 +976,6 @@ function CustomCardBuilder({ isHidden, embed }: CustomCardBuilderProps) {
         // In larger screens, it will be split into two sections
         <div className='@container'>
 
-            {!embed && <WhatsNewBanner
-                storageKey="customCardBuilderWhatsNew_v4.42"
-                version="4.42"
-                features={[
-                    { icon: <FaGoogleDrive />, text: 'Image Libraries: connect your own Google Drive folder of player images' },
-                    { icon: <FaListOl />, text: 'Choose whether Auto images check your folders or Showdown Bot first in Account settings' },
-                    { icon: <FaImage />, text: "Cards now show where their player image came from" },
-                ]}
-            />}
-
             {/* Mobile tab bar — fixed below the app header, hidden on @2xl. Embedded builders have no Gallery tab. */}
             {!embed && (
                 <div className="flex @2xl:hidden fixed top-10 inset-x-0 z-30 px-2 bg-(--background-secondary)">
@@ -1126,14 +1110,6 @@ function CustomCardBuilder({ isHidden, embed }: CustomCardBuilderProps) {
 
                                 <div className="space-y-4 pb-6 @2xl:pb-96 @2xl:w-76">
                                     <>
-                                        {!is2026NoticeDismissed && (
-                                            <Set2026Notice
-                                                onDismiss={() => {
-                                                    localStorage.setItem(SET_2026_NOTICE_KEY, 'true');
-                                                    setIs2026NoticeDismissed(true);
-                                                }}
-                                            />
-                                        )}
 
                                         <div className="@container flex flex-row items-end gap-1">
                                             <PlayerSearchInput
