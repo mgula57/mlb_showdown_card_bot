@@ -124,6 +124,10 @@ The team preview tile gets the full card-front look, because the team is the sub
 
 The 2001 card-back double rule (outer `--rule-strong` border, a gap, inner `--divider` hairline) with a diamond "base" on each corner (`<FrameCorners />` inside the framed element) marks feature tiles like a release tile or a finished card. A framed tile takes the `rounded-trading-card` corner with `rounded-card` on the inner hairline, and the bases sit on the curve of the outer rule. Use it for about one kind of thing per screen, never ordinary panels, and leave at least a 12px gap between framed tiles so neighboring bases don't touch.
 
+### Carousels
+
+A sideways-scrolling row of cards or tiles uses `<CarouselRow>` (`shared/`). It bleeds through its container's horizontal padding (negative margins, the same padding added back inside the scroller), so at rest the first item lines up with the content above it and, once scrolled, items run to the container's edges instead of being cut off at an invisible inner margin. Pick the `gutter` that matches the parent's padding (`panel` for `p-5` panels, `page` for Home's `px-6 md:px-8`, `ticker` for the Today's Games body, `seasonsTab` for Seasons tab content), add a gutter when a new padding needs one, and give a bordered parent `overflow-hidden` so the bleed stops at its border. Items set their own width with `shrink-0` (`w-72` for `CardItem`). Don't hand-roll `overflow-x-auto` rows with an inner margin, or with no padding at all.
+
 ### Motion
 
 Motion is short and functional: a press, a panel opening, a die landing. When the viewer asks for reduced motion, one global rule at the end of `index.css` collapses animations and transitions to an instant, except spinners (still turning, slower, because they mean work is in progress). Don't add per-component `motion-reduce:` variants for ordinary motion; the global rule covers it. Signature effects that need a different reduced state (the dice toss, the advantage glow, the home reel's autoplay via `usePrefersReducedMotion`) define their own.

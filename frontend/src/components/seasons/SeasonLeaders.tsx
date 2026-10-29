@@ -10,6 +10,7 @@ import { Modal } from "../shared/Modal";
 import { CAPS_LABEL_CLASS } from "../shared/fieldStyles";
 import { Heading } from "../shared/Heading";
 import { Eyebrow } from "../shared/Eyebrow";
+import { CarouselRow } from "../shared/CarouselRow";
 import { Tabs, type TabItem } from "../shared/Tabs";
 import { Plate } from '../shared/Plate';
 
@@ -280,14 +281,14 @@ export default function SeasonLeaders({ seasonId, season, showdownSet, sportId, 
                     {visibleCategories.slice(0, 6).map((cat) => (
                         <div key={cat.id}>
                             <div className="h-4 w-32 rounded-plate mb-3 animate-pulse bg-(--background-tertiary)" />
-                            <div className="flex gap-3 overflow-x-auto scrollbar-hide -mx-6 px-6 lg:mx-0 lg:px-0 lg:grid lg:grid-cols-3">
+                            <CarouselRow gutter="seasonsTab">
                                 {[0, 1, 2].map(i => (
                                     <div
                                         key={i}
-                                        className={`shrink-0 w-72 lg:w-auto h-48 rounded-card animate-pulse bg-(--background-tertiary)`}
+                                        className={`shrink-0 w-80 h-48 rounded-card animate-pulse bg-(--background-tertiary)`}
                                     />
                                 ))}
-                            </div>
+                            </CarouselRow>
                         </div>
                     ))}
                 </div>
@@ -315,9 +316,9 @@ export default function SeasonLeaders({ seasonId, season, showdownSet, sportId, 
                                 </div>
 
                                 {/* 3 cards */}
-                                <div className="flex gap-3 overflow-x-scroll scrollbar-hide -mx-6 px-6 lg:mx-0 lg:px-0">
+                                <CarouselRow gutter="seasonsTab">
                                     {entries.map((entry, i) => renderLeaderCard(entry, catDef, i))}
-                                </div>
+                                </CarouselRow>
                             </div>
                         );
                     })}

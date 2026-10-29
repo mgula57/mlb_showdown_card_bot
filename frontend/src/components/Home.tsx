@@ -31,7 +31,7 @@ import { Modal } from './shared/Modal';
 import ShowdownBotLogo from './shared/ShowdownBotLogo';
 
 // Card Components
-import { CardItemFromCard } from './cards/CardItem';
+import { CardItemFromCard, CardItemSkeleton } from './cards/CardItem';
 import CardCommand from './cards/card_elements/CardCommand';
 import { CardChart } from './cards/card_elements/CardChart';
 import type { ShowdownBotCard, ShowdownBotCardAPIResponse } from '../api/showdownBotCard';
@@ -47,6 +47,10 @@ import { Heading } from './shared/Heading';
 import { CAPS_LABEL_CLASS } from './shared/fieldStyles';
 import { GameStatePlate } from './games/GameStatePlate';
 import { EmptyState } from './shared/EmptyState';
+import { FrameCorners } from './shared/FrameCorners';
+import { SetBadge } from './shared/SetBadge';
+import { CarouselRow } from './shared/CarouselRow';
+import { useCustomizeCard } from './customs/customizeCard';
 // TODO: replace hard-coded IDs with a general two-way player detection strategy
 const TWO_WAY_PLAYER_IDS = new Set([660271]); // Ohtani
 const PITCHING_LEADER_CATEGORIES = new Set(['walksAndHitsPerInningPitched', 'earnedRunAverage', 'strikeouts', 'wins', 'saves', 'inningsPitched', 'strikeoutsPer9Inn', 'strikeoutWalkRatio']);
@@ -107,14 +111,22 @@ function HomeNavTile({ tile, className = '' }: { tile: HomeNavTileData; classNam
     );
 }
 
-/** A landing-page section title (page-size, under the hero) with an optional secondary-button link
- *  on the right. Home's tiers: hero > section header (`page`) > block title (`section`) > `panel`. */
-function HomeSectionHeader({ title, action }: { title: string; action?: { label: string; to: string } }) {
+type HomeSectionAction = { label: string; to: string; Icon?: React.ComponentType<{ className?: string }> };
+
+/** A landing-page section title (page-size, under the hero) with an optional eyebrow, one-line
+ *  description and secondary-button link on the right.
+ *  Home's tiers: hero > section header (`page`) > block title (`section`) > `panel`. */
+function HomeSectionHeader({ title, eyebrow, description, action }: { title: string; eyebrow?: string; description?: string; action?: HomeSectionAction }) {
     return (
-        <div className="flex justify-between items-end gap-4 mb-6">
-            <Heading level="page" as="h2">{title}</Heading>
+        <div className="flex flex-wrap justify-between items-end gap-x-6 gap-y-3 mb-6">
+            <div className="min-w-0 max-w-2xl">
+                {eyebrow && <Eyebrow className="mb-1.5 block">{eyebrow}</Eyebrow>}
+                <Heading level="page" as="h2">{title}</Heading>
+                {description && <p className="text-sm mt-2 text-(--text-secondary)">{description}</p>}
+            </div>
             {action && (
                 <Link to={action.to} className={buttonClass('secondary')}>
+                    {action.Icon && <action.Icon className="text-sm" />}
                     {action.label} <FaChevronRight className="text-xs" />
                 </Link>
             )}
@@ -131,14 +143,65 @@ function HomePanel({ children, className = '' }: { children: React.ReactNode; cl
     );
 }
 
-/** Title + one-line description at the top of a card shelf panel. */
-function HomePanelHeading({ Icon, title, description }: { Icon: React.ComponentType<{ className?: string }>; title: string; description: string }) {
+type CardShelfId = 'trending' | 'popular' | 'spotlight';
+
+/** One row of the Cards section's shelf panel. `count` is the "times created" plate on Most Popular. */
+type CardShelf = {
+    label: string;
+    Icon: React.ComponentType<{ className?: string }>;
+    description: string;
+    cards: { card: ShowdownBotCard; count?: number }[];
+};
+
+const CARD_SHELF_SIZE = 8;
+
+/**
+ * Card of the Day as the Cards section's feature tile: the full card image in the 2001 card-back
+ * frame, with the player's name and set/points plates underneath.
+ */
+function HomeCardOfTheDay({ card, placeholderSrc, onSelect }: { card?: ShowdownBotCard; placeholderSrc: string; onSelect: (card: ShowdownBotCard) => void }) {
+    const customizeCard = useCustomizeCard();
+    const imageSrc = card?.image.output_folder_path ? `${card.image.output_folder_path}/${card.image.output_file_name}` : placeholderSrc;
     return (
-        <div className="mb-3">
-            <Heading level="section" as="h3" className="flex items-center gap-2">
-                <Icon className="text-base text-(--text-tertiary)" /> {title}
-            </Heading>
-            <div className="text-sm mt-1.5 text-(--text-tertiary)">{description}</div>
+        <div className="relative rounded-trading-card p-0.75 border-2 border-(--rule-strong) bg-(--background-secondary)">
+            <FrameCorners />
+            <div className="rounded-card border border-(--divider) p-5 flex flex-col gap-4">
+                <div>
+                    <Eyebrow className="flex items-center gap-1.5"><FaAward /> Card of the Day</Eyebrow>
+                    <p className="text-sm mt-1.5 text-(--text-tertiary)">Generated by the community, refreshed daily.</p>
+                </div>
+                <img
+                    src={imageSrc}
+                    alt={card ? `${card.name} card` : 'Card of the Day'}
+                    className={`w-full max-w-xs mx-auto aspect-[2.5/3.5] rounded-trading-card object-contain ${card ? 'cursor-pointer transition-transform duration-200 hover:scale-[1.02]' : 'animate-pulse'}`}
+                    onClick={card ? () => onSelect(card) : undefined}
+                />
+                {card ? (
+                    <div className="flex flex-col items-center gap-2 text-center">
+                        <Heading level="panel" as="h3">{card.name}</Heading>
+                        <div className="flex flex-wrap items-center justify-center gap-1.5">
+                            <Plate size="sm">{card.year} {card.team}</Plate>
+                            <Plate size="sm" variant="navy">{card.points} PTS</Plate>
+                            <SetBadge set={card.set} size="sm" />
+                        </div>
+                        {/* Hands the card to the Card Builder, prefilled, to restyle or rebuild it */}
+                        <button
+                            type="button"
+                            onClick={() => customizeCard(card)}
+                            title="Open this card in the Card Builder"
+                            className={`${buttonClass('primary')} w-full mt-2`}
+                        >
+                            <CardBuildIcon size="0.875rem" /> Customize Your Own
+                        </button>
+                    </div>
+                ) : (
+                    <div className="flex flex-col items-center gap-2">
+                        <div className="h-5 w-40 rounded-plate bg-(--background-tertiary) animate-pulse" />
+                        <div className="h-4 w-32 rounded-plate bg-(--background-tertiary) animate-pulse" />
+                        <div className="h-9 w-full mt-2 rounded-control bg-(--background-tertiary) animate-pulse" />
+                    </div>
+                )}
+            </div>
         </div>
     );
 }
@@ -205,7 +268,12 @@ export default function Home() {
 
     // Styling
     const cardOfDayPlaceholder = `/images/blank_players/blankplayer-${userShowdownSet.toLowerCase()}-${isDark ? 'dark' : 'light'}.png`;
-    const cardOfDayImageSrc = cardOfTheDay?.card_data.image.output_folder_path ? `${cardOfTheDay.card_data.image.output_folder_path}/${cardOfTheDay.card_data.image.output_file_name}` : cardOfDayPlaceholder;
+
+    const cardShelves: Record<CardShelfId, CardShelf> = {
+        trending: { label: 'Trending', Icon: FaFire, description: 'Players and seasons gaining attention this week.', cards: trendingPlayers.map(r => ({ card: r.card_data })) },
+        popular: { label: 'Most Popular', Icon: FaStar, description: 'Most created custom cards all-time.', cards: popularCards.map(r => ({ card: r.card_data, count: r.num_creations })) },
+        spotlight: { label: 'Spotlight', Icon: FaUsers, description: spotlightCards[0]?.spotlight_reason ?? 'Curated sets and fun themes.', cards: spotlightCards.map(r => ({ card: r.card_data })) },
+    };
 
     // Fetch today's games + leaders for the ticker
     useEffect(() => {
@@ -371,17 +439,6 @@ export default function Home() {
         setSelectedModalCard(null);
     };
 
-    /** Shows animated placeholder cards during loading */
-    const renderBlankExploreCards = () => {
-        return <>
-            <div className='space-y-3'>
-                {[...Array(4)].map((_, index) => (
-                    <div key={index} className="h-32 rounded-card bg-(--background-tertiary) animate-pulse" />
-                ))}
-            </div>
-        </>
-    }
-
     return (
         <div
             className={`
@@ -544,7 +601,8 @@ export default function Home() {
                         return (
                             <div key={group?.leader_category ?? gi}>
                                 <Eyebrow>{label}</Eyebrow>
-                                <div className="mt-2 flex gap-2 overflow-x-auto scrollbar-hide lg:grid lg:grid-cols-3">
+                                {/* A carousel on small screens; three across on lg, where it stops bleeding */}
+                                <CarouselRow gutter="ticker" className="mt-2 gap-2! lg:grid lg:grid-cols-3 lg:mx-0 lg:px-0">
                                     {entries.map((entry, i) => {
                                         const rawId = entry?.person?.id;
                                         const lookupKey = rawId != null && TWO_WAY_PLAYER_IDS.has(rawId)
@@ -562,7 +620,7 @@ export default function Home() {
                                             </div>
                                         );
                                     })}
-                                </div>
+                                </CarouselRow>
                             </div>
                         );
                     })}
@@ -574,7 +632,7 @@ export default function Home() {
             {user && (isLoadingRecentCards || recentCards.length > 0) && (
                 <div className="max-w-7xl mx-auto border-y py-4 border-(--divider)">
                     <HomeSectionHeader title="Your Recent Custom Cards" action={{ label: 'Build More', to: '/customs' }} />
-                    <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-hide">
+                    <CarouselRow gutter="page" className="pb-2">
                         {isLoadingRecentCards
                             ? Array.from({ length: 8 }).map((_, i) => (
                                 <div key={i} className="shrink-0 w-32 animate-pulse">
@@ -610,7 +668,7 @@ export default function Home() {
                                 </button>
                             ))
                         }
-                    </div>
+                    </CarouselRow>
                 </div>
             )}
 
@@ -635,6 +693,49 @@ export default function Home() {
                 </div>,
                 document.body
             )}
+
+            {/* Cards Section */}
+            <div className="max-w-7xl mx-auto py-6 border-t border-(--divider)">
+                <HomeSectionHeader
+                    eyebrow="From the community"
+                    title="Cards Worth Pulling"
+                    description="Today's featured card, this week's risers and the all-time favorites. Open any card for its full chart, or take it into the Card Builder and make it yours."
+                    action={{ label: 'Explore 100K+ Cards', to: '/cards', Icon: FaCompass }}
+                />
+                {/* Card of the Day gets its own framed column; the shelves stack as scrolling rows beside it */}
+                <div className="grid gap-6 lg:grid-cols-[minmax(0,22rem)_minmax(0,1fr)] items-start">
+                    <HomeCardOfTheDay card={cardOfTheDay?.card_data} placeholderSrc={cardOfDayPlaceholder} onSelect={setSelectedModalCard} />
+                    <HomePanel className="space-y-8 min-w-0 overflow-hidden">
+                        {(Object.keys(cardShelves) as CardShelfId[]).map(id => {
+                            const { label, Icon, description, cards } = cardShelves[id];
+                            return (
+                                <div key={id}>
+                                    <Eyebrow className="flex items-center gap-1.5"><Icon /> {label}</Eyebrow>
+                                    <p className="text-sm mt-1.5 text-(--text-tertiary)">{description}</p>
+                                    {/* Top padding leaves room for the count plate that hangs off each card's corner */}
+                                    <CarouselRow className="pt-3">
+                                        {cards.length > 0
+                                            ? cards.slice(0, CARD_SHELF_SIZE).map(({ card, count }, index) => (
+                                                <div key={index} className="relative shrink-0 w-72">
+                                                    {count != null && (
+                                                        <Plate variant="navy" size="sm" className="absolute z-10 -right-1.5 -top-1.5" title="Times created">
+                                                            {count.toLocaleString()}
+                                                        </Plate>
+                                                    )}
+                                                    <CardItemFromCard card={card} className="max-w-full" onClick={() => setSelectedModalCard(card)} />
+                                                </div>
+                                            ))
+                                            : [...Array(3)].map((_, index) => (
+                                                <CardItemSkeleton key={index} className="shrink-0 w-72" />
+                                            ))
+                                        }
+                                    </CarouselRow>
+                                </div>
+                            );
+                        })}
+                    </HomePanel>
+                </div>
+            </div>
 
             {/* How it Works */}
             <div className="max-w-7xl mx-auto py-6 border-t border-(--divider)">
@@ -755,72 +856,6 @@ export default function Home() {
                     </div>
                 </div>
 
-            </div>
-
-            {/* Cards Section */}
-            <div className="max-w-7xl mx-auto py-6 border-t border-(--divider)">
-                <HomeSectionHeader title="Cards" action={{ label: 'Explore Cards', to: '/cards' }} />
-                <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-6">
-                    <HomePanel className="overflow-hidden flex flex-col">
-                        <HomePanelHeading Icon={FaAward} title="Card of the Day" description="Generated by the community, refreshed daily." />
-                        <div className="flex-1 min-h-0 flex flex-col items-center justify-center gap-2">
-                            <img
-                                src={cardOfDayImageSrc}
-                                alt="Card of the Day"
-                                className={`w-full h-full max-w-full max-h-full rounded-card object-contain ${cardOfTheDay ? 'cursor-pointer' : 'animate-pulse'}`}
-                                onClick={cardOfTheDay ? () => setSelectedModalCard(cardOfTheDay.card_data) : undefined}
-                            />
-                            <div className="text-xs text-center text-(--text-tertiary)">
-                                {cardOfTheDay ? (
-                                    <><span className="font-semibold">{cardOfTheDay.card_data.name}</span> - {cardOfTheDay.card_data.team} ({cardOfTheDay.card_data.year})</>
-                                ) : (
-                                    <div className="h-3 w-40 mx-auto rounded-plate bg-(--background-tertiary) animate-pulse" />
-                                )}
-                            </div>
-                        </div>
-                    </HomePanel>
-                    <HomePanel className="overflow-hidden">
-                        <HomePanelHeading Icon={FaFire} title="Trending this week" description="Players and seasons gaining attention recently." />
-                        {trendingPlayers.length > 0 ? (
-                            <div className='space-y-3'>
-                                {trendingPlayers.slice(0, 4).map((card, index) => (
-                                    <CardItemFromCard key={index} card={card.card_data} className="max-w-full" onClick={() => setSelectedModalCard(card.card_data)} />
-                                ))}
-                            </div>
-                        ) : (
-                            renderBlankExploreCards()
-                        )}
-                    </HomePanel>
-                    <HomePanel className="overflow-visible">
-                        <HomePanelHeading Icon={FaStar} title="Most Popular" description="Most created custom cards all-time." />
-                        {popularCards.length > 0 ? (
-                            <div className='space-y-3'>
-                                {popularCards.slice(0, 4).map((card, index) => (
-                                    <div key={index} className="relative max-w-full">
-                                        <Plate variant="navy" size="sm" className="absolute z-10 -right-1.5 -top-1.5" title="Times created">
-                                            {card.num_creations.toLocaleString()}
-                                        </Plate>
-                                        <CardItemFromCard card={card.card_data} className="max-w-full" onClick={() => setSelectedModalCard(card.card_data)} />
-                                    </div>
-                                ))}
-                            </div>
-                        ) : (
-                            renderBlankExploreCards()
-                        )}
-                    </HomePanel>
-                    <HomePanel className="overflow-hidden">
-                        <HomePanelHeading Icon={FaUsers} title="Spotlight" description={spotlightCards.length > 0 ? spotlightCards[0].spotlight_reason : 'Curated sets and fun themes.'} />
-                        {spotlightCards.length > 0 ? (
-                            <div className='space-y-3'>
-                                {spotlightCards.slice(0, 4).map((card, index) => (
-                                    <CardItemFromCard key={index} card={card.card_data} className="max-w-full" onClick={() => setSelectedModalCard(card.card_data)} />
-                                ))}
-                            </div>
-                        ) : (
-                            renderBlankExploreCards()
-                        )}
-                    </HomePanel>
-                </div>
             </div>
 
             {/* FAQ Section */}
