@@ -22,7 +22,7 @@ const TONE_ACCENT: Record<"offense" | "defense", string | undefined> = {
  * placeholder card while the real one is still being fetched. */
 export default function FieldMarker({
     player, role, cardMap, onCardSelect, isLoadingCards, tone,
-    hideCommand = false, hideTeamPoints = false, detailStat1Category, liveIp, fieldPosition, backgroundSettings, hasAdvantage, statBadge, showSpeedBadge = false,
+    hideCommand = false, hideTeamPoints = false, detailStat1Category, liveIp, fieldPosition, backgroundSettings, hasAdvantage, statBadge,
 }: {
     player: PlayerRef;
     role: "H" | "P";
@@ -40,8 +40,6 @@ export default function FieldMarker({
     backgroundSettings?: string;
     hasAdvantage?: boolean;
     statBadge?: CardItemStatBadge;
-    /** Show the card's own speed in the stat badge slot (e.g. a runner on base). An explicit `statBadge` wins. */
-    showSpeedBadge?: boolean;
 }) {
     if (!player.name) {
         return <span className="block h-3 w-3 rotate-45 rounded-plate bg-(--live)" />;
@@ -50,9 +48,6 @@ export default function FieldMarker({
     const response = cardMap[resolveCardKey(player.id, role) ?? ""];
     const accentColor = TONE_ACCENT[tone];
     const showDetails = detailStat1Category != null;
-    const cardSpeed = response?.card?.speed.speed;
-    const resolvedStatBadge = statBadge
-        ?? (showSpeedBadge && cardSpeed != null ? { label: "Spd", value: cardSpeed } : undefined);
 
     const placeholderCard: ShowdownBotCardCompact = {
         id: `${player.id}-${role}`,
@@ -90,7 +85,7 @@ export default function FieldMarker({
                     accentColor={accentColor}
                     backgroundSettings={backgroundSettings}
                     hasAdvantage={hasAdvantage}
-                    statBadge={resolvedStatBadge}
+                    statBadge={statBadge}
                 />
             ) : (
                 <CardItemCompact
@@ -102,7 +97,7 @@ export default function FieldMarker({
                     accentColor={accentColor}
                     backgroundSettings={backgroundSettings}
                     hasAdvantage={hasAdvantage}
-                    statBadge={resolvedStatBadge}
+                    statBadge={statBadge}
                 />
             )}
         </div>
