@@ -319,13 +319,13 @@ export async function fetchPopularCards(showdownSet: string): Promise<PopularCar
     return data?.popular_cards ?? [];
 }
 
-export async function fetchSpotlightCards(showdownSet: string): Promise<SpotlightCardRecord[]> {
+export async function fetchSpotlightCards(showdownSet: string, limit?: number): Promise<SpotlightCardRecord[]> {
     const res = await fetch(`${API_BASE}/cards/spotlight`, {
         method: "POST",
         headers: {
             'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ set: showdownSet }),
+        body: JSON.stringify({ set: showdownSet, limit }),
     });
     
     // Handle errors

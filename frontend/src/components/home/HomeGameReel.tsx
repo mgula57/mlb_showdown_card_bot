@@ -9,8 +9,7 @@
  * unconditionally.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Link } from "react-router-dom";
-import { FaChevronRight, FaForward } from "react-icons/fa6";
+import { FaForward } from "react-icons/fa6";
 
 import { fetchGameBoxscore } from "../../api/mlbAPI";
 import { fetchArchivedCardMap, type ShowdownBotCard, type ShowdownBotCardAPIResponse } from "../../api/showdownBotCard";
@@ -309,14 +308,9 @@ function ReelSegmentPlayer({ segment, isActive, autoplay, onDone, onCardSelect }
                 plopIn={autoplay}
             />
 
-            <div className="mt-2 flex items-center justify-between gap-2">
-                <span className={`sm:hidden truncate px-2 py-1 text-[11px] font-semibold text-(--secondary) ${OVER_GRASS_PANEL}`}>{game.label}</span>
-                <Link
-                    to={`/seasons/game/${game.gamePk}?season=${game.season}`}
-                    className={`ml-auto flex shrink-0 cursor-pointer items-center gap-1 px-2 py-1 text-xs font-semibold text-(--primary) hover:brightness-110 ${OVER_GRASS_PANEL}`}
-                >
-                    Watch full game <FaChevronRight className="text-[10px]" />
-                </Link>
+            {/* Phones only — wider screens show the label in the header row */}
+            <div className="mt-2 flex sm:hidden">
+                <span className={`truncate px-2 py-1 text-[11px] font-semibold text-(--secondary) ${OVER_GRASS_PANEL}`}>{game.label}</span>
             </div>
         </div>
     );

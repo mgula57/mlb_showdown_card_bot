@@ -428,7 +428,7 @@ export default function Home() {
         });
 
         // Spotlight cards
-        fetchSpotlightCards(userShowdownSet).then(cards => {
+        fetchSpotlightCards(userShowdownSet, CARD_SHELF_SIZE).then(cards => {
             setSpotlightCards(cards);
         }).catch(err => {
             console.error('Failed to fetch spotlight cards:', err);
