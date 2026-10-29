@@ -71,8 +71,20 @@ type GameFieldProps = {
     /** Skips the diamond art, for callers that paint `FieldArt` themselves so it can outlive this
      *  field (e.g. stay put while the field's contents crossfade). */
     hideFieldArt?: boolean;
+    /** Drops the players onto the field with a staggered bounce when this field mounts (e.g. a new
+     *  game swapped in). Markers that show up later enter normally. */
+    plopIn?: boolean;
     className?: string;
 };
+
+/** `plopIn` timing — the duration must match `.field-plop` in index.css. Pitcher lands first,
+ *  then the batter, then runners in base order. */
+const PLOP_DURATION_MS = 550;
+const PLOP_STAGGER_MS = 90;
+const PLOP_ORDER: Record<RunnerSpot, number> = { plate: 1, first: 2, second: 3, third: 4, home: 4 };
+/** When the last `plopIn` marker has landed. */
+export const FIELD_PLOP_MS = PLOP_DURATION_MS + Math.max(...Object.values(PLOP_ORDER)) * PLOP_STAGGER_MS;
+const plopDelay = (order: number): React.CSSProperties => ({ animationDelay: `${order * PLOP_STAGGER_MS}ms` });
 
 /**
  * The art (736x800) is mostly transparent padding — the field itself occupies x 17-720,
@@ -566,8 +578,18 @@ function LastPlaySummary({ play }: { play: PlayEntry }) {
     );
 }
 
-export default function GameField({ game, cardMap, onCardSelect, expanded = false, onToggleExpanded, isLoadingCards, transition, pendingPlay, phase = "idle", lastPlay, advantage, playbackSpeed, onPlayClick, showGrassBackdrop = false, hideFieldArt = false, className = "" }: GameFieldProps) {
+export default function GameField({ game, cardMap, onCardSelect, expanded = false, onToggleExpanded, isLoadingCards, transition, pendingPlay, phase = "idle", lastPlay, advantage, playbackSpeed, onPlayClick, showGrassBackdrop = false, hideFieldArt = false, plopIn = false, className = "" }: GameFieldProps) {
     const situation = game.situation;
+
+    // Markers mounted during the plop window get the drop; the class comes off once everyone has
+    // landed so later arrivals use their own entrances.
+    const [isPlopping, setIsPlopping] = useState(plopIn);
+    useEffect(() => {
+        if (!plopIn) return;
+        const timer = window.setTimeout(() => setIsPlopping(false), FIELD_PLOP_MS);
+        return () => window.clearTimeout(timer);
+    }, [plopIn]);
+    const plopClass = isPlopping ? "field-plop" : "";
     // if (!situation) return null;
 
     // The fielding side is whichever team isn't batting — used for the pitcher's line score.
@@ -619,8 +641,8 @@ export default function GameField({ game, cardMap, onCardSelect, expanded = fals
                                     aria-hidden={!isVisible}
                                     className={`absolute -translate-x-1/2 -translate-y-1/2 transition-[opacity,transform] duration-300 ease-out ${
                                         isVisible ? "opacity-100 scale-100" : "pointer-events-none scale-75 opacity-0"
-                                    }`}
-                                    style={{ ...atPercent(DEFENSE_SPOTS[slot]), zIndex: isBattery ? FIELD_Z.battery : undefined }}
+                                    } ${isVisible ? plopClass : ""}`}
+                                    style={{ ...atPercent(DEFENSE_SPOTS[slot]), zIndex: isBattery ? FIELD_Z.battery : undefined, ...plopDelay(isBattery ? 0 : 1) }}
                                 >
                                     <FieldMarker
                                         player={player}
@@ -646,7 +668,7 @@ export default function GameField({ game, cardMap, onCardSelect, expanded = fals
 
                     {/* Pitcher without an alignment (sim, or a defense the feed hasn't set yet). */}
                     {!defense && situation?.pitcher && (
-                        <div className="absolute -translate-x-1/2 -translate-y-1/2" style={{ ...atPercent(DEFENSE_SPOTS.pitcher), zIndex: FIELD_Z.battery }}>
+                        <div className={`absolute -translate-x-1/2 -translate-y-1/2 ${plopClass}`} style={{ ...atPercent(DEFENSE_SPOTS.pitcher), zIndex: FIELD_Z.battery }}>
                             <FieldMarker
                                 player={situation.pitcher}
                                 role="P"
@@ -727,11 +749,13 @@ export default function GameField({ game, cardMap, onCardSelect, expanded = fals
                                     top: `${y}%`,
                                     zIndex: renderSpot === "plate" ? FIELD_Z.battery : FIELD_Z.runner,
                                     transitionDuration: `${posDur}ms, ${posDur}ms, ${opacityDur}ms, 300ms`,
+                                    ...plopDelay(PLOP_ORDER[occ.spot]),
                                 }}
                                 className={`
                                     absolute -translate-x-1/2 -translate-y-1/2
                                     transition-[left,top,opacity,transform] ease-in-out
                                     ${stateClass}
+                                    ${occ.presence === "leaving" ? "" : plopClass}
                                 `}
                             >
                                 <FieldMarker

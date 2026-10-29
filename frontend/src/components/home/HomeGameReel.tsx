@@ -20,7 +20,7 @@ import { SeededRandom, sliceScoringHalfInning, withSyntheticRolls } from "../../
 import type { GameTimeline } from "../../domain/timeline";
 import { useGamePlayback } from "../../hooks/useGamePlayback";
 import { usePrefersReducedMotion } from "../../hooks/usePrefersReducedMotion";
-import GameField, { FieldArt } from "../games/GameField";
+import GameField, { FIELD_PLOP_MS, FieldArt } from "../games/GameField";
 import { TeamChip } from "../shared/TeamChip";
 import { useSiteSettings } from "../shared/SiteSettingsContext";
 import { SHOWCASE_GAMES, type ShowcaseGame } from "./showcaseGames";
@@ -233,15 +233,23 @@ function ReelSegmentPlayer({ segment, isActive, autoplay, onDone, onCardSelect }
     const lastIndex = timeline.frames.length - 1;
     const isAtEnd = state.cursor === lastIndex && state.phase === "idle";
 
+    // The players plop onto the field as the segment mounts; hold the first pitch until they land.
+    const [hasLanded, setHasLanded] = useState(!autoplay);
+    useEffect(() => {
+        if (!autoplay) return;
+        const timer = window.setTimeout(() => setHasLanded(true), FIELD_PLOP_MS);
+        return () => window.clearTimeout(timer);
+    }, [autoplay]);
+
     // Play only while visible. Pausing interrupts the play in flight, so resuming replays it from
     // its pitch rather than mid-run. No cursor check here: on mount the cursor still reads as the
     // last frame (the hook parks it on frame 0 in its own effect), and playing at the end is a
     // no-op anyway.
     useEffect(() => {
         if (!autoplay) return;
-        if (isActive) controlsRef.current.play();
+        if (isActive && hasLanded) controlsRef.current.play();
         else controlsRef.current.pause();
-    }, [isActive, autoplay]);
+    }, [isActive, hasLanded, autoplay]);
 
     // Hold on the finished half-inning, then hand off to the next game.
     useEffect(() => {
@@ -298,6 +306,7 @@ function ReelSegmentPlayer({ segment, isActive, autoplay, onDone, onCardSelect }
                 advantage={advantage}
                 playbackSpeed={state.effectiveSpeed}
                 hideFieldArt
+                plopIn={autoplay}
             />
 
             <div className="mt-2 flex items-center justify-between gap-2">
