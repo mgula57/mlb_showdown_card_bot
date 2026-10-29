@@ -173,12 +173,15 @@ function HomeCardOfTheDay({ card, placeholderSrc, onSelect }: { card?: ShowdownB
                 {/* Stacked: a card-shaped box. On lg the image is out of flow and fills whatever height the
                     shelves beside it leave, so the two columns end level */}
                 <div className="relative w-full max-w-xs mx-auto aspect-[2.5/3.5] lg:max-w-none lg:aspect-auto lg:flex-1 lg:min-h-0">
-                    <img
-                        src={imageSrc}
-                        alt={card ? `${card.name} card` : 'Card of the Day'}
-                        className={`absolute inset-0 w-full h-full object-contain ${card ? 'cursor-pointer transition-transform duration-200 hover:scale-[1.02]' : 'animate-pulse'}`}
-                        onClick={card ? () => onSelect(card) : undefined}
-                    />
+                    {/* Sized by max-width/height so the img box hugs the art and its corner clips the card */}
+                    <div className="absolute inset-0 flex items-center justify-center">
+                        <img
+                            src={imageSrc}
+                            alt={card ? `${card.name} card` : 'Card of the Day'}
+                            className={`max-w-full max-h-full rounded-trading-card ${card ? 'cursor-pointer transition-transform duration-200 hover:scale-[1.02]' : 'animate-pulse'}`}
+                            onClick={card ? () => onSelect(card) : undefined}
+                        />
+                    </div>
                 </div>
                 {card ? (
                     <div className="flex flex-wrap items-end justify-between gap-x-3 gap-y-2">
@@ -645,7 +648,7 @@ export default function Home() {
                             ? Array.from({ length: 8 }).map((_, i) => (
                                 <div key={i} className="shrink-0 w-32 animate-pulse">
                                     <div
-                                        className="w-full rounded-card bg-(--background-tertiary)"
+                                        className="w-full rounded-trading-card bg-(--background-tertiary)"
                                         style={{ aspectRatio: '2.5 / 3.5' }}
                                     />
                                     <div className="mt-1.5 h-3 w-3/4 rounded-plate bg-(--background-tertiary)" />
@@ -660,7 +663,7 @@ export default function Home() {
                                     onClick={() => item.record.card_result ? setSelectedModalCard(item.record.card_result) : setRecentCardModal(item.fullUrl)}
                                 >
                                     <div
-                                        className="w-full rounded-card overflow-hidden bg-(--background-tertiary) relative"
+                                        className="w-full rounded-trading-card overflow-hidden bg-(--background-tertiary) relative"
                                         style={{ aspectRatio: '2.5 / 3.5' }}
                                     >
                                         <img
