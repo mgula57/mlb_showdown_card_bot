@@ -6310,13 +6310,8 @@ class ShowdownPlayerCard(BaseModel):
           RGBA PIL Image of the user's upload.
         """
 
-        if self.image.source.path:
-            source = self.image.source.path
-        else:
-            response = requests.get(self.image.source.url)
-            source = BytesIO(response.content)
-
-        with Image.open(source) as raw_image:
+        source = self.image.source
+        with Image.open(source.open_source(), formats=source.ALLOWED_FORMATS) as raw_image:
             raw_image.draft(None, self.set.card_size_bordered)
             return raw_image.convert('RGBA')
 

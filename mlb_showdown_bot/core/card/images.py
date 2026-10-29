@@ -1,7 +1,13 @@
+import ipaddress
+import os
 import re
+import socket
+import requests
 from enum import Enum
+from io import BytesIO
+from urllib.parse import urljoin, urlparse
 from pydantic import BaseModel, PrivateAttr, ValidationInfo, field_validator
-from typing import ClassVar, Optional
+from typing import ClassVar, Optional, Union
 
 from ...core.shared.nationality import WBCTeam
 
@@ -552,6 +558,17 @@ class ImageSource(BaseModel):
     def set_libraries(self, libraries: Optional[list[ImageLibrary]]) -> None:
         self._libraries = list(libraries or [])
 
+    # SET BY THE WEB APP AT STARTUP SO REQUEST/CARD JSON CAN'T POINT `path` AT ARBITRARY SERVER FILES.
+    # NONE = UNRESTRICTED (CLI, WHERE `path` IS A FILE ON THE USER'S OWN MACHINE)
+    _allowed_path_root: ClassVar[Optional[str]] = None
+
+    # DECODERS PILLOW MAY USE FOR USER IMAGES. PILLOW SNIFFS FORMAT FROM CONTENT, NOT THE EXTENSION,
+    # SO WITHOUT THIS A ".png" UPLOAD COULD REACH THE BMP/TIFF/JPEG2000/ETC DECODERS
+    ALLOWED_FORMATS: ClassVar[tuple[str, ...]] = ('PNG', 'JPEG', 'GIF', 'WEBP')
+    MAX_DOWNLOAD_BYTES: ClassVar[int] = 16 * 1024 * 1024
+    MAX_REDIRECTS: ClassVar[int] = 3
+    DOWNLOAD_TIMEOUT_SECONDS: ClassVar[int] = 10
+
     def model_post_init(self, __context):
         """Post init to update the source type if empty"""
         if self.type == ImageSourceType.EMPTY:
@@ -563,6 +580,61 @@ class ImageSource(BaseModel):
     @property
     def is_automated(self) -> bool:
         return self.type.is_automated
+
+    @classmethod
+    def restrict_paths_to(cls, root: str) -> None:
+        """Only allow `path` to reference files inside `root` (the web server's temp upload folder)."""
+        cls._allowed_path_root = os.path.realpath(root)
+
+    def open_source(self) -> Union[str, BytesIO]:
+        """Resolve the user's image to something PIL can open: the local path, or the downloaded url bytes.
+
+        Raises:
+          ValueError: If the path is outside the allowed root, or the url is not a public http(s) address.
+        """
+        if self.path:
+            root = self._allowed_path_root
+            if root and os.path.commonpath([root, os.path.realpath(self.path)]) != root:
+                raise ValueError("Image path is not allowed")
+            return self.path
+        return self._download_url(self.url)
+
+    def _download_url(self, url: str) -> BytesIO:
+        """Download a user image url, refusing non-public hosts (SSRF) and capping time and size.
+
+        Redirects are followed manually so each hop's host is checked too.
+        """
+        for _ in range(self.MAX_REDIRECTS + 1):
+            self._validate_public_url(url)
+            with requests.get(url, timeout=self.DOWNLOAD_TIMEOUT_SECONDS, stream=True, allow_redirects=False) as response:
+                if response.is_redirect:
+                    url = urljoin(url, response.headers['Location'])
+                    continue
+                response.raise_for_status()
+                content = BytesIO()
+                for chunk in response.iter_content(chunk_size=64 * 1024):
+                    content.write(chunk)
+                    if content.tell() > self.MAX_DOWNLOAD_BYTES:
+                        raise ValueError("Image is too large")
+                content.seek(0)
+                return content
+        raise ValueError("Image url redirected too many times")
+
+    @staticmethod
+    def _validate_public_url(url: str) -> None:
+        """Raise unless the url is http(s) and its host resolves only to public internet addresses."""
+        parsed = urlparse(url)
+        if parsed.scheme not in ('http', 'https') or not parsed.hostname:
+            raise ValueError("Image url must be http or https")
+        try:
+            addresses = socket.getaddrinfo(parsed.hostname, parsed.port or (443 if parsed.scheme == 'https' else 80))
+        except socket.gaierror:
+            raise ValueError("Image url host could not be resolved")
+        for address in addresses:
+            ip = ipaddress.ip_address(address[4][0])
+            ip = getattr(ip, 'ipv4_mapped', None) or ip
+            if not ip.is_global:
+                raise ValueError("Image url must point to a public address")
     
 # ---------------------------------------
 # MARK: IMAGE COLORING

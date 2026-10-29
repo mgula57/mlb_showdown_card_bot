@@ -13,6 +13,10 @@ load_dotenv()
 
 app = Flask(__name__, static_folder='frontend/dist', static_url_path='/static')
 
+# USER IMAGE PATHS COME FROM REQUEST/CARD JSON HERE, SO ONLY ALLOW THIS REQUEST'S TEMP UPLOADS
+from mlb_showdown_bot.core.card.images import ImageSource
+ImageSource.restrict_paths_to(Config.UPLOAD_FOLDER)
+
 # CORS SETUP FOR DEVELOPMENT
 if Config.FLASK_ENV != 'production':
     CORS(app, resources={r"/*": {"origins": Config.FRONTEND_ORIGIN}})
