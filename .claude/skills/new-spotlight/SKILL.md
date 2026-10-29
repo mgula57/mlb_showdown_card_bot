@@ -15,7 +15,9 @@ Pick a theme, find the cards, preview in DEV, publish to PROD.
   with `sort_index` = the id's position in `-p` and the same `spotlight_reason` on every row.
 - Home (`Home.tsx`, `cardShelves.spotlight`) fetches `POST /api/cards/spotlight` for the viewer's
   set: the newest publish, ordered by `sort_index`. The shelf's description line is
-  `spotlight_reason`, so the message **is the title** (short, like `1980s AL MVPs`, `Recent Offseason Movers`).
+  `spotlight_reason`, so write the message as **one full sentence** that names the theme and why
+  it is worth a look (e.g. `Johnny Bench, Joe Mauer and Buster Posey lead the catchers who were named
+  MVP.`), not a bare label like `1980s AL MVPs`. Keep it to one sentence every time.
 - Home requests `CARD_SHELF_SIZE` (8) cards, so **only the first 8 ids show**. Pick up to 8
   and put the headliner first; the first few are visible without scrolling. Extra ids publish but stay hidden.
 - The API caches each set for 8 hours (`_HOMEPAGE_CACHE_TTL` in `api/card_db.py`). A new publish
@@ -62,7 +64,7 @@ Use one season per player, usually their best or most on-theme year. Don't repea
    - **Calendar hooks**: Opening Day, Jackie Robinson Day (Apr 15), Black History Month (Feb,
      Negro Leagues), HOF induction (July), trade deadline, postseason, awards week (Nov), anniversaries.
 
-   For each theme give: proposed reason text, why now, and 6-8 candidate players. Then **stop and ask
+   For each theme give: a one-sentence description, why now, and 6-8 candidate players. Then **stop and ask
    which theme the user wants**.
 
 ## Step 2: Find the cards
