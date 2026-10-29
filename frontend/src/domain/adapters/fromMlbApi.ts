@@ -39,8 +39,12 @@ import {
     runnerKey,
     severityFor,
     strandedRunnerMoves,
+    BASE_PATH_ORDER,
+    spotAtDistance,
     type BaseSlot,
     type FramePhaseKind,
+    type RetiredRunner,
+    type RunnerSpot,
     type GameFrame,
     type GameTimeline,
 } from "../timeline";
@@ -383,39 +387,90 @@ const postOnRef = (person?: { id: number; fullName?: string } | null): PlayerRef
 const HIT_BASES: Record<string, number> = { single: 1, double: 2, triple: 3, home_run: 4 };
 
 const BASE_BY_CODE: Record<string, BaseSlot> = { "1B": "first", "2B": "second", "3B": "third" };
+const BASE_SLOTS: BaseSlot[] = ["first", "second", "third"];
+
+const postOnBases = (play: MostRecentPlay | undefined): Record<BaseSlot, PlayerRef | null> => ({
+    first: postOnRef(play?.matchup?.postOnFirst),
+    second: postOnRef(play?.matchup?.postOnSecond),
+    third: postOnRef(play?.matchup?.postOnThird),
+});
+
+/** A movement's start as a stop on the base path — `null` (no start) is the batter at the plate. */
+const startSpot = (r: PlayRunnerMovement): RunnerSpot => (r.start ? BASE_BY_CODE[r.start] : undefined) ?? "plate";
 
 /**
- * The bases as they stood when the play's plate result began. `prevBases` is the state at the END
- * of the previous at-bat, but a runner can move mid-at-bat (wild pitch, steal, balk) before the
- * hit — and the animation should start him from where he actually was. A runner with several
- * movements in one play started his final move at the last entry's `start`; a runner with one
- * movement began it from `prevBases` already, so only multi-entry runners are relocated.
+ * Who scored and who was put out on the play, read straight off the feed's per-runner movements
+ * instead of guessed from the score delta. The feed splits one runner's trip into a movement per
+ * base reached (2B→3B, then 3B→score on the same single), so these are matched by id and any of a
+ * runner's movements can be the deciding one. The batter retired at the plate (a strikeout, a ball
+ * in play) is left out — that movement has no `start`, and `GameField` plays it from the event.
+ * Undefined when the play carries no movements, so `allocateScoredAndRetired` can stand in.
  */
-const basesBeforeFinalMove = (
-    prevBases: Record<BaseSlot, PlayerRef | null>,
+const runnerOutcomes = (
     runners: PlayRunnerMovement[] | undefined,
-): Record<BaseSlot, PlayerRef | null> => {
-    if (!runners?.length) return prevBases;
-    const lastById = new Map<number, PlayRunnerMovement>();
-    const counts = new Map<number, number>();
+    playerById: (id: number) => PlayerRef,
+): { scored: PlayerRef[]; retired: RetiredRunner[] } | undefined => {
+    if (!runners?.length) return undefined;
+    const scored = new Map<number, PlayerRef>();
+    const retired = new Map<number, RetiredRunner>();
     for (const r of runners) {
         if (r.id == null) continue;
-        counts.set(r.id, (counts.get(r.id) ?? 0) + 1);
-        const seen = lastById.get(r.id);
-        if (!seen || (r.playIndex ?? 0) >= (seen.playIndex ?? 0)) lastById.set(r.id, r);
+        if (r.end === "score") scored.set(r.id, playerById(r.id));
+        else if (r.isOut && r.start) retired.set(r.id, { player: playerById(r.id), attemptedSpot: spotAtDistance(startSpot(r), 1) });
+    }
+    return { scored: [...scored.values()], retired: [...retired.values()] };
+};
+
+/**
+ * The bases as `play` found them, built from `bases` (how the previous frame left them) so every
+ * runner already drawn on the field starts the play exactly where he stands — a runner who moved
+ * mid-at-bat (steal, wild pitch) runs that leg as part of the play rather than teleporting to the
+ * base he stole before the pitch. All this fills in is what `bases` can't know: a pinch runner who
+ * took over a base between plays, or the extra-innings runner placed on second before a half. Both
+ * are read from `play`'s own data (where a runner's first movement started, or a post-play occupant
+ * who never moved) and only applied where they don't displace someone `play` still involves.
+ */
+const basesAtPlayStart = (
+    bases: Record<BaseSlot, PlayerRef | null>,
+    play: MostRecentPlay | undefined,
+    playerById: (id: number) => PlayerRef,
+): Record<BaseSlot, PlayerRef | null> => {
+    if (!play) return bases;
+    const after = postOnBases(play);
+    const runnerIds = new Set((play.runners ?? []).map((r) => r.id).filter((id): id is number => id != null).map(String));
+    const involved = new Set([...runnerIds, ...BASE_SLOTS.map((slot) => after[slot]?.id).filter((id) => id != null).map(String)]);
+    const onField = new Set(BASE_SLOTS.map((slot) => bases[slot]?.id).filter((id) => id != null).map(String));
+
+    // Each runner's earliest movement — lowest play index, then the earliest base on the path (the
+    // feed's per-base legs of one trip share a play index).
+    const firstMove = new Map<number, PlayRunnerMovement>();
+    for (const r of play.runners ?? []) {
+        if (r.id == null) continue;
+        const seen = firstMove.get(r.id);
+        const isEarlier = !seen
+            || (r.playIndex ?? 0) < (seen.playIndex ?? 0)
+            || ((r.playIndex ?? 0) === (seen.playIndex ?? 0) && BASE_PATH_ORDER.indexOf(startSpot(r)) < BASE_PATH_ORDER.indexOf(startSpot(seen)));
+        if (isEarlier) firstMove.set(r.id, r);
+    }
+    const startedOn: Partial<Record<BaseSlot, PlayerRef>> = {};
+    for (const r of firstMove.values()) {
+        const slot = r.start ? BASE_BY_CODE[r.start] : undefined;
+        if (slot && r.id != null) startedOn[slot] = playerById(r.id);
+    }
+    // A runner who stood still through the play has no movement at all — only a post-play base.
+    for (const slot of BASE_SLOTS) {
+        const player = after[slot];
+        if (player && !runnerIds.has(String(player.id))) startedOn[slot] ??= player;
     }
 
-    const adjusted = { ...prevBases };
-    const relocations: [BaseSlot, PlayerRef][] = [];
-    for (const slot of ["first", "second", "third"] as BaseSlot[]) {
-        const player = prevBases[slot];
-        const last = player?.id != null ? lastById.get(Number(player.id)) : undefined;
-        const target = last?.start ? BASE_BY_CODE[last.start] : undefined;
-        if (!player || !target || (counts.get(Number(player.id)) ?? 0) < 2) continue;
-        adjusted[slot] = null;
-        relocations.push([target, player]);
+    const adjusted = { ...bases };
+    for (const slot of BASE_SLOTS) {
+        const arriving = startedOn[slot];
+        if (!arriving || onField.has(String(arriving.id))) continue;
+        const current = bases[slot];
+        if (current && involved.has(String(current.id))) continue;
+        adjusted[slot] = arriving;
     }
-    for (const [target, player] of relocations) adjusted[target] = player;
     return adjusted;
 };
 
@@ -441,6 +496,20 @@ export const fromMlbTimeline = (game: GameBoxscoreDetail, sportId?: number): Gam
     const accumulator = new LinescoreAccumulator(scheduledInnings, isGameFinal ? finalErrors : { away: 0, home: 0 });
 
     const baseView = (overrides: Partial<GameView>): GameView => ({ ...liveView, isReplay: true, ...overrides });
+
+    // Runner movements carry only an id — names come from wherever else the feed mentions them
+    // (the box score covers a pinch runner who never batted or ended a play on base).
+    const namesById = new Map<number, string>();
+    for (const line of [...(game.teams?.away?.batting ?? []), ...(game.teams?.home?.batting ?? [])]) {
+        if (line.id != null && line.name) namesById.set(line.id, line.name);
+    }
+    for (const play of rawPlays) {
+        const { batter, postOnFirst, postOnSecond, postOnThird } = play.matchup ?? {};
+        for (const person of [batter, postOnFirst, postOnSecond, postOnThird]) {
+            if (person?.id != null && person.fullName) namesById.set(person.id, person.fullName);
+        }
+    }
+    const playerById = (id: number): PlayerRef => ({ id, name: namesById.get(id) ?? "" });
 
     const frames: GameFrame[] = [];
     let prevBases: Record<BaseSlot, PlayerRef | null> = EMPTY_BASES;
@@ -484,11 +553,11 @@ export const fromMlbTimeline = (game: GameBoxscoreDetail, sportId?: number): Gam
         isTop = play.about?.isTopInning ?? isTop;
         const outs = play.count?.outs ?? 0;
 
-        const nextBases: Record<BaseSlot, PlayerRef | null> = {
-            first: postOnRef(play.matchup?.postOnFirst),
-            second: postOnRef(play.matchup?.postOnSecond),
-            third: postOnRef(play.matchup?.postOnThird),
-        };
+        const isHalfInningChange = !!nextPlay && (nextPlay.about?.inning !== inning || nextPlay.about?.isTopInning !== isTop);
+        // Where the play left the bases, then (within the half) as the next play will find them —
+        // a pinch runner swapped in between plays takes the base as this frame commits.
+        const nextBases = postOnBases(play);
+        const frameBases = isHalfInningChange ? nextBases : basesAtPlayStart(nextBases, nextPlay, playerById);
 
         const battingSide: "away" | "home" = isTop ? "away" : "home";
         const newAway = play.result?.awayScore ?? awayScore;
@@ -501,27 +570,27 @@ export const fromMlbTimeline = (game: GameBoxscoreDetail, sportId?: number): Gam
         const isHomeRun = eventType === "home_run" || (play.result?.event ?? "").toLowerCase() === "home run";
         const batter = matchupRef(play.matchup?.batter);
 
-        // Departed base runners: on base before this play, gone afterward — candidates for
-        // having scored or been retired (see `allocateScoredAndRetired`'s doc comment).
-        const startBases = basesBeforeFinalMove(prevBases, play.runners);
-        const departed = (["first", "second", "third"] as BaseSlot[])
-            .filter((slot) => {
-                const player = startBases[slot];
-                if (!player) return false;
-                const key = runnerKey(player, slot);
-                return !(["first", "second", "third"] as BaseSlot[]).some((s) => {
-                    const nextPlayer = nextBases[s];
-                    return nextPlayer != null && runnerKey(nextPlayer, s) === key;
-                });
-            })
-            .map((slot) => ({ slot, player: startBases[slot] as PlayerRef }));
-        const runsForOthers = isHomeRun ? Math.max(0, runsScored - 1) : runsScored;
-        const hitBases = HIT_BASES[eventType] ?? 0;
-        const { scored: othersScored, retired } = allocateScoredAndRetired(departed, runsForOthers, hitBases);
-        const scored = isHomeRun && batter ? [...othersScored, batter] : othersScored;
+        // Exact scorers/outs from the feed's runner movements when it has them; otherwise departed
+        // base runners (on base before, gone after) are allocated by `allocateScoredAndRetired`'s
+        // closest-to-home heuristic.
+        const { scored, retired } = runnerOutcomes(play.runners, playerById) ?? (() => {
+            const departed = BASE_SLOTS
+                .filter((slot) => {
+                    const player = prevBases[slot];
+                    if (!player) return false;
+                    const key = runnerKey(player, slot);
+                    return !BASE_SLOTS.some((s) => {
+                        const nextPlayer = nextBases[s];
+                        return nextPlayer != null && runnerKey(nextPlayer, s) === key;
+                    });
+                })
+                .map((slot) => ({ slot, player: prevBases[slot] as PlayerRef }));
+            const runsForOthers = isHomeRun ? Math.max(0, runsScored - 1) : runsScored;
+            const allocated = allocateScoredAndRetired(departed, runsForOthers, HIT_BASES[eventType] ?? 0);
+            return { ...allocated, scored: isHomeRun && batter ? [...allocated.scored, batter] : allocated.scored };
+        })();
 
-        const moves = buildRunnerMoves({ prevBases: startBases, nextBases, scored, retired, batter });
-        const isHalfInningChange = !!nextPlay && (nextPlay.about?.inning !== inning || nextPlay.about?.isTopInning !== isTop);
+        const moves = buildRunnerMoves({ prevBases, nextBases, scored, retired, batter });
         const isHit = ["single", "double", "triple", "home_run"].includes(eventType);
 
         accumulator.apply(inning, isTop, newAway, newHome, isHit);
@@ -548,7 +617,7 @@ export const fromMlbTimeline = (game: GameBoxscoreDetail, sportId?: number): Gam
             kind,
             source: "MLB",
             play: playEntries[i],
-            runners: { bases: nextBases, scored, retired, batter: nextBatter },
+            runners: { bases: frameBases, scored, retired, batter: nextBatter },
             transition: {
                 fromIndex: frames.length - 1, toIndex: frames.length,
                 moves, runsScored, outsRecorded: outs, isHalfInningChange, severity,
@@ -562,7 +631,7 @@ export const fromMlbTimeline = (game: GameBoxscoreDetail, sportId?: number): Gam
                 situation: {
                     inning, isTop, inningLabel: ordinal(inning), outs,
                     balls: play.count?.balls, strikes: play.count?.strikes,
-                    bases: nextBases, batter: frameBatter, pitcher: framePitcher,
+                    bases: frameBases, batter: frameBatter, pitcher: framePitcher,
                     defense: kind === "FINAL" ? liveView.situation?.defense : undefined,
                 },
                 lastPlay: kind === "FINAL" ? liveView.lastPlay : undefined,
@@ -573,12 +642,14 @@ export const fromMlbTimeline = (game: GameBoxscoreDetail, sportId?: number): Gam
             const breakInning = nextPlay.about?.inning ?? inning;
             const breakIsTop = nextPlay.about?.isTopInning ?? !isTop;
             accumulator.startHalf(breakInning, breakIsTop);
+            // Usually empty — except the extra-innings runner already standing on second.
+            const breakBases = basesAtPlayStart(EMPTY_BASES, nextPlay, playerById);
             frames.push({
                 id: `mlb-${play.about?.atBatIndex ?? i}-break`,
                 index: frames.length,
                 kind: "HALF_INNING_BREAK",
                 source: "MLB",
-                runners: { bases: EMPTY_BASES, scored: [], retired: [], batter: nextBatter },
+                runners: { bases: breakBases, scored: [], retired: [], batter: nextBatter },
                 transition: {
                     fromIndex: frames.length - 1, toIndex: frames.length,
                     moves: strandedRunnerMoves(nextBases), runsScored: 0, outsRecorded: 0,
@@ -593,15 +664,15 @@ export const fromMlbTimeline = (game: GameBoxscoreDetail, sportId?: number): Gam
                     linescore: accumulator.snapshot(),
                     situation: {
                         inning: breakInning, isTop: breakIsTop, inningLabel: ordinal(breakInning), outs: 0,
-                        bases: EMPTY_BASES, batter: nextBatter, pitcher: nextPitcher,
+                        bases: breakBases, batter: nextBatter, pitcher: nextPitcher,
                     },
                 }),
             });
-            prevBases = EMPTY_BASES;
+            prevBases = breakBases;
             inning = breakInning;
             isTop = breakIsTop;
         } else {
-            prevBases = nextBases;
+            prevBases = frameBases;
         }
 
         awayScore = newAway;

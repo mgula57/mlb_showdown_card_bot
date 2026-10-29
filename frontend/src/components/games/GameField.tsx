@@ -293,8 +293,10 @@ function buildFieldOccupants(
     return [...occupants.values()];
 }
 
-/** How long each individual base-to-base hop takes. A HR (plate→home, 4 hops) then takes 4x this,
- *  which is intentional — covering more ground should visibly take longer, not less per hop. */
+/** How long each individual base-to-base hop takes at 1x. A HR (plate→home, 4 hops) then takes 4x
+ *  this, which is intentional — covering more ground should visibly take longer, not less per hop.
+ *  Divided by the playback speed like the phase beats are, or at 2x/4x the frame commits before a
+ *  multi-base run finishes and the card snaps the rest of the way. */
 const BASE_HOP_MS = 220;
 
 /**
@@ -319,6 +321,7 @@ const BASE_HOP_MS = 220;
 function useRunnerMovement(
     transition: FrameTransition | undefined,
     phase: PlayPhase,
+    hopMs: number,
 ): Record<string, RunnerSpot> {
     // "runners" is when the cards translate; "settle" holds them at their destination while the
     // score/outs catch up, until the frame commits and `situation` takes over. Before "runners"
@@ -365,13 +368,13 @@ function useRunnerMovement(
                         const base = prev.transition === transition ? prev.overrides : {};
                         return { transition, overrides: { ...base, [move.key]: stop } };
                     });
-                }, i * BASE_HOP_MS));
+                }, i * hopMs));
             });
         }
 
         timersRef.current = timers;
         return () => timers.forEach(clearTimeout);
-    }, [transition, moving]);
+    }, [transition, moving, hopMs]);
 
     const merged: Record<string, RunnerSpot> = { ...initialOverrides };
     if (laterState.transition === transition) Object.assign(merged, laterState.overrides);
@@ -606,7 +609,8 @@ export default function GameField({ game, cardMap, onCardSelect, expanded = fals
     // before `usePresenceList` drops them — this is a JS-side mirror of that timing, not a second
     // source of truth for how long the actual CSS transitions run.
     const presentOccupants = usePresenceList(occupants, BASE_HOP_MS * 4 + 300);
-    const pathOverrides = useRunnerMovement(transition, phase);
+    const hopMs = BASE_HOP_MS / (playbackSpeed ?? 1);
+    const pathOverrides = useRunnerMovement(transition, phase, hopMs);
 
     return (
         <div className={`@container relative w-full ${className}`}>
@@ -723,7 +727,7 @@ export default function GameField({ game, cardMap, onCardSelect, expanded = fals
                         // still reads as "tagged" where they stood.
                         const taggedOut = occ.isOut && !occ.exit && occ.presence === "present" && !isMidPath;
 
-                        const posDur = walkingIn ? 450 : occ.exit === "drift" ? 600 : BASE_HOP_MS;
+                        const posDur = walkingIn ? 450 : occ.exit === "drift" ? 600 : hopMs;
                         const opacityDur = occ.exit === "poof" ? 200 : occ.exit === "drift" ? 520 : 300;
 
                         const stateClass = occ.presence === "entering"
