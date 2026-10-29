@@ -20,7 +20,7 @@ import { SeededRandom, sliceScoringHalfInning, withSyntheticRolls } from "../../
 import type { GameTimeline } from "../../domain/timeline";
 import { useGamePlayback } from "../../hooks/useGamePlayback";
 import { usePrefersReducedMotion } from "../../hooks/usePrefersReducedMotion";
-import GameField from "../games/GameField";
+import GameField, { FieldArt } from "../games/GameField";
 import { TeamChip } from "../shared/TeamChip";
 import { useSiteSettings } from "../shared/SiteSettingsContext";
 import { SHOWCASE_GAMES, type ShowcaseGame } from "./showcaseGames";
@@ -46,6 +46,9 @@ const GRASS_FADE_STYLE: React.CSSProperties = {
 };
 /** Translucent framing for text over the grass — matches GameDetail's ScoreHeader. */
 const OVER_GRASS_PANEL = "rounded-card border border-(--divider) bg-(--background-secondary)/90";
+/** Fixed height + gap of the score row above the field. Shared by the player, the skeleton and the
+ *  field-art underlay, which relies on it to line up with the field without measuring. */
+const HEADER_ROW = "h-9 mb-2";
 
 // Browser-session cache — the reel loops, so each game is fetched at most once per set.
 const _segmentCache = new Map<string, Promise<ReelSegment>>();
@@ -171,6 +174,14 @@ export default function HomeGameReel({ onCardSelect }: { onCardSelect?: (card: S
                 className="absolute inset-0 h-full w-full object-cover pointer-events-none select-none"
                 style={GRASS_FADE_STYLE}
             />
+            {/* The diamond stays put through loading and crossfades; only what's on it changes.
+                Offset by the header row and inset like GameField's own field box. */}
+            <div aria-hidden className="absolute inset-x-3 top-8 sm:inset-x-10 pointer-events-none">
+                <div className={HEADER_ROW} />
+                <div className="px-1">
+                    <div className="relative aspect-703/369 w-full"><FieldArt /></div>
+                </div>
+            </div>
             {segment ? (
                 <div className="relative transition-opacity ease-out" style={{ opacity: isShowing ? 1 : 0, transitionDuration: `${CROSSFADE_MS}ms` }}>
                     <ReelSegmentPlayer
@@ -189,15 +200,16 @@ export default function HomeGameReel({ onCardSelect }: { onCardSelect?: (card: S
     );
 }
 
-/** Same footprint as the header row + compact field, so nothing shifts when the reel loads. */
+/** Same footprint as the header row + compact field, so nothing shifts when the reel loads. The
+ *  field itself is left empty: the persistent `FieldArt` underlay shows through. */
 function ReelSkeleton() {
     return (
-        <div className="animate-pulse">
-            <div className="mb-2 flex items-center justify-between gap-2">
+        <div>
+            <div className={`${HEADER_ROW} flex animate-pulse items-center justify-between gap-2`}>
                 <div className="h-4 w-40 rounded-plate bg-(--background-tertiary)" />
                 <div className="h-4 w-24 rounded-plate bg-(--background-tertiary)" />
             </div>
-            <div className="aspect-703/369 w-full rounded-card bg-(--background-tertiary)" />
+            <div className="px-1"><div className="aspect-703/369 w-full" /></div>
         </div>
     );
 }
@@ -248,7 +260,7 @@ function ReelSegmentPlayer({ segment, isActive, autoplay, onDone, onCardSelect }
 
     return (
         <div>
-            <div className={`mb-2 flex items-center justify-between gap-3 px-2 py-1.5 ${OVER_GRASS_PANEL}`}>
+            <div className={`${HEADER_ROW} flex items-center justify-between gap-3 px-2 ${OVER_GRASS_PANEL}`}>
                 <div className="flex min-w-0 items-center gap-3">
                     {([view.away, view.home] as const).map((side) => (
                         <div key={side.team.abbreviation ?? side.team.name} className="flex items-center gap-1.5">
@@ -285,6 +297,7 @@ function ReelSegmentPlayer({ segment, isActive, autoplay, onDone, onCardSelect }
                 lastPlay={state.frame.play}
                 advantage={advantage}
                 playbackSpeed={state.effectiveSpeed}
+                hideFieldArt
             />
 
             <div className="mt-2 flex items-center justify-between gap-2">

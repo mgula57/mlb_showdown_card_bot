@@ -697,8 +697,8 @@ export default function Home() {
             {/* Cards Section */}
             <div className="max-w-7xl mx-auto py-6 border-t border-(--divider)">
                 <HomeSectionHeader
-                    eyebrow="From the community"
-                    title="Cards Worth Pulling"
+                    eyebrow="Community Spotlight"
+                    title="Cards Worth Building"
                     description="Today's featured card, this week's risers and the all-time favorites. Open any card for its full chart, or take it into the Card Builder and make it yours."
                     action={{ label: 'Explore 100K+ Cards', to: '/cards', Icon: FaCompass }}
                 />

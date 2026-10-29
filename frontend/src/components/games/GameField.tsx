@@ -68,6 +68,9 @@ type GameFieldProps = {
      *  centering. Painted at `-z-10`, so the caller should give an ancestor `isolate` to keep it
      *  above that ancestor's own background layers. */
     showGrassBackdrop?: boolean;
+    /** Skips the diamond art, for callers that paint `FieldArt` themselves so it can outlive this
+     *  field (e.g. stay put while the field's contents crossfade). */
+    hideFieldArt?: boolean;
     className?: string;
 };
 
@@ -87,6 +90,15 @@ const ART_STYLE: React.CSSProperties = {
     top: `${(-ART.top / FIELD_H) * 100}%`,
     maxWidth: "none",
 };
+
+/** The diamond art, filling a positioned `aspect-703/369` box. */
+export function FieldArt() {
+    return (
+        <div className="absolute inset-0 overflow-hidden rounded-card">
+            <img src="/images/teams/Field No BG No IF.png" alt="" style={ART_STYLE} className="pointer-events-none select-none" />
+        </div>
+    );
+}
 
 /** Percentages of the visible field. Base coordinates are measured from the art's white base
  * markers; fielder spots are placed relative to them. */
@@ -554,7 +566,7 @@ function LastPlaySummary({ play }: { play: PlayEntry }) {
     );
 }
 
-export default function GameField({ game, cardMap, onCardSelect, expanded = false, onToggleExpanded, isLoadingCards, transition, pendingPlay, phase = "idle", lastPlay, advantage, playbackSpeed, onPlayClick, showGrassBackdrop = false, className = "" }: GameFieldProps) {
+export default function GameField({ game, cardMap, onCardSelect, expanded = false, onToggleExpanded, isLoadingCards, transition, pendingPlay, phase = "idle", lastPlay, advantage, playbackSpeed, onPlayClick, showGrassBackdrop = false, hideFieldArt = false, className = "" }: GameFieldProps) {
     const situation = game.situation;
     // if (!situation) return null;
 
@@ -589,9 +601,7 @@ export default function GameField({ game, cardMap, onCardSelect, expanded = fals
                             <img src="/images/games/Grass Field.jpg" alt="" style={GRASS_STYLE} className="select-none" />
                         </div>
                     )}
-                    <div className="absolute inset-0 overflow-hidden rounded-card">
-                        <img src="/images/teams/Field No BG No IF.png" alt="" style={ART_STYLE} className="pointer-events-none select-none" />
-                    </div>
+                    {!hideFieldArt && <FieldArt />}
 
                     {/* Defense — the battery is always mounted; the rest of the alignment stays
                         mounted too (so it can fade/scale in instead of popping in) but is hidden
