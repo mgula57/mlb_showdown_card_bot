@@ -2,7 +2,7 @@ import type { CSSProperties } from 'react';
 import type { Release, ReleasePreviewImage } from '../../api/releases';
 import { cardImagePublicUrl } from '../../api/supabase';
 import { SetBadgeRow } from '../shared/SetBadge';
-import { FaHeart, FaLayerGroup } from 'react-icons/fa6';
+import { FaHeart, FaLayerGroup, FaPlus } from 'react-icons/fa6';
 import { SLANT_ROOM_CLASS } from '../shared/headingStyles';
 import { Plate } from '../shared/Plate';
 import { FrameCorners } from '../shared/FrameCorners';
@@ -204,6 +204,25 @@ function BuildingFan() {
                 </div>
             ))}
         </>
+    );
+}
+
+/** Dashed tile sized to match ReleaseItem that starts a new release — closes out the user's own list. */
+export function NewReleaseTile({ onClick }: { onClick: () => void }) {
+    return (
+        <button
+            type="button"
+            onClick={onClick}
+            className={`
+                ${TILE_FRAME} flex flex-col items-center justify-center gap-2 p-4 text-center cursor-pointer
+                border-2 border-dashed border-(--divider) text-(--text-tertiary)
+                hover:border-(--text-tertiary) hover:text-(--text-secondary) transition-colors
+            `}
+        >
+            <FaPlus className="text-[20px]" />
+            <span className={CAPS_LABEL_CLASS}>New release</span>
+            <span className="text-[12px] max-w-40">Pick the players, the editions and the point values.</span>
+        </button>
     );
 }
 

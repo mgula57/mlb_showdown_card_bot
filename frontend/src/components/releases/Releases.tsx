@@ -15,7 +15,7 @@ import {
 import { useCommunityReleases } from './useCommunityReleases';
 import { TeamSearchInput } from '../team_builder/TeamSearchInput';
 import { choiceClass } from '../shared/choiceStyles';
-import { ReleaseItem, ReleaseItemSkeleton } from './ReleaseItem';
+import { ReleaseItem, ReleaseItemSkeleton, NewReleaseTile } from './ReleaseItem';
 import { ReleaseDetail } from './ReleaseDetail';
 import { NewReleaseModal } from './NewReleaseModal';
 import { FaPlus, FaSpinner } from 'react-icons/fa6';
@@ -279,36 +279,30 @@ export default function Releases() {
                 </section>
             ) : (
                 <>
+                    {/* Library: each section only as wide as its tiles, so short lists share a row and longer ones wrap onto their own */}
+                    <div className={`${px} flex flex-col gap-6 sm:flex-row sm:flex-wrap sm:gap-x-12 sm:items-start`}>
                     {/* My Releases */}
                     {token && (
-                        <section className={px}>
+                        <section className="min-w-0">
                             <Heading level="section" as="h2" className="mb-3">My Releases</Heading>
-                            {userReleases.length === 0 ? (
-                                <EmptyState
-                                    size="panel"
-                                    title="No releases yet."
-                                    action={<button type="button" onClick={() => setShowCreateModal(true)} className={buttonClass('primary')}><FaPlus className="text-[11px]" /> New release</button>}
-                                >
-                                    Build your own set: pick the players, the editions and the point values.
-                                </EmptyState>
-                            ) : (
-                                <div className={RELEASE_GRID}>
-                                    {userReleases.map(release => (
-                                        <ReleaseItem
-                                            key={release.id}
-                                            release={release}
-                                            onClick={() => openRelease(release, false)}
-                                            showPublishStatus
-                                        />
-                                    ))}
-                                </div>
-                            )}
+                            <div className={RELEASE_GRID}>
+                                {userReleases.map(release => (
+                                    <ReleaseItem
+                                        key={release.id}
+                                        release={release}
+                                        onClick={() => openRelease(release, false)}
+                                        showPublishStatus
+                                    />
+                                ))}
+                                {/* Also the empty state when the user has no releases yet */}
+                                <NewReleaseTile onClick={() => setShowCreateModal(true)} />
+                            </div>
                         </section>
                     )}
 
                     {/* Saved - other users' releases whose cards the user searches in the Card Explorer */}
                     {savedReleases.length > 0 && (
-                        <section className={px}>
+                        <section className="min-w-0">
                             <Heading level="section" as="h2" className="mb-3">Saved</Heading>
                             <div className={RELEASE_GRID}>
                                 {savedReleases.map(release => (
@@ -324,7 +318,7 @@ export default function Releases() {
 
                     {/* Official Releases */}
                     {officialReleases.length > 0 && (
-                        <section className={px}>
+                        <section className="min-w-0">
                             <Heading level="section" as="h2" className="mb-3">Official</Heading>
                             <div className={RELEASE_GRID}>
                                 {officialReleases.map(release => (
@@ -337,6 +331,7 @@ export default function Releases() {
                             </div>
                         </section>
                     )}
+                    </div>
 
                     {!token && (
                         <p className="text-[13px] text-(--text-tertiary) text-center">
