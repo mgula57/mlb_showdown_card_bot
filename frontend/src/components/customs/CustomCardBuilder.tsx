@@ -62,7 +62,7 @@ import ImageLibraryOrderHint from './ImageLibraryOrderHint';
 import { SetStyleFields, ImageStyleFields } from './CardStyleFields';
 import { NewBadge } from '../shared/NewBadge';
 import { setStyleSummary, imageStyleSummary, chartVersionOptions } from './cardStyle';
-import { formSectionSummary } from './FormSectionSummary';
+import { formSectionSummary, optionSummaryItem } from './FormSectionSummary';
 import { formInputsFromCard, type CustomizeCardRouteState } from './customizeCard';
 
 import { Heading } from '../shared/Heading';
@@ -394,8 +394,7 @@ function CustomCardBuilder({ isHidden, embed }: CustomCardBuilderProps) {
                 if (form.name) summaries.push({ label: 'Name', value: form.name });
                 if (form.year) summaries.push({ label: 'Year', value: form.year });
                 if (form.stats_period_type !== FORM_DEFAULTS.stats_period_type) {
-                    const periodOption = statsPeriodOptions.find(opt => opt.value === form.stats_period_type);
-                    summaries.push(periodOption || { label: 'Period', value: form.stats_period_type });
+                    summaries.push(optionSummaryItem(statsPeriodOptions, form.stats_period_type));
                 }
                 if (form.start_date) summaries.push({ label: 'Start', value: form.start_date });
                 if (form.end_date) summaries.push({ label: 'End', value: form.end_date });
@@ -407,12 +406,10 @@ function CustomCardBuilder({ isHidden, embed }: CustomCardBuilderProps) {
                     summaries.push({ label: 'Split', value: splitLabel });
                 }
                 if (form.league !== FORM_DEFAULTS.league) {
-                    const leagueOption = leagueOptions.find(opt => opt.value === form.league);
-                    summaries.push(leagueOption || { label: 'League', value: form.league });
+                    summaries.push(optionSummaryItem(leagueOptions, form.league, 'League'));
                 }
                 if (isMultiYearInput(form.year) && form.team_selection && form.team_selection !== FORM_DEFAULTS.team_selection) {
-                    const teamSelectionOption = teamSelectionOptions.find(opt => opt.value === form.team_selection);
-                    summaries.push({ ...(teamSelectionOption || { value: form.team_selection }), label: 'Team' });
+                    summaries.push(optionSummaryItem(teamSelectionOptions, form.team_selection, 'Team'));
                 }
                 break;
 
@@ -422,24 +419,19 @@ function CustomCardBuilder({ isHidden, embed }: CustomCardBuilderProps) {
 
             case 'image':
                 if (form.image_source !== FORM_DEFAULTS.image_source) {
-                    const sourceOption = imageSourceOptions.find(opt => opt.value === form.image_source);
-                    summaries.push(sourceOption || { label: 'Source', value: form.image_source });
+                    summaries.push(optionSummaryItem(imageSourceOptions, form.image_source, 'Source'));
                 }
                 summaries.push(...imageStyleSummary(form, FORM_DEFAULTS, form.image_source === FORM_DEFAULTS.image_source));
                 break;
 
             case 'chart':
                 if (form.chart_version !== FORM_DEFAULTS.chart_version) {
-                    const chartOption = chartVersionOptions.find(opt => opt.value === form.chart_version);
-                    summaries.push({ ...(chartOption || { value: form.chart_version || "1" }), label: 'Chart Version' });
+                    summaries.push(optionSummaryItem(chartVersionOptions, form.chart_version || '1', 'Chart Version'));
                 }
                 if (form.era !== FORM_DEFAULTS.era) {
-                    const eraOption = eraOptions.find(opt => opt.value === form.era);
-                    summaries.push({ ...(eraOption || { value: form.era || "DYNAMIC" }), label: 'Era' });
-
-                }
-                if (isSet00_01 && form.is_variable_speed_00_01 !== FORM_DEFAULTS.is_variable_speed_00_01) summaries.push({ value: 'VARIABLE SPEED' });
-                if (form.regress_small_sample_to_replacement !== FORM_DEFAULTS.regress_small_sample_to_replacement) summaries.push({ value: 'REGRESS SMALL SAMPLE' });
+                    summaries.push(optionSummaryItem(eraOptions, form.era || 'DYNAMIC', 'Era'));                }
+                if (isSet00_01 && form.is_variable_speed_00_01 !== FORM_DEFAULTS.is_variable_speed_00_01) summaries.push({ value: 'Variable Speed' });
+                if (form.regress_small_sample_to_replacement !== FORM_DEFAULTS.regress_small_sample_to_replacement) summaries.push({ value: 'Regress Small Sample' });
                 break;
         }
         

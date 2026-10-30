@@ -11,7 +11,7 @@ import { FaCheck, FaPalette, FaRotateLeft, FaSpinner, FaXmark } from 'react-icon
 import { CardStyleSections } from '../../customs/CardStyleFields';
 import FormDropdown from '../../customs/FormDropdown';
 import FormSection from '../../customs/FormSection';
-import { formSectionSummary } from '../../customs/FormSectionSummary';
+import { formSectionSummary, optionSummaryItem } from '../../customs/FormSectionSummary';
 import { useMediaQuery } from '../../../hooks/useMediaQuery';
 import { chartVersionOptions, isCardStyleDifferent, type CardStyleSettings } from '../../customs/cardStyle';
 import type { SelectOption } from '../../shared/CustomSelect';
@@ -188,7 +188,7 @@ export function CardStyleEditor({ style: initialStyle, defaults, onSave, revertT
                         icon={<FaTable />}
                         isOpenByDefault={isDesktop}
                         childrenWhenClosed={chartVersion !== 1
-                            ? formSectionSummary([{ ...(chartVersionOptions.find(opt => opt.value === String(chartVersion)) || { value: String(chartVersion) }), label: 'Chart Version' }])
+                            ? formSectionSummary([optionSummaryItem(chartVersionOptions, String(chartVersion), 'Chart Version')])
                             : undefined}
                     >
                         <FormDropdown

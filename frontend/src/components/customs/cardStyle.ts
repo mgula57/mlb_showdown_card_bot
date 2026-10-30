@@ -4,6 +4,7 @@
  */
 
 import type { SelectOption } from '../shared/CustomSelect';
+import { optionSummaryItem } from './FormSectionSummary';
 import type { CustomCardFormState } from './CustomCardBuilder';
 
 // ----------------------------------
@@ -135,12 +136,10 @@ export const outerGlowOptions: SelectOption[] = [
 export function setStyleSummary(values: CardStyleSettings, defaults: CardStyleSettings, setNumber?: string | null): SelectOption[] {
     const summaries: SelectOption[] = [];
     if (values.expansion !== defaults.expansion) {
-        const expansionOption = expansionOptions.find(opt => opt.value === values.expansion);
-        summaries.push(expansionOption || { label: 'Expansion', value: values.expansion });
+        summaries.push(optionSummaryItem(expansionOptions, values.expansion));
     }
     if (values.edition !== defaults.edition) {
-        const editionOption = editionOptions.find(opt => opt.value === values.edition);
-        summaries.push(editionOption || { label: 'Edition', value: values.edition });
+        summaries.push(optionSummaryItem(editionOptions, values.edition));
     }
     if (setNumber) summaries.push({ label: 'Set Number', value: setNumber });
 
@@ -159,23 +158,19 @@ export function imageStyleSummary(values: CardStyleSettings, defaults: CardStyle
         summaries.push({ label: 'Parallel', value: parallelOption?.label ?? values.image_parallel, borderColor: parallelOption?.borderColor });
     }
     if (values.image_coloring !== defaults.image_coloring) {
-        const coloringOption = imageColoringOptions.find(opt => opt.value === values.image_coloring);
-        summaries.push({ ...(coloringOption || { value: values.image_coloring }), label: 'Coloring' });
+        summaries.push(optionSummaryItem(imageColoringOptions, values.image_coloring, 'Coloring'));
     }
     if (values.image_glow_multiplier !== defaults.image_glow_multiplier) {
-        const glowOption = outerGlowOptions.find(opt => opt.value === values.image_glow_multiplier);
-        summaries.push({ ...(glowOption || { value: values.image_glow_multiplier }), label: 'Glow' });
+        summaries.push(optionSummaryItem(outerGlowOptions, values.image_glow_multiplier, 'Glow'));
     }
     if (values.stat_highlights_type && values.stat_highlights_type !== defaults.stat_highlights_type) {
-        const statsOption = statHighlightsTypeOptions.find(opt => opt.value === values.stat_highlights_type);
-        summaries.push({ ...(statsOption || { value: values.stat_highlights_type }), label: 'Real Stats' });
+        summaries.push(optionSummaryItem(statHighlightsTypeOptions, values.stat_highlights_type, 'Real Stats'));
     }
     if (values.nickname_index && values.nickname_index !== defaults.nickname_index) {
-        const nicknameOption = nicknameIndexOptions.find(opt => opt.value === values.nickname_index);
-        summaries.push({ ...(nicknameOption || { value: values.nickname_index }), label: 'Nickname' });
+        summaries.push(optionSummaryItem(nicknameIndexOptions, values.nickname_index, 'Nickname'));
     }
-    if (values.is_bordered !== defaults.is_bordered) summaries.push({ value: 'ADD BORDER' });
-    if (values.is_dark_mode !== defaults.is_dark_mode) summaries.push({ value: 'DARK MODE' });
-    if (values.hide_team_logo !== defaults.hide_team_logo) summaries.push({ value: 'REMOVE TEAM BRANDING' });
+    if (values.is_bordered !== defaults.is_bordered) summaries.push({ value: 'Add Border' });
+    if (values.is_dark_mode !== defaults.is_dark_mode) summaries.push({ value: 'Dark Mode' });
+    if (values.hide_team_logo !== defaults.hide_team_logo) summaries.push({ value: 'Remove Team Branding' });
     return summaries;
 }
