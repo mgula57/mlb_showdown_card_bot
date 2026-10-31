@@ -49,6 +49,7 @@ import { startOpenSim, type OpenSimPayload } from "../../api/sim";
 
 import { Eyebrow } from '../shared/Eyebrow';
 import { Heading } from '../shared/Heading';
+import { PinstripeBackdrop } from '../shared/PinstripeBackdrop';
 import { radixVerticalTabTriggerClass } from '../shared/tabStyles';
 import { CAPS_LABEL_CLASS } from '../shared/fieldStyles';
 import { buttonClass } from "../shared/buttonStyles";
@@ -1052,7 +1053,9 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
     }
 
     return (
-        <div className="w-full bg-(--background-primary)">
+        <div className="w-full relative isolate bg-(--background-primary)">
+            {/* Card-back pinstripes behind the top of the page */}
+            <PinstripeBackdrop heightClass="h-72" />
             <div className="max-w-full lg:mx-auto py-6 sm:py-0 lg:h-[calc(100dvh-2.5rem)] lg:overflow-hidden">
                 {selectedSeason && (
                     <>

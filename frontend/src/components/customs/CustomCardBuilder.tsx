@@ -68,6 +68,7 @@ import { formInputsFromCard, type CustomizeCardRouteState } from './customizeCar
 import { Heading } from '../shared/Heading';
 import { FIELD_LABEL_CLASS } from '../shared/fieldStyles';
 import { Tabs, type TabItem } from '../shared/Tabs';
+import { PinstripeBackdrop } from '../shared/PinstripeBackdrop';
 import { smoothScrollBehavior } from '../../hooks/usePrefersReducedMotion';
 // ----------------------------------
 // MARK: - Form Interface
@@ -1456,7 +1457,9 @@ function CustomCardBuilder({ isHidden, embed }: CustomCardBuilderProps) {
 
                         {/* Tab content */}
                         <div className="flex-1 @2xl:overflow-y-auto scrollbar-hide">
-                            <div className={activePreviewTab === 'preview' ? 'block' : 'hidden'}>
+                            <div className={activePreviewTab === 'preview' ? 'block relative isolate' : 'hidden'}>
+                                {/* Card-back pinstripes behind the card preview */}
+                                <PinstripeBackdrop heightClass="h-96" />
                                 <CardDetail
                                     showdownBotCardData={showdownBotCardData}
                                     showdownSetForPlaceholder={showdownSetOverride || undefined}

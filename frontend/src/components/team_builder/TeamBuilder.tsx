@@ -45,6 +45,7 @@ import { InlineError } from '../shared/InlineError';
 import { Heading } from '../shared/Heading';
 import { buttonClass } from '../shared/buttonStyles';
 import { EmptyState } from '../shared/EmptyState';
+import { PinstripeBackdrop } from '../shared/PinstripeBackdrop';
 // A team can be addressed by URL four ways: a saved UUID, a historical MLB team, an All-Star
 // team, or an Era Roster (all-time or all-decade).
 type TeamRef =
@@ -762,7 +763,9 @@ export default function TeamBuilder() {
     return (
         // `@container` here spans the full content region, so shelves flagged `bleed` can
         // run to the screen edge past the centered max-width below.
-        <div className="@container w-full">
+        <div className="@container w-full relative isolate">
+        {/* Card-back pinstripes behind the page header, like the Release Builder list */}
+        <PinstripeBackdrop heightClass="h-72" />
         <div className="flex flex-col gap-4 py-4 max-w-4xl lg:max-w-7xl mx-auto w-full">
             {/* Header */}
             <div className={`flex items-center ${px} justify-between`}>

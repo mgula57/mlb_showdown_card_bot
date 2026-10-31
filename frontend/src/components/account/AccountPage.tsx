@@ -36,6 +36,7 @@ import ImageLibrarySettings from './ImageLibrarySettings';
 
 import { buttonClass } from '../shared/buttonStyles';
 import { Heading } from '../shared/Heading';
+import { PinstripeBackdrop } from '../shared/PinstripeBackdrop';
 import { FIELD_LABEL_CLASS, fieldClass } from '../shared/fieldStyles';
 import { choiceClass } from '../shared/choiceStyles';
 /**
@@ -212,7 +213,9 @@ const AccountPage: React.FC = () => {
     };
 
     return (
-        <div className="min-h-screen bg-primary p-4 md:p-8">
+        <div className="min-h-screen relative isolate bg-primary p-4 md:p-8">
+            {/* Card-back pinstripes behind the page header */}
+            <PinstripeBackdrop heightClass="h-72" />
             <div className="max-w-4xl mx-auto space-y-6">
                 
                 {/* Page Header */}
