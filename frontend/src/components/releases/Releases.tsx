@@ -238,11 +238,16 @@ export default function Releases() {
         if (!token) return;
         // Created with its "main" edition in one request, so a failure never leaves a release without one
         const created = await createRelease(payload, token);
-        const mainSlug = created.editions[0]?.slug ?? null;
-        setUserReleases(prev => [created, ...prev]);
         setShowCreateModal(false);
-        mountRelease(created, false, mainSlug);
-        navigate(`/release-builder/${created.id}${mainSlug ? `/${mainSlug}` : ''}`);
+        openNewRelease(created);
+    }
+
+    /** Opens a release the user just made (new or remixed) in the builder, at its first edition. */
+    function openNewRelease(created: Release) {
+        const firstSlug = created.editions[0]?.slug ?? null;
+        setUserReleases(prev => [created, ...prev]);
+        mountRelease(created, false, firstSlug);
+        navigate(`/release-builder/${created.id}${firstSlug ? `/${firstSlug}` : ''}`);
     }
 
     function handleReleaseUpdated(updated: Release) {
@@ -283,6 +288,7 @@ export default function Releases() {
                             onBack={goBack}
                             onReleaseUpdated={handleReleaseUpdated}
                             onDeleted={handleReleaseDeleted}
+                            onRemixed={openNewRelease}
                             token={token}
                         />
                     </div>

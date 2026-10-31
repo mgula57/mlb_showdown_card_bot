@@ -6801,6 +6801,9 @@ class PostgresDB:
             cur.execute("ALTER TABLE internal.releases ADD COLUMN IF NOT EXISTS share_image_path TEXT;")
             # Link-only releases (FALSE) open from their link but stay out of the public list and card search
             cur.execute("ALTER TABLE internal.releases ADD COLUMN IF NOT EXISTS is_listed BOOLEAN NOT NULL DEFAULT TRUE;")
+            # Owner's toggle for "Remix" (see `remix_release`): others may start a release from this one.
+            # Remixes record their source in `fork_parent_id`
+            cur.execute("ALTER TABLE internal.releases ADD COLUMN IF NOT EXISTS allow_remix BOOLEAN NOT NULL DEFAULT TRUE;")
             # Views and likes (see `_toggle_like`), the same shape as user_teams'
             cur.execute("""
                 ALTER TABLE internal.releases
@@ -7030,7 +7033,16 @@ class PostgresDB:
         SELECT
             r.id, r.name, r.description, r.created_by, r.is_official,
             r.fork_parent_id, r.slug, r.default_showdown_set, r.created_at, r.updated_at,
-            r.published_at, r.published_version, r.share_image_path, r.view_count, r.like_count, r.is_listed,
+            r.published_at, r.published_version, r.share_image_path, r.view_count, r.like_count, r.is_listed, r.allow_remix,
+            -- The release this one was remixed from, for its credit. Linked only while anyone can find it
+            -- (published, listed, not retired), so a remix never exposes a link-only release
+            (SELECT json_build_object(
+                        'id', fp.id, 'name', fp.name,
+                        'creator_username', (SELECT p.username FROM public.profiles p WHERE p.id::text = fp.created_by),
+                        'is_linkable', fp.retired_at IS NULL AND fp.is_listed
+                                       AND EXISTS (SELECT 1 FROM internal.release_editions fe WHERE fe.release_id = fp.id AND fe.is_published)
+                    )
+               FROM internal.releases fp WHERE fp.id = r.fork_parent_id) AS fork_parent,
             (SELECT MAX(v.published_at) FROM internal.release_versions v WHERE v.release_id = r.id) AS version_published_at,
             -- Unpublished work the owner hasn't published yet: an edited working copy, or a new edition
             -- of an already-published release
@@ -7191,6 +7203,62 @@ class PostgresDB:
                     "INSERT INTO internal.release_editions (release_id, name, slug) VALUES (%s, %s, %s)",
                     (release_id, 'main', 'main'),
                 )
+        return release_id
+
+    def remix_release(self, source_release_id: str, user_id: str, payload: dict) -> Optional[str]:
+        """Start a new release owned by user_id from someone else's published release, in one
+        transaction: its live editions (settings like card style, numbering and the algorithm are in
+        `attributes`), their live cards, and their image rows, sharing the same files (every file
+        delete checks no other row points to it, see `_unshared_release_image_paths`). Nothing is
+        published; the new release credits the source via `fork_parent_id`. Returns its id, or None if
+        the source isn't published, is the user's own, or its owner turned remixes off."""
+        if not self.connection:
+            raise RuntimeError("No database connection")
+        fields = self._release_payload_fields(payload)
+        with self.transaction() as cur:
+            # FOR SHARE makes a publish of the source (FOR UPDATE, `_lock_owned_release`) wait for the
+            # copy to commit, so the remix copies one version of it
+            cur.execute("""
+                SELECT r.id FROM internal.releases r
+                 WHERE r.id = %s AND r.created_by <> %s AND r.allow_remix AND r.retired_at IS NULL
+                   AND EXISTS (SELECT 1 FROM internal.release_editions e WHERE e.release_id = r.id AND e.is_published)
+                   FOR SHARE
+            """, (source_release_id, user_id))
+            if not cur.fetchone():
+                return None
+            slug = self._generate_unique_slug(cur, 'internal.releases', payload.get('name', ''))
+            cols = ', '.join(['created_by', 'slug', 'fork_parent_id'] + list(fields.keys()))
+            placeholders = ', '.join(['%s'] * (3 + len(fields)))
+            cur.execute(
+                f"INSERT INTO internal.releases ({cols}) VALUES ({placeholders}) RETURNING id",
+                [user_id, slug, source_release_id] + list(fields.values()),
+            )
+            release_id = str(cur.fetchone()[0])
+            # The source's editions as visitors see them: live ones, not the owner's working copies.
+            # Their names and slugs are already unique among the source's live editions.
+            cur.execute("""
+                SELECT id FROM internal.release_editions
+                 WHERE release_id = %s AND is_published AND draft_of IS NULL AND retired_at IS NULL
+            """, (source_release_id,))
+            for (source_edition_id,) in cur.fetchall():
+                cur.execute("""
+                    INSERT INTO internal.release_editions (release_id, name, attributes, slug)
+                    SELECT %s, name, attributes, slug FROM internal.release_editions WHERE id = %s
+                    RETURNING id
+                """, (release_id, source_edition_id))
+                edition_id = cur.fetchone()[0]
+                cur.execute(f"""
+                    INSERT INTO internal.release_cards (edition_id, {self._RELEASE_CARD_COPY_COLUMNS})
+                    SELECT %s, {self._RELEASE_CARD_COPY_COLUMNS} FROM internal.release_cards
+                     WHERE edition_id = %s AND retired_at IS NULL
+                """, (edition_id, source_edition_id))
+                cur.execute(f"""
+                    INSERT INTO internal.release_card_images (edition_id, {self._RELEASE_IMAGE_COPY_COLUMNS})
+                    SELECT %s, {self._RELEASE_IMAGE_COPY_COLUMNS} FROM internal.release_card_images i
+                     WHERE i.edition_id = %s
+                       AND EXISTS (SELECT 1 FROM internal.release_cards rc
+                                    WHERE rc.edition_id = i.edition_id AND rc.source_card_id = i.source_card_id AND rc.retired_at IS NULL)
+                """, (edition_id, source_edition_id))
         return release_id
 
     def update_release(self, release_id: str, user_id: str, payload: dict) -> bool:
@@ -8229,7 +8297,7 @@ class PostgresDB:
                 return slug
             slug = f"{base_slug}-{secrets.token_hex(3)}"
 
-    _RELEASE_ALLOWED_FIELDS = frozenset({'name', 'description', 'default_showdown_set', 'is_listed'})
+    _RELEASE_ALLOWED_FIELDS = frozenset({'name', 'description', 'default_showdown_set', 'is_listed', 'allow_remix'})
 
     @staticmethod
     def _release_payload_fields(payload: dict) -> dict:

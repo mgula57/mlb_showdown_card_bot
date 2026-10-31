@@ -8,7 +8,7 @@ import { InlineError } from '../shared/InlineError';
 import { buttonClass } from '../shared/buttonStyles';
 import { fieldClass } from '../shared/fieldStyles';
 import { useCopyReleaseLink } from './useCopyReleaseLink';
-import { ReleaseVisibilityChoice } from './ReleaseVisibilityChoice';
+import { ReleaseSharingSettings } from './ReleaseSharingSettings';
 
 type ReleaseShareSheetProps = {
     release: Release;
@@ -144,7 +144,7 @@ export function ReleaseShareSheet({ release, onClose, eyebrow, ownerToken, onRel
                 </div>
 
                 {ownerToken && onReleaseUpdated && (
-                    <ReleaseVisibilityChoice release={release} token={ownerToken} onReleaseUpdated={onReleaseUpdated} />
+                    <ReleaseSharingSettings release={release} token={ownerToken} onReleaseUpdated={onReleaseUpdated} />
                 )}
 
                 {(error || link.error) && <InlineError size="md">{error ?? link.error}</InlineError>}

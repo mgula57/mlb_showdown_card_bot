@@ -134,7 +134,8 @@ export function ReleaseItem({ release, onClick, showPublishStatus = false }: Rel
 }
 
 /** Up to 3 rendered card images fanned across a `relative` box, opening a little further when a
- *  `group` ancestor is hovered. Shared by the list tile and the public release header. */
+ *  `group` ancestor is hovered or carries `data-fanned` (for taps on touch screens). Shared by the
+ *  list tile and the public release header. */
 export function ReleaseCardFan({ images }: { images: ReleasePreviewImage[] }) {
     const shown = images.slice(0, 3);
     return (
@@ -147,7 +148,8 @@ export function ReleaseCardFan({ images }: { images: ReleasePreviewImage[] }) {
 }
 
 /** One card in the fan. Rest/hover transforms are passed as CSS variables so the tile's hover
- *  (`group-hover`) can animate between them; only on devices that hover, and not with reduced motion. */
+ *  (`group-hover`, only on devices that hover) or a `data-fanned` group can animate between them;
+ *  not with reduced motion. */
 function FannedCardImage({ image, index, cardCount }: { image: ReleasePreviewImage; index: number; cardCount: number }) {
     const placement = FAN_LAYOUTS[cardCount][index];
     const style = {
@@ -166,6 +168,7 @@ function FannedCardImage({ image, index, cardCount }: { image: ReleasePreviewIma
                 absolute left-1/2 top-[10%] w-[48%] h-auto rounded-card select-none drop-shadow-[0_2px_0_rgb(0_0_0/0.25)]
                 transform-(--fan-rest) transition-transform duration-300 ease-out motion-reduce:transition-none
                 [@media(hover:hover)]:motion-safe:group-hover:transform-(--fan-hover)
+                motion-safe:group-data-fanned:transform-(--fan-hover)
             "
             style={style}
         />

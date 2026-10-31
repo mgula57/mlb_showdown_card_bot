@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import type { ReleaseCreatePayload } from '../../api/releases';
 import FormInput from '../customs/FormInput';
 import { useSiteSettings } from '../shared/SiteSettingsContext';
@@ -15,11 +15,24 @@ import { ReleaseDriveNotice } from './ReleaseImageLibraries';
 type NewReleaseModalProps = {
     onConfirm: (payload: ReleaseCreatePayload) => Promise<void>;
     onCancel: () => void;
+    /** Prefilled fields, e.g. a remix starts from its source's name and description. */
+    initial?: Partial<ReleaseCreatePayload>;
+    title?: string;
+    subtitle?: string;
+    confirmLabel?: string;
+    confirmIcon?: ReactNode;
+    /** A note above the image library notice, e.g. what a remix copies. */
+    children?: ReactNode;
 };
 
-export function NewReleaseModal({ onConfirm, onCancel }: NewReleaseModalProps) {
+/** Names a new release: a blank one from the list, or a remix of someone else's (see `ReleaseRemixModal`). */
+export function NewReleaseModal({
+    onConfirm, onCancel, initial,
+    title = 'New Release', subtitle = 'Name your set — you can add editions and cards next',
+    confirmLabel = 'Start Building', confirmIcon = <FaPlus className="text-[11px]" />, children,
+}: NewReleaseModalProps) {
     const { userShowdownSet } = useSiteSettings();
-    const [draft, setDraft] = useState<ReleaseCreatePayload>({ name: '', description: '', default_showdown_set: userShowdownSet });
+    const [draft, setDraft] = useState<ReleaseCreatePayload>({ name: '', description: '', default_showdown_set: userShowdownSet, ...initial });
     const [creating, setCreating] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
@@ -31,8 +44,8 @@ export function NewReleaseModal({ onConfirm, onCancel }: NewReleaseModalProps) {
         setError(null);
         try {
             await onConfirm(draft);
-        } catch (err: any) {
-            setError(err.message ?? 'Failed to create release.');
+        } catch (err) {
+            setError(err instanceof Error ? err.message : 'Failed to create release.');
             setCreating(false);
         }
     }
@@ -56,7 +69,7 @@ export function NewReleaseModal({ onConfirm, onCancel }: NewReleaseModalProps) {
                 >
                     {creating
                         ? <><FaSpinner className="animate-spin text-[11px]" /> Creating…</>
-                        : <><FaPlus className="text-[11px]" /> Start Building</>
+                        : <>{confirmIcon} {confirmLabel}</>
                     }
                 </button>
             </div>
@@ -65,8 +78,8 @@ export function NewReleaseModal({ onConfirm, onCancel }: NewReleaseModalProps) {
 
     return (
         <Modal
-            title="New Release"
-            subtitle="Name your set — you can add editions and cards next"
+            title={title}
+            subtitle={subtitle}
             size="sm"
             onClose={onCancel}
             footer={footer}
@@ -95,6 +108,7 @@ export function NewReleaseModal({ onConfirm, onCancel }: NewReleaseModalProps) {
                         This is just a starting point — you can add cards from other sets too.
                     </span>
                 </div>
+                {children}
                 <ReleaseDriveNotice footnote="You can connect a folder anytime from Image Libraries in the builder." />
             </div>
         </Modal>

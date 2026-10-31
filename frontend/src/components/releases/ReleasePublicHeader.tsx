@@ -1,5 +1,6 @@
 import { useState, type ReactNode } from 'react';
-import { FaArrowLeft, FaBookmark, FaHeart, FaRegBookmark, FaRegHeart, FaShareNodes } from 'react-icons/fa6';
+import { Link } from 'react-router-dom';
+import { FaArrowLeft, FaBookmark, FaCodeFork, FaHeart, FaRegBookmark, FaRegHeart, FaShareNodes } from 'react-icons/fa6';
 import { toggleReleaseLike, toggleReleaseSave, type Release } from '../../api/releases';
 import { formatShortDate } from '../../functions/formatters';
 import { Heading } from '../shared/Heading';
@@ -7,6 +8,7 @@ import { Eyebrow } from '../shared/Eyebrow';
 import { Plate } from '../shared/Plate';
 import { ReleaseHeaderButton } from './ReleaseHeaderButton';
 import { ReleaseVersionHistory } from './ReleaseVersionHistory';
+import { ReleaseRemixModal } from './ReleaseRemixModal';
 import { ReleaseCardFan } from './ReleaseItem';
 
 type ReleasePublicHeaderProps = {
@@ -19,18 +21,26 @@ type ReleasePublicHeaderProps = {
     onBack: () => void;
     onShare: () => void;
     onReleaseUpdated: (release: Release) => void;
+    /** Opens the viewer's new remix of this release. Without it there's no Remix button. */
+    onRemixed?: (release: Release) => void;
     /** Owner-only actions, e.g. Edit. */
     children?: ReactNode;
 };
 
-/** The top of a published release when browsing it: what it is, who made it, which version this is,
- *  and the visitor's actions (like, save, share). Editing uses the builder's compact header instead. */
-export function ReleasePublicHeader({ release, cardCount, editionCount, isOwner, token, onBack, onShare, onReleaseUpdated, children }: ReleasePublicHeaderProps) {
+/** The top of a published release when browsing it: what it is, who made it (and what it was remixed
+ *  from), which version this is, and the visitor's actions (like, save, remix, share). Editing uses the builder's compact header instead. */
+export function ReleasePublicHeader({ release, cardCount, editionCount, isOwner, token, onBack, onShare, onReleaseUpdated, onRemixed, children }: ReleasePublicHeaderProps) {
     const [liking, setLiking] = useState(false);
     const [saving, setSaving] = useState(false);
     const [showHistory, setShowHistory] = useState(false);
+    const [showRemix, setShowRemix] = useState(false);
+    // Touch screens can't hover, so a tap toggles the featured cards open instead
+    const [cardsFanned, setCardsFanned] = useState(false);
     // Owners can't like their own release, and liking needs an account
     const canLike = !!token && !isOwner;
+    // Same audience as liking, while the owner allows remixes
+    const canRemix = canLike && release.allow_remix && !!onRemixed;
+    const forkParent = release.fork_parent;
     const versionDate = release.version_published_at ?? release.published_at;
     const previewImages = release.preview_images ?? [];
 
@@ -66,7 +76,7 @@ export function ReleasePublicHeader({ release, cardCount, editionCount, isOwner,
             <div aria-hidden className="absolute inset-0 -z-10 bg-pinstripe" />
             {/* Info, the featured cards, then the actions. Below md the cards are hidden and the actions wrap under the info. */}
             <div className="flex flex-wrap md:flex-nowrap items-stretch">
-            <div className="flex flex-col gap-2 basis-full md:basis-auto md:flex-1 min-w-0 px-4 pt-3 pb-3 md:pb-3.5">
+            <div className="relative z-1 flex flex-col gap-2 basis-full md:basis-auto md:flex-1 min-w-0 px-4 pt-3 pb-3 md:pb-3.5">
                 <div className="flex items-center gap-3">
                     <button type="button" onClick={onBack} aria-label="Back" className="text-(--text-tertiary) opacity-70 hover:text-(--text-primary) transition-colors cursor-pointer">
                         <FaArrowLeft />
@@ -94,6 +104,18 @@ export function ReleasePublicHeader({ release, cardCount, editionCount, isOwner,
                             History
                         </button>
                     </div>
+                    {forkParent && (
+                        <div className="flex items-center gap-1.5 text-[13px] text-(--text-secondary) min-w-0">
+                            <FaCodeFork aria-hidden className="shrink-0 text-[11px] text-(--text-tertiary)" />
+                            <span className="min-w-0">
+                                Remixed from{' '}
+                                {forkParent.is_linkable
+                                    ? <Link to={`/release-builder/${forkParent.id}`} className="font-semibold text-(--showdown-blue) hover:underline cursor-pointer">{forkParent.name}</Link>
+                                    : <span className="font-semibold text-(--text-primary)">{forkParent.name}</span>}
+                                {forkParent.creator_username && <> by <span className="font-semibold text-(--text-primary)">{forkParent.creator_username}</span></>}
+                            </span>
+                        </div>
+                    )}
                     {release.description && (
                         <p className="text-[13px] text-(--text-secondary) max-w-prose">{release.description}</p>
                     )}
@@ -106,13 +128,18 @@ export function ReleasePublicHeader({ release, cardCount, editionCount, isOwner,
                 </div>
             </div>
             {/* The release's featured cards, dealt up from the header's bottom edge (which crops them). The
-                side cards spill past the box sideways, under the info and actions (above the pinstripes). */}
+                side cards spill past the box sideways, under the info and actions (above the pinstripes). Info and actions sit at z-1 rather than the fan at -z-1, which would put it under the row for hit-testing and kill its hover. */}
             {previewImages.length > 0 && (
-                <div aria-hidden className="group hidden md:block relative -z-1 w-72 lg:w-64 -ml-10 shrink-0 overflow-y-clip">
+                <div
+                    aria-hidden
+                    data-fanned={cardsFanned || undefined}
+                    onPointerDown={e => { if (e.pointerType !== 'mouse') setCardsFanned(f => !f); }}
+                    className="group hidden md:block relative w-72 lg:w-64 -ml-10 shrink-0 overflow-y-clip"
+                >
                     <ReleaseCardFan images={previewImages} />
                 </div>
             )}
-            <div className="flex items-center gap-1.5 shrink-0 self-end px-4 pb-3.5">
+            <div className="relative z-1 flex items-center gap-1.5 shrink-0 self-end px-4 pb-3.5">
                 {canLike && (
                     <ReleaseHeaderButton
                         icon={release.liked_by_me ? <FaHeart /> : <FaRegHeart />}
@@ -135,6 +162,15 @@ export function ReleasePublicHeader({ release, cardCount, editionCount, isOwner,
                         title={release.saved_by_me ? `Remove ${release.name} from your card search` : `Save ${release.name} to search its cards in the Card Explorer`}
                     />
                 )}
+                {canRemix && (
+                    <ReleaseHeaderButton
+                        icon={<FaCodeFork />}
+                        label="Remix"
+                        collapseLabel
+                        onClick={() => setShowRemix(true)}
+                        title={`Start your own release from ${release.name}`}
+                    />
+                )}
                 <ReleaseHeaderButton icon={<FaShareNodes />} label="Share" onClick={onShare} />
                 {children}
             </div>
@@ -142,6 +178,9 @@ export function ReleasePublicHeader({ release, cardCount, editionCount, isOwner,
         </header>
         {/* Outside the header: its `isolate` stacking context would trap the modal under the page below */}
         {showHistory && <ReleaseVersionHistory release={release} token={token} onClose={() => setShowHistory(false)} />}
+        {showRemix && token && onRemixed && (
+            <ReleaseRemixModal release={release} token={token} onClose={() => setShowRemix(false)} onRemixed={onRemixed} />
+        )}
         </>
     );
 }

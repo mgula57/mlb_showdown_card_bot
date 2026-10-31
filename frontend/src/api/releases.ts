@@ -38,13 +38,26 @@ export type ReleasePreviewImage = {
     name: string | null;
 };
 
+/** The release a remix was started from, for its "Remixed from" credit. */
+export type ReleaseForkParent = {
+    id: string;
+    name: string;
+    creator_username: string | null;
+    /** Published, listed and not deleted, so the credit can link to it (a link-only source stays unlinked). */
+    is_linkable: boolean;
+};
+
 export type Release = {
     id: string;
     name: string;
     description: string | null;
     created_by: string;
     is_official: boolean;
+    /** Set on a remix: the release it was started from. */
     fork_parent_id: string | null;
+    fork_parent: ReleaseForkParent | null;
+    /** The owner lets others remix it (start their own release from it). On by default. */
+    allow_remix: boolean;
     slug: string;
     default_showdown_set: string | null;
     editions: ReleaseEditionSummary[];
@@ -137,6 +150,7 @@ export type ReleaseCreatePayload = {
 
 export type ReleaseUpdatePayload = Partial<ReleaseCreatePayload> & {
     is_listed?: boolean;
+    allow_remix?: boolean;
 };
 
 export type ReleaseEditionCreatePayload = {
@@ -514,6 +528,24 @@ export async function createRelease(payload: ReleaseCreatePayload, token: string
     if (!res.ok) {
         const err = await res.json().catch(() => ({}));
         throw new Error(err.error || `Failed to create release: ${res.status}`);
+    }
+    return res.json();
+}
+
+/** Start a new release owned by the caller from someone else's published one: its live editions,
+ *  cards, card styles and algorithm settings, unpublished and credited to the source. */
+export async function remixRelease(releaseId: string, payload: ReleaseCreatePayload, token: string): Promise<Release> {
+    const res = await fetch(`${API_BASE}/releases/${releaseId}/remix`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(payload),
+    });
+    if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || `Failed to remix release: ${res.status}`);
     }
     return res.json();
 }

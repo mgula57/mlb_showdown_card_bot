@@ -32,6 +32,8 @@ type ReleaseDetailProps = {
     onReleaseUpdated: (release: Release) => void;
     /** The owner deleted (or retired) the release. */
     onDeleted: (releaseId: string) => void;
+    /** The viewer remixed this release into a new one of their own (see `ReleaseRemixModal`). */
+    onRemixed?: (release: Release) => void;
     token?: string;
     /** A card link's release card id, to open in the edition from the URL. */
     cardRef?: string | null;
@@ -50,7 +52,7 @@ const EDITION_TAB_CLASS =
     'data-[state=inactive]:border-transparent data-[state=inactive]:text-(--text-tertiary) data-[state=inactive]:hover:text-(--text-secondary)';
 
 
-export function ReleaseDetail({ release, readOnly, editionSlug, onEditionChange, onBack, onReleaseUpdated, onDeleted, token, cardRef, onCardLinkOpened }: ReleaseDetailProps) {
+export function ReleaseDetail({ release, readOnly, editionSlug, onEditionChange, onBack, onReleaseUpdated, onDeleted, onRemixed, token, cardRef, onCardLinkOpened }: ReleaseDetailProps) {
     const isOwner = !readOnly;
     // Other users can only open published editions — the release itself still lists drafts.
     const editions = isOwner ? release.editions : release.editions.filter(e => e.is_published);
@@ -366,6 +368,7 @@ export function ReleaseDetail({ release, readOnly, editionSlug, onEditionChange,
                         onBack={onBack}
                         onShare={() => setShareSheet({})}
                         onReleaseUpdated={onReleaseUpdated}
+                        onRemixed={onRemixed}
                     >
                         {isOwner && <ReleaseHeaderButton icon={<FaPen />} label="Edit" onClick={() => changeMode('edit')} />}
                     </ReleasePublicHeader>

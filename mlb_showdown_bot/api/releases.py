@@ -101,8 +101,9 @@ def update_release(release_id: str):
         payload = request.get_json(silent=True)
         if not payload or not isinstance(payload, dict):
             return jsonify({'error': 'Request body must be a JSON object'}), 400
-        if 'is_listed' in payload and not isinstance(payload['is_listed'], bool):
-            return jsonify({'error': 'is_listed must be true or false'}), 400
+        for flag in ('is_listed', 'allow_remix'):
+            if flag in payload and not isinstance(payload[flag], bool):
+                return jsonify({'error': f'{flag} must be true or false'}), 400
         if 'name' in payload:
             if not isinstance(payload['name'], str) or not payload['name'].strip():
                 return jsonify({'error': 'Release name cannot be blank'}), 400
@@ -300,6 +301,42 @@ def save_release(release_id: str):
                 return jsonify({'error': 'Your own releases are already in your card search'}), 400
             saved = db.toggle_release_save(release_id, g.user_id)
         return jsonify({'saved': saved}), 200
+    except Exception as exc:
+        traceback.print_exc()
+        return jsonify({'error': str(exc)}), 500
+
+
+@releases_bp.route('/releases/<release_id>/remix', methods=['POST'])
+@require_auth
+def remix_release(release_id: str):
+    """Start a new release from someone else's published one (see `PostgresDB.remix_release`). The
+    body may set the new release's `name`, `description` and `default_showdown_set`; anything left
+    out comes from the source."""
+    try:
+        payload = request.get_json(silent=True) or {}
+        if not isinstance(payload, dict):
+            return jsonify({'error': 'Request body must be a JSON object'}), 400
+        with PostgresDB() as db:
+            source = _visible_published_release(db, release_id, g.user_id)
+            if source is None:
+                return jsonify({'error': 'Release not found'}), 404
+            if source['created_by'] == g.user_id:
+                return jsonify({'error': 'This is already your release'}), 400
+            if not source.get('allow_remix'):
+                return jsonify({'error': "The owner has turned off remixes for this release"}), 403
+            name = payload.get('name') if isinstance(payload.get('name'), str) else ''
+            description = payload.get('description', source.get('description'))
+            description = description.strip() if isinstance(description, str) else ''
+            remix_id = db.remix_release(release_id, g.user_id, {
+                'name': name.strip() or f"{source['name']} Remix",
+                'description': description or None,
+                'default_showdown_set': payload.get('default_showdown_set') or source.get('default_showdown_set'),
+            })
+            if remix_id is None:
+                # The owner turned remixes off or unpublished it since the check above
+                return jsonify({'error': "This release can't be remixed right now"}), 409
+            release = db.get_release(remix_id, g.user_id)
+        return jsonify(release), 201
     except Exception as exc:
         traceback.print_exc()
         return jsonify({'error': str(exc)}), 500
