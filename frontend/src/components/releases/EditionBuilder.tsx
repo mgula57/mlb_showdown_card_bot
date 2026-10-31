@@ -228,6 +228,53 @@ function renumberSorted(cards: ReleaseCard[], layers: SortLayer[]): ReleaseCard[
     return cards.map(c => byId.get(c.id) ?? c);
 }
 
+type NumberIssue = 'duplicate' | 'unnumbered';
+
+type NumberingIssues = {
+    /** Numbers held by more than one card (only possible in data saved before the uniqueness check). */
+    duplicates: Set<number>;
+    /** Missing numbers between 1 and the highest one, as the Review step counts them. */
+    gaps: number[];
+    unnumbered: number;
+};
+
+/** Mirrors the Review step's numbering checks (release_review.py `_numbering_items`), plus duplicates. */
+function findNumberingIssues(cards: ReleaseCard[]): NumberingIssues {
+    const counts = new Map<number, number>();
+    for (const c of cards) {
+        if (c.card_number !== null) counts.set(c.card_number, (counts.get(c.card_number) ?? 0) + 1);
+    }
+    const max = Math.max(0, ...counts.keys());
+    const gaps: number[] = [];
+    for (let n = 1; n <= max; n++) if (!counts.has(n)) gaps.push(n);
+    return {
+        duplicates: new Set([...counts].filter(([, count]) => count > 1).map(([num]) => num)),
+        gaps,
+        unnumbered: cards.filter(c => c.card_number === null).length,
+    };
+}
+
+function numberIssueFor(card: ReleaseCard, issues: NumberingIssues | null): NumberIssue | undefined {
+    if (!issues) return undefined;
+    if (card.card_number === null) return 'unnumbered';
+    return issues.duplicates.has(card.card_number) ? 'duplicate' : undefined;
+}
+
+/** "2 gaps: #14, #37 · 3 unnumbered", listing at most a few numbers per part. */
+function numberingIssuesSummary(issues: NumberingIssues): string {
+    const listed = (nums: number[]) => {
+        const shown = nums.slice(0, 5).map(n => `#${n}`).join(', ');
+        return nums.length > 5 ? `${shown} +${nums.length - 5} more` : shown;
+    };
+    const plural = (count: number, word: string) => `${count} ${word}${count === 1 ? '' : 's'}`;
+    const duplicates = [...issues.duplicates].sort((a, b) => a - b);
+    return [
+        duplicates.length > 0 && `${plural(duplicates.length, 'duplicate')}: ${listed(duplicates)}`,
+        issues.gaps.length > 0 && `${plural(issues.gaps.length, 'gap')}: ${listed(issues.gaps)}`,
+        issues.unnumbered > 0 && `${issues.unnumbered} unnumbered`,
+    ].filter(Boolean).join(' · ');
+}
+
 function formatCardNumber(num: number | null, totalCount: number, zeroPad: boolean, prefix?: string): string {
     if (num === null) return prefix ? `${prefix}—` : '—';
     const numStr = zeroPad ? String(num).padStart(String(totalCount).length, '0') : String(num);
@@ -916,6 +963,12 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
     const handleNumberInputBlurStable = useStableCallback(handleNumberInputBlur);
     const handleSkipFoilSuggestionStable = useStableCallback(foils.skip);
     const isManualNumberingEditable = !activePreview && numbering.mode === 'manual' && !readOnly;
+    // Flagged in the pool as you edit, so problems don't wait for the Review step. Null when there's nothing to flag.
+    const numberingIssues = useMemo(() => {
+        if (readOnly || activePreview || numbering.mode === 'none') return null;
+        const issues = findNumberingIssues(cards);
+        return issues.duplicates.size > 0 || issues.gaps.length > 0 || issues.unnumbered > 0 ? issues : null;
+    }, [cards, readOnly, activePreview, numbering.mode]);
 
     function handlePrefixInputChange(value: string) {
         setNumbering(prev => ({ ...prev, prefix: sanitizePrefix(value) }));
@@ -1481,6 +1534,25 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
                                                         <FaArrowsRotate className="text-[12px]" /> Renumber now
                                                     </button>
                                                 )}
+                                                {numberingIssues && (
+                                                    <div className="flex items-center gap-2 min-w-0">
+                                                        <span className="flex items-center gap-1.5 min-w-0 text-[12px] font-semibold text-(--warning)">
+                                                            <FaTriangleExclamation className="text-[11px] shrink-0" />
+                                                            {numberingIssuesSummary(numberingIssues)}
+                                                        </span>
+                                                        {/* Auto (not live) already shows "Renumber now" beside it */}
+                                                        {!(numbering.mode === 'auto' && !numbering.autoLive) && (
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => persist(renumberSorted(cards, numbering.sortLayers))}
+                                                                title="Number every card 1 to N, using the auto-numbering sort order"
+                                                                className={buttonClass('secondary', 'sm', 'min-h-9 shrink-0')}
+                                                            >
+                                                                <FaArrowsRotate className="text-[12px]" /> Renumber
+                                                            </button>
+                                                        )}
+                                                    </div>
+                                                )}
 
                                                 {numbering.mode !== 'none' && (
                                                     <div className="relative shrink-0" ref={numberingSettingsRef}>
@@ -1654,6 +1726,7 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
                                                             setNumber={printedSetNumber(card)}
                                                             numberInputValue={isManualNumberingEditable ? (editingNumbers[card.id] ?? (card.card_number?.toString() ?? '')) : undefined}
                                                             numberPrefix={numbering.prefix}
+                                                            numberIssue={numberIssueFor(card, numberingIssues)}
                                                             showMatchBadge={isMatchSortActive}
                                                             onOpen={setDetailCard}
                                                             onRemove={readOnly ? undefined : handleRemoveCardStable}
@@ -1813,6 +1886,8 @@ type PoolCardRowProps = {
     /** Manual numbering input value; undefined shows the read-only label instead. */
     numberInputValue?: string;
     numberPrefix?: string;
+    /** Flags the number as shared with another card, or missing. */
+    numberIssue?: NumberIssue;
     showMatchBadge: boolean;
     onOpen: (card: ReleaseCard) => void;
     /** Undefined hides the remove button. */
@@ -1826,13 +1901,16 @@ type PoolCardRowProps = {
 
 /** One pool grid card. Memoized (with stable callbacks from the builder) because the pool can be
  * hundreds of cards, and loading another page or opening a card shouldn't re-render all of them. */
-const PoolCardRow = memo(function PoolCardRow({ card, showFullCards, editionStyle, numberLabel, setNumber, numberInputValue, numberPrefix, showMatchBadge, onOpen, onRemove, onNumberChange, onNumberBlur, foilSuggestion, onSkipFoilSuggestion }: PoolCardRowProps) {
+const PoolCardRow = memo(function PoolCardRow({ card, showFullCards, editionStyle, numberLabel, setNumber, numberInputValue, numberPrefix, numberIssue, showMatchBadge, onOpen, onRemove, onNumberChange, onNumberBlur, foilSuggestion, onSkipFoilSuggestion }: PoolCardRowProps) {
     // Full cards show the edition style and set number they'll print with
     const styleOverrides = useMemo<CardStyleOverrides>(
         () => ({ style: releaseCardStyle(editionStyle, card.card_overrides), setNumber }),
         [editionStyle, card.card_overrides, setNumber]
     );
     const handleOpen = useCallback(() => onOpen(card), [onOpen, card]);
+    const issueTitle = numberIssue === 'duplicate'
+        ? `Another card is also #${card.card_number}`
+        : numberIssue === 'unnumbered' ? 'No number yet' : undefined;
     return (
         // Offscreen rows skip layout and paint, so repaints (opening a card, images loading) don't
         // re-process the whole pool. That clips the row to its padding box, so -m-4/p-4 extends it into
@@ -1852,11 +1930,16 @@ const PoolCardRow = memo(function PoolCardRow({ card, showFullCards, editionStyl
                             onChange={e => onNumberChange(card.id, e.target.value)}
                             onBlur={() => onNumberBlur(card.id)}
                             placeholder="—"
-                            className={fieldClass('md', 'w-14 font-mono text-right tabular-nums focus:outline-none')}
+                            title={issueTitle}
+                            aria-invalid={numberIssue === 'duplicate' || undefined}
+                            className={fieldClass('md', `w-14 font-mono text-right tabular-nums focus:outline-none ${numberIssue === 'duplicate' ? 'border-(--red)! text-(--red)' : numberIssue === 'unnumbered' ? 'border-(--warning)!' : ''}`)}
                         />
                     </div>
                 ) : (
-                    <span className="text-[13px] font-mono text-(--text-tertiary) w-7 text-right shrink-0">
+                    <span
+                        title={issueTitle}
+                        className={`text-[13px] font-mono w-7 text-right shrink-0 ${numberIssue === 'duplicate' ? 'font-semibold text-(--red)' : numberIssue === 'unnumbered' ? 'text-(--warning)' : 'text-(--text-tertiary)'}`}
+                    >
                         {numberLabel}
                     </span>
                 )}
