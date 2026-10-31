@@ -52,6 +52,7 @@ import { Plate } from '../shared/Plate';
 import { buttonClass } from '../shared/buttonStyles';
 
 import { Heading } from '../shared/Heading';
+import { Eyebrow } from '../shared/Eyebrow';
 import FormEnabler from '../customs/FormEnabler';
 import { CAPS_LABEL_CLASS } from '../shared/fieldStyles';
 /** Cheapest PTS a real showdown card can be — matches the floor of the lowest price band the
@@ -763,6 +764,13 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
     const canPublish = adminCanCurate && isMyOwnTeam;
     // Views/likes are only meaningful for teams reachable from Browse.
     const showSocialStats = (team.is_public || isOfficialTeam) && !isMyOwnTeam;
+    /** What kind of team this is, above the name (like a release's Official / Community line). */
+    const headerEyebrow = teamMode === 'drafting' ? 'Drafting'
+        : isOfficialTeam ? 'Featured team'
+        : isMlbTeam ? 'MLB roster'
+        : team.source === 'asg' ? 'All-Star roster'
+        : isMyOwnTeam ? 'Your team'
+        : 'Community team';
 
     async function handleUnpublish() {
         if (!token || !team.team_id || unpublishing) return;
@@ -1389,136 +1397,132 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
     return (
         <div className={`flex flex-col ${embedded ? '' : 'lg:h-[calc(100dvh-2.5rem)] lg:overflow-hidden'}`}>
             
-            {/* Header */}
-            <div
-                className="@container flex flex-col md:flex-row lg:items-center pb-2 gap-3 lg:gap-6 pl-4 py-1 border-b border-(--divider) shrink-0"
-            >
-                {/* Sized to its content, not stretched to fill the row — otherwise a short team
-                    name leaves a dead gap before the toolbar. Capped at row layout so a long
-                    name still truncates instead of shoving the toolbar off toward the edge. */}
-                <div className="flex items-center gap-3 min-w-0 ">
-                    {onBack && (
-                        <button type="button" onClick={handleBack} aria-label="Back" className="text-(--text-tertiary) opacity-70 hover:text-(--text-primary) transition-colors shrink-0 mt-0.5 h-full cursor-pointer">
-                            <FaArrowLeft />
-                        </button>
-                    )}
-
-                    <TeamLogo
-                        logoUrl={draft.logo_url}
-                        abbreviation={draft.abbreviation}
-                        primaryColor={primary}
-                        editable={!readOnly && !isMlbTeam && !!token && !!draft.team_id}
-                        uploading={logoUploading}
-                        onUpload={handleLogoUpload}
-                        onRemove={handleLogoRemove}
-                        className="mt-0.5"
-                    />
-
-                    {/* Team Header */}
-                    <div className="flex-1 min-w-0">
-                        {/* Name + total pts */}
-                        <div className="flex flex-wrap items-center gap-x-2 overflow-x-scroll scrollbar-hide">
-                            <Heading level="page" className="text-xl! md:text-3xl!" fit>{draft.name || 'Untitled Team'}</Heading>
-                            
-                            {draft.roster.length === draft.roster_size && (
-                                <span className="flex gap-x-0.5 items-center text-[12px] font-semibold text-(--text-tertiary) shrink-0">
-                                    <FaUsers /> {draft.roster.length}
-                                </span>
-                            )}
-
-                            {showSocialStats && team.view_count > 0 && (
-                                <span className="flex gap-x-0.5 items-center text-[12px] font-semibold text-(--text-tertiary) shrink-0" title={`${team.view_count} views`}>
-                                    <FaEye /> {team.view_count}
-                                </span>
-                            )}
-
-                            {/* Showdown Sets */}
-                            <div className="flex items-center gap-0.5 ">
-                                {(draft.allowed_sets ?? [])
-                                .sort((a, b) => a.localeCompare(b))
-                                    .map(s => <SetBadge key={s} set={s} />)
-                                }
-                            </div>
-                        </div>
-                        {(draft.subtitle || draft.credit) && (
-                            <div className="flex items-center gap-x-2 text-[11px] text-(--text-tertiary) truncate">
-                                {draft.subtitle && <span className="font-semibold text-(--text-secondary)">{draft.subtitle}</span>}
-                                {draft.credit && <span>{draft.credit}</span>}
-                            </div>
-                        )}
-                        {logoError && (
-                            <button
-                                type="button"
-                                onClick={() => setLogoError(null)}
-                                className="block text-left text-[11px] text-(--red) px-2 py-1 rounded-control border border-(--red)/30 bg-(--red)/5 cursor-pointer"
-                            >
-                                {logoError}
+            {/* Header: the release header's pinstripe band, with a team-color rule along the top. Info on the
+                left (eyebrow, crest + name, meta, points plates), the actions bottom-right; below md the
+                actions wrap under the info at full width. */}
+            <header className="@container relative isolate shrink-0 border-b border-(--divider) bg-(--background-secondary)">
+                <div aria-hidden className="absolute inset-0 -z-10 bg-pinstripe" />
+                <div aria-hidden className="absolute inset-x-0 top-0 h-[3px]" style={{ backgroundColor: primary }} />
+                <div className="flex flex-wrap md:flex-nowrap items-stretch">
+                <div className="flex flex-col gap-2 basis-full md:basis-auto md:flex-1 min-w-0 px-4 pt-3.5 pb-3 md:pb-3.5">
+                    <div className="flex items-center gap-3 min-w-0">
+                        {onBack && (
+                            <button type="button" onClick={handleBack} aria-label="Back" className="text-(--text-tertiary) opacity-70 hover:text-(--text-primary) transition-colors shrink-0 cursor-pointer">
+                                <FaArrowLeft />
                             </button>
                         )}
-                        {/* Subtitle row: PTS Breakdown */}
-                        <div className="flex items-center gap-x-1.5 gap-y-1 mt-0.5 overflow-x-scroll scrollbar-hide">
-                            <Plate variant="custom" size="sm" className="text-[12px] lg:text-[13px] font-bold" style={{ backgroundColor: primary, color: getContrastTextColor(primary) }}>
-                                {`${pointsBreakdown.total}${draft.pts_limit != null ? `/${draft.pts_limit}` : ''} PTS`}
-                            </Plate>
-                            {hasWotcCards && (
-                                <PointsEstimateComparison
-                                    estimated={pointsBreakdown.estimatedTotal}
-                                    diff={pointsBreakdown.estimatedTotal - pointsBreakdown.total}
-                                    className="shrink-0 text-nowrap text-[11px] lg:text-[12px] font-bold text-(--text-secondary)"
-                                    diffClassName="text-[10px] lg:text-[11px]"
-                                />
-                            )}
-                            <div className="hidden @[350px]:flex gap-1.5 items-center text-nowrap">
-                                {([
-                                    { label: 'LINEUP', value: pointsBreakdown.lineup, bucket: rosterProgress.buckets.lineup },
-                                    { label: 'BENCH', value: pointsBreakdown.bench, bucket: rosterProgress.buckets.bench },
-                                    { label: 'ROTATION', value: pointsBreakdown.rotation, bucket: rosterProgress.buckets.rotation },
-                                    { label: 'BULLPEN', value: pointsBreakdown.bullpen, bucket: rosterProgress.buckets.bullpen },
-                                ] as const).map(({ label, value, bucket }) => {
-                                    const bucketComplete = bucket.filled >= bucket.target;
-                                    return (
-                                        <Plate
-                                            key={label}
-                                            variant="custom"
-                                            size="sm"
-                                            className="text-[10px] lg:text-[11px] font-bold"
-                                            style={{ backgroundColor: team.secondary_color, color: getContrastTextColor(team.secondary_color) }}
-                                            title={teamMode !== 'complete' ? `${label}: ${bucket.filled}/${bucket.target} slots filled` : undefined}
-                                        >
-                                            {teamMode !== 'complete' && (
-                                                bucketComplete
-                                                    ? <FaCircleCheck className="shrink-0 text-[11px] text-(--success)" />
-                                                    : <ProgressRing filled={bucket.filled} target={bucket.target} />
-                                            )}
-                                            {label} <span className="font-semibold opacity-75">{value}</span>
-                                        </Plate>
-                                    );
-                                })}
+                        <Eyebrow className="truncate">{headerEyebrow}</Eyebrow>
+                        {!readOnly && (
+                            <div className="ml-auto flex items-center gap-2 text-[12px] font-semibold shrink-0">
+                                {saveStatus === 'saving' && (
+                                    <span className="flex items-center gap-1 text-(--text-tertiary)">
+                                        <FaSpinner className="animate-spin text-[10px]" /> Saving
+                                    </span>
+                                )}
+                                {saveStatus === 'saved' && <span className="text-(--green)">Saved</span>}
+                                {saveStatus === 'error' && <span className="text-(--red)">Error</span>}
+                                {saveStatus === 'idle' && dirty && <span className="text-(--text-tertiary) opacity-60">Unsaved</span>}
                             </div>
-
-                        </div>
+                        )}
                     </div>
 
-                    {!readOnly && (
-                        <div className="absolute top-1 right-1 items-center justify-center @lg:h-full gap-2 text-sm font-semibold">
-                            {saveStatus === 'saving' && (
-                                <span className="flex items-center gap-1 text-(--text-tertiary)">
-                                    <FaSpinner className="animate-spin text-[10px]" /> Saving
-                                </span>
+                    <div className="flex items-center gap-3 md:gap-4 min-w-0">
+                        <TeamLogo
+                            logoUrl={draft.logo_url}
+                            abbreviation={draft.abbreviation}
+                            primaryColor={primary}
+                            editable={!readOnly && !isMlbTeam && !!token && !!draft.team_id}
+                            uploading={logoUploading}
+                            onUpload={handleLogoUpload}
+                            onRemove={handleLogoRemove}
+                            size="lg"
+                        />
+
+                        <div className="flex flex-col gap-1.5 flex-1 min-w-0">
+                            <div className="flex items-center gap-2 min-w-0">
+                                <Heading level="page" as="h1" fit>{draft.name || 'Untitled Team'}</Heading>
+                                <div className="flex items-center gap-0.5 shrink-0">
+                                    {(draft.allowed_sets ?? [])
+                                        .sort((a, b) => a.localeCompare(b))
+                                        .map(s => <SetBadge key={s} set={s} />)
+                                    }
+                                </div>
+                            </div>
+
+                            {(draft.subtitle || draft.credit || (showSocialStats && team.view_count > 0) || draft.roster.length === draft.roster_size) && (
+                                <div className="flex flex-wrap items-center gap-x-1.5 text-[13px] text-(--text-secondary) min-w-0">
+                                    {[
+                                        draft.subtitle && <span key="subtitle" className="font-semibold text-(--text-primary)">{draft.subtitle}</span>,
+                                        draft.credit && <span key="credit">{draft.credit}</span>,
+                                        draft.roster.length === draft.roster_size && (
+                                            <span key="roster" className="flex items-center gap-1 tabular-nums"><FaUsers className="text-[11px]" /> {draft.roster.length} players</span>
+                                        ),
+                                        showSocialStats && team.view_count > 0 && (
+                                            <span key="views" className="flex items-center gap-1 tabular-nums" title={`${team.view_count} views`}><FaEye className="text-[11px]" /> {team.view_count}</span>
+                                        ),
+                                    ].filter(Boolean).flatMap((item, i) => i === 0 ? [item] : [<span key={`dot-${i}`} aria-hidden className="text-(--text-tertiary)">·</span>, item])}
+                                </div>
                             )}
-                            {saveStatus === 'saved' && <span className="text-(--green)">Saved</span>}
-                            {saveStatus === 'error' && <span className="text-(--red)">Error</span>}
-                            {saveStatus === 'idle' && dirty && <span className="text-(--text-tertiary) opacity-60">Unsaved</span>}
+
+                            {logoError && (
+                                <button
+                                    type="button"
+                                    onClick={() => setLogoError(null)}
+                                    className="block text-left text-[11px] text-(--red) px-2 py-1 rounded-control border border-(--red)/30 bg-(--red)/5 cursor-pointer"
+                                >
+                                    {logoError}
+                                </button>
+                            )}
+
+                            {/* PTS breakdown */}
+                            <div className="flex items-center gap-x-1.5 gap-y-1 overflow-x-scroll scrollbar-hide">
+                                <Plate variant="custom" size="sm" className="text-[12px] lg:text-[13px] font-bold" style={{ backgroundColor: primary, color: getContrastTextColor(primary) }}>
+                                    {`${pointsBreakdown.total}${draft.pts_limit != null ? `/${draft.pts_limit}` : ''} PTS`}
+                                </Plate>
+                                {hasWotcCards && (
+                                    <PointsEstimateComparison
+                                        estimated={pointsBreakdown.estimatedTotal}
+                                        diff={pointsBreakdown.estimatedTotal - pointsBreakdown.total}
+                                        className="shrink-0 text-nowrap text-[11px] lg:text-[12px] font-bold text-(--text-secondary)"
+                                        diffClassName="text-[10px] lg:text-[11px]"
+                                    />
+                                )}
+                                <div className="hidden @[350px]:flex gap-1.5 items-center text-nowrap">
+                                    {([
+                                        { label: 'LINEUP', value: pointsBreakdown.lineup, bucket: rosterProgress.buckets.lineup },
+                                        { label: 'BENCH', value: pointsBreakdown.bench, bucket: rosterProgress.buckets.bench },
+                                        { label: 'ROTATION', value: pointsBreakdown.rotation, bucket: rosterProgress.buckets.rotation },
+                                        { label: 'BULLPEN', value: pointsBreakdown.bullpen, bucket: rosterProgress.buckets.bullpen },
+                                    ] as const).map(({ label, value, bucket }) => {
+                                        const bucketComplete = bucket.filled >= bucket.target;
+                                        return (
+                                            <Plate
+                                                key={label}
+                                                variant="custom"
+                                                size="sm"
+                                                className="text-[10px] lg:text-[11px] font-bold"
+                                                style={{ backgroundColor: team.secondary_color, color: getContrastTextColor(team.secondary_color) }}
+                                                title={teamMode !== 'complete' ? `${label}: ${bucket.filled}/${bucket.target} slots filled` : undefined}
+                                            >
+                                                {teamMode !== 'complete' && (
+                                                    bucketComplete
+                                                        ? <FaCircleCheck className="shrink-0 text-[11px] text-(--success)" />
+                                                        : <ProgressRing filled={bucket.filled} target={bucket.target} />
+                                                )}
+                                                {label} <span className="font-semibold opacity-75">{value}</span>
+                                            </Plate>
+                                        );
+                                    })}
+                                </div>
+                            </div>
                         </div>
-                    )}
+                    </div>
                 </div>
 
-                {/* Action toolbar: one filled Play CTA plus a uniform strip of ghost actions.
-                    Buttons are sized for a thumb on mobile, wrapping onto a second line rather
-                    than shrinking. Right-aligned in both layouts — a full-width row under the
-                    team info on a narrow header, inline beside it once there's real room. */}
+                {/* Action toolbar: one filled Sim CTA plus a uniform strip of tinted actions. Sized for a
+                    thumb on mobile, wrapping onto a second line rather than shrinking. */}
                 {((onToggleStar || onFork || onToggleLike || !readOnly || canSimulate || adminCanCurate) && teamMode === 'complete') && (
-                    <div className="flex flex-wrap items-center justify-start gap-2 shrink-0 pr-2 pb-2">
+                    <div className="flex flex-wrap items-center gap-2 basis-full md:basis-auto shrink-0 self-end px-4 pb-3.5">
 
                         {onToggleStar && (
                             <HeaderAction
@@ -1614,7 +1618,8 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                         )}
                     </div>
                 )}
-            </div>
+                </div>
+            </header>
 
             {stale && (
                 <div className="flex items-center gap-2 px-4 py-2 border-b border-(--gold)/30 bg-(--gold)/10 text-[12px] shrink-0">

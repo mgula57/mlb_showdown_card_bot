@@ -4,7 +4,7 @@ import traceback
 from flask import Blueprint, g, jsonify, request
 from pydantic import ValidationError
 from ..core.card.images import ImageLibrary
-from ..core.database.postgres_db import PostgresDB
+from ..core.database.postgres_db import PostgresDB, StaleEditionError
 from ..core.set_builder.image_match_classifier import ImageMatchCard, ImageMatchClassifier
 from ..core.set_builder.release_card_rebuilder import ReleaseCardRebuilder, ReleaseCardRebuildError
 from ..core.set_builder.release_images import EditionImagePlan, EditionImageRenderer, ReleaseImageJobCancelled, ReleaseImageStorage
@@ -140,6 +140,18 @@ def delete_release(release_id: str):
 
 
 LIVE_EDITION_ERROR = 'This edition has been published. Edit its working copy instead (reload the release).'
+STALE_EDITION_ERROR = "This edition changed in another tab or on another device, so your last change wasn't saved. Reload to get the latest."
+
+
+def _stale_edition_response():
+    """409 for a card save based on an older `cards_version` (`code` lets the builder offer a reload)."""
+    return jsonify({'error': STALE_EDITION_ERROR, 'code': 'stale_edition'}), 409
+
+
+def _expected_cards_version(payload: dict) -> int | None:
+    """The `cards_version` a card save was based on. Absent (older clients) skips the check."""
+    value = payload.get('expected_cards_version')
+    return value if isinstance(value, int) and not isinstance(value, bool) else None
 
 
 def _is_live_edition(edition: dict | None) -> bool:
@@ -438,7 +450,11 @@ def update_edition(release_id: str, edition_id: str):
         if _is_live_edition(db.get_edition(edition_id, g.user_id)):
             db.close_connection()
             return jsonify({'error': LIVE_EDITION_ERROR}), 409
-        updated = db.update_edition(edition_id, g.user_id, payload)
+        try:
+            updated = db.update_edition(edition_id, g.user_id, payload, expected_cards_version=_expected_cards_version(payload))
+        except StaleEditionError:
+            db.close_connection()
+            return _stale_edition_response()
         if not updated:
             db.close_connection()
             return jsonify({'error': 'Edition not found or not owned by user'}), 404
@@ -481,8 +497,14 @@ def patch_edition_cards(release_id: str, edition_id: str):
                 return jsonify({'error': LIVE_EDITION_ERROR}), 409
             if (duplicate_error := ReleaseCardNumbers.patched_duplicate_error(card_numbers, patches)):
                 return jsonify({'error': duplicate_error}), 400
-            db.patch_release_cards(edition_id, [(patch.source_card_id, patch.changes()) for patch in patches])
-        return jsonify({'success': True}), 200
+            try:
+                cards_version = db.patch_release_cards(
+                    edition_id, [(patch.source_card_id, patch.changes()) for patch in patches],
+                    expected_cards_version=_expected_cards_version(payload),
+                )
+            except StaleEditionError:
+                return _stale_edition_response()
+        return jsonify({'success': True, 'cards_version': cards_version}), 200
     except Exception as exc:
         traceback.print_exc()
         return jsonify({'error': str(exc)}), 500

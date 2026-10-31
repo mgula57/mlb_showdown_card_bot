@@ -374,6 +374,11 @@ def _is_uuid(value) -> bool:
 # MARK: - POSTGRES DB CLASS
 # ----------------------------------------------------------------
 
+class StaleEditionError(Exception):
+    """A card save was based on an older version of the edition's cards (`cards_version`), e.g. it
+    was edited in another tab or device since. Saving would overwrite that work, so it's refused."""
+
+
 class PostgresDB:
 
 # ------------------------------------------------------------------------
@@ -6759,6 +6764,9 @@ class PostgresDB:
             # `remove_edition`): hidden everywhere, but its release_cards rows stay so rosters resolve.
             # `pending_removal` stages a published edition's removal until the next publish.
             cur.execute("ALTER TABLE internal.releases ADD COLUMN IF NOT EXISTS retired_at TIMESTAMP WITH TIME ZONE;")
+            # Goes up with every card save; a save names the version it was based on, so one from a
+            # stale tab can't overwrite newer cards (see `_bump_cards_version`)
+            cur.execute("ALTER TABLE internal.release_editions ADD COLUMN IF NOT EXISTS cards_version INT NOT NULL DEFAULT 0;")
             cur.execute("""
                 ALTER TABLE internal.release_editions
                     ADD COLUMN IF NOT EXISTS retired_at      TIMESTAMP WITH TIME ZONE,
@@ -7546,7 +7554,7 @@ class PostgresDB:
 
     _EDITION_BASE_SELECT = """
         SELECT
-            e.id, e.release_id, e.name, e.attributes, e.slug, e.is_published, e.draft_of, e.published_at,
+            e.id, e.release_id, e.name, e.attributes, e.slug, e.is_published, e.draft_of, e.published_at, e.cards_version,
             e.created_at, e.updated_at,
             COALESCE(
                 json_agg(
@@ -7645,9 +7653,10 @@ class PostgresDB:
             self._upsert_release_cards(cur, edition_id, cards)
         return edition_id
 
-    def update_edition(self, edition_id: str, user_id: str, payload: dict) -> bool:
+    def update_edition(self, edition_id: str, user_id: str, payload: dict, expected_cards_version: Optional[int] = None) -> bool:
         """Update an edition's metadata and/or replace its card list. Only the parent
-        release's owner may update. Returns True if updated."""
+        release's owner may update. Returns True if updated. A card list save with
+        `expected_cards_version` raises `StaleEditionError` if the cards have moved on since."""
         if not self.connection:
             return False
         cards = payload.get('cards')
@@ -7687,6 +7696,7 @@ class PostgresDB:
                     values + [edition_id],
                 )
             if cards is not None:
+                self._bump_cards_version(cur, edition_id, expected_cards_version)
                 self._upsert_release_cards(cur, edition_id, cards)
                 # A working copy's updated_at past its created_at is what marks it as changed
                 cur.execute("UPDATE internal.release_editions SET updated_at = NOW() WHERE id = %s", (edition_id,))
@@ -7713,13 +7723,15 @@ class PostgresDB:
             """, (edition_id,))
             return row[0], {source_id: number for source_id, number in cur.fetchall()}
 
-    def patch_release_cards(self, edition_id: str, patches: list[tuple[str, dict]]) -> None:
+    def patch_release_cards(self, edition_id: str, patches: list[tuple[str, dict]], expected_cards_version: Optional[int] = None) -> int:
         """Apply card patches (source card id, {field: value}) to an edition's live cards in one
         transaction. Numbers go in one batch, cleared first so a renumber can swap them; a cover
         pick takes its slot from whichever card held it. Callers check ownership and numbers first
-        (see `get_owned_edition_card_numbers`)."""
+        (see `get_owned_edition_card_numbers`). Returns the new `cards_version`; raises
+        `StaleEditionError` if `expected_cards_version` is out of date."""
         numbered = [(source_id, changes['card_number']) for source_id, changes in patches if 'card_number' in changes]
         with self.transaction() as cur:
+            cards_version = self._bump_cards_version(cur, edition_id, expected_cards_version)
             if numbered:
                 cur.execute("""
                     UPDATE internal.release_cards SET card_number = NULL
@@ -7752,6 +7764,18 @@ class PostgresDB:
                 )
             # A working copy's updated_at past its created_at is what marks it as changed
             cur.execute("UPDATE internal.release_editions SET updated_at = NOW() WHERE id = %s", (edition_id,))
+        return cards_version
+
+    @staticmethod
+    def _bump_cards_version(cur, edition_id: str, expected: Optional[int]) -> int:
+        """Lock the edition row for this card save and step its `cards_version`, after checking the
+        save was based on the current one (`expected`; None skips the check). Returns the new version."""
+        cur.execute("SELECT cards_version FROM internal.release_editions WHERE id = %s FOR UPDATE", (edition_id,))
+        row = cur.fetchone()
+        if expected is not None and row is not None and row[0] != expected:
+            raise StaleEditionError(f"Edition {edition_id} cards are at version {row[0]}, not {expected}")
+        cur.execute("UPDATE internal.release_editions SET cards_version = cards_version + 1 WHERE id = %s RETURNING cards_version", (edition_id,))
+        return cur.fetchone()[0]
 
     def _embed_variable_speed_card_data(self, cards: list) -> None:
         """Embed the variable speed card JSON in release card snapshots taken from variable speed

@@ -88,6 +88,8 @@ export function ReleaseDetail({ release, readOnly, editionSlug, onEditionChange,
     const activeEditionId = activeEdition?.id ?? null;
     const activeLoadedId = activeEdition && !needsDraft ? loadedIdOf(activeEdition) : null;
     const [editionCache, setEditionCache] = useState<Record<string, ReleaseEdition>>({});
+    /** Bumped per edition by a reload, so its builder remounts with the fresh copy. */
+    const [reloadCounts, setReloadCounts] = useState<Record<string, number>>({});
     const [error, setError] = useState<string | null>(null);
     /** Set right after a publish, for the confirmation strip. */
     const [publishedVersion, setPublishedVersion] = useState<number | null>(null);
@@ -326,6 +328,19 @@ export function ReleaseDetail({ release, readOnly, editionSlug, onEditionChange,
 
     function handleEditionUpdated(updated: ReleaseEdition) {
         applyEditionUpdates([updated]);
+    }
+
+    /** After a card save was refused because the edition changed elsewhere: load the latest copy
+     *  and start its builder over on it. */
+    async function handleReloadEdition(editionId: string) {
+        setError(null);
+        try {
+            const fresh = await fetchEdition(release.id, editionId, token);
+            applyEditionUpdates([fresh]);
+            setReloadCounts(prev => ({ ...prev, [editionId]: (prev[editionId] ?? 0) + 1 }));
+        } catch (err) {
+            setError(err instanceof Error ? err.message : 'Failed to reload the edition.');
+        }
     }
 
     return (
@@ -605,8 +620,8 @@ export function ReleaseDetail({ release, readOnly, editionSlug, onEditionChange,
                             ) : (
                                 <ReleaseOnboardingScope active={edition.id === activeEditionId}>
                                 <EditionBuilder
-                                    // The live edition and its working copy are different builders
-                                    key={loadedEdition.id}
+                                    // The live edition and its working copy are different builders; a reload starts over
+                                    key={`${loadedEdition.id}:${reloadCounts[loadedEdition.id] ?? 0}`}
                                     releaseId={release.id}
                                     releaseName={release.name}
                                     edition={loadedEdition}
@@ -632,6 +647,7 @@ export function ReleaseDetail({ release, readOnly, editionSlug, onEditionChange,
                                     ) : null}
                                     navRequest={navRequest?.editionId === edition.id ? navRequest.request : null}
                                     onUnsavedPreviewChange={handleUnsavedPreviewChange}
+                                    onReloadRequested={() => handleReloadEdition(loadedEdition.id)}
                                     openCardRef={edition.id === activeEditionId ? cardRef : null}
                                     onCardLinkOpened={onCardLinkOpened}
                                     // Card links point at live cards, so only while browsing what's published

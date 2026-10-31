@@ -110,6 +110,8 @@ export type ReleaseEdition = {
     draft_of: string | null;
     published_at: string | null;
     cards: ReleaseCard[];
+    /** Goes up with every card save; a save sends the one it was based on (`expected_cards_version`). */
+    cards_version: number;
     created_at: string;
     updated_at: string;
 };
@@ -153,7 +155,19 @@ export type ReleaseEditionCreatePayload = {
 
 export type ReleaseEditionUpdatePayload = Partial<Omit<ReleaseEditionCreatePayload, 'cards'>> & {
     cards?: ReleaseEditionCreatePayload['cards'];
+    /** With `cards`: the `cards_version` the list was built on, so a stale tab can't overwrite newer cards. */
+    expected_cards_version?: number;
 };
+
+/** A card save was refused because the edition's cards changed elsewhere (another tab or device). */
+export class StaleEditionError extends Error {}
+
+/** The error an edition save failed with: a `StaleEditionError` for the server's stale-cards 409. */
+async function editionSaveError(res: Response, fallback: string): Promise<Error> {
+    const err = await res.json().catch(() => ({}));
+    if (res.status === 409 && err.code === 'stale_edition') return new StaleEditionError(err.error);
+    return new Error(err.error || `${fallback}: ${res.status}`);
+}
 
 /** `blocker` stops a publish; `check` is worth a look; `polish` is a nudge. */
 export type ReleaseReviewLevel = 'blocker' | 'check' | 'polish';
@@ -610,10 +624,7 @@ export async function updateEdition(releaseId: string, editionId: string, payloa
         },
         body: JSON.stringify(payload),
     });
-    if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err.error || `Failed to update edition: ${res.status}`);
-    }
+    if (!res.ok) throw await editionSaveError(res, 'Failed to update edition');
     return res.json();
 }
 
@@ -622,20 +633,18 @@ export const PATCHABLE_CARD_FIELDS = ['card_number', 'tags', 'preview_rank', 'ca
 export type ReleaseCardPatch = { source_card_id: string } & Partial<Pick<ReleaseCard, typeof PATCHABLE_CARD_FIELDS[number]>>;
 
 /** Saves just the changed fields of some cards (numbers, tags, cover picks, style overrides),
- *  instead of re-sending every card snapshot with `updateEdition`. */
-export async function patchEditionCards(releaseId: string, editionId: string, cards: ReleaseCardPatch[], token: string): Promise<void> {
+ *  instead of re-sending every card snapshot with `updateEdition`. Returns the new `cards_version`. */
+export async function patchEditionCards(releaseId: string, editionId: string, cards: ReleaseCardPatch[], expectedCardsVersion: number, token: string): Promise<number> {
     const res = await fetch(`${API_BASE}/releases/${releaseId}/editions/${editionId}/cards`, {
         method: 'PATCH',
         headers: {
             'Content-Type': 'application/json',
             Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ cards }),
+        body: JSON.stringify({ cards, expected_cards_version: expectedCardsVersion }),
     });
-    if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err.error || `Failed to save changes: ${res.status}`);
-    }
+    if (!res.ok) throw await editionSaveError(res, 'Failed to save changes');
+    return (await res.json()).cards_version;
 }
 
 /** How deleting an edition went: a published one is `staged` until the next publish; a

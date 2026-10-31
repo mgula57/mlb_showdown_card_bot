@@ -1,7 +1,7 @@
 import { useState, useMemo, useRef, useEffect, useCallback, memo, type ReactNode, type Ref } from 'react';
 import * as Tabs from '@radix-ui/react-tabs';
 import type { ReleaseEdition, ReleaseCard, AlgorithmPreviewResult, AlgorithmPreviewPlayer, ReleaseCardImageStatus } from '../../api/releases';
-import { updateEdition, patchEditionCards, rebuildEditionCard, customEditionCard } from '../../api/releases';
+import { updateEdition, patchEditionCards, rebuildEditionCard, customEditionCard, StaleEditionError } from '../../api/releases';
 import { cardPatchesBetween, mergeCardPatches, type CardPatches } from './cardPatches';
 import { SummaryCharts } from './SummaryCharts';
 import { AlgorithmBuilder } from './AlgorithmBuilder';
@@ -82,6 +82,8 @@ type EditionBuilderProps = {
     navRequest?: EditionNavRequest | null;
     /** Reports whether an unapplied Algorithm run is showing, for the Review checklist. */
     onUnsavedPreviewChange?: (editionId: string, hasUnsavedPreview: boolean) => void;
+    /** A card save found the edition changed elsewhere (another tab or device): reload it fresh. */
+    onReloadRequested?: () => void;
     /** A card link's release card id to open on arrival; `onCardLinkOpened` fires once handled. */
     openCardRef?: string | null;
     onCardLinkOpened?: () => void;
@@ -304,19 +306,22 @@ type PendingCardSave = {
     waiters: ((saved: boolean) => void)[];
 };
 
-export function EditionBuilder({ releaseId, releaseName, edition, readOnly, token, defaultShowdownSet, onEditionUpdated, reviewOpen = false, onReviewOpenChange, review, navRequest, onUnsavedPreviewChange, openCardRef, onCardLinkOpened, cardLinkSlugs }: EditionBuilderProps) {
+export function EditionBuilder({ releaseId, releaseName, edition, readOnly, token, defaultShowdownSet, onEditionUpdated, reviewOpen = false, onReviewOpenChange, review, navRequest, onUnsavedPreviewChange, onReloadRequested, openCardRef, onCardLinkOpened, cardLinkSlugs }: EditionBuilderProps) {
     const [cards, setCards] = useState<ReleaseCard[]>(edition.cards);
     // Latest cards, for saves that land after an await (e.g. a chart rebuild)
     const cardsRef = useRef(cards);
     cardsRef.current = cards;
     const [saving, setSaving] = useState(false);
     // Card list saves (see `persist`): the last state the server confirmed (what a failed save
-    // reverts to), the newest unsent state, and whether a save is in flight
+    // reverts to, and the `cards_version` the next save is based on), the newest unsent state, and
+    // whether a save is in flight
     const editionRef = useRef(edition);
     editionRef.current = edition;
-    const confirmedRef = useRef<{ cards: ReleaseCard[]; manualPicks: ManualPicks }>({
-        cards: edition.cards, manualPicks: parseManualPicks(edition.attributes),
+    const confirmedRef = useRef<{ cards: ReleaseCard[]; manualPicks: ManualPicks; cardsVersion: number }>({
+        cards: edition.cards, manualPicks: parseManualPicks(edition.attributes), cardsVersion: edition.cards_version,
     });
+    /** A save was refused because the edition changed elsewhere, so only a reload can continue. */
+    const [isStale, setIsStale] = useState(false);
     const pendingSaveRef = useRef<PendingCardSave | null>(null);
     const isSavingRef = useRef(false);
     const [error, setError] = useState<string | null>(null);
@@ -510,10 +515,12 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
             pendingSaveRef.current = null;
             try {
                 if (save.patches) {
-                    if (save.patches.size > 0) await patchEditionCards(releaseId, edition.id, [...save.patches.values()], token);
-                    confirmedRef.current = { ...confirmedRef.current, cards: save.cards };
+                    const cardsVersion = save.patches.size > 0
+                        ? await patchEditionCards(releaseId, edition.id, [...save.patches.values()], confirmedRef.current.cardsVersion, token)
+                        : confirmedRef.current.cardsVersion;
+                    confirmedRef.current = { ...confirmedRef.current, cards: save.cards, cardsVersion };
                     // The edition's other fields may have saved since this save was queued, so build on the latest
-                    onEditionUpdated({ ...editionRef.current, cards: save.cards });
+                    onEditionUpdated({ ...editionRef.current, cards: save.cards, cards_version: cardsVersion });
                     save.waiters.forEach(resolve => resolve(true));
                     continue;
                 }
@@ -528,8 +535,13 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
                         card_overrides: c.card_overrides,
                     })),
                     ...(save.manualPicks ? { attributes: { manual_picks: save.manualPicks } } : {}),
+                    expected_cards_version: confirmedRef.current.cardsVersion,
                 }, token);
-                confirmedRef.current = { cards: updated.cards, manualPicks: save.manualPicks ?? confirmedRef.current.manualPicks };
+                confirmedRef.current = {
+                    cards: updated.cards,
+                    manualPicks: save.manualPicks ?? confirmedRef.current.manualPicks,
+                    cardsVersion: updated.cards_version,
+                };
                 onEditionUpdated(updated);
                 // Newer edits are already on screen, and their save's response replaces this one
                 if (!pendingSaveRef.current) setCards(updated.cards);
@@ -542,6 +554,7 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
                 setCards(confirmedRef.current.cards);
                 setManualPicks(confirmedRef.current.manualPicks);
                 setError(err instanceof Error ? err.message : 'Failed to save changes.');
+                if (err instanceof StaleEditionError) setIsStale(true);
                 [...save.waiters, ...dropped].forEach(resolve => resolve(false));
             }
         }
@@ -1058,7 +1071,14 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
 
             {error && (
                 <InlineError size="md" className="mx-4 mt-2 shrink-0">
-                    {error}
+                    <span className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                        {error}
+                        {isStale && onReloadRequested && (
+                            <button type="button" onClick={onReloadRequested} className={buttonClass('secondary', 'sm')}>
+                                <FaArrowsRotate className="text-[10px]" /> Reload edition
+                            </button>
+                        )}
+                    </span>
                 </InlineError>
             )}
 
