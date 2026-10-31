@@ -109,7 +109,7 @@ class ShowdownBotSet(BaseModel):
     pitcher_showdown_sets: Optional[List[str]] = Field(None, description="Showdown sets for pitchers, e.g. 2000 hitters with 2001 pitchers (None to use `showdown_sets` for everyone)")
 
     # Minimum requirements
-    min_games_hitters: int = Field(60, description="Minimum games for hitters")
+    min_pa_hitters: int = Field(200, description="Minimum plate appearances for hitters")
     min_ip_starters: int = Field(75, description="Minimum IP for starting pitchers") 
     min_ip_relievers: int = Field(30, description="Minimum IP for relief pitchers")
 
@@ -126,7 +126,7 @@ class ShowdownBotSet(BaseModel):
     all_stars_only: bool = Field(False, description="Restrict the qualified player pool to players who received an All-Star selection that year")
     legend_min_career_war: Optional[float] = Field(
         None, ge=0,
-        description="Career WAR (through the latest year) at which a player skips the games/IP minimums and is guaranteed a card, e.g. a veteran's injury-shortened final season (None to disable)"
+        description="Career WAR (through the latest year) at which a player skips the PA/IP minimums and is guaranteed a card, e.g. a veteran's injury-shortened final season (None to disable)"
     )
 
     # Construction results
@@ -669,8 +669,10 @@ class ShowdownBotSet(BaseModel):
 
             # Apply minimum thresholds based on player type
             if player_type == 'POSITION_PLAYER':
-                min_games_adjustment_ca = 0.80 if 'C' in player.primary_positions else 1.0
-                if player.g >= (self.min_games_hitters * min_games_adjustment_ca):
+                min_pa_adjustment_ca = 0.80 if 'C' in player.primary_positions else 1.0
+                # Rows without PA fall back to games at a part-timer's pace
+                pa = player.pa if player.pa is not None else player.g * 3.5
+                if pa >= (self.min_pa_hitters * min_pa_adjustment_ca):
                     qualified_players.append(player)
             elif player_type == 'STARTING_PITCHER':
                 if player.real_ip and player.real_ip >= self.min_ip_starters:
@@ -1188,7 +1190,7 @@ class AlgorithmPreviewRequest(BaseModel):
     showdown_sets: List[str] = Field(..., min_length=1)
     pitcher_showdown_sets: Optional[List[str]] = None
 
-    min_games_hitters: int = 60
+    min_pa_hitters: int = 200
     min_ip_starters: int = 75
     min_ip_relievers: int = 30
 
@@ -1225,7 +1227,7 @@ class AlgorithmPreviewRequest(BaseModel):
             showdown_sets=self.showdown_sets,
             # An empty list means the toggle is on with nothing picked yet - same as off
             pitcher_showdown_sets=self.pitcher_showdown_sets or None,
-            min_games_hitters=self.min_games_hitters,
+            min_pa_hitters=self.min_pa_hitters,
             min_ip_starters=self.min_ip_starters,
             min_ip_relievers=self.min_ip_relievers,
             player_type_distribution=self.player_type_distribution,

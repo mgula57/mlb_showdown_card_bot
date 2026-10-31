@@ -179,7 +179,7 @@ const ALL_STARS_TEMPLATE: AlgorithmTemplate = {
     preset: {
         ...SELECTION_DEFAULTS,
         set_size: 60,
-        min_games_hitters: 20,
+        min_pa_hitters: 75,
         min_ip_starters: 30,
         min_ip_relievers: 15,
         all_stars_only: true,
@@ -197,7 +197,7 @@ const EXPANSION_TEMPLATE: AlgorithmTemplate = {
     preset: {
         ...SELECTION_DEFAULTS,
         set_size: 150,
-        min_games_hitters: 25,
+        min_pa_hitters: 100,
         min_ip_starters: 25,
         min_ip_relievers: 15,
         other_editions_rule: 'NEW_TEAM_ONLY',
@@ -349,7 +349,7 @@ export function AlgorithmBuilder({ releaseId, edition, token, defaultShowdownSet
         eligibility: [
             isAllStarSet
                 ? 'All-Stars only'
-                : `${config.min_games_hitters ?? 60} G · ${config.min_ip_starters ?? 75} IP SP · ${config.min_ip_relievers ?? 30} IP RP`,
+                : `${config.min_pa_hitters ?? 200} PA · ${config.min_ip_starters ?? 75} IP SP · ${config.min_ip_relievers ?? 30} IP RP`,
             ...(hasLegends && !isAllStarSet ? [`Legends ${legendMinCareerWar}+ WAR`] : []),
             ...(uniquePlayers ? [] : ['Repeats allowed']),
             ...(otherEditionsRule === 'ALLOW' ? [] : [otherEditionsRule === 'EXCLUDE' ? 'New players only' : 'New or traded players']),
@@ -520,16 +520,16 @@ export function AlgorithmBuilder({ releaseId, edition, token, defaultShowdownSet
             <SettingsGroup id="eligibility" title="Who's Eligible?" summary={summaries.eligibility} defaultOpen={false}>
                 {isAllStarSet ? (
                     <p className="text-[11px] text-(--text-tertiary)">
-                        Every All-Star selection from {config.years.trim() || 'the chosen years'} is eligible. Games and innings minimums don't apply — pick another template to change this.
+                        Every All-Star selection from {config.years.trim() || 'the chosen years'} is eligible. Plate appearance and innings minimums don't apply — pick another template to change this.
                     </p>
                 ) : (
                     <>
                         <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                             <FormInput
-                                label="Min Games (Hitters)"
+                                label="Min PA (Hitters)"
                                 type="number"
-                                value={config.min_games_hitters ?? 60}
-                                onChange={value => setConfig(prev => ({ ...prev, min_games_hitters: parseInt(value || '0', 10) || 0 }))}
+                                value={config.min_pa_hitters ?? 200}
+                                onChange={value => setConfig(prev => ({ ...prev, min_pa_hitters: parseInt(value || '0', 10) || 0 }))}
                             />
                             <FormInput
                                 label="Min IP (Starters)"
@@ -545,7 +545,7 @@ export function AlgorithmBuilder({ releaseId, edition, token, defaultShowdownSet
                             />
                         </div>
                         <p className="text-[11px] text-(--text-tertiary)">
-                            Players below these minimums are left out of the pool. Catchers only need 80% of the games minimum.
+                            Players below these minimums are left out of the pool. Catchers only need 80% of the plate appearances minimum.
                         </p>
                         <FormEnabler
                             label="Legends"
@@ -602,7 +602,7 @@ export function AlgorithmBuilder({ releaseId, edition, token, defaultShowdownSet
                     onRemove={id => onManualPicksChange(withoutManualPick(manualPicks, id, 'excluded'))}
                 />
                 <p className="text-[11px] text-(--text-tertiary)">
-                    Picks are per season, across every showdown set. Included seasons skip the games and innings minimums, but still need to be in the chosen years.
+                    Picks are per season, across every showdown set. Included seasons skip the plate appearance and innings minimums, but still need to be in the chosen years.
                 </p>
             </SettingsGroup>
 

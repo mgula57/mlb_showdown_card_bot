@@ -33,7 +33,7 @@ export const EXPANSION_TEMPLATE_ID = 'expansion';
 /** Everything a template resets: who's eligible, what the set is made of and how players are
  * picked. Years, sets, size (unless the template sets them) and card options stay the user's own. */
 export const SELECTION_DEFAULTS = {
-    min_games_hitters: 60,
+    min_pa_hitters: 200,
     min_ip_starters: 75,
     min_ip_relievers: 30,
     player_type_distribution: DEFAULT_PLAYER_TYPE_DISTRIBUTION,
@@ -87,7 +87,12 @@ export function estimateAlgorithmSeconds(config: AlgorithmConfig): number {
 type LegacyLowPointSettings = {
     ideal_low_point_percentage?: number | null;
     low_point_max_points?: number;
+    /** Hitters' minimum was games before it was plate appearances. */
+    min_games_hitters?: number;
 };
+
+/** Rough plate appearances per game for a part-timer, to carry an old games minimum over. */
+const LEGACY_PA_PER_GAME = 3.5;
 
 /** Mirrors `parseNumberingSettings` in EditionBuilder.tsx — reads the last-used algorithm config
  * back out of the edition's free-form `attributes` blob. */
@@ -95,10 +100,12 @@ export function parseAlgorithmSettings(attributes: Record<string, unknown>, defa
     const defaults = defaultAlgorithmConfig(defaultShowdownSet);
     const raw = attributes.algorithm as (Partial<AlgorithmConfig> & LegacyLowPointSettings) | undefined;
     if (!raw || typeof raw !== 'object') return defaults;
-    const { ideal_low_point_percentage, low_point_max_points, ...rest } = raw;
+    const { ideal_low_point_percentage, low_point_max_points, min_games_hitters, ...rest } = raw;
     return {
         ...defaults,
         ...rest,
+        min_pa_hitters: raw.min_pa_hitters
+            ?? (min_games_hitters != null ? Math.round(min_games_hitters * LEGACY_PA_PER_GAME) : defaults.min_pa_hitters),
         // Editions saved before templates were persisted: all-star mode can only come from the All-Stars template
         template_id: raw.template_id ?? (raw.all_stars_only ? ALL_STARS_TEMPLATE_ID : CUSTOM_TEMPLATE_ID),
         player_type_distribution: {

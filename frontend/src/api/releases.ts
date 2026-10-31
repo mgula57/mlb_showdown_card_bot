@@ -308,7 +308,7 @@ export type AlgorithmConfig = {
     showdown_sets: string[];
     /** Sets for pitchers, e.g. 2000 hitters with 2001 pitchers. Null to use `showdown_sets` for everyone. */
     pitcher_showdown_sets?: string[] | null;
-    min_games_hitters?: number;
+    min_pa_hitters?: number;
     min_ip_starters?: number;
     min_ip_relievers?: number;
     player_type_distribution?: AlgorithmPlayerTypeDistribution;
@@ -316,7 +316,7 @@ export type AlgorithmConfig = {
     include_award_winners?: boolean;
     /** Restrict the qualified player pool to players who received an All-Star selection that year. */
     all_stars_only?: boolean;
-    /** Career WAR (through the latest year) at which a player skips the games/IP minimums and is guaranteed a card. Null to disable. */
+    /** Career WAR (through the latest year) at which a player skips the PA/IP minimums and is guaranteed a card. Null to disable. */
     legend_min_career_war?: number | null;
     /** Point ranges (inclusive) with an ideal share of each player type's cards, e.g. 15% at 10-50 pts. */
     point_buckets?: AlgorithmPointBucket[];
