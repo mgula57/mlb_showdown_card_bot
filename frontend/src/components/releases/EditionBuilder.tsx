@@ -1359,233 +1359,241 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
                                 <FoilSuggestionBanner foils={foils} count={pendingFoils.size} onApply={handleApplyFoilSuggestions} />
                             )}
                             {((!readOnly && !activePreview) || displayCards.length > 0) && (
-                                <div className={`flex flex-wrap items-center gap-x-2 gap-y-2 px-3 py-2 border-b border-(--divider) shrink-0 ${CHROME_SURFACE_CLASS}`}>
-                                    {displayCards.length > 0 && (
-                                        <div className="flex flex-wrap items-center gap-2">
-                                            <CustomSelect
-                                                size="sm"
-                                                prefix="Group"
-                                                options={POOL_GROUP_OPTIONS}
-                                                value={groupBy}
-                                                onChange={value => setGroupBy(value as PoolGroupBy)}
-                                            />
-                                            <CustomSelect
-                                                size="sm"
-                                                prefix="Sort"
-                                                options={POOL_SORT_OPTIONS}
-                                                value={sortBy}
-                                                onChange={value => {
-                                                    setSortBy(value as PoolSortBy);
-                                                    setSortDirection(POOL_SORT_DEFAULT_DIRECTION[value as PoolSortBy]);
-                                                }}
-                                            />
-                                            <button
-                                                type="button"
-                                                onClick={() => setSortDirection(d => d === 'asc' ? 'desc' : 'asc')}
-                                                title={sortDirection === 'asc' ? 'Ascending' : 'Descending'}
-                                                className="flex items-center justify-center w-9 h-9 rounded-control border border-(--divider) text-(--text-secondary) hover:border-(--text-tertiary) transition-colors shrink-0 cursor-pointer"
-                                            >
-                                                {sortDirection === 'asc' ? <FaArrowUp className="text-[13px]" /> : <FaArrowDown className="text-[13px]" />}
-                                            </button>
-                                            <button
-                                                type="button"
-                                                onClick={() => setShowPoolFilters(v => !v)}
-                                                title={showPoolFilters ? 'Hide filters' : 'Show filters'}
-                                                className={`relative flex items-center justify-center w-9 h-9 rounded-control border transition-colors shrink-0 cursor-pointer
-                                                    ${showPoolFilters || activeFilterCount > 0
-                                                        ? 'border-(--showdown-blue) ring-1 ring-(--showdown-blue) text-(--text-primary)'
-                                                        : 'border-(--divider) text-(--text-secondary) hover:border-(--text-tertiary)'}`}
-                                            >
-                                                <FaFilter className="text-[13px]" />
-                                                <CornerCount count={activeFilterCount} />
-                                            </button>
-                                            <button
-                                                type="button"
-                                                onClick={toggleShowFullCards}
-                                                title={showFullCards ? 'Show compact cards' : 'Show full cards'}
-                                                className="flex items-center justify-center w-9 h-9 rounded-control border border-(--divider) text-(--text-secondary) hover:border-(--text-tertiary) transition-colors shrink-0 cursor-pointer"
-                                            >
-                                                {showFullCards ? <FaList className="text-[13px]" /> : <FaTableCellsLarge className="text-[13px]" />}
-                                            </button>
-                                            <TeamSearchInput
-                                                value={poolSearch}
-                                                onChange={setPoolSearch}
-                                                placeholder="Search players…"
-                                                className="w-48"
-                                            />
-                                            {isPoolFiltered && (
-                                                <span className="flex items-center gap-1.5 text-[12px] text-(--text-tertiary)">
-                                                    {filteredCards.length} of {displayCards.length}
-                                                    <button
-                                                        type="button"
-                                                        onClick={clearPoolFilters}
-                                                        className="font-semibold text-(--text-secondary) hover:text-(--text-primary) transition-colors cursor-pointer"
-                                                    >
-                                                        Clear
-                                                    </button>
-                                                </span>
-                                            )}
-                                            {isImageMatchActive && !readOnly && (
+                                // Sized by the pool panel (which resizes), not the window: one row when it's wide,
+                                // else view controls over edition tools, each row left-aligned. The container is its
+                                // own stacking context, so z-20 keeps its popovers over the grid's tags and headers.
+                                <div className={`@container relative z-20 px-3 py-2 border-b border-(--divider) shrink-0 ${CHROME_SURFACE_CLASS}`}>
+                                    <div className="flex flex-col gap-2 @7xl:flex-row @7xl:items-center">
+                                        {displayCards.length > 0 && (
+                                            <div className="flex flex-wrap items-center gap-2 @7xl:flex-1 @7xl:min-w-0">
+                                                <CustomSelect
+                                                    size="sm"
+                                                    prefix="Group"
+                                                    options={POOL_GROUP_OPTIONS}
+                                                    value={groupBy}
+                                                    onChange={value => setGroupBy(value as PoolGroupBy)}
+                                                />
+                                                <CustomSelect
+                                                    size="sm"
+                                                    prefix="Sort"
+                                                    options={POOL_SORT_OPTIONS}
+                                                    value={sortBy}
+                                                    onChange={value => {
+                                                        setSortBy(value as PoolSortBy);
+                                                        setSortDirection(POOL_SORT_DEFAULT_DIRECTION[value as PoolSortBy]);
+                                                    }}
+                                                />
                                                 <button
                                                     type="button"
-                                                    onClick={liveImageMatches.refresh}
-                                                    disabled={liveImageMatches.loading}
-                                                    title={liveImageMatches.error
-                                                        ?? (liveImageMatches.libraryNames.length > 0
-                                                            ? `Matched against: ${liveImageMatches.libraryNames.join(', ')}. Click to re-check your image libraries.`
-                                                            : 'Re-check your image libraries')}
-                                                    className={`flex items-center gap-1.5 min-h-9 px-3 py-2 rounded-control text-[12px] font-semibold border transition-colors shrink-0 cursor-pointer disabled:cursor-wait
-                                                        ${liveImageMatches.error ? 'border-(--red)/40 text-(--red)' : 'border-(--divider) text-(--text-secondary) hover:border-(--text-tertiary)'}`}
+                                                    onClick={() => setSortDirection(d => d === 'asc' ? 'desc' : 'asc')}
+                                                    title={sortDirection === 'asc' ? 'Ascending' : 'Descending'}
+                                                    className="flex items-center justify-center w-9 h-9 rounded-control border border-(--divider) text-(--text-secondary) hover:border-(--text-tertiary) transition-colors shrink-0 cursor-pointer"
                                                 >
-                                                    <FaArrowsRotate className={`text-[11px] ${liveImageMatches.loading ? 'animate-spin' : ''}`} />
-                                                    {liveImageMatches.loading
-                                                        ? 'Checking images…'
-                                                        : liveImageMatches.error
-                                                            ? 'Image check failed'
-                                                            : liveImageMatches.checkedAt ? `Images checked ${relativeTime(liveImageMatches.checkedAt)}` : 'Check images'}
+                                                    {sortDirection === 'asc' ? <FaArrowUp className="text-[13px]" /> : <FaArrowDown className="text-[13px]" />}
                                                 </button>
-                                            )}
-                                        </div>
-                                    )}
-
-                                    {!readOnly && !activePreview && (
-                                        <div className="flex flex-wrap items-center gap-2 ml-auto">
-                                            {cards.length > 0 && <FoilSuggestControl foils={foils} disabled={saving} />}
-                                            <span className={`${FIELD_LABEL_CLASS} shrink-0`}>
-                                                Numbering
-                                            </span>
-                                            <div className="flex gap-1.5">
-                                                {NUMBERING_MODE_OPTIONS.map(opt => (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setShowPoolFilters(v => !v)}
+                                                    title={showPoolFilters ? 'Hide filters' : 'Show filters'}
+                                                    className={`relative flex items-center justify-center w-9 h-9 rounded-control border transition-colors shrink-0 cursor-pointer
+                                                        ${showPoolFilters || activeFilterCount > 0
+                                                            ? 'border-(--showdown-blue) ring-1 ring-(--showdown-blue) text-(--text-primary)'
+                                                            : 'border-(--divider) text-(--text-secondary) hover:border-(--text-tertiary)'}`}
+                                                >
+                                                    <FaFilter className="text-[13px]" />
+                                                    <CornerCount count={activeFilterCount} />
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    onClick={toggleShowFullCards}
+                                                    title={showFullCards ? 'Show compact cards' : 'Show full cards'}
+                                                    className="flex items-center justify-center w-9 h-9 rounded-control border border-(--divider) text-(--text-secondary) hover:border-(--text-tertiary) transition-colors shrink-0 cursor-pointer"
+                                                >
+                                                    {showFullCards ? <FaList className="text-[13px]" /> : <FaTableCellsLarge className="text-[13px]" />}
+                                                </button>
+                                                <TeamSearchInput
+                                                    value={poolSearch}
+                                                    onChange={setPoolSearch}
+                                                    placeholder="Search players…"
+                                                    className="grow basis-48 min-w-0"
+                                                />
+                                                {isPoolFiltered && (
+                                                    <span className="flex items-center gap-1.5 text-[12px] text-(--text-tertiary)">
+                                                        {filteredCards.length} of {displayCards.length}
+                                                        <button
+                                                            type="button"
+                                                            onClick={clearPoolFilters}
+                                                            className="font-semibold text-(--text-secondary) hover:text-(--text-primary) transition-colors cursor-pointer"
+                                                        >
+                                                            Clear
+                                                        </button>
+                                                    </span>
+                                                )}
+                                                {isImageMatchActive && !readOnly && (
                                                     <button
-                                                        key={opt.value}
                                                         type="button"
-                                                        onClick={() => handleNumberingModeChange(opt.value)}
-                                                        className={choiceClass(numbering.mode === opt.value)}
+                                                        onClick={liveImageMatches.refresh}
+                                                        disabled={liveImageMatches.loading}
+                                                        title={liveImageMatches.error
+                                                            ?? (liveImageMatches.libraryNames.length > 0
+                                                                ? `Matched against: ${liveImageMatches.libraryNames.join(', ')}. Click to re-check your image libraries.`
+                                                                : 'Re-check your image libraries')}
+                                                        className={`flex items-center gap-1.5 min-h-9 px-3 py-2 rounded-control text-[12px] font-semibold border transition-colors shrink-0 cursor-pointer disabled:cursor-wait
+                                                            ${liveImageMatches.error ? 'border-(--red)/40 text-(--red)' : 'border-(--divider) text-(--text-secondary) hover:border-(--text-tertiary)'}`}
                                                     >
-                                                        {opt.label}
+                                                        <FaArrowsRotate className={`text-[11px] ${liveImageMatches.loading ? 'animate-spin' : ''}`} />
+                                                        {liveImageMatches.loading
+                                                            ? 'Checking images…'
+                                                            : liveImageMatches.error
+                                                                ? 'Image check failed'
+                                                                : liveImageMatches.checkedAt ? `Images checked ${relativeTime(liveImageMatches.checkedAt)}` : 'Check images'}
                                                     </button>
-                                                ))}
+                                                )}
                                             </div>
-                                            {numbering.mode === 'auto' && !numbering.autoLive && (
-                                                <button
-                                                    type="button"
-                                                    onClick={() => persist(renumberSorted(cards, numbering.sortLayers))}
-                                                    className={buttonClass('secondary', 'sm', 'min-h-9')}
-                                                >
-                                                    <FaArrowsRotate className="text-[12px]" /> Renumber now
-                                                </button>
-                                            )}
+                                        )}
 
-                                            {numbering.mode !== 'none' && (
-                                                <div className="relative shrink-0" ref={numberingSettingsRef}>
+                                        {!readOnly && !activePreview && (
+                                            <div className={`flex flex-wrap items-center gap-2 @7xl:ml-auto @7xl:shrink-0 ${displayCards.length > 0 ? 'border-t border-(--divider) pt-2 @7xl:border-t-0 @7xl:pt-0' : ''}`}>
+                                                {/* The label stays with its choices when the row wraps */}
+                                                <div className="flex items-center gap-2 shrink-0">
+                                                    <span className={FIELD_LABEL_CLASS}>
+                                                        Numbering
+                                                    </span>
+                                                    <div className="flex gap-1.5">
+                                                        {NUMBERING_MODE_OPTIONS.map(opt => (
+                                                            <button
+                                                                key={opt.value}
+                                                                type="button"
+                                                                onClick={() => handleNumberingModeChange(opt.value)}
+                                                                className={choiceClass(numbering.mode === opt.value)}
+                                                            >
+                                                                {opt.label}
+                                                            </button>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                                {numbering.mode === 'auto' && !numbering.autoLive && (
                                                     <button
                                                         type="button"
-                                                        onClick={() => setShowNumberingSettings(v => !v)}
-                                                        className="flex items-center justify-center w-9 h-9 rounded-control border border-(--divider) text-(--text-secondary) hover:border-(--text-tertiary) transition-colors cursor-pointer"
-                                                        aria-label="Numbering settings"
+                                                        onClick={() => persist(renumberSorted(cards, numbering.sortLayers))}
+                                                        className={buttonClass('secondary', 'sm', 'min-h-9')}
                                                     >
-                                                        <FaGear className="text-[15px]" />
+                                                        <FaArrowsRotate className="text-[12px]" /> Renumber now
                                                     </button>
+                                                )}
 
-                                                    {showNumberingSettings && (
-                                                        <div className={POOL_TOOLBAR_POPOVER_CLASS}>
-                                                            {numbering.mode === 'auto' && (
-                                                                <>
-                                                                    <div className="flex flex-col gap-2">
-                                                                        <span className={FIELD_LABEL_CLASS}>
-                                                                            Sort By (in order)
-                                                                        </span>
-                                                                        {numbering.sortLayers.map((layer, index) => (
-                                                                            <div key={index} className="flex items-center gap-1.5">
-                                                                                <span className="text-[11px] font-mono text-(--text-tertiary) w-3 shrink-0">{index + 1}</span>
-                                                                                <CustomSelect
-                                                                                    size="md"
-                                                                                    className="flex-1 min-w-0"
-                                                                                    value={layer.category}
-                                                                                    onChange={value => updateSortLayer(index, { category: value as SortCategory })}
-                                                                                    options={availableCategoriesFor(layer.category)}
-                                                                                />
-                                                                                <button
-                                                                                    type="button"
-                                                                                    onClick={() => updateSortLayer(index, { direction: layer.direction === 'asc' ? 'desc' : 'asc' })}
-                                                                                    title={layer.direction === 'asc' ? 'Ascending' : 'Descending'}
-                                                                                    className="flex items-center justify-center w-10 h-10 rounded-control border border-(--divider) text-(--text-secondary) hover:border-(--rule-strong) transition-colors shrink-0 cursor-pointer"
-                                                                                >
-                                                                                    {layer.direction === 'asc' ? <FaArrowUp className="text-[13px]" /> : <FaArrowDown className="text-[13px]" />}
-                                                                                </button>
-                                                                                <button
-                                                                                    type="button"
-                                                                                    onClick={() => moveSortLayer(index, -1)}
-                                                                                    disabled={index === 0}
-                                                                                    className="flex items-center justify-center w-8 h-10 text-[13px] text-(--text-tertiary) hover:text-(--text-primary) cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed shrink-0"
-                                                                                >
-                                                                                    ▲
-                                                                                </button>
-                                                                                <button
-                                                                                    type="button"
-                                                                                    onClick={() => moveSortLayer(index, 1)}
-                                                                                    disabled={index === numbering.sortLayers.length - 1}
-                                                                                    className="flex items-center justify-center w-8 h-10 text-[13px] text-(--text-tertiary) hover:text-(--text-primary) cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed shrink-0"
-                                                                                >
-                                                                                    ▼
-                                                                                </button>
-                                                                                {numbering.sortLayers.length > 1 && (
+                                                {numbering.mode !== 'none' && (
+                                                    <div className="relative shrink-0" ref={numberingSettingsRef}>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => setShowNumberingSettings(v => !v)}
+                                                            className="flex items-center justify-center w-9 h-9 rounded-control border border-(--divider) text-(--text-secondary) hover:border-(--text-tertiary) transition-colors cursor-pointer"
+                                                            aria-label="Numbering settings"
+                                                        >
+                                                            <FaGear className="text-[15px]" />
+                                                        </button>
+
+                                                        {showNumberingSettings && (
+                                                            <div className={`${POOL_TOOLBAR_POPOVER_CLASS} right-0`}>
+                                                                {numbering.mode === 'auto' && (
+                                                                    <>
+                                                                        <div className="flex flex-col gap-2">
+                                                                            <span className={FIELD_LABEL_CLASS}>
+                                                                                Sort By (in order)
+                                                                            </span>
+                                                                            {numbering.sortLayers.map((layer, index) => (
+                                                                                <div key={index} className="flex items-center gap-1.5">
+                                                                                    <span className="text-[11px] font-mono text-(--text-tertiary) w-3 shrink-0">{index + 1}</span>
+                                                                                    <CustomSelect
+                                                                                        size="md"
+                                                                                        className="flex-1 min-w-0"
+                                                                                        value={layer.category}
+                                                                                        onChange={value => updateSortLayer(index, { category: value as SortCategory })}
+                                                                                        options={availableCategoriesFor(layer.category)}
+                                                                                    />
                                                                                     <button
                                                                                         type="button"
-                                                                                        onClick={() => removeSortLayer(index)}
-                                                                                        aria-label="Remove sort level"
-                                                                                        className="flex items-center justify-center w-8 h-10 text-(--text-tertiary) hover:text-(--red) transition-colors shrink-0 cursor-pointer"
+                                                                                        onClick={() => updateSortLayer(index, { direction: layer.direction === 'asc' ? 'desc' : 'asc' })}
+                                                                                        title={layer.direction === 'asc' ? 'Ascending' : 'Descending'}
+                                                                                        className="flex items-center justify-center w-10 h-10 rounded-control border border-(--divider) text-(--text-secondary) hover:border-(--rule-strong) transition-colors shrink-0 cursor-pointer"
                                                                                     >
-                                                                                        <FaXmark className="text-[13px]" />
+                                                                                        {layer.direction === 'asc' ? <FaArrowUp className="text-[13px]" /> : <FaArrowDown className="text-[13px]" />}
                                                                                     </button>
-                                                                                )}
-                                                                            </div>
-                                                                        ))}
-                                                                        {numbering.sortLayers.length < SORT_CATEGORY_OPTIONS.length && (
-                                                                            <button
-                                                                                type="button"
-                                                                                onClick={addSortLayer}
-                                                                                className={buttonClass('ghost', 'sm', 'self-start')}
-                                                                            >
-                                                                                <FaPlus className="text-[11px]" /> Add sort level
-                                                                            </button>
-                                                                        )}
-                                                                    </div>
+                                                                                    <button
+                                                                                        type="button"
+                                                                                        onClick={() => moveSortLayer(index, -1)}
+                                                                                        disabled={index === 0}
+                                                                                        className="flex items-center justify-center w-8 h-10 text-[13px] text-(--text-tertiary) hover:text-(--text-primary) cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed shrink-0"
+                                                                                    >
+                                                                                        ▲
+                                                                                    </button>
+                                                                                    <button
+                                                                                        type="button"
+                                                                                        onClick={() => moveSortLayer(index, 1)}
+                                                                                        disabled={index === numbering.sortLayers.length - 1}
+                                                                                        className="flex items-center justify-center w-8 h-10 text-[13px] text-(--text-tertiary) hover:text-(--text-primary) cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed shrink-0"
+                                                                                    >
+                                                                                        ▼
+                                                                                    </button>
+                                                                                    {numbering.sortLayers.length > 1 && (
+                                                                                        <button
+                                                                                            type="button"
+                                                                                            onClick={() => removeSortLayer(index)}
+                                                                                            aria-label="Remove sort level"
+                                                                                            className="flex items-center justify-center w-8 h-10 text-(--text-tertiary) hover:text-(--red) transition-colors shrink-0 cursor-pointer"
+                                                                                        >
+                                                                                            <FaXmark className="text-[13px]" />
+                                                                                        </button>
+                                                                                    )}
+                                                                                </div>
+                                                                            ))}
+                                                                            {numbering.sortLayers.length < SORT_CATEGORY_OPTIONS.length && (
+                                                                                <button
+                                                                                    type="button"
+                                                                                    onClick={addSortLayer}
+                                                                                    className={buttonClass('ghost', 'sm', 'self-start')}
+                                                                                >
+                                                                                    <FaPlus className="text-[11px]" /> Add sort level
+                                                                                </button>
+                                                                            )}
+                                                                        </div>
 
-                                                                    <FormEnabler
-                                                                        label="Live"
-                                                                        isEnabled={numbering.autoLive}
-                                                                        onChange={autoLive => handleNumberingSettingChange({ autoLive })}
-                                                                        className="min-h-10 text-[13px]"
-                                                                    />
-                                                                </>
-                                                            )}
+                                                                        <FormEnabler
+                                                                            label="Live"
+                                                                            isEnabled={numbering.autoLive}
+                                                                            onChange={autoLive => handleNumberingSettingChange({ autoLive })}
+                                                                            className="min-h-10 text-[13px]"
+                                                                        />
+                                                                    </>
+                                                                )}
 
-                                                            <FormEnabler
-                                                                label="Zero-pad"
-                                                                isEnabled={numbering.zeroPad}
-                                                                onChange={zeroPad => persistNumberingSettings({ ...numbering, zeroPad: !zeroPad })}
-                                                                className="min-h-10 text-[13px]"
-                                                            />
-
-                                                            <div className="flex flex-col gap-1">
-                                                                <span className={FIELD_LABEL_CLASS}>Prefix</span>
-                                                                <input
-                                                                    type="text"
-                                                                    value={numbering.prefix}
-                                                                    onChange={e => handlePrefixInputChange(e.target.value)}
-                                                                    onBlur={handlePrefixInputBlur}
-                                                                    maxLength={3}
-                                                                    placeholder="e.g. AS"
-                                                                    className={fieldClass('md', 'w-24 font-mono uppercase focus:outline-none')}
+                                                                <FormEnabler
+                                                                    label="Zero-pad"
+                                                                    isEnabled={numbering.zeroPad}
+                                                                    onChange={zeroPad => persistNumberingSettings({ ...numbering, zeroPad: !zeroPad })}
+                                                                    className="min-h-10 text-[13px]"
                                                                 />
+
+                                                                <div className="flex flex-col gap-1">
+                                                                    <span className={FIELD_LABEL_CLASS}>Prefix</span>
+                                                                    <input
+                                                                        type="text"
+                                                                        value={numbering.prefix}
+                                                                        onChange={e => handlePrefixInputChange(e.target.value)}
+                                                                        onBlur={handlePrefixInputBlur}
+                                                                        maxLength={3}
+                                                                        placeholder="e.g. AS"
+                                                                        className={fieldClass('md', 'w-24 font-mono uppercase focus:outline-none')}
+                                                                    />
+                                                                </div>
                                                             </div>
-                                                        </div>
-                                                    )}
-                                                </div>
-                                            )}
-                                        </div>
-                                    )}
+                                                        )}
+                                                    </div>
+                                                )}
+                                                {cards.length > 0 && <FoilSuggestControl foils={foils} disabled={saving} />}
+                                            </div>
+                                        )}
+                                    </div>
                                 </div>
                             )}
 

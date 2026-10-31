@@ -15,8 +15,8 @@ import FormEnabler from '../customs/FormEnabler';
 import { PoolPreviewBanner } from './PoolPreviewBanner';
 import type { FoilSuggestionsState } from './useFoilSuggestions';
 
-/** The floating settings panel under a pool toolbar button (numbering, foils). */
-export const POOL_TOOLBAR_POPOVER_CLASS = 'absolute right-0 top-full mt-2 w-80 max-w-[calc(100vw-2rem)] p-3 bg-(--background-secondary) border border-(--divider) rounded-card shadow-overlay z-50 flex flex-col gap-4';
+/** The floating settings panel under a pool toolbar button (numbering, foils). Add the side it hangs from. */
+export const POOL_TOOLBAR_POPOVER_CLASS = 'absolute top-full mt-2 w-80 max-w-[calc(100vw-2rem)] p-3 bg-(--background-secondary) border border-(--divider) rounded-card shadow-overlay z-50 flex flex-col gap-4';
 
 const SET_TYPE_OPTIONS: { value: FoilSetType; label: string; description: string }[] = [
     {
@@ -67,7 +67,8 @@ export function FoilSuggestControl({ foils, disabled }: FoilSuggestControlProps)
             </button>
 
             {isOpen && (
-                <div className={POOL_TOOLBAR_POPOVER_CLASS}>
+                // Hangs right on the toolbar's single wide row, where the button ends it; left once the rows stack
+                <div className={`${POOL_TOOLBAR_POPOVER_CLASS} left-0 @7xl:left-auto @7xl:right-0`}>
                     <div className="flex flex-col gap-2">
                         <span className={FIELD_LABEL_CLASS}>This edition is</span>
                         <div className="flex gap-1.5">
