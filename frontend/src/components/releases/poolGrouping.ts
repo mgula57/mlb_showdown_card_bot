@@ -5,45 +5,75 @@ import { FRANCHISE_CODE, PARENT_POSITION_ORDER, parentPositionGroup } from './Su
 
 export type PoolGroupBy = 'none' | 'team' | 'league' | 'position' | 'type' | 'hand' | 'year' | 'points' | 'command' | 'speed' | 'ip' | 'chart_version' | 'image_match' | 'tag';
 export type PoolSortBy = 'set_number' | 'points' | 'name' | 'team' | 'position' | 'year' | 'command' | 'speed' | 'ip'
-    | 'obp' | 'ops' | 'ops_plus' | 'era' | 'whip' | 'match_score' | 'match_margin';
+    | 'volume' | 'g' | 'war' | 'pa' | 'avg' | 'obp' | 'slg' | 'ops' | 'ops_plus' | 'h' | 'hr' | 'sb' | 'bb'
+    | 'gs' | 'real_ip' | 'era' | 'whip' | 'w' | 'sv' | 'so' | 'match_score' | 'match_margin';
 export type PoolSortDirection = 'asc' | 'desc';
 
 export type PoolGroup = { key: string; label: string; cards: ReleaseCard[] };
 
-export const POOL_GROUP_OPTIONS: { label: string; value: PoolGroupBy }[] = [
+// Option `group`s render as section headers in CustomSelect (consecutive options share a header).
+export const POOL_GROUP_OPTIONS: { label: string; value: PoolGroupBy; group?: string }[] = [
     { label: 'None', value: 'none' },
-    { label: 'Team', value: 'team' },
-    { label: 'League', value: 'league' },
-    { label: 'Position', value: 'position' },
-    { label: 'Player Type', value: 'type' },
-    { label: 'Handedness', value: 'hand' },
-    { label: 'Year', value: 'year' },
-    { label: 'PTS Tier', value: 'points' },
-    { label: 'Command', value: 'command' },
-    { label: 'Speed', value: 'speed' },
-    { label: 'IP', value: 'ip' },
-    { label: 'Chart Version', value: 'chart_version' },
-    { label: 'Image Match', value: 'image_match' },
-    { label: 'Tag', value: 'tag' },
+    { label: 'Team', value: 'team', group: 'Player' },
+    { label: 'League', value: 'league', group: 'Player' },
+    { label: 'Position', value: 'position', group: 'Player' },
+    { label: 'Player Type', value: 'type', group: 'Player' },
+    { label: 'Handedness', value: 'hand', group: 'Player' },
+    { label: 'Year', value: 'year', group: 'Player' },
+    { label: 'PTS Tier', value: 'points', group: 'Card' },
+    { label: 'Command', value: 'command', group: 'Card' },
+    { label: 'Speed', value: 'speed', group: 'Card' },
+    { label: 'IP', value: 'ip', group: 'Card' },
+    { label: 'Chart Version', value: 'chart_version', group: 'Card' },
+    { label: 'Image Match', value: 'image_match', group: 'Edition' },
+    { label: 'Tag', value: 'tag', group: 'Edition' },
 ];
 
-export const POOL_SORT_OPTIONS: { label: string; value: PoolSortBy }[] = [
-    { label: 'Set Number', value: 'set_number' },
-    { label: 'PTS', value: 'points' },
-    { label: 'Name', value: 'name' },
-    { label: 'Team', value: 'team' },
-    { label: 'Position', value: 'position' },
-    { label: 'Year', value: 'year' },
-    { label: 'Command', value: 'command' },
-    { label: 'Speed', value: 'speed' },
-    { label: 'IP', value: 'ip' },
-    { label: 'Real OBP', value: 'obp' },
-    { label: 'Real OPS', value: 'ops' },
-    { label: 'Real OPS+', value: 'ops_plus' },
-    { label: 'Real ERA', value: 'era' },
-    { label: 'Real WHIP', value: 'whip' },
-    { label: 'Match Score', value: 'match_score' },
-    { label: 'Margin Over Cut', value: 'match_margin' },
+const sortSection = (group: string, options: { label: string; value: PoolSortBy }[]) => options.map(o => ({ ...o, group }));
+
+export const POOL_SORT_OPTIONS: { label: string; value: PoolSortBy; group?: string }[] = [
+    ...sortSection('Card', [
+        { label: 'Set Number', value: 'set_number' },
+        { label: 'PTS', value: 'points' },
+        { label: 'Name', value: 'name' },
+        { label: 'Team', value: 'team' },
+        { label: 'Position', value: 'position' },
+        { label: 'Year', value: 'year' },
+        { label: 'Command', value: 'command' },
+        { label: 'Speed', value: 'speed' },
+        { label: 'IP', value: 'ip' },
+    ]),
+    ...sortSection('Real Overall', [
+        { label: 'Volume', value: 'volume' },
+        { label: 'G', value: 'g' },
+        { label: 'WAR', value: 'war' },
+    ]),
+    ...sortSection('Real Hitting', [
+        { label: 'PA', value: 'pa' },
+        { label: 'AVG', value: 'avg' },
+        { label: 'OBP', value: 'obp' },
+        { label: 'SLG', value: 'slg' },
+        { label: 'OPS', value: 'ops' },
+        { label: 'OPS+', value: 'ops_plus' },
+        { label: 'H', value: 'h' },
+        { label: 'HR', value: 'hr' },
+        { label: 'SB', value: 'sb' },
+        { label: 'BB', value: 'bb' },
+    ]),
+    ...sortSection('Real Pitching', [
+        { label: 'GS', value: 'gs' },
+        // Prefixed so the selected value reads apart from the card's IP
+        { label: 'Real IP', value: 'real_ip' },
+        { label: 'ERA', value: 'era' },
+        { label: 'WHIP', value: 'whip' },
+        { label: 'W', value: 'w' },
+        { label: 'SV', value: 'sv' },
+        { label: 'K', value: 'so' },
+    ]),
+    ...sortSection('Algorithm', [
+        { label: 'Match Score', value: 'match_score' },
+        { label: 'Margin Over Cut', value: 'match_margin' },
+    ]),
 ];
 
 /** The direction that reads most naturally for each sort — best first (big numbers, except ERA/WHIP). */
@@ -57,11 +87,26 @@ export const POOL_SORT_DEFAULT_DIRECTION: Record<PoolSortBy, PoolSortDirection> 
     command: 'desc',
     speed: 'desc',
     ip: 'desc',
+    volume: 'desc',
+    g: 'desc',
+    war: 'desc',
+    pa: 'desc',
+    avg: 'desc',
     obp: 'desc',
+    slg: 'desc',
     ops: 'desc',
     ops_plus: 'desc',
+    h: 'desc',
+    hr: 'desc',
+    sb: 'desc',
+    bb: 'desc',
+    gs: 'desc',
+    real_ip: 'desc',
     era: 'asc',
     whip: 'asc',
+    w: 'desc',
+    sv: 'desc',
+    so: 'desc',
     match_score: 'desc',
     // Closest to the cut line first: who barely made it
     match_margin: 'asc',
@@ -105,25 +150,58 @@ function compareCommandGroupKeys(a: string, b: string): number {
 /** `keyFn` may return several keys to place a card in more than one group (e.g. one per tag). */
 type GroupKeyer = { keyFn: (card: ReleaseCard) => string | string[]; compareKeys: (a: string, b: string) => number };
 
-/** Stats that only apply to one side (Speed/OBP/OPS to hitters, IP/ERA/WHIP to pitchers); `null` for
- * cards the stat doesn't apply to, or whose real-life stat is missing from the snapshot. */
+/** Stats that only apply to one side (Speed/OBP/OPS to hitters, IP/ERA/WHIP to pitchers) or to both
+ * (Volume/G/WAR); `null` for cards the stat doesn't apply to, or whose real-life stat is missing from the snapshot. */
 type SideStat = { value: (card: ReleaseCard) => number | null; label: string; missingLabel: string };
 
-type SideStatKey = 'speed' | 'ip' | 'obp' | 'ops' | 'ops_plus' | 'era' | 'whip';
+type SideStatKey = 'speed' | 'ip' | 'volume' | 'g' | 'war' | 'pa' | 'avg' | 'obp' | 'slg' | 'ops' | 'ops_plus' | 'h' | 'hr' | 'sb' | 'bb'
+    | 'gs' | 'real_ip' | 'era' | 'whip' | 'w' | 'sv' | 'so';
 
 const hitterStat = (label: string, value: (card: ReleaseCard) => number | null | undefined): SideStat =>
     ({ value: card => card.card_snapshot.is_pitcher ? null : (value(card) ?? null), label, missingLabel: 'Pitchers' });
 const pitcherStat = (label: string, value: (card: ReleaseCard) => number | null | undefined): SideStat =>
     ({ value: card => card.card_snapshot.is_pitcher ? (value(card) ?? null) : null, label, missingLabel: 'Hitters' });
+const anyStat = (label: string, value: (card: ReleaseCard) => number | null | undefined): SideStat =>
+    ({ value: card => value(card) ?? null, label, missingLabel: 'Unknown' });
+
+// Full-time seasons line up on one PA scale: 650 PA ≈ 200 starter IP ≈ 70 reliever IP
+const STARTER_IP_TO_PA = 650 / 200;
+const RELIEVER_IP_TO_PA = 650 / 70;
+
+/** Playing time as PA-equivalents, so hitters, starters, and relievers sort on one scale. */
+function volume(card: ReleaseCard): number {
+    const snapshot = card.card_snapshot;
+    switch (parentPositionGroup(snapshot)) {
+        case 'Position Player': return snapshot.pa || snapshot.g || 0;
+        case 'Starting Pitcher': return (snapshot.real_ip ?? 0) * STARTER_IP_TO_PA;
+        // Spot starts inflate a reliever's IP, so roughly strip them out (as the Algorithm's Volume weight does)
+        default: return Math.max(0, (snapshot.real_ip ?? 0) - 5 * (snapshot.gs ?? 0)) * RELIEVER_IP_TO_PA;
+    }
+}
 
 const SIDE_STATS: Record<SideStatKey, SideStat> = {
     speed: hitterStat('Speed', card => card.card_snapshot.speed ?? 0),
     ip: pitcherStat('IP', card => card.card_snapshot.ip ?? 0),
+    volume: anyStat('Volume', volume),
+    g: anyStat('G', card => card.card_snapshot.g),
+    war: anyStat('WAR', card => card.card_snapshot.real_bwar),
+    pa: hitterStat('PA', card => card.card_snapshot.pa),
+    avg: hitterStat('AVG', card => card.card_snapshot.real_batting_avg),
     obp: hitterStat('OBP', card => card.card_snapshot.real_onbase_perc),
+    slg: hitterStat('SLG', card => card.card_snapshot.real_slugging_perc),
     ops: hitterStat('OPS', card => card.card_snapshot.real_onbase_plus_slugging),
     ops_plus: hitterStat('OPS+', card => card.card_snapshot.real_onbase_plus_slugging_plus),
+    h: hitterStat('H', card => card.card_snapshot.real_h),
+    hr: hitterStat('HR', card => card.card_snapshot.real_hr),
+    sb: hitterStat('SB', card => card.card_snapshot.real_sb),
+    bb: hitterStat('BB', card => card.card_snapshot.real_bb),
+    gs: pitcherStat('GS', card => card.card_snapshot.gs),
+    real_ip: pitcherStat('IP', card => card.card_snapshot.real_ip),
     era: pitcherStat('ERA', card => card.card_snapshot.real_earned_run_avg),
     whip: pitcherStat('WHIP', card => card.card_snapshot.real_whip),
+    w: pitcherStat('W', card => card.card_snapshot.real_w),
+    sv: pitcherStat('SV', card => card.card_snapshot.real_sv),
+    so: pitcherStat('K', card => card.card_snapshot.real_so),
 };
 
 /** Algorithm Match: how far the card's pick score cleared its slot's cut line (guaranteed picks can
@@ -206,20 +284,13 @@ function compareBySort(a: ReleaseCard, b: ReleaseCard, sortBy: PoolSortBy): numb
         case 'points': return (a.card_snapshot.points ?? 0) - (b.card_snapshot.points ?? 0);
         case 'command': return (a.card_snapshot.command ?? 0) - (b.card_snapshot.command ?? 0);
         case 'year': return cardYear(a) - cardYear(b);
-        case 'speed':
-        case 'ip':
-        case 'obp':
-        case 'ops':
-        case 'ops_plus':
-        case 'era':
-        case 'whip': return (SIDE_STATS[sortBy].value(a) ?? 0) - (SIDE_STATS[sortBy].value(b) ?? 0);
         case 'match_score':
         case 'match_margin': return (MATCH_SORTS[sortBy](a) ?? 0) - (MATCH_SORTS[sortBy](b) ?? 0);
         case 'name': return lastName(a.card_snapshot.name).localeCompare(lastName(b.card_snapshot.name));
         case 'team': return franchiseTeam(a).localeCompare(franchiseTeam(b));
         case 'position': return POSITION_ORDER.indexOf(primaryPosition(a)) - POSITION_ORDER.indexOf(primaryPosition(b));
-        case 'set_number':
-        default: return (a.card_number ?? Infinity) - (b.card_number ?? Infinity);
+        case 'set_number': return (a.card_number ?? Infinity) - (b.card_number ?? Infinity);
+        default: return (SIDE_STATS[sortBy].value(a) ?? 0) - (SIDE_STATS[sortBy].value(b) ?? 0);
     }
 }
 
@@ -288,7 +359,7 @@ export function groupAndSortCards(cards: ReleaseCard[], groupBy: PoolGroupBy, so
         if (sortBy === 'set_number' && (a.card_number === null || b.card_number === null)) return compareBySort(a, b, sortBy);
         // On-Base and Control live on different scales, so hitters stay ahead of pitchers in either direction.
         if (sortBy === 'command') return commandSide(a) - commandSide(b) || factor * compareBySort(a, b, sortBy);
-        // One-sided stats (Speed/IP/real-life rates) — cards without the stat always trail.
+        // Speed/IP and real-life stats — cards without the stat always trail.
         if (isSideStat(sortBy)) {
             const stat = SIDE_STATS[sortBy];
             return sideStatMissing(a, stat) - sideStatMissing(b, stat) || factor * compareBySort(a, b, sortBy);
@@ -335,7 +406,7 @@ export type PoolFilterBy = Exclude<PoolGroupBy, 'none'>;
 export type PoolFilters = Partial<Record<PoolFilterBy, string[]>>;
 
 export const POOL_FILTER_OPTIONS = POOL_GROUP_OPTIONS.filter(
-    (o): o is { label: string; value: PoolFilterBy } => o.value !== 'none'
+    (o): o is { label: string; value: PoolFilterBy; group?: string } => o.value !== 'none'
 );
 
 /** Distinct values of a dimension across `cards`, in group order, labelled with their card counts. */

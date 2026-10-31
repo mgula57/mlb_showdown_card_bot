@@ -115,6 +115,14 @@ export type CardDatabaseRecord = {
     real_onbase_plus_slugging_plus?: number | null;
     real_earned_run_avg?: number | null;
     real_whip?: number | null;
+    real_bwar?: number | null;
+    real_h?: number | null;
+    real_hr?: number | null;
+    real_sb?: number | null;
+    real_so?: number | null;
+    real_bb?: number | null;
+    real_w?: number | null;
+    real_sv?: number | null;
 
     // Stats
     awards_list: string[];
