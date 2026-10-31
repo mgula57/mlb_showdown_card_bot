@@ -89,6 +89,7 @@ Use these before writing new styles. All live in `src/components/shared/` unless
 |---|---|
 | `Plate` | The stat box from the card front, in semibold body-face caps. Variants: `ink` (stats, points), `navy`/`red` (OFFICIAL, LIVE, errata), `outline` (Draft, awards), `success` (Published), `onField`/`onFieldOutline` (on team-color fields), `custom` (team-colored, pass `style`; on cards the year/team plate takes the primary color and the points plate the secondary). Replaces rounded pills |
 | `EmptyState` | Nothing to show yet: a slab headline, one line and an optional action, in `page`, `panel` and `inline` sizes (see Empty states) |
+| `SignInPrompt` | A feature that needs an account: `page` (default) is the full-screen lock prompt, `panel` a compact bordered panel for one gated part of a screen. Owns its `LoginModal` (see Signed-out states) |
 | `StatTile` | A number over its caps label, the way a card prints a stat: the value in the upright condensed face with tabular figures. `tile` is the silver headline tile (On-Base, Outs, Card OPS); `inline` is a bare pair for a row of small stats (ERA · WHIP · K/9) |
 | `Eyebrow` | Spaced small caps above a title or labeling a group ("WHIP Leaders", "Step 1") |
 | `buttonStyles.ts` → `buttonClass(variant, size)` | Buttons and button-styled links: `feature` (navy with a hard red `shadow-feature` edge, label in the display face; the one headline action per screen, like Build Card, Simulate, a modal's Start or a card's Draft), `primary` (navy, `shadow-raised`), `secondary` (bordered surface), `ghost`, `danger` (red, destructive confirms only; adding, drafting or starting something is `primary`). Works on `<button>`, `<Link>` and `<a>`. `buttonVariantClass(variant)` is just the colors and states, for buttons that size themselves (`GameDetail`'s top bar, a card's corner action) |
@@ -145,6 +146,10 @@ Screens with nothing to show borrow the voice of the 2000 print ads: `<EmptyStat
 - `page`: a screen or tab with nothing in it yet (your teams, your gallery).
 - `panel`: an empty section inside a page (a challenge leaderboard, a release with no editions, an empty schedule day).
 - `inline`: one quiet centered line, no headline, for a search or filter with no matches ("No teams match “xyz”.").
+
+### Signed-out states
+
+Anything gated behind an account uses `<SignInPrompt>` (`shared/`), never a bare grey line of text or a hand-wired `LoginModal`. `size="page"` (default) is for a screen or tab that needs an account throughout (your gallery, your account). `size="panel"` is for one gated part of an otherwise usable screen (the Releases page's create action); it is an `EmptyState` panel with a primary "Sign in / Sign up" button. The title says what signing in gets you ("Build your own release.") rather than naming the barrier, and the message is one plain line.
 
 Short notes inside a dense panel row ("No awards won.") stay plain tertiary text. Never put the slab headline on a search miss.
 

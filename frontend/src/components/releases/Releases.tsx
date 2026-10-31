@@ -24,6 +24,7 @@ import { Heading } from '../shared/Heading';
 import { BetaBadge } from '../shared/BetaBadge';
 import { buttonClass } from '../shared/buttonStyles';
 import { EmptyState } from '../shared/EmptyState';
+import { SignInPrompt } from '../shared/SignInPrompt';
 import { PinstripeBackdrop } from '../shared/PinstripeBackdrop';
 /** Release tiles: two per row on phones, fixed-width tiles that wrap on wider screens. */
 const RELEASE_GRID = 'grid grid-cols-2 sm:flex sm:flex-wrap gap-3';
@@ -409,9 +410,13 @@ export default function Releases() {
                     </div>
 
                     {!token && (
-                        <p className="text-[13px] text-(--text-tertiary) text-center">
-                            Sign in to create your own releases.
-                        </p>
+                        <div className={px}>
+                            <SignInPrompt
+                                size="panel"
+                                title="Build your own release."
+                                message="Sign in to create your own releases, save others' and like your favorites."
+                            />
+                        </div>
                     )}
                 </>
             )}
