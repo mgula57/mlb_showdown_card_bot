@@ -19,6 +19,7 @@ import { useAuth } from '../auth/AuthContext';
 import { useBeforeUnloadWarning } from '../../hooks/useBeforeUnloadWarning';
 import PointBucketsEditor from './PointBucketsEditor';
 import { validatePointBuckets } from './pointBuckets';
+import YearsInput from './YearsInput';
 import PositionTargetsTable from './PositionTargetsTable';
 import { distributionFromPositionTargets } from './positionTargets';
 import type { ManualPick, ManualPicks } from './manualPicks';
@@ -466,12 +467,10 @@ export function AlgorithmBuilder({ releaseId, edition, token, defaultShowdownSet
                         onChange={value => setConfig(prev => ({ ...prev, set_size: parseInt(value || '0', 10) || 0 }))}
                     />
 
-                    <FormInput
-                        label="Years"
-                        type="text"
+                    <YearsInput
+                        className="col-span-full"
                         value={config.years}
-                        placeholder='"2023" or "2000-2004" or "2006+2014"'
-                        onChange={value => setConfig(prev => ({ ...prev, years: value ?? '' }))}
+                        onChange={value => setConfig(prev => ({ ...prev, years: value }))}
                     />
 
                     <MultiSelect
