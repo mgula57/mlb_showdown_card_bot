@@ -105,7 +105,8 @@ class ShowdownBotSet(BaseModel):
     
     set_size: int = Field(ge=1, le=1000, description="Total number of cards in the set")
     years: List[int] = Field(..., description="List of years to consider for player stats")
-    showdown_sets: List[str] = Field(..., description="Showdown sets to consider for player selection")
+    showdown_sets: List[str] = Field(..., description="Showdown sets to consider for player selection (hitters only when `pitcher_showdown_sets` is set)")
+    pitcher_showdown_sets: Optional[List[str]] = Field(None, description="Showdown sets for pitchers, e.g. 2000 hitters with 2001 pitchers (None to use `showdown_sets` for everyone)")
 
     # Minimum requirements
     min_games_hitters: int = Field(60, description="Minimum games for hitters")
@@ -268,7 +269,7 @@ class ShowdownBotSet(BaseModel):
                 FROM internal.dim_card
                 WHERE player_id IN %s and showdown_set IN %s
             """)
-            raw_cards = db.execute_query(query=query, filter_values=(filter_values, tuple(self.showdown_sets)))
+            raw_cards = db.execute_query(query=query, filter_values=(filter_values, tuple(self.all_showdown_sets)))
             
             # Create a lookup map from player_id to CSV row data
             csv_data_lookup = {player['player_id']: player for player in expansion_players}
@@ -367,15 +368,19 @@ class ShowdownBotSet(BaseModel):
         With `variable_speed`, 2000/2001 cards get uncapped speed and recalculated points."""
         self.build_set_player_list()
 
-        players_by_id = {p.id: p for p in self.final_players or []}
-        set_numbers_by_id = {p.id: p.set_number for p in players_by_id.values()}
-        if not set_numbers_by_id:
+        # `id` is the player-season, shared by its card in every set, so a pick is its id plus its set
+        players_by_key = {(p.id, p.showdown_set): p for p in self.final_players or []}
+        if not players_by_key:
             return []
 
-        rows = db.fetch_card_list({'id': list(set_numbers_by_id.keys()), 'showdown_set': self.showdown_sets, 'limit': len(set_numbers_by_id)})
+        ids = list(dict.fromkeys(p.id for p in players_by_key.values()))
+        sets = list(dict.fromkeys(p.showdown_set for p in players_by_key.values()))
+        rows = db.fetch_card_list({'id': ids, 'showdown_set': sets, 'limit': len(ids) * len(sets)})
+        # The query returns each picked season in every queried set - keep only the picked set's card
+        rows = [row for row in rows if (row.get('id'), row.get('showdown_set')) in players_by_key]
         for row in rows:
-            player = players_by_id.get(row.get('id'))
-            row['algorithm_set_number'] = set_numbers_by_id.get(row.get('id'))
+            player = players_by_key[(row.get('id'), row.get('showdown_set'))]
+            row['algorithm_set_number'] = player.set_number
             row['algorithm_match_score'] = round(player.match_score, 1) if player else None
             row['algorithm_selection_reason'] = player.selection_reason.value if player and player.selection_reason else None
             row['algorithm_pick_score'] = round(player.pick_score, 1) if player and player.pick_score is not None else None
@@ -625,10 +630,10 @@ class ShowdownBotSet(BaseModel):
         db = PostgresDB(is_archive=(source_env == "prod"))
 
         # Get all players from the season
-        filters = {'year': [str(y) for y in self.years], 'showdown_set': self.showdown_sets, 'limit': 2000}
+        filters = {'year': [str(y) for y in self.years], 'showdown_set': self.all_showdown_sets, 'limit': 2000}
         if self.all_stars_only:
             filters['awards'] = ['AS']
-        all_players = db.fetch_cards_bot(filters)
+        all_players = [p for p in db.fetch_cards_bot(filters) if p.showdown_set in self._showdown_sets_for(p)]
 
         print(f"Total players found in DB for years {self.years}: {len(all_players)}")
 
@@ -680,6 +685,17 @@ class ShowdownBotSet(BaseModel):
     def _is_named_in(player: ExploreDataRecord, ids: Optional[List[str]]) -> bool:
         """Whether `ids` names this player (every year) or this player-year record"""
         return bool(ids) and (player.bref_id_w_type_override in ids or player.id in ids)
+
+    @property
+    def all_showdown_sets(self) -> List[str]:
+        """Every set a card can come from, hitters and pitchers combined"""
+        return list(dict.fromkeys(self.showdown_sets + (self.pitcher_showdown_sets or [])))
+
+    def _showdown_sets_for(self, player: ExploreDataRecord) -> List[str]:
+        """The sets this player's type can come from"""
+        if self.pitcher_showdown_sets and player.player_type != 'HITTER':
+            return self.pitcher_showdown_sets
+        return self.showdown_sets
 
     def _is_manually_included(self, player: ExploreDataRecord) -> bool:
         return self._is_named_in(player, self.manually_included_ids)
@@ -1170,6 +1186,7 @@ class AlgorithmPreviewRequest(BaseModel):
     set_size: int = Field(..., ge=1, le=500)
     years: str = Field(..., description="Flexible year string, e.g. '2023', '2000-2004', '2006+2014'")
     showdown_sets: List[str] = Field(..., min_length=1)
+    pitcher_showdown_sets: Optional[List[str]] = None
 
     min_games_hitters: int = 60
     min_ip_starters: int = 75
@@ -1206,6 +1223,8 @@ class AlgorithmPreviewRequest(BaseModel):
             set_size=self.set_size,
             years=convert_year_string_to_list(self.years),
             showdown_sets=self.showdown_sets,
+            # An empty list means the toggle is on with nothing picked yet - same as off
+            pitcher_showdown_sets=self.pitcher_showdown_sets or None,
             min_games_hitters=self.min_games_hitters,
             min_ip_starters=self.min_ip_starters,
             min_ip_relievers=self.min_ip_relievers,

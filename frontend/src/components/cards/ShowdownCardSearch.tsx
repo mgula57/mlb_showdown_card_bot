@@ -119,6 +119,11 @@ type ShowdownCardSearchProps = {
     /** Card IDs to hide from results (e.g. already-drafted players). Filtered client-side. */
     excludeIds?: string[];
     /**
+     * Filters always sent with the query but never shown, saved or editable - a hard scope the
+     * caller owns (e.g. an edition's per-player-type sets via `showdown_set_hitters`/`_pitchers`).
+     */
+    scopeFilters?: Record<string, unknown>;
+    /**
      * Change this value (e.g. bump a counter) to clear the search text and reset all filters
      * back to source defaults — used by callers to start fresh after a pick completes.
      */
@@ -777,7 +782,7 @@ const DEFAULT_QUICK_FILTERS: Record<CardSource, { id: string; name: string; filt
  * @param disableLocalStorage - Optionally disable storing and loading from local storage
  * @param verticalOffset - Vertical offset of the content that lives above
  */
-export default function ShowdownCardSearch({ className, verticalOffset='22', source = CardSource.BOT, defaultFilters: defaultFiltersProp, defaultYears, lockedFilters, disableLocalStorage = false, compact = false, actionButton, excludeIds, resetTrigger, enableSetSwitcher = false, enableSetOverride = false, enableStyleEditor = false, toolbarSlot, enableVariableSpeedToggle = false }: ShowdownCardSearchProps) {
+export default function ShowdownCardSearch({ className, verticalOffset='22', source = CardSource.BOT, defaultFilters: defaultFiltersProp, defaultYears, lockedFilters, disableLocalStorage = false, compact = false, actionButton, excludeIds, scopeFilters, resetTrigger, enableSetSwitcher = false, enableSetOverride = false, enableStyleEditor = false, toolbarSlot, enableVariableSpeedToggle = false }: ShowdownCardSearchProps) {
     // =============================================================================
     // CORE STATE MANAGEMENT
     // =============================================================================
@@ -828,6 +833,8 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
     // Separate search from filters
     const [searchText, setSearchText] = useState('');
     const [debouncedSearchText, setDebouncedSearchText] = useState('');
+    // Content key, so a caller passing a fresh `scopeFilters` object each render doesn't refetch
+    const scopeFiltersKey = JSON.stringify(scopeFilters ?? {});
 
     // Filters
     const defaultFilters = useMemo<Partial<FilterSelections>>(
@@ -1099,7 +1106,7 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
     // Only My Customs' request depends on the session (sent as a bearer token, required to scope
     // the search) — `authToken` stays a stable `undefined` for other sources so a session
     // resolving/changing (e.g. restoring one from storage on refresh) doesn't refetch every tab.
-    }, [effectiveShowdownSet, filters, debouncedSearchText, authToken]);
+    }, [effectiveShowdownSet, filters, debouncedSearchText, authToken, scopeFiltersKey]);
 
     // Abort any in-flight card fetch on unmount
     useEffect(() => () => cardsAbortControllerRef.current?.abort(), []);
@@ -1185,6 +1192,7 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
                 ...filters,
                 ...searchFilters,
                 ...showdownSetFilter,
+                ...scopeFilters,
                 variable_speed: isVariableSpeedAvailable ? filters.variable_speed : undefined,
                 page: pageNum,
                 limit: pageLimit // Cards per page

@@ -301,7 +301,10 @@ export type AlgorithmPositionTarget = {
 export type AlgorithmConfig = {
     set_size: number;
     years: string;
+    /** Sets for every card, or only hitters when `pitcher_showdown_sets` is set. */
     showdown_sets: string[];
+    /** Sets for pitchers, e.g. 2000 hitters with 2001 pitchers. Null to use `showdown_sets` for everyone. */
+    pitcher_showdown_sets?: string[] | null;
     min_games_hitters?: number;
     min_ip_starters?: number;
     min_ip_relievers?: number;

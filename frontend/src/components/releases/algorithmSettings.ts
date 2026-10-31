@@ -55,10 +55,32 @@ export function defaultAlgorithmConfig(defaultShowdownSet?: string | null): Algo
         set_size: 100,
         years: String(new Date().getFullYear()),
         showdown_sets: defaultShowdownSet ? [defaultShowdownSet] : [],
+        pitcher_showdown_sets: null,
         ...SELECTION_DEFAULTS,
         variable_speed: false,
         template_id: CUSTOM_TEMPLATE_ID,
     };
+}
+
+/** Every set the config's cards can come from, hitters and pitchers combined. */
+export function allShowdownSets(config: AlgorithmConfig): string[] {
+    return [...new Set([...config.showdown_sets, ...(config.pitcher_showdown_sets ?? [])])];
+}
+
+/** Seasons covered by a years string ("2023", "2000-2004", "2006+2014+2008"). */
+function countSeasons(years: string): number {
+    const range = years.match(/^\s*(\d{4})\s*-\s*(\d{4})\s*$/);
+    if (range) return Math.max(1, Number(range[2]) - Number(range[1]) + 1);
+    return Math.max(1, (years.match(/\d{4}/g) ?? []).length);
+}
+
+/** Rough run time in seconds: a fixed setup cost plus time per season per showdown set.
+ *  A heuristic, not a measurement - tune the constants against real runs. */
+export function estimateAlgorithmSeconds(config: AlgorithmConfig): number {
+    const SETUP_SECONDS = 5;
+    const SECONDS_PER_SEASON_SET = 1.5;
+    const seconds = SETUP_SECONDS + countSeasons(config.years) * Math.max(1, allShowdownSets(config).length) * SECONDS_PER_SEASON_SET;
+    return Math.round(seconds / 5) * 5 || 5;
 }
 
 /** Single low-point bucket fields that older editions saved before `point_buckets` existed. */

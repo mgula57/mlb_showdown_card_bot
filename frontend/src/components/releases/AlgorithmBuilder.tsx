@@ -26,7 +26,7 @@ import type { ManualPick, ManualPicks } from './manualPicks';
 import { manualPickLabel, withoutManualPick } from './manualPicks';
 import {
     DEFAULT_PLAYER_TYPE_DISTRIBUTION, DEFAULT_SELECTION_WEIGHTS, DEFAULT_TEAM_MINIMUMS, DEFAULT_LEGEND_MIN_CAREER_WAR, SELECTION_DEFAULTS,
-    CUSTOM_TEMPLATE_ID, ALL_STARS_TEMPLATE_ID, EXPANSION_TEMPLATE_ID, parseAlgorithmSettings,
+    CUSTOM_TEMPLATE_ID, ALL_STARS_TEMPLATE_ID, EXPANSION_TEMPLATE_ID, parseAlgorithmSettings, allShowdownSets, estimateAlgorithmSeconds,
 } from './algorithmSettings';
 
 type AlgorithmBuilderProps = {
@@ -39,7 +39,7 @@ type AlgorithmBuilderProps = {
     onManualPicksChange: (picks: ManualPicks) => void;
     onPreviewResult: (result: AlgorithmPreviewResult) => void;
     /** Fires when a run starts and finishes, so the pool can show loading skeletons. */
-    onRunningChange?: (running: boolean) => void;
+    onRunningChange?: (running: boolean, estimatedSeconds?: number) => void;
     onEditionUpdated: (edition: ReleaseEdition) => void;
 };
 
@@ -73,6 +73,8 @@ const DISTRIBUTION_ROWS: { key: keyof AlgorithmPlayerTypeDistribution; label: st
     { key: 'starters_percentage', label: 'Starters', fillClassName: 'bg-(--showdown-red-fill)' },
     { key: 'relievers_percentage', label: 'Relievers', fillClassName: 'bg-(--showdown-gray)' },
 ];
+
+const showdownSetOptions = showdownSets.map(s => setSelectOption(s.value, { compact: true }));
 
 /** Number of WOTC base sets (2000-2005) — sizes the template chip skeletons while profiles load. */
 const WOTC_BASE_SET_COUNT = 6;
@@ -214,6 +216,7 @@ function wotcBaseSetTemplate(profile: WotcSetProfile): AlgorithmTemplate {
             ...SELECTION_DEFAULTS,
             set_size: profile.set_size,
             showdown_sets: [profile.showdown_set],
+            pitcher_showdown_sets: null,
             player_type_distribution: distributionFromPositionTargets(profile.position_targets),
             point_buckets: profile.point_buckets ?? [],
             position_targets: profile.position_targets,
@@ -321,19 +324,28 @@ export function AlgorithmBuilder({ releaseId, edition, token, defaultShowdownSet
     const pointBuckets = config.point_buckets ?? [];
     const arePointBucketsValid = validatePointBuckets(pointBuckets) === null;
 
-    const hasSet00_01 = hasVariableSpeedSet(config.showdown_sets);
+    const pitcherShowdownSets = config.pitcher_showdown_sets ?? null;
+    const hasPitcherSets = pitcherShowdownSets !== null;
+    const hasSet00_01 = hasVariableSpeedSet(allShowdownSets(config));
 
     const canRun = !!token
         && config.set_size > 0
         && config.years.trim() !== ''
         && config.showdown_sets.length > 0
+        && (!hasPitcherSets || pitcherShowdownSets.length > 0)
         && (isDistributionValid || hasPositionTargets)
         && arePointBucketsValid
         && status !== 'running';
 
     // Shown in each section's header while it's collapsed
     const summaries = {
-        basics: `${config.set_size} cards · ${config.years.trim() || 'no years'} · ${config.showdown_sets.join(', ') || 'no sets'}`,
+        basics: [
+            `${config.set_size} cards`,
+            config.years.trim() || 'no years',
+            ...(hasPitcherSets
+                ? [`${config.showdown_sets.join(', ') || 'no'} hitters`, `${pitcherShowdownSets.join(', ') || 'no'} pitchers`]
+                : [config.showdown_sets.join(', ') || 'no sets']),
+        ].join(' · '),
         eligibility: [
             isAllStarSet
                 ? 'All-Stars only'
@@ -402,7 +414,7 @@ export function AlgorithmBuilder({ releaseId, edition, token, defaultShowdownSet
         if (!token || !canRun) return;
         if (isDirty) handleSave();
         setStatus('running');
-        onRunningChange?.(true);
+        onRunningChange?.(true, estimateAlgorithmSeconds(config));
         setError(null);
         try {
             const result = await previewAlgorithm(releaseId, edition.id, config, token, {
@@ -474,14 +486,35 @@ export function AlgorithmBuilder({ releaseId, edition, token, defaultShowdownSet
                     />
 
                     <MultiSelect
-                        label="Showdown Sets"
+                        label={hasPitcherSets ? 'Hitter Sets' : 'Showdown Sets'}
                         className="col-span-full"
-                        options={showdownSets.map(s => setSelectOption(s.value, { compact: true }))}
+                        options={showdownSetOptions}
                         selections={config.showdown_sets}
                         onChange={values => setConfig(prev => ({ ...prev, showdown_sets: values }))}
                         placeholder="Select set(s)..."
                     />
+
+                    {hasPitcherSets && (
+                        <MultiSelect
+                            label="Pitcher Sets"
+                            className="col-span-full"
+                            options={showdownSetOptions}
+                            selections={pitcherShowdownSets}
+                            onChange={values => setConfig(prev => ({ ...prev, pitcher_showdown_sets: values }))}
+                            placeholder="Select set(s)..."
+                        />
+                    )}
                 </div>
+                <FormEnabler
+                    label="Different Sets for Pitchers"
+                    className="self-start"
+                    isEnabled={hasPitcherSets}
+                    // Starts from the hitters' sets so the config stays runnable until the user changes it
+                    onChange={() => setConfig(prev => ({ ...prev, pitcher_showdown_sets: hasPitcherSets ? null : [...prev.showdown_sets] }))}
+                />
+                <p className="text-[11px] text-(--text-tertiary) -mt-1">
+                    Mix sets by player type, like 2000 hitters with 2001 pitchers.
+                </p>
             </SettingsGroup>
 
             <SettingsGroup id="eligibility" title="Who's Eligible?" summary={summaries.eligibility} defaultOpen={false}>

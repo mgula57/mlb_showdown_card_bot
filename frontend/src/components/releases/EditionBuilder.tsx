@@ -5,7 +5,7 @@ import { updateEdition, patchEditionCards, rebuildEditionCard, customEditionCard
 import { cardPatchesBetween, mergeCardPatches, type CardPatches } from './cardPatches';
 import { SummaryCharts } from './SummaryCharts';
 import { AlgorithmBuilder } from './AlgorithmBuilder';
-import { parseAlgorithmSettings } from './algorithmSettings';
+import { parseAlgorithmSettings, allShowdownSets } from './algorithmSettings';
 import ShowdownCardSearch from '../cards/ShowdownCardSearch';
 import { CardSource } from '../../types/cardSource';
 import type { CardDatabaseRecord } from '../../api/card_db/cardDatabase';
@@ -379,6 +379,7 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
     // The latest run's summary outlives saving its preview, so the Cutoff tab can still explain the saved picks
     const [lastRunSummary, setLastRunSummary] = useState<AlgorithmPreviewResult['summary'] | null>(null);
     const [isAlgorithmRunning, setIsAlgorithmRunning] = useState(false);
+    const [algorithmEstimateSeconds, setAlgorithmEstimateSeconds] = useState<number | null>(null);
     const [numbering, setNumbering] = useState<NumberingSettings>(() => parseNumberingSettings(edition.attributes));
     const [manualPicks, setManualPicks] = useState<ManualPicks>(() => parseManualPicks(edition.attributes));
     const [editingNumbers, setEditingNumbers] = useState<Record<string, string>>({});
@@ -515,9 +516,16 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
     const algorithmSettings = useMemo(() => parseAlgorithmSettings(edition.attributes, defaultShowdownSet), [edition.attributes, defaultShowdownSet]);
     // Keyed on content: every save returns a new edition, and new defaults would re-seed (and undo
     // the user clearing) the search's filters.
-    const algorithmShowdownSetsKey = algorithmSettings.showdown_sets.join(',');
+    const algorithmShowdownSetsKey = allShowdownSets(algorithmSettings).join(',');
     const algorithmAllStarsOnly = algorithmSettings.all_stars_only ?? false;
     const algorithmVariableSpeed = algorithmSettings.variable_speed ?? false;
+    // Different sets for pitchers: hold each player type to its own sets, so a manual add is a card the Algorithm could pick
+    const algorithmHitterSetsKey = algorithmSettings.showdown_sets.join(',');
+    const algorithmPitcherSetsKey = algorithmSettings.pitcher_showdown_sets?.length ? algorithmSettings.pitcher_showdown_sets.join(',') : null;
+    const manualSearchScope = useMemo(() => algorithmPitcherSetsKey ? {
+        showdown_set_hitters: algorithmHitterSetsKey.split(','),
+        showdown_set_pitchers: algorithmPitcherSetsKey.split(','),
+    } : undefined, [algorithmHitterSetsKey, algorithmPitcherSetsKey]);
     // Manual adds match the Algorithm's speed mode, so the edition's 2000/2001 cards stay consistent
     const manualSearchDefaults = useMemo<Partial<FilterSelections>>(() => ({
         showdown_set: algorithmShowdownSetsKey ? algorithmShowdownSetsKey.split(',') : undefined,
@@ -1260,7 +1268,7 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
                                     manualPicks={manualPicks}
                                     onManualPicksChange={persistManualPicks}
                                     onPreviewResult={handlePreviewResult}
-                                    onRunningChange={setIsAlgorithmRunning}
+                                    onRunningChange={(running, estimatedSeconds) => { setIsAlgorithmRunning(running); setAlgorithmEstimateSeconds(estimatedSeconds ?? null); }}
                                     onEditionUpdated={onEditionUpdated}
                                 />
                             </Tabs.Content>
@@ -1270,6 +1278,7 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
                                     compact={true}
                                     excludeIds={excludeIds}
                                     defaultFilters={manualSearchDefaults}
+                                    scopeFilters={manualSearchScope}
                                     defaultYears={algorithmSettings.years}
                                     enableVariableSpeedToggle
                                     actionButton={{
@@ -1342,7 +1351,7 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
                         </Tabs.List>
 
                         <Tabs.Content value="cards" className="flex-1 min-h-0 flex flex-col focus:outline-none">
-                            {isAlgorithmRunning && <AlgorithmRunningBanner />}
+                            {isAlgorithmRunning && <AlgorithmRunningBanner estimatedSeconds={algorithmEstimateSeconds} />}
                             {activePreview && !isAlgorithmRunning && (
                                 <PoolPreviewBanner
                                     title={`Algorithm Preview — ${activePreview.summary.actual_count} player${activePreview.summary.actual_count === 1 ? '' : 's'}`}
@@ -1856,7 +1865,7 @@ function StepButton({ number, label, isActive, onClick, ref }: { number?: number
 /** Placeholder shaped like the edition builder (toolbar, build-method panel, player pool) while an
  *  edition's cards load. */
 /** Shown over the pool while an algorithm run is in flight: a sweeping bar and elapsed time, so a long run still reads as alive. */
-function AlgorithmRunningBanner() {
+function AlgorithmRunningBanner({ estimatedSeconds }: { estimatedSeconds: number | null }) {
     const [elapsedSeconds, setElapsedSeconds] = useState(0);
     useEffect(() => {
         const startedAt = Date.now();
@@ -1867,7 +1876,7 @@ function AlgorithmRunningBanner() {
         <div role="status" className="relative flex items-center gap-1.5 px-3 py-2.5 border-b border-(--preview-accent)/30 bg-(--preview-accent)/10 shrink-0 overflow-hidden">
             <FaWandMagicSparkles className="text-(--preview-accent) live-pulse" />
             <span className={`${headingClass('panel')} text-(--preview-accent)!`}>Running algorithm…</span>
-            <span className="ml-auto text-[11px] tabular-nums text-(--text-secondary)">{elapsedSeconds}s</span>
+            <span className="ml-auto text-[11px] tabular-nums text-(--text-secondary)">{elapsedSeconds}s{estimatedSeconds !== null && ` / ~${estimatedSeconds}s`}</span>
             <div aria-hidden className="absolute bottom-0 inset-x-0 h-0.5 bg-(--preview-accent)/15">
                 <div className="indeterminate-sweep h-full w-2/5 bg-(--preview-accent)" />
             </div>

@@ -1096,6 +1096,15 @@ class PostgresDB:
                     filter_values.extend(base_values)
                 continue
 
+            # Pitchers-only twin of `_hitters` (e.g. showdown_set_pitchers for a release's 2000
+            # hitters with 2001 pitchers) - hitters pass automatically.
+            if key.endswith('_pitchers'):
+                base_clauses, base_values = self._card_list_filter_clauses(source, {key.removesuffix('_pitchers'): value}, variable_speed)
+                if base_clauses:
+                    filter_clauses.append(sql.SQL("(player_type = 'HITTER' OR ({}))").format(sql.SQL(" AND ").join(base_clauses)))
+                    filter_values.extend(base_values)
+                continue
+
             # `required_players` / `min_team_defense_*` are challenge roster-level rules (players a
             # roster must contain, lineup defense totals), not column filters - see
             # `PlayerFilterSet.ROSTER_RULE_KEYS`.
