@@ -22,10 +22,12 @@ from .utils.view_counter import RecentViews
 
 releases_bp = Blueprint('releases', __name__)
 
-# Rendering is CPU- and memory-heavy Pillow work on the web dyno. Per worker process, like the
-# sim cap; `RELEASE_IMAGE_MAX_CONCURRENT` retunes it without a code change.
-_MAX_CONCURRENT_RENDERS = max(1, int(os.environ.get('RELEASE_IMAGE_MAX_CONCURRENT', 1)))
-_render_slots = threading.BoundedSemaphore(_MAX_CONCURRENT_RENDERS)
+# Renders run as threads on the web dyno. Each holds about one card's images in memory (~130 MB at
+# peak, measured), and Pillow releases the GIL, so threads render in parallel. The cap is per dyno,
+# since its workers share its memory (see `create_release_image_job`): 3 leaves room for a sim on a
+# 1 GB dyno. `RELEASE_IMAGE_MAX_CONCURRENT_PER_DYNO` retunes it without a code change.
+_MAX_RENDERS_PER_DYNO = max(1, int(os.environ.get('RELEASE_IMAGE_MAX_CONCURRENT_PER_DYNO', 3)))
+_RENDER_BUSY_ERROR = 'Image rendering is busy right now. Try again in a minute.'
 _recent_views = RecentViews()
 
 
@@ -692,22 +694,19 @@ def _owned_edition(db: PostgresDB, release_id: str, edition_id: str, user_id: st
 
 
 def _run_render_job(job_id: str, edition: dict, image_libraries: list[ImageLibrary], source_card_ids: list[str] | None) -> None:
-    """Worker thread body. Owns a render slot, released when it finishes."""
-    try:
-        with PostgresDB() as db:
-            try:
-                EditionImageRenderer(
-                    db=db, job_id=job_id, edition=edition,
-                    image_libraries=image_libraries, source_card_ids=source_card_ids,
-                ).run()
-                db.finish_release_image_job(job_id)
-            except ReleaseImageJobCancelled:
-                print(f"[release images {job_id}] cancelled")
-            except Exception as exc:
-                traceback.print_exc()
-                db.finish_release_image_job(job_id, error=str(exc)[:500])
-    finally:
-        _render_slots.release()
+    """Worker thread body. Its job row holds the dyno's render slot until it finishes."""
+    with PostgresDB() as db:
+        try:
+            EditionImageRenderer(
+                db=db, job_id=job_id, edition=edition,
+                image_libraries=image_libraries, source_card_ids=source_card_ids,
+            ).run()
+            db.finish_release_image_job(job_id)
+        except ReleaseImageJobCancelled:
+            print(f"[release images {job_id}] cancelled")
+        except Exception as exc:
+            traceback.print_exc()
+            db.finish_release_image_job(job_id, error=str(exc)[:500])
 
 
 @releases_bp.route('/releases/<release_id>/editions/<edition_id>/images', methods=['GET'])
@@ -744,12 +743,13 @@ def render_edition_images(release_id: str, edition_id: str):
                 return jsonify({'error': 'Edition not found or not owned by user'}), 404
             if _is_live_edition(edition):
                 return jsonify({'error': LIVE_EDITION_ERROR}), 409
-            job_id = db.create_release_image_job(edition_id, g.user_id, dyno=os.environ.get('DYNO'))
-            if job_id is None:
+            job_id, busy = db.create_release_image_job(
+                edition_id, g.user_id, dyno=os.environ.get('DYNO'), max_active_on_dyno=_MAX_RENDERS_PER_DYNO,
+            )
+            if busy == 'edition_busy':
                 return jsonify({'error': 'Images are already rendering for this edition.'}), 409
-            if not _render_slots.acquire(blocking=False):
-                db.finish_release_image_job(job_id, error='Image rendering is busy right now. Try again in a minute.')
-                return jsonify({'error': 'Image rendering is busy right now. Try again in a minute.'}), 429
+            if busy == 'dyno_busy':
+                return jsonify({'error': _RENDER_BUSY_ERROR}), 429
             job = db.get_latest_release_image_job(edition_id)
 
         try:
@@ -759,8 +759,7 @@ def render_edition_images(release_id: str, edition_id: str):
                 name=f'release-images-{job_id[:8]}', daemon=True,
             ).start()
         except Exception as exc:
-            # The worker releases the slot itself, so it's only ours to release if it never started
-            _render_slots.release()
+            # Finishing the job frees its slot; the worker would have, had it started
             with PostgresDB() as db:
                 db.finish_release_image_job(job_id, error=str(exc)[:500])
             raise

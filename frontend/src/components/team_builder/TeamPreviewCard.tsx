@@ -197,17 +197,37 @@ export function TeamPreviewCard({ team, onClick, size = 'md', className = '' }: 
                     </div>
                 </div>
 
-                {hasCards && (
+                {/* User teams always show three slots, so a fresh or mid-draft roster keeps its shape;
+                    other tiles only render the cards they have. */}
+                {(hasCards || isUserTeam) && (
                     <div className="flex flex-col gap-0.5">
+                        {!hasCards && (
+                            <div className="text-[9px] font-semibold uppercase tracking-wider text-white/70 pl-0.5">
+                                {team.is_drafting ? 'On the clock' : 'No picks yet'}
+                            </div>
+                        )}
                         {slots.map((card, i) => (
-                            card === null ? null : (
-                                <CardItemCompactFromCardDatabaseRecord key={i} card={card} hideDetails />
-                            )
+                            card ? <CardItemCompactFromCardDatabaseRecord key={i} card={card} hideDetails />
+                                : isUserTeam ? <EmptyRosterSlot key={i} n={i + 1} />
+                                : null
                         ))}
                     </div>
                 )}
             </div>
         </button>
+    );
+}
+
+/** An open top-3 slot on a user team that hasn't filled it yet, sized like a `CardItemCompact` row. */
+function EmptyRosterSlot({ n }: { n: number }) {
+    return (
+        <div
+            aria-hidden
+            className="h-9 flex items-center gap-2 pl-1.5 rounded-trading-card border border-dashed border-white/35 bg-(--field-ink)/30"
+        >
+            <span className="font-display-upright text-[13px] leading-none text-white/45 w-3 text-center">{n}</span>
+            <span className="h-1.5 w-16 rounded-plate bg-white/15" />
+        </div>
     );
 }
 

@@ -7973,12 +7973,32 @@ class PostgresDB:
                 row[key] = row[key].isoformat()
         return row
 
-    def create_release_image_job(self, edition_id: str, user_id: str, dyno: str | None = None) -> str | None:
-        """Queue a render job. Returns its id, or None if the edition already has one in flight."""
+    # A job counts toward its dyno's render cap only while it's writing progress (it does after every
+    # card). Dyno names are reused across restarts, so a job killed by one stops holding a slot
+    # within this window instead of waiting for the reaper.
+    _RELEASE_IMAGE_JOB_ACTIVE_INTERVAL = '2 minutes'
+
+    def create_release_image_job(self, edition_id: str, user_id: str, dyno: str | None = None,
+                                 max_active_on_dyno: int | None = None) -> tuple[str | None, str | None]:
+        """Queue a render job on `dyno`. Returns (job id, None), or (None, why): 'edition_busy' if the
+        edition already has a job in flight, 'dyno_busy' if `dyno` is already running
+        `max_active_on_dyno` jobs. Rendering holds about one card's images in memory per job, and
+        the dyno's workers share its memory, so the cap is per dyno rather than per process."""
         if not self.connection:
             raise RuntimeError("No database connection")
         self.reap_stale_release_image_jobs()
-        with self.connection.cursor() as cur:
+        with self.transaction() as cur:
+            # Transaction-scoped, so it's safe with the pooler: two workers on one dyno can't both
+            # see a free slot and start past the cap
+            cur.execute("SELECT pg_advisory_xact_lock(hashtext(%s))", (f"release_image_jobs:{dyno or 'local'}",))
+            if max_active_on_dyno is not None:
+                cur.execute(f"""
+                    SELECT COUNT(*) FROM internal.release_image_jobs
+                     WHERE status IN ('queued', 'running') AND dyno IS NOT DISTINCT FROM %s
+                       AND updated_at > NOW() - INTERVAL '{self._RELEASE_IMAGE_JOB_ACTIVE_INTERVAL}'
+                """, (dyno,))
+                if cur.fetchone()[0] >= max_active_on_dyno:
+                    return None, 'dyno_busy'
             cur.execute("""
                 INSERT INTO internal.release_image_jobs (edition_id, user_id, dyno)
                 VALUES (%s, %s, %s)
@@ -7986,7 +8006,7 @@ class PostgresDB:
                 RETURNING id
             """, (edition_id, user_id, dyno))
             row = cur.fetchone()
-            return str(row[0]) if row else None
+            return (str(row[0]), None) if row else (None, 'edition_busy')
 
     def get_latest_release_image_job(self, edition_id: str) -> dict | None:
         if not self.connection:

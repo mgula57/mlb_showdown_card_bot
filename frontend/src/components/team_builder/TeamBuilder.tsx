@@ -360,7 +360,8 @@ export default function TeamBuilder() {
         setError(null);
         try {
             const myTeams = token ? await fetchUserTeams(token) : [];
-            setUserTeams(myTeams);
+            // League teams are managed from their league, not the Team Builder.
+            setUserTeams(myTeams.filter(t => t.source !== 'league'));
             setListLoaded(true);
         } catch (err: any) {
             setError(err.message ?? 'Failed to load teams.');
