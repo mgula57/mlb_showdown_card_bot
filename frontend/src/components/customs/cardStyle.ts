@@ -86,6 +86,7 @@ export const imageParallelOptions: ImageParallelOption[] = [
     { "label": "Moonlight", "value": "MOONLIGHT", ...parallelSample('moonlight'), "description": "A dim, muted wash over the background.", "group": "Shine" },
 
     { "label": "Team Color Blast", "value": "TCB", ...parallelSample('team-color-blast'), "description": "A white background with a burst of team color behind the player.", "group": "Backgrounds" },
+    { "label": "Breakout", "value": "BREAKOUT", ...parallelSample('breakout'), "description": "The player bursts out of a team-color photo frame on concrete with halftone dots.", "group": "Backgrounds" },
     { "label": "Radial", "value": "RAD", ...parallelSample('radial'), "description": "Team-color rays radiating from behind the player.", "group": "Backgrounds" },
     { "label": "White Smoke", "value": "WS", ...parallelSample('white-smoke'), "description": "A clean white, smoky background.", "group": "Backgrounds" },
     { "label": "Flames", "value": "FLAMES", ...parallelSample('flames'), "description": "Replaces the background with fire.", "group": "Backgrounds" },

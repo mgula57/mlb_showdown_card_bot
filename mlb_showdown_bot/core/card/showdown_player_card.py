@@ -1,6 +1,7 @@
 # EXTERNAL
 import numpy as np
 import math
+import random
 import requests
 import operator
 import os
@@ -115,6 +116,7 @@ class ShowdownPlayerCard(BaseModel):
 
     # PROCESSED BY CLASS
     image: ShowdownImage = ShowdownImage()
+    _has_breakout_frame: bool = False # SET WHILE RENDERING THE BREAKOUT PARALLEL
     chart: Chart = None
     positions_list: list[Position] = []
     positions_and_defense: dict[Position, int] = {}
@@ -3285,26 +3287,27 @@ class ShowdownPlayerCard(BaseModel):
         card_image.paste(showdown_template_frame_image,(0,0),showdown_template_frame_image)
         self._release_images(showdown_template_frame_image)
 
-        # CREATE NAME TEXT
-        name_text, color = self._player_name_text_image()
-        name_image_component = TemplateImageComponent.PLAYER_NAME
-        name_paste_location = self.set.template_component_paste_coordinates(component=name_image_component, special_edition=self.image.special_edition)
-        is_special_style = self.set.is_special_edition_name_styling(self.image.special_edition)
-        if self.set.is_00_01 and not is_special_style:
-            # ADD BACKGROUND BLUR EFFECT FOR 2001 CARDS
-            name_text_blurred = name_text.filter(ImageFilter.BLUR)
-            shadow_paste_coordinates = (name_paste_location[0] + 6, name_paste_location[1] + 6)
-            card_image.paste(colors.BLACK, self._coordinates_adjusted_for_bordering(shadow_paste_coordinates), name_text_blurred)
-            self._release_images(name_text_blurred)
-        card_image.paste(color, self._coordinates_adjusted_for_bordering(name_paste_location),  name_text)
-        self._release_images(name_text)
+        # CREATE NAME TEXT. BREAKOUT 00/01 SKIPS IT, THE NAME IN THE BACKDROP TAKES ITS PLACE
+        if not self.has_breakout_backdrop_name_and_logo:
+            name_text, color = self._player_name_text_image()
+            name_image_component = TemplateImageComponent.PLAYER_NAME
+            name_paste_location = self.set.template_component_paste_coordinates(component=name_image_component, special_edition=self.image.special_edition)
+            is_special_style = self.set.is_special_edition_name_styling(self.image.special_edition)
+            if self.set.is_00_01 and not is_special_style:
+                # ADD BACKGROUND BLUR EFFECT FOR 2001 CARDS
+                name_text_blurred = name_text.filter(ImageFilter.BLUR)
+                shadow_paste_coordinates = (name_paste_location[0] + 6, name_paste_location[1] + 6)
+                card_image.paste(colors.BLACK, self._coordinates_adjusted_for_bordering(shadow_paste_coordinates), name_text_blurred)
+                self._release_images(name_text_blurred)
+            card_image.paste(color, self._coordinates_adjusted_for_bordering(name_paste_location),  name_text)
+            self._release_images(name_text)
 
         # ADD TEAM LOGO
         is_2000_logo_override = self.image.edition.has_additional_logo_00_01 \
                                     and self.set == Set._2000 \
                                     and self.image.special_edition not in [SpecialEdition.ASG_2024, SpecialEdition.ASG_2025, SpecialEdition.ASG_2026]
         is_logo_handled_by_different_component = self.image.special_edition == SpecialEdition.WBC and self.set.is_00_01
-        disable_team_logo = self.image.hide_team_logo or is_2000_logo_override or is_logo_handled_by_different_component
+        disable_team_logo = self.image.hide_team_logo or is_2000_logo_override or is_logo_handled_by_different_component or self.has_breakout_backdrop_name_and_logo
         if not disable_team_logo:
             team_logo, team_logo_coords = self._team_logo_image()
             card_image.paste(team_logo, self._coordinates_adjusted_for_bordering(team_logo_coords), team_logo)
@@ -3483,7 +3486,7 @@ class ShowdownPlayerCard(BaseModel):
         has_border_already = background_image.size == self.set.card_size_bordered
 
         # IF 2000, ADD NAME CONTAINER
-        if self.set == Set._2000 and not self.image.special_edition.hide_2000_player_name:
+        if self.set == Set._2000 and not self.image.special_edition.hide_2000_player_name and not self.image.parallel.hides_name_container_2000:
             name_container = self._2000_player_name_container_image()
             background_image.paste(name_container, (0,0), name_container)
 
@@ -3740,11 +3743,12 @@ class ShowdownPlayerCard(BaseModel):
 
         return team_logo, adjusted_paste_coords(logo_paste_coordinates)
 
-    def team_logo_for_background(self, team_override:Team = None) -> tuple[Image.Image, tuple[int,int]]:
+    def team_logo_for_background(self, team_override:Team = None, set_override:Set = None) -> tuple[Image.Image, tuple[int,int]]:
         """Open and manipulate the team logo used for 2000/2001 team backgrounds.
         
         Args:
           team_override: Optionally use a different team. Used for some special editions like CC.
+          set_override: Optionally use a different set's logo style. Used for the Breakout parallel, which uses 2001's on 2000.
 
         Returns:
           Tuple with:
@@ -3770,37 +3774,38 @@ class ShowdownPlayerCard(BaseModel):
             return wbc_logo_image, paste_location
             
 
-        # DEFINE TEAM TO USE
+        # DEFINE TEAM AND SET TO USE
         team = team_override if team_override else self.team
+        card_set = set_override if set_override else self.set
 
         # ATTRIBUTES FOR THE LOGO
-        force_alternate = team.use_alternate_for_background(set=self.set.value)
+        force_alternate = team.use_alternate_for_background(set=card_set.value)
         use_alternate = self.use_alternate_logo or force_alternate
-        logo_name = team.logo_name(year=self.median_year, is_alternate=use_alternate, set=self.set.value, is_dark=self.image.is_dark_mode)
+        logo_name = team.logo_name(year=self.median_year, is_alternate=use_alternate, set=card_set.value, is_dark=self.image.is_dark_mode)
 
         # OPACITY
-        team_logo_path = self._card_art_path('COOPERSTOWN') if team == Team.CCC and self.set == Set._2000 else self._team_logo_path(logo_name)
-        opacity = team.background_logo_opacity(set=self.set.value)
+        team_logo_path = self._card_art_path('COOPERSTOWN') if team == Team.CCC and card_set == Set._2000 else self._team_logo_path(logo_name)
+        opacity = team.background_logo_opacity(set=card_set.value)
         team_logo = Image.open(team_logo_path)
         team_logo_copy = team_logo.copy()
         team_logo_copy.putalpha(int(255 * opacity))
         team_logo.paste(team_logo_copy, team_logo)
 
         # SATURATION
-        if self.set == Set._2000:
+        if card_set == Set._2000:
             team_logo = self._change_image_saturation(image=team_logo, saturation=0.2)
 
         # SIZE
-        size = team.background_logo_size(year=self.median_year, set=self.set.value, is_alternate=use_alternate)
+        size = team.background_logo_size(year=self.median_year, set=card_set.value, is_alternate=use_alternate)
         team_logo = team_logo.resize(size=size, resample=Image.Resampling.LANCZOS)
 
         # ROTATION
-        rotation = team.background_logo_rotation(set=self.set.value)
+        rotation = team.background_logo_rotation(set=card_set.value)
         if rotation != 0:
             team_logo = team_logo.rotate(rotation, resample=Image.BICUBIC, expand=True)
 
-        default_image_size = self.set.card_size
-        paste_location = self._coordinates_adjusted_for_bordering(team.background_logo_paste_location(year=self.median_year, is_alternate=use_alternate, set=self.set.value, image_size=default_image_size))
+        default_image_size = card_set.card_size
+        paste_location = self._coordinates_adjusted_for_bordering(team.background_logo_paste_location(year=self.median_year, is_alternate=use_alternate, set=card_set.value, image_size=default_image_size))
         return team_logo, paste_location
 
     def _template_image(self) -> Image.Image:
@@ -3849,7 +3854,7 @@ class ShowdownPlayerCard(BaseModel):
                         edition_extension = '-DARK_BLUE'
                     case _:
                         edition_extension = f'-{default_template_color}'
-            elif self.image.parallel == ImageParallel.TEAM_COLOR_BLAST and team_color_name:
+            elif self.image.parallel.has_team_color_template_04_05 and team_color_name:
                 edition_extension = f'-{team_color_name}'
             elif self.image.parallel.template_color_04_05:
                 edition_extension = f'-{self.image.parallel.template_color_04_05}'
@@ -4079,6 +4084,11 @@ class ShowdownPlayerCard(BaseModel):
 
         name_paste_x = self.set.template_component_paste_coordinates(component=TemplateImageComponent.PLAYER_NAME, special_edition=self.image.special_edition)[0]
         return name_paste_x + name_width + icons_width
+
+    @property
+    def has_breakout_backdrop_name_and_logo(self) -> bool:
+        """On 00/01 the name and logo sit over the photo, so the Breakout backdrop draws them instead"""
+        return self.set.is_00_01 and self._has_breakout_frame
 
     def _player_name_text_image(self) -> tuple[Image.Image, str]:
         """Creates Player name to match showdown context.
@@ -5490,6 +5500,7 @@ class ShowdownPlayerCard(BaseModel):
 
         # ---- IMAGE FROM IMAGE LIBRARIES (SHOWDOWN BOT + USER'S GOOGLE DRIVE FOLDERS) -----
         self.image.source.library_name = None # RESET, RE-RENDERS START FROM A PREVIOUS BUILD'S CARD JSON
+        self._has_breakout_frame = False
         gdrive_file_versions: dict[str, str] = {}
         drive_client: type[GoogleDriveClient] = GoogleDriveClient
         if player_img_user_uploaded is None:
@@ -5538,6 +5549,8 @@ class ShowdownPlayerCard(BaseModel):
 
         player_img_components = []
         is_img_download_error = False
+        breakout_background: Optional[Image.Image] = None
+        breakout_player: Optional[Image.Image] = None
         for img_component in self.image_component_ordered_list:
             
             # ADD SILHOUETTE IF NECESSARY
@@ -5697,6 +5710,15 @@ class ShowdownPlayerCard(BaseModel):
                 if crop_size != card_size:
                     image = image.resize(size=card_size, resample=Image.Resampling.LANCZOS)
 
+            # BREAKOUT: HOLD THE BACKGROUND UNTIL THE PLAYER IS LOADED, THE FRAME'S TOP DEPENDS ON WHERE THE PLAYER'S HEAD IS
+            if self.image.parallel == ImageParallel.BREAKOUT:
+                match img_component:
+                    case PlayerImageComponent.BACKGROUND:
+                        breakout_background = image
+                        continue
+                    case PlayerImageComponent.SHADOW | PlayerImageComponent.GLOW | PlayerImageComponent.SILHOUETTE:
+                        breakout_player = image
+
             # SUPER SEASON: FIND LOCATIONS FOR ELLIPSES
             is_super_season_glow = img_component in [PlayerImageComponent.GLOW, PlayerImageComponent.SILHOUETTE] and self.image.special_edition == SpecialEdition.SUPER_SEASON
             if is_super_season_glow:
@@ -5778,6 +5800,12 @@ class ShowdownPlayerCard(BaseModel):
 
             # PASTE IMAGE
             player_img_components.append((image, paste_coordinates))
+
+        # BREAKOUT: FRAME GOES UNDER EVERY OTHER LAYER SO THE PLAYER BREAKS OUT OF IT
+        if self.image.parallel == ImageParallel.BREAKOUT:
+            card_size = self.set.card_size_bordered if self.image.is_bordered else self.set.card_size
+            frame_image = self._breakout_frame_image(size=card_size, background=breakout_background, player=breakout_player)
+            player_img_components.insert(0, (frame_image, (0,0)))
 
         return player_img_components
 
@@ -6007,20 +6035,32 @@ class ShowdownPlayerCard(BaseModel):
 
         # ORDER EACH COMPONENT'S FILE LIST BY HOW WELL IT MATCHES PARAMETERS
         component_img_url_dict: dict[PlayerImageComponent, str] = {}
+        component_photo_files: dict[PlayerImageComponent, dict[str, tuple[str, float]]] = {}
         for component, img_file_list in component_player_file_matches_dict.items():
             img_file_list = sorted(img_file_list, key = lambda i: len(i['name']), reverse=False)
             match_scores: dict[str, float] = {}
+            component_photo_files[component] = {}
             for img_metadata in img_file_list:
                 img_id: str = img_metadata.get('id', None)
                 img_name: str = img_metadata.get('name', None)
-                
+
                 # ADD MATCH RATE SCORE
                 match_scores[img_id] = self._image_name_match_score(img_name=img_name, year=year)
-            
+
+                # FILES NAMED THE SAME AFTER THE COMPONENT PREFIX ARE THE SAME PHOTO (EX: BG-1999-Jeter-... AND CUT-1999-Jeter-...)
+                photo_key = os.path.basename(img_name).split('-', 1)[-1]
+                component_photo_files[component].setdefault(photo_key, (img_id, match_scores[img_id]))
+
             # GET BEST MATCH
             sorted_matches = sorted(match_scores.items(), key=operator.itemgetter(1), reverse=True)
             file_id = sorted_matches[0][0]
             component_img_url_dict[component] = file_id
+
+        # KEEP COMPONENTS ON THE SAME PHOTO. PICKED SEPARATELY, TIED SCORES (EX: 1999 AND 2001 FOR A 1999-2000 CARD) CAN MIX A BACKGROUND AND CUT FROM DIFFERENT PHOTOS
+        shared_photo_keys = set.intersection(*(set(photo_files.keys()) for photo_files in component_photo_files.values()))
+        if len(component_photo_files) > 1 and shared_photo_keys:
+            best_photo_key = max(sorted(shared_photo_keys), key=lambda key: sum(photo_files[key][1] for photo_files in component_photo_files.values()))
+            component_img_url_dict = {component: photo_files[best_photo_key][0] for component, photo_files in component_photo_files.items()}
 
         # UPDATE EXISTING DICT
         components_dict.update(component_img_url_dict)
@@ -6149,6 +6189,8 @@ class ShowdownPlayerCard(BaseModel):
             for old_component, new_component in replacements_dict.items():
                 special_components_for_context.pop(old_component, None)
                 special_components_for_context[new_component] = None
+            if self.image.parallel.hides_name_container_2000:
+                special_components_for_context.pop(PlayerImageComponent.NAME_CONTAINER_2000, None)
             is_asg_and_team_color_blast_dark = ( self.image.special_edition == SpecialEdition.ASG_2023 and self.image.is_dark_mode and self.image.parallel == ImageParallel.TEAM_COLOR_BLAST )
             if self.image.special_edition == SpecialEdition.TEAM_COLOR_BLAST_DARK or is_asg_and_team_color_blast_dark:
                 special_components_for_context.pop(PlayerImageComponent.WHITE_CIRCLE, None)
@@ -6853,6 +6895,279 @@ class ShowdownPlayerCard(BaseModel):
                     final_image.paste(sub_image, (int(index * w), 0))
 
         return final_image
+
+    def _breakout_frame_image(self, size:tuple[int,int], background:Optional[Image.Image] = None, player:Optional[Image.Image] = None) -> Image.Image:
+        """Backdrop for the Breakout parallel: a textured gray card holding a white, round cornered frame
+        around a team color toned background. The player is pasted over it, so anything outside the frame breaks out.
+
+        Args:
+          size: Size of the card.
+          background: Player background image, already cropped to the card. Falls back to a team color gradient.
+          player: Player cut image, already cropped to the card. Used to drop the frame's top below the player's head.
+
+        Returns:
+          PIL Image of the full card backdrop.
+        """
+
+        width, height = size
+        card = self._breakout_backdrop_image(size=size)
+
+        # FRAME BOUNDS
+        border = int(width * 0.022)
+        radius = int(width * 0.06)
+        frame_bounds = self.set.breakout_frame_bounds
+        frame_box = frame_bounds.box(size=size, top=self._breakout_frame_top(player=player) or frame_bounds.min_top)
+        photo_box = (frame_box[0] + border, frame_box[1] + border, frame_box[2] - border, frame_box[3] - border)
+        self._has_breakout_frame = True
+
+        # 00/01: BLACK AND WHITE 2001 STYLE TEAM LOGO ON THE CONCRETE, IN PLACE OF THE TEMPLATE LOGO
+        if self.has_breakout_backdrop_name_and_logo:
+            team_logo, team_logo_coordinates = self.team_logo_for_background(team_override=self.team_override_for_images, set_override=Set._2001)
+            team_logo = self._change_image_saturation(image=team_logo, saturation=0.05)
+            team_logo_layer = Image.new('RGBA', size, (0, 0, 0, 0))
+            team_logo_layer.paste(team_logo, team_logo_coordinates) # ALPHA COMPOSITE SO THE BACKDROP STAYS OPAQUE, A MASKED PASTE BLENDS ITS ALPHA
+            card.alpha_composite(team_logo_layer)
+        frame_mask = self._rounded_rectangle_mask(size=size, box=frame_box, radius=radius)
+        photo_mask = self._rounded_rectangle_mask(size=size, box=photo_box, radius=radius - border)
+
+        # FRAME SHADOW AND WHITE BORDER
+        shadow_mask = ImageChops.offset(frame_mask, border // 2, border).filter(ImageFilter.GaussianBlur(border)).point(lambda a: int(a * 0.45))
+        card.paste((0, 0, 0, 255), mask=shadow_mask)
+        card.paste((255, 255, 255, 255), mask=frame_mask)
+
+        # TEAM COLOR TONED PHOTO, BACKGROUND STAYS ALIGNED WITH THE PLAYER
+        if background:
+            grayscale = ImageOps.autocontrast(background.convert('L'), cutoff=1).filter(ImageFilter.GaussianBlur(4))
+        else:
+            grayscale = Image.linear_gradient('L').resize(size).transpose(Image.Transpose.FLIP_TOP_BOTTOM)
+        card.paste(self._team_toned_image(grayscale), mask=photo_mask)
+
+        # NAME DOWN THE INSIDE LEFT OF THE FRAME, BEHIND THE PLAYER
+        name_image, name_padding = self._breakout_name_image(length=frame_box[3] - frame_box[1])
+        card.alpha_composite(name_image, dest=(photo_box[0] + border - name_padding, frame_box[1] - name_padding))
+
+        return card
+
+    def _breakout_name_image(self, length:int) -> tuple[Image.Image, int]:
+        """Player's name for the Breakout backdrop: vertical, team toned metallic letters with a white outline
+        to match the frame and a drop shadow.
+
+        Args:
+          length: Length the name is centered along, the frame's height.
+
+        Returns:
+          Tuple
+            - PIL Image ('RGBA') of the name, padded on every side for the outline and shadow.
+            - Padding in pixels.
+        """
+
+        name_text = self._breakout_name_text_image(length=length)
+        name_alpha = name_text.getchannel('A')
+        padding, shadow_offset = 12, 6
+        name_image = Image.new('RGBA', (name_text.width + padding * 2, name_text.height + padding * 2), (0, 0, 0, 0))
+        name_image.paste((0, 0, 0, 255), (padding + shadow_offset, padding + shadow_offset), name_alpha.filter(ImageFilter.BLUR))
+        name_image.paste((255, 255, 255, 255), (padding, padding), name_alpha.filter(ImageFilter.MaxFilter(11)))
+        name_image.alpha_composite(self._team_toned_image(name_text), dest=(padding, padding))
+
+        return name_image, padding
+
+    def _breakout_name_text_image(self, length:int) -> Image.Image:
+        """Rotated name text with the 2000 name texture, sized to fit 88% of the length. Long names wrap
+        first and last name onto two lines rather than shrinking to an unreadable size.
+
+        Args:
+          length: Length the name is centered along.
+
+        Returns:
+          PIL Image ('RGBA') of the rotated name.
+        """
+
+        name = self.name_for_visuals.upper()
+        first, last = self.split_name(name=name, is_nickname=self.is_using_nickname)
+        font_path = self._font_path('Helvetica-Neue-LT-Std-93-Black-Extended-Oblique')
+        max_length, line_thickness = int(length * 0.88), 135
+        draw = ImageDraw.Draw(Image.new('L', (1, 1)))
+
+        def fitted_font(text:str, base_size:int, min_size:int) -> ImageFont.FreeTypeFont:
+            """Largest font from base_size down to min_size where every line fits"""
+            for size in range(base_size, min_size - 1, -5):
+                font = ImageFont.truetype(font_path, size=size)
+                bbox = draw.multiline_textbbox((0, 0), text, font=font, align='center')
+                if bbox[2] - bbox[0] <= max_length:
+                    return font
+            return ImageFont.truetype(font_path, size=min_size)
+
+        # ONE LINE UNLESS IT HAS TO SHRINK PAST READABLE, THEN WRAP FIRST AND LAST NAME
+        text, thickness = name, line_thickness
+        font = fitted_font(text=text, base_size=127, min_size=95)
+        is_wrapped = bool(first and last) and draw.textbbox((0, 0), text, font=font)[2] > max_length
+        if is_wrapped:
+            text, thickness = f"{first}\n{last}", line_thickness * 2
+            font = fitted_font(text=text, base_size=115, min_size=60)
+
+        # CENTER THE LINES ACROSS THE NAME'S THICKNESS, WITH ROOM BETWEEN LINES FOR THE OUTLINE
+        spacing = int(font.size * 0.35) if is_wrapped else 3
+        bbox = draw.multiline_textbbox((0, 0), text, font=font, spacing=spacing, align='center')
+        padding_y = int((thickness - (bbox[3] - bbox[1])) / 2 - bbox[1])
+
+        return self._text_image(
+            text = text,
+            size = (length, thickness),
+            font = font,
+            rotation = 90,
+            alignment = "center",
+            padding_y = padding_y,
+            spacing = spacing,
+            overlay_image_path = self._template_img_path('2000-Name-Text-Background')
+        )
+
+    def _team_toned_image(self, image:Image.Image) -> Image.Image:
+        """Duotone an image in the team color: shadows go to a dark shade, midtones to the color, highlights to a light tint.
+        Transparency is kept.
+
+        Args:
+          image: PIL Image to tone.
+
+        Returns:
+          PIL Image ('RGBA') toned in the team color.
+        """
+
+        red, green, blue, _ = self._team_color_rgbs(is_secondary_color=self.image.use_secondary_color, ignore_team_overrides=True, team_override=self.team_override_for_images)
+        dark_color = (int(red * 0.25), int(green * 0.25), int(blue * 0.25))
+        light_color = tuple(int(c + (255 - c) * 0.7) for c in (red, green, blue))
+        toned_image = ImageOps.colorize(image.convert('L'), black=dark_color, white=light_color, mid=(red, green, blue)).convert('RGBA')
+        if image.mode == 'RGBA':
+            toned_image.putalpha(image.getchannel('A'))
+
+        return toned_image
+
+    def _breakout_backdrop_image(self, size:tuple[int,int]) -> Image.Image:
+        """Card behind the Breakout frame: poured concrete with halftone dots fading in from the corners.
+        Dots match the frame and name, unless multi-color is picked, where they use the other team color.
+
+        Args:
+          size: Size of the card.
+
+        Returns:
+          PIL Image ('RGBA') of the backdrop.
+        """
+
+        # SEEDED PER PLAYER SO RE-RENDERS KEEP THE SAME PITS
+        rng = random.Random(f'{self.bref_id}-{self.year}')
+        backdrop = self._concrete_texture_image(size=size, base_gray=60 if self.image.is_dark_mode else 150, rng=rng).convert('RGBA')
+        is_dot_secondary_color = self.image.use_secondary_color != self.image.is_multi_colored
+        dot_color = self._team_color_rgbs(is_secondary_color=is_dot_secondary_color, ignore_team_overrides=True, team_override=self.team_override_for_images)
+        backdrop.paste(dot_color[:3] + (255,), mask=self._halftone_corners_mask(size=size).point(lambda a: int(a * 0.40)))
+
+        return backdrop
+
+    def _concrete_texture_image(self, size:tuple[int,int], base_gray:int, rng:random.Random) -> Image.Image:
+        """Grayscale poured concrete: layered noise from broad mottling to fine grain, with small air holes and light aggregate specks.
+
+        Args:
+          size: Size of the texture.
+          base_gray: Average gray value (0-255).
+          rng: Random generator placing the holes and specks.
+
+        Returns:
+          PIL Image ('L') of the texture.
+        """
+
+        width, height = size
+
+        # LAYER NOISE FROM BROAD TO FINE. EACH (SCALE, WEIGHT) IS NOISE DRAWN AT 1/SCALE SIZE AND UPSCALED
+        octaves = [(220, 0.15), (60, 0.25), (16, 0.30), (4, 0.15), (1, 0.15)]
+        texture, total_weight = None, 0.0
+        for scale, weight in octaves:
+            noise = Image.effect_noise((max(width // scale, 1), max(height // scale, 1)), 64).resize(size, resample=Image.Resampling.BICUBIC)
+            total_weight += weight
+            texture = noise if texture is None else Image.blend(texture, noise, weight / total_weight)
+        texture = ImageOps.autocontrast(texture, cutoff=0.5).point(lambda v: base_gray + int((v - 128) * 0.24))
+
+        # AIR HOLES WITH A LIGHT LOWER RIM
+        holes, rims = Image.new('L', size, 0), Image.new('L', size, 0)
+        holes_draw, rims_draw = ImageDraw.Draw(holes), ImageDraw.Draw(rims)
+        for _ in range(width * height // 2500):
+            x, y, r = rng.randrange(width), rng.randrange(height), rng.choice([1, 1, 2, 2, 3, 4])
+            rims_draw.ellipse((x - r + 1, y - r + 1, x + r + 1, y + r + 1), fill=rng.randint(40, 90))
+            holes_draw.ellipse((x - r, y - r, x + r, y + r), fill=rng.randint(70, 150))
+        texture = ImageChops.add(texture, rims.filter(ImageFilter.GaussianBlur(0.8)))
+        texture = ImageChops.subtract(texture, holes.filter(ImageFilter.GaussianBlur(0.6)))
+
+        # DARKEN THE EDGES
+        vignette = Image.radial_gradient('L').resize(size).point(lambda v: 255 - int(max(v - 120, 0) * 0.55))
+        return ImageChops.multiply(texture, vignette)
+
+    def _halftone_corners_mask(self, size:tuple[int,int]) -> Image.Image:
+        """Mask of halftone dots that are largest in the top left and bottom right corners and fade out toward the middle.
+
+        Args:
+          size: Size of the mask.
+
+        Returns:
+          PIL Image ('L') mask.
+        """
+
+        width, height = size
+        mask = Image.new('L', size, 0)
+        draw = ImageDraw.Draw(mask)
+        spacing = int(width * 0.012)
+        for row, y in enumerate(range(0, height + spacing, spacing)):
+            for x in range(-spacing, width + spacing, spacing):
+                dot_x = x + (spacing // 2 if row % 2 else 0) # OFFSET ROWS
+                bottom_right_strength = 1 - math.hypot((width - dot_x) / width, (height - y) / height) / 1.05
+                top_left_strength = 1 - math.hypot(dot_x / width, y / height) / 0.75
+                radius = spacing * 0.5 * max(bottom_right_strength, top_left_strength, 0) ** 1.6
+                if radius > 0.6:
+                    draw.ellipse((dot_x - radius, y - radius, dot_x + radius, y + radius), fill=255)
+
+        return mask
+
+    def _breakout_frame_top(self, player:Optional[Image.Image]) -> Optional[float]:
+        """Top of the Breakout frame as a fraction of card height, a little below the top of the player's head so it breaks out.
+        Thin objects like bats are skipped by looking for the first row as wide as a head.
+
+        Args:
+          player: Player cut image, already cropped to the card.
+
+        Returns:
+          Fraction of card height for the top of the frame. None if there's no player to find.
+        """
+
+        if player is None:
+            return None
+
+        # SHRINK ALPHA SO EACH PIXEL IS THE PLAYER'S COVERAGE OF A 10x10 BLOCK
+        scale = 10
+        alpha = player.getchannel('A').point(lambda a: 255 if a > 200 else 0)
+        small_alpha = alpha.resize((max(alpha.width // scale, 1), max(alpha.height // scale, 1)), resample=Image.Resampling.BOX)
+        small_width = small_alpha.width
+        coverage = list(small_alpha.getdata())
+        min_head_width = small_width * 0.07
+        for row in range(small_alpha.height):
+            row_coverage = coverage[row * small_width:(row + 1) * small_width]
+            if sum(1 for value in row_coverage if value > 127) >= min_head_width:
+                return (row / small_alpha.height) + 0.06
+
+        return None
+
+    def _rounded_rectangle_mask(self, size:tuple[int,int], box:tuple[int,int,int,int], radius:int) -> Image.Image:
+        """Anti-aliased mask of a round cornered rectangle.
+
+        Args:
+          size: Size of the mask.
+          box: (left, top, right, bottom) of the rectangle.
+          radius: Corner radius.
+
+        Returns:
+          PIL Image ('L') mask.
+        """
+
+        # DRAW AT 2X AND SCALE DOWN TO SMOOTH THE CORNERS
+        supersample = 2
+        mask = Image.new('L', (size[0] * supersample, size[1] * supersample), 0)
+        ImageDraw.Draw(mask).rounded_rectangle([c * supersample for c in box], radius=radius * supersample, fill=255)
+        return mask.resize(size, resample=Image.Resampling.LANCZOS)
 
     def _change_image_saturation(self, image:Image.Image, saturation:float) -> Image.Image:
         """Adjust an image's saturation.

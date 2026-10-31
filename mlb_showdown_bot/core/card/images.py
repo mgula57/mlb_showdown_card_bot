@@ -363,6 +363,7 @@ class ImageParallel(str, Enum):
     WHITE_SMOKE = "WS"
     FLAMES = "FLAMES"
     TEAM_COLOR_BLAST = "TCB"
+    BREAKOUT = "BREAKOUT"
     MYSTERY = "MYSTERY"
     MOONLIGHT = "MOONLIGHT"
     GALAXY = "GALAXY"
@@ -387,6 +388,7 @@ class ImageParallel(str, Enum):
             case "GOLD_FRAME": return { PlayerImageComponent.GOLD_FRAME: PlayerImageComponent.GOLD_FRAME.name, PlayerImageComponent.BACKGROUND: None }
             case "WHITE_SMOKE": return { PlayerImageComponent.WHITE_SMOKE: PlayerImageComponent.WHITE_SMOKE.name, PlayerImageComponent.BACKGROUND: None }
             case "FLAMES": return { PlayerImageComponent.FLAMES: PlayerImageComponent.FLAMES.name }
+            case "BREAKOUT": return { PlayerImageComponent.BACKGROUND: None }
             case "TEAM_COLOR_BLAST": return { PlayerImageComponent.WHITE_CIRCLE: PlayerImageComponent.WHITE_CIRCLE.name, PlayerImageComponent.TEAM_LOGO: None, PlayerImageComponent.TEAM_COLOR: None, PlayerImageComponent.BACKGROUND: None }
             case "MOONLIGHT":
                 comps_dict = { PlayerImageComponent.MOONLIGHT: PlayerImageComponent.MOONLIGHT.name, PlayerImageComponent.BACKGROUND: None }
@@ -399,7 +401,7 @@ class ImageParallel(str, Enum):
     @property
     def special_components_replacements(self) -> dict[str,str]:
         match self.name:
-            case "SAPPHIRE" | "WHITE_SMOKE" | "FLAMES" | "TEAM_COLOR_BLAST" | "GOLD_RUSH" | "GOLD" | "GOLD_FRAME" | "MOONLIGHT" | "GALAXY": return { PlayerImageComponent.GLOW: PlayerImageComponent.SHADOW }
+            case "SAPPHIRE" | "WHITE_SMOKE" | "FLAMES" | "TEAM_COLOR_BLAST" | "GOLD_RUSH" | "GOLD" | "GOLD_FRAME" | "MOONLIGHT" | "GALAXY" | "BREAKOUT": return { PlayerImageComponent.GLOW: PlayerImageComponent.SHADOW }
             case _: return {}
     
     @property
@@ -423,10 +425,18 @@ class ImageParallel(str, Enum):
             case _: return None
     
     @property
+    def hides_name_container_2000(self) -> bool:
+        return self.name in ['BREAKOUT']
+
+    @property
     def name_container_suffix_2000(self) -> str:
         match self.name:
             case 'GOLD' | 'GOLD_RUSH' | 'GOLD_FRAME': return '-GOLD'
             case _: return ''
+
+    @property
+    def has_team_color_template_04_05(self) -> bool:
+        return self.name in ['TEAM_COLOR_BLAST', 'BREAKOUT']
 
     @property
     def template_color_04_05(self) -> str:

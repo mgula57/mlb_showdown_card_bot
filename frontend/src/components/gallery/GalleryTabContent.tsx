@@ -68,6 +68,7 @@ const EDITION_LABELS: Record<string, string> = {
 const PARALLEL_LABELS: Record<string, string> = {
     RF: 'Rainbow Foil',
     TCB: 'Team Color Blast',
+    BREAKOUT: 'Breakout',
     GALAXY: 'Galaxy',
     GOLD: 'Gold',
     GOLDRUSH: 'Gold Rush',

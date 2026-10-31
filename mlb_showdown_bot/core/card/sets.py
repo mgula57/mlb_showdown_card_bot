@@ -1,5 +1,6 @@
 from enum import Enum
 from datetime import datetime
+from pydantic import BaseModel
 import numpy as np
 
 # INTERNAL
@@ -57,6 +58,26 @@ class Era(Enum):
 
 
 
+
+# ------------------------------------------------------------------------------
+# BREAKOUT FRAME
+# ------------------------------------------------------------------------------
+
+class BreakoutFrameBounds(BaseModel):
+    """Breakout parallel frame placement, as fractions of the card's width and height.
+    The top follows the player's head, clamped between min_top and max_top."""
+
+    left: float
+    right: float
+    bottom: float
+    min_top: float
+    max_top: float
+
+    def box(self, size: tuple[int, int], top: float) -> tuple[int, int, int, int]:
+        """Pixel (left, top, right, bottom) for a card size and a top fraction, clamped to the allowed range."""
+        width, height = size
+        top = min(max(top, self.min_top), self.max_top)
+        return (int(width * self.left), int(height * top), int(width * self.right), int(height * self.bottom))
 
 # ------------------------------------------------------------------------------
 # SET
@@ -1202,7 +1223,17 @@ class Set(str, Enum):
             case '2003': return (75,-150)
             case '2004' | '2005': return (0,0)
             case 'CLASSIC' | 'EXPANDED': return (0,int((self.player_image_crop_size(special_edition)[1] - 2100) / 2))
-            
+
+    @property
+    def breakout_frame_bounds(self) -> 'BreakoutFrameBounds':
+        """Where the Breakout parallel's frame sits, fit around the set's chart, name, and player placement."""
+        match self.value:
+            case '2000' | '2001': return BreakoutFrameBounds(left=0.06, right=0.94, bottom=0.86, min_top=0.12, max_top=0.30)
+            case '2002': return BreakoutFrameBounds(left=0.05, right=0.80, bottom=0.66, min_top=0.10, max_top=0.28)
+            case '2003': return BreakoutFrameBounds(left=0.05, right=0.84, bottom=0.80, min_top=0.10, max_top=0.28)
+            case '2004' | '2005': return BreakoutFrameBounds(left=0.05, right=0.95, bottom=0.73, min_top=0.06, max_top=0.22)
+            case 'CLASSIC' | 'EXPANDED': return BreakoutFrameBounds(left=0.06, right=0.94, bottom=0.70, min_top=0.08, max_top=0.25)
+
     def player_image_components_list(self, is_special:bool=False) -> list[PlayerImageComponent]:
         if is_special:
             match self.value:
