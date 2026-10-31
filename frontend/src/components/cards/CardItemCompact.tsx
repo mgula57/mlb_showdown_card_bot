@@ -16,7 +16,6 @@ import { useLayoutEffect, useRef, type Ref } from "react";
 // TYPES
 // =============================================================================
 
-/** The team/year and points badges under a compact card's name: the card's condensed bold face, like the plates beside the name on a full card. */
 // Icons sit inline after the name when the full name and icons fit on the row, otherwise in the
 // top-right corner. One observer fits every compact card, so a list mounting a page of cards does
 // all its style writes, then all its reads, then all its writes (one forced layout per batch
@@ -59,6 +58,7 @@ function observeNameIcons(row: HTMLElement, fit: NameIconsFit): () => void {
     };
 }
 
+/** The team/year and points badges under a compact card's name: the card's condensed bold face, like the plates beside the name on a full card. */
 const STAT_BADGE_CLASS = 'font-display-upright uppercase text-[10px] leading-none shrink-0 rounded-plate px-0.75 py-0.5';
 
 export type CardItemActionButton = {

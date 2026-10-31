@@ -1761,9 +1761,10 @@ const PoolCardRow = memo(function PoolCardRow({ card, showFullCards, editionStyl
     const handleOpen = useCallback(() => onOpen(card), [onOpen, card]);
     return (
         // Offscreen rows skip layout and paint, so repaints (opening a card, images loading) don't
-        // re-process the whole pool. The clip margin keeps the edge badges and hover ring from clipping;
-        // heights are the measured row heights, until a row has rendered once.
-        <div className={`group/row flex items-center gap-1.5 [content-visibility:auto] [overflow-clip-margin:16px] [contain-intrinsic-width:auto_0px] ${showFullCards ? '[contain-intrinsic-height:auto_124px]' : '[contain-intrinsic-height:auto_58px]'}`}>
+        // re-process the whole pool. That clips the row to its padding box, so -m-4/p-4 extends it into
+        // the grid gap (same layout) to keep the edge tags, corner icons, and hover ring visible.
+        // Heights are the measured row heights, until a row has rendered once.
+        <div className={`group/row flex items-center gap-1.5 -m-4 p-4 [content-visibility:auto] [contain-intrinsic-width:auto_0px] ${showFullCards ? '[contain-intrinsic-height:auto_124px]' : '[contain-intrinsic-height:auto_58px]'}`}>
             {/* Set number with the remove button stacked beneath it, to save horizontal space. */}
             <div className="flex flex-col items-end gap-1 shrink-0">
                 {numberInputValue !== undefined ? (
