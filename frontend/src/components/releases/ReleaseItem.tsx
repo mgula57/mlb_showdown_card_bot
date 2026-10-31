@@ -227,7 +227,7 @@ export function NewReleaseTile({ onClick }: { onClick: () => void }) {
             className={`
                 ${TILE_FRAME} flex flex-col items-center justify-center gap-2 p-4 text-center cursor-pointer
                 border-2 border-dashed border-(--divider) text-(--text-tertiary)
-                hover:border-(--text-tertiary) hover:text-(--text-secondary) transition-colors
+                [@media(hover:hover)]:hover:border-(--text-tertiary) [@media(hover:hover)]:hover:text-(--text-secondary) transition-colors
             `}
         >
             <FaPlus className="text-[20px]" />

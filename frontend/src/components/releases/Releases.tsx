@@ -26,6 +26,9 @@ import { buttonClass } from '../shared/buttonStyles';
 import { EmptyState } from '../shared/EmptyState';
 import { SignInPrompt } from '../shared/SignInPrompt';
 import { PinstripeBackdrop } from '../shared/PinstripeBackdrop';
+/** Phones get a 44px minimum touch target on small controls; wider screens keep their normal size. */
+const TOUCH_TARGET = 'max-sm:min-h-11';
+
 /** Release tiles: two per row on phones, fixed-width tiles that wrap on wider screens. */
 const RELEASE_GRID = 'grid grid-cols-2 sm:flex sm:flex-wrap gap-3';
 
@@ -318,8 +321,8 @@ export default function Releases() {
         <PinstripeBackdrop heightClass="h-72" />
         <div className="flex flex-col gap-6 py-4 max-w-4xl lg:max-w-7xl mx-auto w-full">
             {/* Header */}
-            <div className={`flex items-center ${px} justify-between`}>
-                <div>
+            <div className={`flex items-center gap-3 ${px} justify-between`}>
+                <div className="min-w-0">
                     <Heading level="page" className="flex items-center gap-2">
                         Release Builder
                         <BetaBadge />
@@ -332,7 +335,7 @@ export default function Releases() {
                     <button
                         type="button"
                         onClick={() => setShowCreateModal(true)}
-                        className={buttonClass('primary', 'sm')}
+                        className={buttonClass('primary', 'sm', TOUCH_TARGET)}
                     >
                         <FaPlus className="text-[10px]" />
                         <span>New<span className="hidden sm:inline"> release</span></span>
@@ -434,14 +437,14 @@ export default function Releases() {
             <section className={`${px} flex flex-col gap-3`}>
                 <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
                     <Heading level="section" as="h2">Community</Heading>
-                    <div className="flex gap-1.5" role="group" aria-label="Sort community releases">
+                    <div className="flex gap-2 sm:gap-1.5" role="group" aria-label="Sort community releases">
                         {COMMUNITY_SORTS.map(option => (
                             <button
                                 key={option.value}
                                 type="button"
                                 aria-pressed={communitySort === option.value}
                                 onClick={() => setCommunitySort(option.value)}
-                                className={choiceClass(communitySort === option.value, 'sm')}
+                                className={choiceClass(communitySort === option.value, 'sm', TOUCH_TARGET)}
                             >
                                 {option.label}
                             </button>
@@ -475,7 +478,7 @@ export default function Releases() {
                             ))}
                         </div>
                         {hasMore && (
-                            <button type="button" onClick={loadMore} disabled={loadingCommunity} className={buttonClass('secondary', 'md', 'self-center')}>
+                            <button type="button" onClick={loadMore} disabled={loadingCommunity} className={buttonClass('secondary', 'md', `self-center ${TOUCH_TARGET}`)}>
                                 {loadingCommunity && <FaSpinner className="animate-spin text-[11px]" />} Load more
                             </button>
                         )}
