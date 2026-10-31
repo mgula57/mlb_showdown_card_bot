@@ -72,7 +72,7 @@ const FAQ_ITEMS: { question: string; answer: React.ReactNode }[] = [
     },
     {
         question: 'How can I contact the developers?',
-        answer: <>Send an email to <a href="mailto:mlbshowdownbot@gmail.com" className={FAQ_LINK_CLASS}>mlbshowdownbot@gmail.com</a>, or join the conversation on <a href="https://discord.com/channels/669174897939054602/857237582740193282" target="_blank" rel="noopener noreferrer" className={`${FAQ_LINK_CLASS} inline-flex items-center gap-1 align-middle`}><FaDiscord className="w-4 h-4" />Discord</a>. Feel free to reach out with questions or feedback.</>,
+        answer: <>Send an email to <a href="mailto:mlbshowdownbot@gmail.com" className={FAQ_LINK_CLASS}>mlbshowdownbot@gmail.com</a>, or join the conversation on <a href="https://discord.gg/p7aawmJNAV" target="_blank" rel="noopener noreferrer" className={`${FAQ_LINK_CLASS} inline-flex items-center gap-1 align-middle`}><FaDiscord className="w-4 h-4" />Discord</a>. Feel free to reach out with questions or feedback.</>,
     },
 ];
 
