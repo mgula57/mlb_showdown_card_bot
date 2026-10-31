@@ -78,9 +78,11 @@ export function ReleaseReviewPanel({ release, review, unsavedPreviewEditionIds, 
     }
 
     return (
-        <div className="flex-1 min-h-0 overflow-y-auto">
-            <div className="max-w-5xl mx-auto p-4 grid gap-4 md:grid-cols-[minmax(0,1fr)_260px] items-start">
-                <div className="flex flex-col gap-4 min-w-0">
+        // From md up, two full-height columns that scroll on their own: the checklist, and how others see
+        // it with Publish pinned under it. Phones stack them in one scroll.
+        <div className="flex-1 min-h-0 flex flex-col overflow-y-auto md:overflow-hidden">
+            <div className="w-full max-w-5xl mx-auto p-4 flex flex-col md:flex-row gap-4 md:flex-1 md:min-h-0">
+                <div className="flex flex-col gap-4 min-w-0 md:flex-1 md:min-h-0 md:overflow-y-auto">
                 {review.data?.changes && <ChangesSummary changes={review.data.changes} version={release.published_version} />}
                 <div className={PANEL_CLASS}>
                     <div className="flex flex-wrap items-center gap-2 px-4 py-3 border-b border-(--divider)">
@@ -110,8 +112,8 @@ export function ReleaseReviewPanel({ release, review, unsavedPreviewEditionIds, 
                 </div>
                 </div>
 
-                <div className="flex flex-col gap-4 min-w-0">
-                    <div className={`${PANEL_CLASS} flex flex-col gap-3 p-4`}>
+                <div className="flex flex-col gap-4 min-w-0 md:w-80 md:shrink-0 md:min-h-0">
+                    <div className={`${PANEL_CLASS} flex flex-col gap-3 p-4 md:flex-1 md:min-h-48 md:overflow-y-auto`}>
                         <span className={`${CAPS_LABEL_CLASS} text-(--text-tertiary)`}>How others see it</span>
                         {/* The tile fills its cell on phones (for the 2-column list grid), so pin it to its desktop width here */}
                         <div className="w-52 max-w-full mx-auto">
@@ -335,7 +337,7 @@ function PublishControls({ release, token, ready, blockerCount, checkCount, hasC
                     : 'Everything checks out.';
 
     return (
-        <div className={`${PANEL_CLASS} flex flex-col gap-3 p-4`}>
+        <div className={`${PANEL_CLASS} flex flex-col gap-3 p-4 shrink-0`}>
             {isLive && (
                 <div className="flex flex-col gap-1">
                     <div className="flex items-center gap-2 flex-wrap">
