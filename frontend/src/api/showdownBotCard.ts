@@ -608,6 +608,9 @@ export type ShowdownBotCardImage = {
     /** Set number within the expansion */
     set_number?: number | null;
 
+    /** Image includes the printable border around the 1500x2100 card */
+    is_bordered?: boolean;
+
     /** Supabase storage path for the card image */
     storage_path?: string | null;
     thumbnail_storage_path?: string | null;

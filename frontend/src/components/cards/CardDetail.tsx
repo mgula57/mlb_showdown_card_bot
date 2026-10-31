@@ -32,6 +32,7 @@ import { BaselineOpponentBreakdown } from './card_detail/BaselineOpponentBreakdo
 
 // API integration
 import { generateCardImage, fetchCardById, fetchSeasonStatRanges } from '../../api/showdownBotCard';
+import { BorderCroppedImage, CardAspectSizer } from './BorderCroppedImage';
 import { applyCardStyleOverrides, cardStyleFromCard, type CardStyleOverrides } from './cardStyleOverrides';
 
 // Performance visualization
@@ -556,6 +557,16 @@ export const CardDetail = memo(function CardDetail({ showdownBotCardData: showdo
     };
 
     const cardImageMaxHeight = '@xl:max-h-[600px] @xl:overflow-hidden @3xl:max-h-[700px]';
+    const cropBorder = cardImagePath != null && !!activeCardData?.card?.image?.is_bordered && !!styleOverrides?.storagePath;
+    const cardImageStyle: CSSProperties = activeCardData?.card?.image ? {
+        '--card-glow-lo': addOpacityToRGB(teamGlowColor, 0.52),
+        '--card-glow-md': addOpacityToRGB(teamGlowColor, 0.66),
+        '--card-glow-hi': addOpacityToRGB(teamGlowColor, 0.85),
+    } as CSSProperties : {
+        boxShadow: `0 0 10px color-mix(in srgb, var(--tertiary) 33%, transparent),
+                    0 0 20px color-mix(in srgb, var(--tertiary) 44%, transparent),
+                    0 0 30px color-mix(in srgb, var(--tertiary) 34%, transparent)`
+    };
 
     /** Live game + Card vs Real Stats — beside the card image, or down in the analysis grid while
      * the style editor holds that spot */
@@ -851,30 +862,34 @@ export const CardDetail = memo(function CardDetail({ showdownBotCardData: showdo
                     {/* Wrapper shrinks to the rendered image so the processing ring traces the
                         card's actual edges rather than the full grid column. */}
                     <div className="relative w-fit @2xl:mx-auto">
-                        <img
-                            src={cardImagePath == null ? getBlankPlayerImageName() : cardImagePath}
-                            alt="Blank Player"
-                            key={activeCardData?.card?.image.output_file_name || (isDark ? 'blank-dark' : 'blank-light')}
-                            className={`
-                                block
-                                @2xl:mx-auto
-                                ${cardImageMaxHeight}
-                                ${CARD_IMAGE_RADIUS} overflow-hidden
-                                object-contain
-                                fade-in
-                                ${isLoadingOverall ? 'blur-xs' : ''}
-                                ${activeCardData?.card?.image ? 'card-glow-pulse' : ''}
-                            `}
-                            style={activeCardData?.card?.image ? {
-                                '--card-glow-lo': addOpacityToRGB(teamGlowColor, 0.52),
-                                '--card-glow-md': addOpacityToRGB(teamGlowColor, 0.66),
-                                '--card-glow-hi': addOpacityToRGB(teamGlowColor, 0.85),
-                            } as CSSProperties : {
-                                boxShadow: `0 0 10px color-mix(in srgb, var(--tertiary) 33%, transparent),
-                                            0 0 20px color-mix(in srgb, var(--tertiary) 44%, transparent),
-                                            0 0 30px color-mix(in srgb, var(--tertiary) 34%, transparent)`
-                            }}
-                        />
+                        {cropBorder ? (
+                            // Release renders include the printable border; the viewer shows just the card
+                            <div
+                                key={activeCardData?.card?.image.output_file_name}
+                                className={`relative block @2xl:mx-auto ${cardImageMaxHeight} ${CARD_IMAGE_RADIUS} overflow-hidden fade-in ${isLoadingOverall ? 'blur-xs' : ''} card-glow-pulse`}
+                                style={cardImageStyle}
+                            >
+                                <CardAspectSizer className="block max-h-[inherit] max-w-full" />
+                                <BorderCroppedImage src={cardImagePath!} alt="Card" isBordered />
+                            </div>
+                        ) : (
+                            <img
+                                src={cardImagePath == null ? getBlankPlayerImageName() : cardImagePath}
+                                alt="Blank Player"
+                                key={activeCardData?.card?.image.output_file_name || (isDark ? 'blank-dark' : 'blank-light')}
+                                className={`
+                                    block
+                                    @2xl:mx-auto
+                                    ${cardImageMaxHeight}
+                                    ${CARD_IMAGE_RADIUS} overflow-hidden
+                                    object-contain
+                                    fade-in
+                                    ${isLoadingOverall ? 'blur-xs' : ''}
+                                    ${activeCardData?.card?.image ? 'card-glow-pulse' : ''}
+                                `}
+                                style={cardImageStyle}
+                            />
+                        )}
 
                         {/* Loading Overlay — orbiting border ring + glass status pill */}
                         {isLoadingOverall && (

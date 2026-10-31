@@ -3,18 +3,20 @@ import type { ReleaseEdition, ReleaseCardImage, ReleaseCardImageStatus, EditionI
 import { fetchEditionImages, renderEditionImages, cancelEditionImageRender, isImageJobActive } from '../../api/releases';
 import type { CardDatabaseRecord } from '../../api/card_db/cardDatabase';
 import { cardImagePublicUrl } from '../../api/supabase';
+import { BorderCroppedImage } from '../cards/BorderCroppedImage';
 import { Modal } from '../shared/Modal';
 import { CardItemFromCardDatabaseRecord } from '../cards/CardItem';
 import { ReleaseCardPreviewRankPicker } from './ReleaseCardPreviewRank';
 import { ReleaseTip } from './ReleaseOnboarding';
 import {
     buildZipEntries, editionZipFileName, entriesRenderedAfter, loadLastZipRenderedAt, saveLastZipRenderedAt,
-    useEditionZipDownload, type ZipDownloadState, type ZipEntry,
+    useEditionZipDownload, zipSizeWarning, type ZipDownloadState, type ZipEntry,
 } from './editionZipDownload';
-import { FaArrowUpRightFromSquare, FaCheck, FaDownload, FaImage, FaSpinner, FaTriangleExclamation, FaWandMagicSparkles, FaXmark } from 'react-icons/fa6';
+import { FaArrowUpRightFromSquare, FaCheck, FaDownload, FaImage, FaMagnifyingGlass, FaSpinner, FaTriangleExclamation, FaWandMagicSparkles, FaXmark } from 'react-icons/fa6';
 
 import { InlineError } from '../shared/InlineError';
 import { buttonClass } from '../shared/buttonStyles';
+import { fieldClass } from '../shared/fieldStyles';
 import { Plate } from '../shared/Plate';
 import { EmptyState } from '../shared/EmptyState';
 import { useStableCallback } from '../../hooks/useStableCallback';
@@ -56,6 +58,7 @@ export function EditionImages({ releaseId, releaseName, edition, readOnly, token
     useEffect(() => {
         if (statusFilterRequest) setStatusFilter(statusFilterRequest.status);
     }, [statusFilterRequest]);
+    const [nameQuery, setNameQuery] = useState('');
     const [detailImage, setDetailImage] = useState<ReleaseCardImage | null>(null);
     const [renderButton, setRenderButton] = useState<HTMLButtonElement | null>(null);
 
@@ -96,12 +99,24 @@ export function EditionImages({ releaseId, releaseName, edition, readOnly, token
         () => lastZipRenderedAt ? entriesRenderedAfter(zipEntries, lastZipRenderedAt) : [],
         [zipEntries, lastZipRenderedAt]
     );
-    const visibleImages = statusFilter ? images.filter(image => image.status === statusFilter) : images;
+    const normalizedQuery = nameQuery.trim().toLowerCase();
+    const visibleImages = images.filter(image =>
+        (!statusFilter || image.status === statusFilter)
+        && (!normalizedQuery || (snapshotsById.get(image.source_card_id)?.name ?? '').toLowerCase().includes(normalizedQuery))
+    );
     // The detail modal follows its card's latest status (e.g. while a render of it runs)
     const detail = detailImage ? images.find(image => image.source_card_id === detailImage.source_card_id) ?? detailImage : null;
     const openDetail = useStableCallback((sourceCardId: string) => setDetailImage(images.find(image => image.source_card_id === sourceCardId) ?? null));
 
-    async function handleZipDownload(entries: ZipEntry[], fileNameSuffix?: string) {
+    const [pendingZip, setPendingZip] = useState<{ entries: ZipEntry[]; suffix?: string; warning: string } | null>(null);
+
+    function handleZipDownload(entries: ZipEntry[], fileNameSuffix?: string) {
+        const warning = zipSizeWarning(entries.length);
+        if (warning) setPendingZip({ entries, suffix: fileNameSuffix, warning });
+        else runZipDownload(entries, fileNameSuffix);
+    }
+
+    async function runZipDownload(entries: ZipEntry[], fileNameSuffix?: string) {
         const savedAll = await zipDownload.start(entries, editionZipFileName(releaseName, edition.name, fileNameSuffix));
         if (savedAll) setLastZipRenderedAt(saveLastZipRenderedAt(edition.id, entries));
     }
@@ -158,6 +173,20 @@ export function EditionImages({ releaseId, releaseName, edition, readOnly, token
                         ))
                     ) : (
                         <div className="h-8 w-64 rounded-control bg-(--background-quaternary) animate-pulse" />
+                    )}
+
+                    {data && (
+                        <label className="relative flex items-center">
+                            <FaMagnifyingGlass className="absolute left-2.5 text-[11px] text-(--text-tertiary) pointer-events-none" />
+                            <input
+                                type="search"
+                                value={nameQuery}
+                                onChange={e => setNameQuery(e.target.value)}
+                                placeholder="Search by name"
+                                aria-label="Search cards by name"
+                                className={fieldClass('sm', 'w-44 pl-7 focus:outline-none')}
+                            />
+                        </label>
                     )}
 
                     {data && (
@@ -237,7 +266,7 @@ export function EditionImages({ releaseId, releaseName, edition, readOnly, token
                         ))}
                     </div>
                 ) : visibleImages.length === 0 ? (
-                    <EmptyState size="inline">No cards with this status.</EmptyState>
+                    <EmptyState size="inline">{normalizedQuery ? `No cards match “${nameQuery.trim()}”.` : 'No cards with this status.'}</EmptyState>
                 ) : (
                     <div className={TILE_GRID_CLASS}>
                         {visibleImages.map(image => (
@@ -256,6 +285,28 @@ export function EditionImages({ releaseId, releaseName, edition, readOnly, token
                     </div>
                 )}
             </div>
+
+            {pendingZip && (
+                <Modal
+                    title="Large download"
+                    size="sm"
+                    onClose={() => setPendingZip(null)}
+                    footer={
+                        <div className="flex justify-end gap-2">
+                            <button type="button" onClick={() => setPendingZip(null)} className={buttonClass('secondary', 'sm')}>Cancel</button>
+                            <button
+                                type="button"
+                                onClick={() => { const { entries, suffix } = pendingZip; setPendingZip(null); runZipDownload(entries, suffix); }}
+                                className={buttonClass('primary', 'sm')}
+                            >
+                                Download anyway
+                            </button>
+                        </div>
+                    }
+                >
+                    <p className="text-sm text-(--text-secondary)">{pendingZip.warning}</p>
+                </Modal>
+            )}
 
             {detail && (
                 <ReleaseImageDetailModal
@@ -420,7 +471,7 @@ function CardImageWithSkeleton({ src, alt, dimmed = false, className = '' }: { s
     return (
         <>
             {!loaded && <div className="absolute inset-0 bg-(--background-quaternary) animate-pulse" />}
-            <img
+            <BorderCroppedImage
                 src={src}
                 alt={alt}
                 loading="lazy"

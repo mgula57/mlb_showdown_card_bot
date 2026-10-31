@@ -6998,7 +6998,7 @@ class PostgresDB:
 
     # Release list tiles show off up to 3 rendered card images: cards the user ranked (preview_rank 1-3)
     # first, then the first edition (by name, matching the edition tabs), then highest points.
-    # `{edition_filter}` limits which editions they draw from.
+    # `{edition_filter}` limits which editions they draw from; `{draft_scope}` picks live editions or working copies.
     _RELEASE_PREVIEW_IMAGES_COLUMN = """
             COALESCE((
                 SELECT json_agg(
@@ -7014,7 +7014,7 @@ class PostgresDB:
                       JOIN internal.release_card_images i
                         ON i.edition_id = pe.id AND i.source_card_id = rc.source_card_id
                      WHERE pe.release_id = r.id
-                       AND pe.draft_of IS NULL
+                       AND {draft_scope}
                        AND i.thumbnail_path IS NOT NULL
                        {edition_filter}
                      ORDER BY rc.preview_rank NULLS LAST, edition_name, points DESC NULLS LAST
@@ -7031,7 +7031,7 @@ class PostgresDB:
                   FROM internal.release_editions pe
                   JOIN internal.release_cards rc ON rc.edition_id = pe.id AND rc.retired_at IS NULL
                  WHERE pe.release_id = r.id
-                   AND pe.draft_of IS NULL
+                   AND {draft_scope}
                    AND rc.card_snapshot->>'showdown_set' IS NOT NULL
                    {edition_filter}
             ), ARRAY[]::text[]) AS showdown_sets,
@@ -7095,13 +7095,18 @@ class PostgresDB:
     _RELEASE_BASE_SELECT = _RELEASE_SELECT_TEMPLATE.format(extra_columns='')
 
     @classmethod
-    def _release_list_select(cls, published_only: bool) -> str:
+    def _release_list_select(cls, published_only: bool, working_copies: bool = False) -> str:
         """`_RELEASE_BASE_SELECT` plus `preview_images` and `showdown_sets`, drawn only from
-        published editions when `published_only` (lists other users see)."""
+        published editions when `published_only` (lists other users see). `working_copies` draws from
+        each edition's unpublished working copy when it has one (the tile as it will look once published)."""
         edition_filter = 'AND pe.is_published' if published_only else ''
+        draft_scope = (
+            "(pe.draft_of IS NOT NULL OR NOT EXISTS (SELECT 1 FROM internal.release_editions wd WHERE wd.draft_of = pe.id))"
+            if working_copies else "pe.draft_of IS NULL"
+        )
         extra_columns = (
-            cls._RELEASE_PREVIEW_IMAGES_COLUMN.format(edition_filter=edition_filter)
-            + cls._RELEASE_SHOWDOWN_SETS_COLUMN.format(edition_filter=edition_filter)
+            cls._RELEASE_PREVIEW_IMAGES_COLUMN.format(edition_filter=edition_filter, draft_scope=draft_scope)
+            + cls._RELEASE_SHOWDOWN_SETS_COLUMN.format(edition_filter=edition_filter, draft_scope=draft_scope)
         )
         return cls._RELEASE_SELECT_TEMPLATE.format(extra_columns=extra_columns)
 
@@ -7286,10 +7291,11 @@ class PostgresDB:
             return cur.rowcount > 0
 
     def get_release_tile(self, release_id: str, user_id: str) -> dict | None:
-        """The owner's release as its list tile shows it (`preview_images`, `showdown_sets`)."""
+        """The owner's release as its list tile will show it once their working copies are published
+        (`preview_images`, `showdown_sets`)."""
         if not self.connection:
             return None
-        query = self._release_list_select(published_only=False) + """
+        query = self._release_list_select(published_only=False, working_copies=True) + """
             WHERE r.id = %s AND r.created_by = %s AND r.retired_at IS NULL
             GROUP BY r.id
         """

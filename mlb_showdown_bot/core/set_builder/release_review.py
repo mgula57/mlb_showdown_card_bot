@@ -87,6 +87,7 @@ class EditionReview:
             self._duplicate_players_item(),
             *self._tags_items(),
             self._style_item(),
+            self._border_item(),
         ]
 
     def _item(self, id: str, level: ReviewLevel, title: str, detail: Optional[str] = None, passed: bool = False,
@@ -173,6 +174,13 @@ class EditionReview:
             return self._item('style', ReviewLevel.POLISH, 'Card style is the default',
                               'Fine if you meant it. Change it to give the edition its own look.', fix='style')
         return self._item('style', ReviewLevel.POLISH, 'Card style set', passed=True)
+
+    def _border_item(self) -> ReviewItem:
+        if EditionCardStyle.from_attributes(self.edition.get('attributes')).is_bordered:
+            return self._item('border', ReviewLevel.CHECK, 'Card border on', passed=True)
+        return self._item('border', ReviewLevel.CHECK, 'No card border',
+                          'Downloaded images are the plain 1500x2100 card. Add a border in the edition style if you want a printable bleed.',
+                          fix='style')
 
 
 class ReleaseReview:

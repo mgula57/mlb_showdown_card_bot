@@ -106,6 +106,16 @@ function saveBlob(blob: Blob, fileName: string) {
     window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
 }
 
+/** A warning to show (in the app: native confirm dialogs are blocked or invisible on many phones)
+ * before a ZIP the browser has to build in memory, or null when it's safe to start right away. */
+export function zipSizeWarning(entryCount: number): string | null {
+    if ((window as SaveFilePickerWindow).showSaveFilePicker) return null;
+    const estimatedBytes = entryCount * ESTIMATED_BYTES_PER_IMAGE;
+    if (estimatedBytes <= IN_MEMORY_WARNING_BYTES) return null;
+    const sizeMb = Math.round(estimatedBytes / (1024 * 1024) / 10) * 10;
+    return `This is a big download (about ${sizeMb} MB) and may take a while. On a phone or tablet it might not finish. For large sets, Chrome or Edge on a computer works best.`;
+}
+
 const isAbortError = (err: unknown) => err instanceof DOMException && err.name === 'AbortError';
 
 export function useEditionZipDownload() {
@@ -118,17 +128,6 @@ export function useEditionZipDownload() {
         if (entries.length === 0 || abortRef.current) return false;
 
         const savePicker = (window as SaveFilePickerWindow).showSaveFilePicker;
-        if (!savePicker) {
-            const estimatedBytes = entries.length * ESTIMATED_BYTES_PER_IMAGE;
-            if (estimatedBytes > IN_MEMORY_WARNING_BYTES) {
-                const sizeMb = Math.round(estimatedBytes / (1024 * 1024) / 10) * 10;
-                const proceed = window.confirm(
-                    `This is a big download (about ${sizeMb} MB) and may take a while.\n\n` +
-                    "On a phone or tablet it might not finish. For large sets, Chrome or Edge on a computer works best.\n\nDownload anyway?"
-                );
-                if (!proceed) return false;
-            }
-        }
 
         let writable: WritableStream<Uint8Array> | null = null;
         if (savePicker) {

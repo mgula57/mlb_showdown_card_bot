@@ -1,6 +1,7 @@
 import type { CSSProperties } from 'react';
 import type { Release, ReleasePreviewImage } from '../../api/releases';
 import { cardImagePublicUrl } from '../../api/supabase';
+import { BorderCroppedImage } from '../cards/BorderCroppedImage';
 import { SetBadgeRow } from '../shared/SetBadge';
 import { FaHeart, FaLayerGroup, FaPlus } from 'react-icons/fa6';
 import { SLANT_ROOM_CLASS } from '../shared/headingStyles';
@@ -159,19 +160,23 @@ function FannedCardImage({ image, index, cardCount }: { image: ReleasePreviewIma
         transitionDelay: `${index * FAN_HOVER.staggerMs}ms`,
     } as CSSProperties;
     return (
-        <img
-            src={cardImagePublicUrl(image.thumbnail_path)}
-            alt={image.name ?? ''}
-            loading="lazy"
-            draggable={false}
+        <div
             className="
-                absolute left-1/2 top-[10%] w-[48%] h-auto rounded-card select-none drop-shadow-[0_2px_0_rgb(0_0_0/0.25)]
+                absolute left-1/2 top-[10%] w-[48%] aspect-5/7 overflow-hidden rounded-card select-none drop-shadow-[0_2px_0_rgb(0_0_0/0.25)]
                 transform-(--fan-rest) transition-transform duration-300 ease-out motion-reduce:transition-none
                 [@media(hover:hover)]:motion-safe:group-hover:transform-(--fan-hover)
                 motion-safe:group-data-fanned:transform-(--fan-hover)
             "
             style={style}
-        />
+        >
+            <BorderCroppedImage
+                src={cardImagePublicUrl(image.thumbnail_path)}
+                alt={image.name ?? ''}
+                loading="lazy"
+                draggable={false}
+                className="w-full h-full object-cover"
+            />
+        </div>
     );
 }
 
