@@ -74,7 +74,8 @@ export function ReleasePublicHeader({ release, cardCount, editionCount, isOwner,
         <>
         <header className="relative isolate shrink-0 border-b border-(--divider) bg-(--background-secondary)">
             <div aria-hidden className="absolute inset-0 -z-10 bg-pinstripe" />
-            {/* Info, the featured cards, then the actions. Below md the cards are hidden and the actions wrap under the info. */}
+            {/* Info, the featured cards, then the actions. Below md the cards are hidden and the actions wrap under the info;
+                from md to lg there's no room for all three side by side, so the cards sit behind the actions instead. */}
             <div className="flex flex-wrap md:flex-nowrap items-stretch">
             <div className="relative z-1 flex flex-col gap-2 basis-full md:basis-auto md:flex-1 min-w-0 px-4 pt-3 pb-3 md:pb-3.5">
                 <div className="flex items-center gap-3">
@@ -128,18 +129,21 @@ export function ReleasePublicHeader({ release, cardCount, editionCount, isOwner,
                 </div>
             </div>
             {/* The release's featured cards, dealt up from the header's bottom edge (which crops them). The
-                side cards spill past the box sideways, under the info and actions (above the pinstripes). Info and actions sit at z-1 rather than the fan at -z-1, which would put it under the row for hit-testing and kill its hover. */}
+                side cards spill past the box sideways, under the info and actions (above the pinstripes). Info and actions sit at z-1 rather than the fan at -z-1, which would put it under the row for hit-testing and kill its hover.
+                Its z-0 keeps the cards' own z-indexes inside the fan, so none of them climb over the z-1 info or actions.
+                Below lg it's pulled out of the row and pinned to the right edge, behind the actions. */}
             {previewImages.length > 0 && (
                 <div
                     aria-hidden
                     data-fanned={cardsFanned || undefined}
                     onPointerDown={e => { if (e.pointerType !== 'mouse') setCardsFanned(f => !f); }}
-                    className="group hidden md:block relative w-72 lg:w-64 -ml-10 shrink-0 overflow-y-clip"
+                    className="group hidden md:block z-0 absolute inset-y-0 right-0 lg:relative lg:inset-auto lg:-ml-10 w-72 lg:w-64 shrink-0 overflow-y-clip"
                 >
                     <ReleaseCardFan images={previewImages} />
                 </div>
             )}
-            <div className="relative z-1 flex items-center gap-1.5 shrink-0 self-end px-4 pb-3.5">
+            {/* From md to lg it's at least as wide as the cards behind it, so they never slide under the info */}
+            <div className="relative z-1 flex items-center justify-end gap-1.5 shrink-0 self-end md:max-lg:min-w-72 px-4 pb-3.5">
                 {canLike && (
                     <ReleaseHeaderButton
                         icon={release.liked_by_me ? <FaHeart /> : <FaRegHeart />}
