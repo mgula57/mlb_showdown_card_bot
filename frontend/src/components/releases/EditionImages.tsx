@@ -304,7 +304,7 @@ export function EditionImages({ releaseId, releaseName, edition, readOnly, token
                         </div>
                     }
                 >
-                    <p className="text-sm text-(--text-secondary)">{pendingZip.warning}</p>
+                    <p className="text-sm text-(--text-secondary) p-2">{pendingZip.warning}</p>
                 </Modal>
             )}
 
