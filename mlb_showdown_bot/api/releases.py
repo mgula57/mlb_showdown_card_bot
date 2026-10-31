@@ -1,7 +1,6 @@
 import os
 import threading
 import traceback
-from collections import Counter
 from flask import Blueprint, g, jsonify, request
 from pydantic import ValidationError
 from ..core.card.images import ImageLibrary
@@ -10,6 +9,7 @@ from ..core.set_builder.image_match_classifier import ImageMatchCard, ImageMatch
 from ..core.set_builder.release_card_rebuilder import ReleaseCardRebuilder, ReleaseCardRebuildError
 from ..core.set_builder.release_images import EditionImagePlan, EditionImageRenderer, ReleaseImageJobCancelled, ReleaseImageStorage
 from ..core.set_builder.release_custom_card import ReleaseCustomCard, ReleaseCustomCardError
+from ..core.set_builder.release_card_patch import ReleaseCardNumbers, ReleaseCardPatch
 from ..core.set_builder.release_draft import ReleaseDraft
 from ..core.set_builder.release_review import ReleaseReview
 from ..core.set_builder.release_share import ReleaseShareImage
@@ -145,29 +145,6 @@ LIVE_EDITION_ERROR = 'This edition has been published. Edit its working copy ins
 def _is_live_edition(edition: dict | None) -> bool:
     """A published edition (not a working copy). Its cards may be on teams, so it only changes by publishing."""
     return bool(edition and edition.get('published_at') and not edition.get('draft_of'))
-
-
-def _duplicate_card_numbers_error(cards) -> str | None:
-    """Why a card list can't be saved because two cards share a number, else None. Numbers are unique
-    per edition (`unique_card_number`); repeated source cards are skipped, as the upsert keeps only the first."""
-    if not isinstance(cards, list):
-        return None
-    seen_source_ids: set = set()
-    counts: Counter = Counter()
-    for card in cards:
-        if not isinstance(card, dict):
-            continue
-        source_card_id = card.get('source_card_id')
-        if source_card_id and source_card_id in seen_source_ids:
-            continue
-        seen_source_ids.add(source_card_id)
-        if card.get('card_number') is not None:
-            counts[card['card_number']] += 1
-    duplicates = sorted(number for number, count in counts.items() if count > 1)
-    if not duplicates:
-        return None
-    listed = ', '.join(f"#{number}" for number in duplicates[:5]) + (f" and {len(duplicates) - 5} more" if len(duplicates) > 5 else '')
-    return f"Two cards can't share a number: {listed} {'is' if len(duplicates) == 1 else 'are'} used more than once."
 
 
 def _owned_release(db: PostgresDB, release_id: str, user_id: str) -> dict | None:
@@ -418,7 +395,7 @@ def create_edition(release_id: str):
             return jsonify({'error': 'Request body must be a JSON object'}), 400
         if not payload.get('name'):
             return jsonify({'error': 'name is required'}), 400
-        if (duplicate_error := _duplicate_card_numbers_error(payload.get('cards'))):
+        if (duplicate_error := ReleaseCardNumbers.duplicate_error(payload.get('cards'))):
             return jsonify({'error': duplicate_error}), 400
         db = PostgresDB()
         edition_id = db.create_edition(release_id, g.user_id, payload)
@@ -455,7 +432,7 @@ def update_edition(release_id: str, edition_id: str):
         payload = request.get_json(silent=True)
         if not payload or not isinstance(payload, dict):
             return jsonify({'error': 'Request body must be a JSON object'}), 400
-        if (duplicate_error := _duplicate_card_numbers_error(payload.get('cards'))):
+        if (duplicate_error := ReleaseCardNumbers.duplicate_error(payload.get('cards'))):
             return jsonify({'error': duplicate_error}), 400
         db = PostgresDB()
         if _is_live_edition(db.get_edition(edition_id, g.user_id)):
@@ -470,6 +447,42 @@ def update_edition(release_id: str, edition_id: str):
         edition = db.get_edition(edition_id, g.user_id)
         db.close_connection()
         return jsonify(edition), 200
+    except Exception as exc:
+        traceback.print_exc()
+        return jsonify({'error': str(exc)}), 500
+
+
+_MAX_CARD_PATCHES = 2000
+
+
+@releases_bp.route('/releases/<release_id>/editions/<edition_id>/cards', methods=['PATCH'])
+@require_auth
+def patch_edition_cards(release_id: str, edition_id: str):
+    """Save card numbers, tags, cover picks and per-card style overrides without re-sending card
+    snapshots (see `ReleaseCardPatch`). Body: `cards`, a list of `{source_card_id, ...changed fields}`."""
+    try:
+        payload = request.get_json(silent=True) or {}
+        raw_patches = payload.get('cards')
+        if not isinstance(raw_patches, list) or not raw_patches:
+            return jsonify({'error': 'cards must be a non-empty list'}), 400
+        if len(raw_patches) > _MAX_CARD_PATCHES:
+            return jsonify({'error': f'At most {_MAX_CARD_PATCHES} cards can be changed at once.'}), 400
+        try:
+            patches = [ReleaseCardPatch(**patch) for patch in raw_patches]
+        except (ValidationError, TypeError) as exc:
+            return jsonify({'error': str(exc)}), 400
+
+        with PostgresDB() as db:
+            state = db.get_owned_edition_card_numbers(release_id, edition_id, g.user_id)
+            if state is None:
+                return jsonify({'error': 'Edition not found or not owned by user'}), 404
+            is_live, card_numbers = state
+            if is_live:
+                return jsonify({'error': LIVE_EDITION_ERROR}), 409
+            if (duplicate_error := ReleaseCardNumbers.patched_duplicate_error(card_numbers, patches)):
+                return jsonify({'error': duplicate_error}), 400
+            db.patch_release_cards(edition_id, [(patch.source_card_id, patch.changes()) for patch in patches])
+        return jsonify({'success': True}), 200
     except Exception as exc:
         traceback.print_exc()
         return jsonify({'error': str(exc)}), 500

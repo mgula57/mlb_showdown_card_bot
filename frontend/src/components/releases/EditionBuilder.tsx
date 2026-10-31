@@ -1,7 +1,8 @@
 import { useState, useMemo, useRef, useEffect, useCallback, memo, type ReactNode, type Ref } from 'react';
 import * as Tabs from '@radix-ui/react-tabs';
 import type { ReleaseEdition, ReleaseCard, AlgorithmPreviewResult, AlgorithmPreviewPlayer, ReleaseCardImageStatus } from '../../api/releases';
-import { updateEdition, rebuildEditionCard, customEditionCard } from '../../api/releases';
+import { updateEdition, patchEditionCards, rebuildEditionCard, customEditionCard } from '../../api/releases';
+import { cardPatchesBetween, mergeCardPatches, type CardPatches } from './cardPatches';
 import { SummaryCharts } from './SummaryCharts';
 import { AlgorithmBuilder } from './AlgorithmBuilder';
 import { parseAlgorithmSettings } from './algorithmSettings';
@@ -294,10 +295,12 @@ function loadSavedBuildPanelWidth(): number | null {
     }
 }
 
-/** The newest card list waiting to save, and every `persist` call it settles. */
+/** The newest card list waiting to save, and every `persist` call it settles. `patches` holds
+ *  just the changed fields while every queued edit was a patchable one; null means save it all. */
 type PendingCardSave = {
     cards: ReleaseCard[];
     manualPicks?: ManualPicks;
+    patches: CardPatches | null;
     waiters: ((saved: boolean) => void)[];
 };
 
@@ -309,6 +312,8 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
     const [saving, setSaving] = useState(false);
     // Card list saves (see `persist`): the last state the server confirmed (what a failed save
     // reverts to), the newest unsent state, and whether a save is in flight
+    const editionRef = useRef(edition);
+    editionRef.current = edition;
     const confirmedRef = useRef<{ cards: ReleaseCard[]; manualPicks: ManualPicks }>({
         cards: edition.cards, manualPicks: parseManualPicks(edition.attributes),
     });
@@ -478,6 +483,10 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
      * edits made while one is in flight coalesce into a single follow-up save of the newest state. */
     function persist(nextCards: ReleaseCard[], nextManualPicks?: ManualPicks): Promise<boolean> {
         if (!token) return Promise.resolve(false);
+        // Numbers, tags, cover picks and style tweaks save as just those fields
+        const patches = nextManualPicks ? null : cardPatchesBetween(cardsRef.current, nextCards);
+        // Ahead of the re-render, so a second edit in the same tick diffs against this one
+        cardsRef.current = nextCards;
         setCards(nextCards);
         if (nextManualPicks) setManualPicks(nextManualPicks);
         setError(null);
@@ -486,6 +495,7 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
             pendingSaveRef.current = {
                 cards: nextCards,
                 manualPicks: nextManualPicks ?? queued?.manualPicks,
+                patches: patches && (!queued ? patches : queued.patches && mergeCardPatches(queued.patches, patches)),
                 waiters: [...(queued?.waiters ?? []), resolve],
             };
             if (!isSavingRef.current) drainSaves(token);
@@ -499,6 +509,14 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
             const save = pendingSaveRef.current;
             pendingSaveRef.current = null;
             try {
+                if (save.patches) {
+                    if (save.patches.size > 0) await patchEditionCards(releaseId, edition.id, [...save.patches.values()], token);
+                    confirmedRef.current = { ...confirmedRef.current, cards: save.cards };
+                    // The edition's other fields may have saved since this save was queued, so build on the latest
+                    onEditionUpdated({ ...editionRef.current, cards: save.cards });
+                    save.waiters.forEach(resolve => resolve(true));
+                    continue;
+                }
                 const updated = await updateEdition(releaseId, edition.id, {
                     cards: save.cards.map(c => ({
                         card_number: c.card_number,

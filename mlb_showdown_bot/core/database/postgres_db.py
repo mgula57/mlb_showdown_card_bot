@@ -7692,6 +7692,67 @@ class PostgresDB:
                 cur.execute("UPDATE internal.release_editions SET updated_at = NOW() WHERE id = %s", (edition_id,))
         return True
 
+    def get_owned_edition_card_numbers(self, release_id: str, edition_id: str, user_id: str) -> Optional[tuple[bool, dict[str, Optional[int]]]]:
+        """For a card patch, without loading card snapshots: whether the edition is live (published,
+        not a working copy, so it only changes by publishing) and its card numbers by source card id.
+        None if user_id doesn't own it."""
+        if not self.connection:
+            return None
+        with self.connection.cursor() as cur:
+            cur.execute("""
+                SELECT e.published_at IS NOT NULL AND e.draft_of IS NULL FROM internal.release_editions e
+                  JOIN internal.releases r ON r.id = e.release_id
+                 WHERE e.id = %s AND e.release_id = %s AND r.created_by = %s AND r.retired_at IS NULL AND e.retired_at IS NULL
+            """, (edition_id, release_id, user_id))
+            row = cur.fetchone()
+            if row is None:
+                return None
+            cur.execute("""
+                SELECT source_card_id, card_number FROM internal.release_cards
+                 WHERE edition_id = %s AND retired_at IS NULL AND source_card_id IS NOT NULL
+            """, (edition_id,))
+            return row[0], {source_id: number for source_id, number in cur.fetchall()}
+
+    def patch_release_cards(self, edition_id: str, patches: list[tuple[str, dict]]) -> None:
+        """Apply card patches (source card id, {field: value}) to an edition's live cards in one
+        transaction. Numbers go in one batch, cleared first so a renumber can swap them; a cover
+        pick takes its slot from whichever card held it. Callers check ownership and numbers first
+        (see `get_owned_edition_card_numbers`)."""
+        numbered = [(source_id, changes['card_number']) for source_id, changes in patches if 'card_number' in changes]
+        with self.transaction() as cur:
+            if numbered:
+                cur.execute("""
+                    UPDATE internal.release_cards SET card_number = NULL
+                     WHERE edition_id = %s AND source_card_id = ANY(%s) AND retired_at IS NULL
+                """, (edition_id, [source_id for source_id, _ in numbered]))
+                execute_values(cur, """
+                    UPDATE internal.release_cards rc SET card_number = v.card_number, updated_at = NOW()
+                      FROM (VALUES %s) AS v(edition_id, source_card_id, card_number)
+                     WHERE rc.edition_id = v.edition_id AND rc.source_card_id = v.source_card_id AND rc.retired_at IS NULL
+                """, [(edition_id, source_id, number) for source_id, number in numbered], template="(%s::uuid, %s, %s::int)")
+            for source_id, changes in patches:
+                columns: dict = {}
+                if 'tags' in changes:
+                    columns['tags'] = self._normalize_release_card_tags(changes['tags'])
+                if 'card_overrides' in changes:
+                    columns['card_overrides'] = self._normalize_release_card_overrides(changes['card_overrides'])
+                if 'preview_rank' in changes:
+                    columns['preview_rank'] = changes['preview_rank']
+                    if changes['preview_rank'] is not None:
+                        cur.execute("""
+                            UPDATE internal.release_cards SET preview_rank = NULL
+                             WHERE edition_id = %s AND preview_rank = %s AND source_card_id <> %s
+                        """, (edition_id, changes['preview_rank'], source_id))
+                if not columns:
+                    continue
+                set_clause = ', '.join(f"{column} = %s" for column in columns)
+                cur.execute(
+                    f"UPDATE internal.release_cards SET {set_clause}, updated_at = NOW() WHERE edition_id = %s AND source_card_id = %s AND retired_at IS NULL",
+                    list(columns.values()) + [edition_id, source_id],
+                )
+            # A working copy's updated_at past its created_at is what marks it as changed
+            cur.execute("UPDATE internal.release_editions SET updated_at = NOW() WHERE id = %s", (edition_id,))
+
     def _embed_variable_speed_card_data(self, cards: list) -> None:
         """Embed the variable speed card JSON in release card snapshots taken from variable speed
         search rows (`card_row_as_variable_speed`). card_bot rows don't carry `card_data`, so anything

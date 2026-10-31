@@ -617,6 +617,27 @@ export async function updateEdition(releaseId: string, editionId: string, payloa
     return res.json();
 }
 
+/** The release card fields a patch can change; anything else saves the full card list. */
+export const PATCHABLE_CARD_FIELDS = ['card_number', 'tags', 'preview_rank', 'card_overrides'] as const;
+export type ReleaseCardPatch = { source_card_id: string } & Partial<Pick<ReleaseCard, typeof PATCHABLE_CARD_FIELDS[number]>>;
+
+/** Saves just the changed fields of some cards (numbers, tags, cover picks, style overrides),
+ *  instead of re-sending every card snapshot with `updateEdition`. */
+export async function patchEditionCards(releaseId: string, editionId: string, cards: ReleaseCardPatch[], token: string): Promise<void> {
+    const res = await fetch(`${API_BASE}/releases/${releaseId}/editions/${editionId}/cards`, {
+        method: 'PATCH',
+        headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ cards }),
+    });
+    if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || `Failed to save changes: ${res.status}`);
+    }
+}
+
 /** How deleting an edition went: a published one is `staged` until the next publish; a
  *  never-published one is `deleted`, or `retired` when some of its cards are on teams. */
 export type EditionDeleteOutcome = 'staged' | 'deleted' | 'retired';
