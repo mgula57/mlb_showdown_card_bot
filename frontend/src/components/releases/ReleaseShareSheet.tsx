@@ -52,6 +52,8 @@ export function ReleaseShareSheet({ release, onClose, eyebrow, ownerToken, onRel
     const [error, setError] = useState<string | null>(null);
     const shareImage = useShareImage(release);
     const imageUrl = shareImage.path ? cardImagePublicUrl(shareImage.path) : null;
+    const [loadedUrl, setLoadedUrl] = useState<string | null>(null);
+    const imageReady = !!imageUrl && loadedUrl === imageUrl;
     const canShareNatively = typeof navigator.share === 'function';
 
     async function handleNativeShare() {
@@ -98,11 +100,21 @@ export function ReleaseShareSheet({ release, onClose, eyebrow, ownerToken, onRel
         >
             <div className="flex flex-col gap-4 p-4">
                 {imageUrl ? (
-                    <img
-                        src={imageUrl}
-                        alt={`Link preview for ${release.name}`}
-                        className="w-full aspect-[1200/630] object-cover rounded-card border border-(--divider)"
-                    />
+                    <div className="relative w-full aspect-[1200/630] rounded-card bg-(--background-tertiary) overflow-hidden">
+                        <img
+                            key={imageUrl}
+                            src={imageUrl}
+                            alt={`Link preview for ${release.name}`}
+                            onLoad={() => setLoadedUrl(imageUrl)}
+                            className={`w-full h-full object-cover rounded-card border border-(--divider) transition-opacity ${imageReady ? 'opacity-100' : 'opacity-0'}`}
+                        />
+                        {(!imageReady || shareImage.loading) && (
+                            <div className={`absolute flex items-center gap-1.5 text-[12px] text-(--text-tertiary) ${imageReady ? 'right-2 bottom-2 px-2 py-1 bg-(--background-secondary) rounded-card' : 'inset-0 justify-center animate-pulse'}`}>
+                                <FaSpinner className="animate-spin text-[11px]" />
+                                {imageReady ? 'Refreshing…' : 'Loading preview…'}
+                            </div>
+                        )}
+                    </div>
                 ) : shareImage.error ? (
                     <div className="flex flex-col items-start gap-2">
                         <InlineError size="md" icon>{shareImage.error}</InlineError>
@@ -110,7 +122,9 @@ export function ReleaseShareSheet({ release, onClose, eyebrow, ownerToken, onRel
                     </div>
                 ) : (
                     <div className="flex flex-col gap-1.5">
-                        <div aria-hidden className={`w-full aspect-[1200/630] rounded-card bg-(--background-tertiary) ${shareImage.loading ? 'animate-pulse' : ''}`} />
+                        <div aria-hidden className={`w-full aspect-[1200/630] rounded-card bg-(--background-tertiary) flex items-center justify-center ${shareImage.loading ? 'animate-pulse' : ''}`}>
+                            <FaSpinner className="animate-spin text-(--text-tertiary)" />
+                        </div>
                         <span className="text-[12px] text-(--text-tertiary)">Making the preview image…</span>
                     </div>
                 )}
