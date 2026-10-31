@@ -267,7 +267,10 @@ export function ReleaseDetail({ release, readOnly, editionSlug, onEditionChange,
             setSavingEditionForm(true);
             setError(null);
             try {
-                handleEditionUpdated(await updateEdition(release.id, activeLoadedId, { name }, token));
+                const updated = await updateEdition(release.id, activeLoadedId, { name }, token);
+                handleEditionUpdated(updated);
+                // A never-published edition's slug follows its name, so keep the URL on it
+                if (activeEdition && updated.id === activeEdition.id && updated.slug !== activeEdition.slug) onEditionChange(updated.slug);
                 closeEditionForm();
             } catch (err: any) {
                 setError(err.message ?? 'Failed to rename edition.');
@@ -311,7 +314,7 @@ export function ReleaseDetail({ release, readOnly, editionSlug, onEditionChange,
             editions: release.editions.map(e => {
                 const updated = byId.get(e.id);
                 if (updated) {
-                    return { ...e, name: updated.name, attributes: updated.attributes, is_published: updated.is_published, card_count: updated.cards.length };
+                    return { ...e, name: updated.name, slug: updated.slug, attributes: updated.attributes, is_published: updated.is_published, card_count: updated.cards.length };
                 }
                 const updatedDraft = e.draft && byId.get(e.draft.id);
                 return updatedDraft && e.draft

@@ -788,9 +788,9 @@ export function SummaryCharts({ cards, editionId }: SummaryChartsProps) {
 
     if (cards.length === 0) {
         return (
-            <div className="flex items-center justify-center py-16 text-[13px] text-(--text-tertiary)">
+            <EmptyState size="panel" title="No cards yet.">
                 Add cards to see distribution charts.
-            </div>
+            </EmptyState>
         );
     }
 

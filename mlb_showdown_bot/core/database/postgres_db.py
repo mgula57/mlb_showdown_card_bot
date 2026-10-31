@@ -6732,7 +6732,8 @@ class PostgresDB:
                     release_id      UUID NOT NULL REFERENCES internal.releases(id) ON DELETE CASCADE,
                     name            TEXT NOT NULL,
                     attributes      JSONB NOT NULL DEFAULT '{}',
-                    slug            TEXT UNIQUE NOT NULL,
+                    -- Unique per release (uq_release_editions_slug), see `_generate_edition_slug`
+                    slug            TEXT NOT NULL,
                     is_published    BOOLEAN NOT NULL DEFAULT FALSE,
                     created_at      TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
                     updated_at      TIMESTAMP WITH TIME ZONE DEFAULT NOW()
@@ -6941,6 +6942,39 @@ class PostgresDB:
                 CREATE INDEX IF NOT EXISTS idx_release_image_jobs_edition_created_at
                     ON internal.release_image_jobs (edition_id, created_at DESC);
             """)
+        self._migrate_edition_slugs_per_release()
+
+    def _migrate_edition_slugs_per_release(self) -> None:
+        """One-time: edition slugs used to be unique across every release (so most were `main-3fa9c1`).
+        Rewrites them per release, oldest edition first (so it keeps the plain slug), then swaps the
+        global unique constraint for `uq_release_editions_slug`. Runs only while the old constraint
+        exists, in one transaction so a failure leaves the old slugs in place."""
+        with self.transaction() as cur:
+            cur.execute("""
+                SELECT 1 FROM pg_constraint
+                 WHERE conname = 'release_editions_slug_key' AND conrelid = 'internal.release_editions'::regclass
+            """)
+            if cur.fetchone():
+                cur.execute("ALTER TABLE internal.release_editions DROP CONSTRAINT release_editions_slug_key;")
+                cur.execute("""
+                    SELECT id, release_id, name, retired_at IS NOT NULL FROM internal.release_editions
+                     WHERE draft_of IS NULL ORDER BY release_id, retired_at NULLS FIRST, created_at
+                """)
+                taken: dict = {}
+                for edition_id, release_id, name, is_retired in cur.fetchall():
+                    # Retired editions sit outside the unique index, but get a slug clear of the live ones anyway
+                    slug = self._next_free_slug(self._slugify(name, 'edition'), taken.setdefault(release_id, set()))
+                    taken[release_id].add(slug)
+                    cur.execute("UPDATE internal.release_editions SET slug = %s WHERE id = %s", (slug, edition_id))
+                # A working copy shares its edition's slug
+                cur.execute("""
+                    UPDATE internal.release_editions d SET slug = e.slug
+                      FROM internal.release_editions e WHERE d.draft_of = e.id
+                """)
+            cur.execute("""
+                CREATE UNIQUE INDEX IF NOT EXISTS uq_release_editions_slug
+                    ON internal.release_editions (release_id, slug) WHERE draft_of IS NULL AND retired_at IS NULL;
+            """)
 
     # Release list tiles show off up to 3 rendered card images: cards the user ranked (preview_rank 1-3)
     # first, then the first edition (by name, matching the edition tabs), then highest points.
@@ -7147,7 +7181,7 @@ class PostgresDB:
             if with_main_edition:
                 cur.execute(
                     "INSERT INTO internal.release_editions (release_id, name, slug) VALUES (%s, %s, %s)",
-                    (release_id, 'main', self._generate_unique_slug(cur, 'internal.release_editions', 'main')),
+                    (release_id, 'main', 'main'),
                 )
         return release_id
 
@@ -7332,12 +7366,12 @@ class PostgresDB:
             if self._lock_owned_release(cur, release_id, user_id) is None:
                 return False
             cur.execute("""
-                SELECT e.id, e.name, e.attributes FROM internal.release_editions e
+                SELECT e.id, e.name, e.attributes, e.slug FROM internal.release_editions e
                  WHERE e.release_id = %s AND e.draft_of IS NULL AND e.published_at IS NOT NULL AND e.retired_at IS NULL
                    AND NOT EXISTS (SELECT 1 FROM internal.release_editions d WHERE d.draft_of = e.id)
             """, (release_id,))
-            for edition_id, name, attributes in cur.fetchall():
-                slug = self._generate_unique_slug(cur, 'internal.release_editions', f"{name} draft")
+            # A working copy shares its edition's slug (slugs are only unique among real editions)
+            for edition_id, name, attributes, slug in cur.fetchall():
                 # created_at = updated_at (one transaction, one NOW()) until the owner saves a change
                 cur.execute("""
                     INSERT INTO internal.release_editions (release_id, name, attributes, slug, draft_of)
@@ -7594,13 +7628,10 @@ class PostgresDB:
         fields = self._edition_payload_fields(payload)
         # One transaction, so a bad card list doesn't leave an empty edition behind
         with self.transaction() as cur:
-            cur.execute(
-                "SELECT 1 FROM internal.releases WHERE id = %s AND created_by = %s AND retired_at IS NULL",
-                (release_id, user_id),
-            )
-            if not cur.fetchone():
+            # Locking the release also keeps two new editions from picking the same slug
+            if self._lock_owned_release(cur, release_id, user_id) is None:
                 return None
-            slug = self._generate_unique_slug(cur, 'internal.release_editions', payload.get('name', ''))
+            slug = self._generate_edition_slug(cur, release_id, payload.get('name', ''))
             cols = ', '.join(['release_id', 'slug'] + list(fields.keys()))
             placeholders = ', '.join(['%s'] * (2 + len(fields)))
             values = [release_id, slug] + [
@@ -7630,12 +7661,20 @@ class PostgresDB:
         # a failed save must not leave that (or a half-applied card list) committed
         with self.transaction() as cur:
             cur.execute("""
-                SELECT 1 FROM internal.release_editions e
+                SELECT e.release_id::text, e.published_at IS NULL AND e.draft_of IS NULL FROM internal.release_editions e
                 JOIN internal.releases r ON r.id = e.release_id
                 WHERE e.id = %s AND r.created_by = %s AND r.retired_at IS NULL AND e.retired_at IS NULL
             """, (edition_id, user_id))
-            if not cur.fetchone():
+            row = cur.fetchone()
+            if not row:
                 return False
+            release_id, slug_follows_name = row
+            if slug_follows_name and isinstance(fields.get('name'), str):
+                # Until the edition is first published nothing links to it, so its slug follows its name.
+                # After that it's locked (a working copy's rename never reaches the live slug).
+                self._lock_owned_release(cur, release_id, user_id)
+                cur.execute("UPDATE internal.release_editions SET slug = %s WHERE id = %s",
+                            (self._generate_edition_slug(cur, release_id, fields['name'], edition_id), edition_id))
             if fields:
                 # JSONB fields merge top-level keys so saving one setting (e.g. numbering) doesn't clobber another (e.g. algorithm)
                 set_clause = ', '.join([
@@ -8049,10 +8088,35 @@ class PostgresDB:
         return extras.Json({'style': style}) if style else None
 
     @staticmethod
+    def _slugify(name: str, fallback: str) -> str:
+        return re.sub(r'[^a-z0-9]+', '-', (name or '').lower()).strip('-') or fallback
+
+    @staticmethod
+    def _next_free_slug(base_slug: str, taken: set) -> str:
+        """`base_slug`, or the first of `base_slug-2`, `-3`... not in `taken`."""
+        slug, n = base_slug, 2
+        while slug in taken:
+            slug, n = f"{base_slug}-{n}", n + 1
+        return slug
+
+    @classmethod
+    def _generate_edition_slug(cls, cur, release_id: str, name: str, edition_id: Optional[str] = None) -> str:
+        """A readable slug for an edition, unique among the release's live editions (`foil`, then
+        `foil-2`): it only appears after the release's own in card links (`/r/<release>/<edition>/...`).
+        `edition_id` is the edition being renamed, so its current slug doesn't count as taken."""
+        base_slug = cls._slugify(name, 'edition')
+        cur.execute("""
+            SELECT slug FROM internal.release_editions
+             WHERE release_id = %s AND draft_of IS NULL AND retired_at IS NULL AND id IS DISTINCT FROM %s
+               AND (slug = %s OR slug LIKE %s)
+        """, (release_id, edition_id, base_slug, f"{base_slug}-%"))
+        return cls._next_free_slug(base_slug, {row[0] for row in cur.fetchall()})
+
+    @staticmethod
     def _generate_unique_slug(cur, table: str, name: str) -> str:
         """Slugify name, appending a short random suffix on collision. `table` must be a
         trusted internal identifier (never user input) — it's interpolated into the query."""
-        base_slug = re.sub(r'[^a-z0-9]+', '-', (name or '').lower()).strip('-') or 'release'
+        base_slug = PostgresDB._slugify(name, 'release')
         slug = base_slug
         while True:
             cur.execute(f"SELECT 1 FROM {table} WHERE slug = %s", (slug,))
