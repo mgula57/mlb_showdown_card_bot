@@ -17,6 +17,7 @@ import type { CardDatabaseRecord } from '../../api/card_db/cardDatabase';
 import type { CardSource as CardSourceType } from '../../types/cardSource';
 import { CardSource } from '../../types/cardSource';
 import { useCardMap } from '../../hooks/useCardMap';
+import { useMediaQuery } from '../../hooks/useMediaQuery';
 import { bannerTokens, getContrastTextColor } from "../../functions/colors";
 import { FieldView, FIELD_POSITIONS } from './FieldView';
 import type { FieldViewRosterData } from './FieldView';
@@ -289,6 +290,10 @@ function getEligiblePositions(card: CardDatabaseRecord, numStarters: number): st
     return [...new Set([...expanded, 'DH', 'BE'])];
 }
 
+// Viewport width where the field view sits beside the tabs / draft panel instead of tabbing with
+// them. Mirrors `--breakpoint-split` in index.css, which drives the matching `split:` classes.
+const SPLIT_SCREEN_QUERY = '(min-width: 48rem)';
+
 export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = false, embedded = false, isStarred = false, onToggleStar, onFork, onToggleLike, challenge, isNewTeam = false, justCopied = false, onArchive }: TeamDetailProps) {
     const [draft, setDraft] = useState<Team>(team);
     const [forking, setForking] = useState(false);
@@ -370,19 +375,13 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
     // Guided Draft pick, whose next round is planned server-side from the saved roster.
     const saveImmediatelyRef = useRef(false);
     const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-    const [isLg, setIsLg] = useState(() => window.matchMedia('(min-width: 1024px)').matches);
+    const isSplit = useMediaQuery(SPLIT_SCREEN_QUERY);
 
+    // Crossing down into the mobile SlideOver layout: clear any pending slot left over
+    // from the desktop panel so the slideover doesn't spring open immediately.
     useEffect(() => {
-        const mq = window.matchMedia('(min-width: 1024px)');
-        const handler = (e: MediaQueryListEvent) => {
-            setIsLg(e.matches);
-            // Crossing down into the mobile SlideOver layout: clear any pending slot left over
-            // from the desktop panel so the slideover doesn't spring open immediately.
-            if (!e.matches) setPendingSlot(null);
-        };
-        mq.addEventListener('change', handler);
-        return () => mq.removeEventListener('change', handler);
-    }, []);
+        if (!isSplit) setPendingSlot(null);
+    }, [isSplit]);
 
     // Reset draft source if the current one becomes disallowed
     useEffect(() => {
@@ -860,7 +859,7 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
     });
     // Mobile has no side-by-side draft panel, so guided mode docks a short strip to the bottom
     // of the screen, under the field view, instead of living in the search SlideOver.
-    const guidedDocked = guidedActive && !isLg;
+    const guidedDocked = guidedActive && !isSplit;
     // The slot the current guided round fills — highlighted on the field/depth chart like a
     // manually-selected slot. The star round has no single slot (it varies per option).
     const guidedPosition = guidedActive ? guided.round?.round.position ?? null : null;
@@ -1395,7 +1394,7 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
     };
 
     return (
-        <div className={`flex flex-col ${embedded ? '' : 'lg:h-[calc(100dvh-2.5rem)] lg:overflow-hidden'}`}>
+        <div className={`flex flex-col ${embedded ? '' : 'split:h-[calc(100dvh-2.5rem)] split:overflow-hidden'}`}>
             
             {/* Header: the release header's pinstripe band, with a team-color rule along the top. Info on the
                 left (eyebrow, crest + name, meta, points plates), the actions bottom-right; below md the
@@ -1767,10 +1766,10 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
             )}
 
             {/* Team Roster Content */}
-            <div className={`flex flex-1 ${embedded ? '' : 'lg:min-h-0 lg:overflow-hidden'}`}>
+            <div className={`flex flex-1 ${embedded ? '' : 'split:min-h-0 split:overflow-hidden'}`}>
                 {showEditControls && setupStep === 'settings' ? (
                     /* Setup step 1: team settings, edited inline (auto-saved) before drafting */
-                    <div className="flex flex-col flex-1 min-w-0 lg:min-h-0 lg:overflow-y-auto scrollbar-hide">
+                    <div className="flex flex-col flex-1 min-w-0 split:min-h-0 split:overflow-y-auto scrollbar-hide">
                         <div className="flex-1">
                             <TeamSettingsForm
                                 team={draft}
@@ -1781,8 +1780,8 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                         </div>
                         {/* Spacer so the last form fields clear the fixed action bar on mobile,
                             where the page (not this panel) is the scroll container. */}
-                        <div className="h-20 shrink-0 lg:hidden" />
-                        <div className="fixed inset-x-0 bottom-0 z-40 lg:sticky lg:inset-x-auto lg:z-auto flex items-center justify-end gap-3 px-4 py-3 border-t border-(--divider) bg-(--background-primary)">
+                        <div className="h-20 shrink-0 split:hidden" />
+                        <div className="fixed inset-x-0 bottom-0 z-40 split:sticky split:inset-x-auto split:z-auto flex items-center justify-end gap-3 px-4 py-3 border-t border-(--divider) bg-(--background-primary)">
                             {!isTeamSetupValid(draft) && (
                                 <span className="text-[11px] text-(--text-tertiary) mr-auto">Resolve the highlighted settings to continue.</span>
                             )}
@@ -1796,10 +1795,10 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                             </button>
                         </div>
                     </div>
-                ) : isLg && teamMode === 'complete' ? (
+                ) : isSplit && teamMode === 'complete' ? (
                     /* Filled + large screen: FieldView fixed on left, Depth/Draft/Settings tabs on right */
                     <>
-                        <div className="flex flex-col shrink-0 overflow-y-auto scrollbar-hide w-80 md:w-108 lg:w-124 xl:w-148 2xl:w-164 3xl:w-184 border-r border-(--divider)" onClick={() => setPendingSlot(null)}>
+                        <div className="flex flex-col shrink-0 overflow-y-auto scrollbar-hide w-96 lg:w-124 xl:w-148 2xl:w-164 3xl:w-184 border-r border-(--divider)" onClick={() => setPendingSlot(null)}>
                             {fieldViewContent}
                         </div>
                         <Tabs.Root
@@ -1843,7 +1842,7 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                                 @container
                                 flex flex-col shrink-0
                                 overflow-y-auto scrollbar-hide
-                                w-full lg:w-124 2xl:w-148 3xl:w-190 4xl:w-256
+                                w-full split:w-96 lg:w-124 2xl:w-148 3xl:w-190 4xl:w-256
                             "
                         >
                             <Tabs.List className="flex px-3 border-b border-(--divider) gap-x-1 py-1 sticky top-0 z-10 bg-(--background-primary) shrink-0 overflow-x-auto scrollbar-hide">
@@ -1860,32 +1859,32 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
 
                             <Tabs.Content value="depth" className="focus:outline-none" onClick={() => setPendingSlot(null)}>
                                 {depthChartContent}
-                                {showEditControls && !isLg && <div className="h-48" />}
+                                {showEditControls && !isSplit && <div className="h-48" />}
                             </Tabs.Content>
 
                             {rosterFull && (
                                 <Tabs.Content value="lineup" className="focus:outline-none" onClick={() => setPendingSlot(null)}>
                                     {lineupPanelContent}
-                                    {showEditControls && !isLg && <div className="h-48" />}
+                                    {showEditControls && !isSplit && <div className="h-48" />}
                                 </Tabs.Content>
                             )}
 
                             {!isMlbTeam && (
                                 <Tabs.Content value="draft" className="focus:outline-none">
                                     {draftHistoryContent}
-                                    {showEditControls && !isLg && <div className="h-48" />}
+                                    {showEditControls && !isSplit && <div className="h-48" />}
                                 </Tabs.Content>
                             )}
 
                             {hasSims && (
                                 <Tabs.Content value="sims" className="focus:outline-none">
                                     {simsContent}
-                                    {showEditControls && !isLg && <div className="h-48" />}
+                                    {showEditControls && !isSplit && <div className="h-48" />}
                                 </Tabs.Content>
                             )}
                         </Tabs.Root>
 
-                        {showEditControls && isLg && (
+                        {showEditControls && isSplit && (
                             <div className="hidden md:flex flex-col flex-1 min-w-0 min-h-0 border-l border-(--divider)">
                                 {draftPanel}
                             </div>
@@ -1894,13 +1893,13 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                 )}
             </div>
 
-            {showEditControls && !isLg && setupStep === 'draft' && (
+            {showEditControls && !isSplit && setupStep === 'draft' && (
                 <>
                     {/* Search FAB — hidden while the slideover is open, since the slideover's
                         own dismiss button occupies the same corner. The overlay shadow keeps it
                         legible over busy content (same treatment as SlideOver's dismiss button). */}
                     {!pendingSlot && !guidedDocked && (
-                        <div className="lg:hidden fixed bottom-0 right-0 z-50 w-24 h-24 flex items-center justify-center pointer-events-none">
+                        <div className="split:hidden fixed bottom-0 right-0 z-50 w-24 h-24 flex items-center justify-center pointer-events-none">
                             <SearchFrame rounded="rounded-full" className="pointer-events-auto shadow-overlay">
                                 <button
                                     type="button"
@@ -1922,7 +1921,7 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                         <>
                             {/* Clears the docked strip so the bottom of the field view stays reachable. */}
                             <div className={`${GUIDED_DOCK_HEIGHT_CLASS} shrink-0`} />
-                            <div className="lg:hidden fixed inset-x-0 md:left-(--side-menu-width) bottom-0 z-40 transition-[left] duration-300 border-t border-(--divider) shadow-sheet pb-[env(safe-area-inset-bottom)] bg-(--background-primary)">
+                            <div className="split:hidden fixed inset-x-0 md:left-(--side-menu-width) bottom-0 z-40 transition-[left] duration-300 border-t border-(--divider) shadow-sheet pb-[env(safe-area-inset-bottom)] bg-(--background-primary)">
                                 {renderGuidedPanel('docked')}
                             </div>
                         </>

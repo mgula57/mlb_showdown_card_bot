@@ -5,6 +5,7 @@
     --container-field-split: 600px;
     --breakpoint-xs: 30rem; /* or 480px */
     --breakpoint-3xl: 120rem; /* or 1920px */
+    --breakpoint-split: 48rem; /* or 768px: Team Builder field/panel split (e.g. foldable inner screens) */
 
     /* `font-display`: condensed heavy italic for standalone headlines. `font-display-upright`:
        condensed bold for player names on cards. `font-display-black`: extra black condensed for

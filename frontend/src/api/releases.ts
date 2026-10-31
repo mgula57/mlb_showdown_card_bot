@@ -734,6 +734,41 @@ export async function previewAlgorithm(releaseId: string, editionId: string, con
     return res.json();
 }
 
+/** `BASE` gives every team a foil (its best card) and stronger teams more; `EXPANSION` takes the season's standouts anywhere. */
+export type FoilSetType = 'BASE' | 'EXPANSION';
+
+export type FoilSuggestion = {
+    source_card_id: string;
+    /** 0-100 */
+    score: number;
+    /** Why it was picked, best first (e.g. "Team leader", "MVP", "Saves leader"). */
+    reasons: string[];
+};
+
+export type FoilSuggestionResult = {
+    /** Foils the edition should end up with (about 15%), existing FOIL tags included. */
+    target: number;
+    existing_count: number;
+    suggestions: FoilSuggestion[];
+};
+
+/** Cards to tag FOIL, picked from the edition's saved cards. Doesn't persist — apply them as tags. */
+export async function suggestEditionFoils(releaseId: string, editionId: string, setType: FoilSetType, token: string): Promise<FoilSuggestionResult> {
+    const res = await fetch(`${API_BASE}/releases/${releaseId}/editions/${editionId}/foils/suggest`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ set_type: setType }),
+    });
+    if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || `Failed to suggest foils: ${res.status}`);
+    }
+    return res.json();
+}
+
 /** The snapshot of one of the edition's Bot cards rebuilt at another chart version (1 restores the
  * archived card). Doesn't persist — save the returned snapshot through `updateEdition`. */
 export async function rebuildEditionCard(releaseId: string, editionId: string, sourceCardId: string, chartVersion: number, token: string): Promise<CardDatabaseRecord> {

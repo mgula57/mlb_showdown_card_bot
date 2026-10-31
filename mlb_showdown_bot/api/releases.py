@@ -5,6 +5,7 @@ from flask import Blueprint, g, jsonify, request
 from pydantic import ValidationError
 from ..core.card.images import ImageLibrary
 from ..core.database.postgres_db import PostgresDB, StaleEditionError
+from ..core.set_builder.foil_selection import FoilSetType, FoilSuggester
 from ..core.set_builder.image_match_classifier import ImageMatchCard, ImageMatchClassifier
 from ..core.set_builder.release_card_rebuilder import ReleaseCardRebuilder, ReleaseCardRebuildError
 from ..core.set_builder.release_images import EditionImagePlan, EditionImageRenderer, ReleaseImageJobCancelled, ReleaseImageStorage
@@ -642,6 +643,29 @@ def preview_algorithm(release_id: str, edition_id: str):
                 'cut_lines': showdown_set.cut_lines,
             },
         }), 200
+    except Exception as exc:
+        traceback.print_exc()
+        return jsonify({'error': str(exc)}), 500
+
+
+@releases_bp.route('/releases/<release_id>/editions/<edition_id>/foils/suggest', methods=['POST'])
+@require_auth
+def suggest_edition_foils(release_id: str, edition_id: str):
+    """Cards to tag `FOIL` so about 15% of the edition is foil (see `FoilSuggester`). Body: `set_type`
+    (`BASE` or `EXPANSION`). Does not persist: the builder applies picks through the card PATCH."""
+    try:
+        payload = request.get_json(silent=True) or {}
+        try:
+            set_type = FoilSetType(payload.get('set_type', FoilSetType.BASE.value))
+        except ValueError:
+            return jsonify({'error': 'set_type must be BASE or EXPANSION'}), 400
+
+        with PostgresDB() as db:
+            edition = _owned_edition(db, release_id, edition_id, g.user_id)
+            if edition is None:
+                return jsonify({'error': 'Edition not found or not owned by user'}), 404
+            result = FoilSuggester.for_edition(db, edition.get('cards') or [], set_type).suggest()
+        return jsonify(result.model_dump()), 200
     except Exception as exc:
         traceback.print_exc()
         return jsonify({'error': str(exc)}), 500

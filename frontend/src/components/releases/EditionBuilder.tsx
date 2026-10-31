@@ -1,6 +1,6 @@
 import { useState, useMemo, useRef, useEffect, useCallback, memo, type ReactNode, type Ref } from 'react';
 import * as Tabs from '@radix-ui/react-tabs';
-import type { ReleaseEdition, ReleaseCard, AlgorithmPreviewResult, AlgorithmPreviewPlayer, ReleaseCardImageStatus } from '../../api/releases';
+import type { ReleaseEdition, ReleaseCard, AlgorithmPreviewResult, AlgorithmPreviewPlayer, ReleaseCardImageStatus, FoilSuggestion } from '../../api/releases';
 import { updateEdition, patchEditionCards, rebuildEditionCard, customEditionCard, StaleEditionError } from '../../api/releases';
 import { cardPatchesBetween, mergeCardPatches, type CardPatches } from './cardPatches';
 import { SummaryCharts } from './SummaryCharts';
@@ -22,7 +22,10 @@ import CustomCardBuilder, { type CustomCardBuilderEmbed } from '../customs/Custo
 import { formSectionSummary } from '../customs/FormSectionSummary';
 import { EditionStyleModal } from './EditionStyleModal';
 import { EditionImages } from './EditionImages';
-import { ReleaseCardTagChips, ReleaseCardTagsEditor } from './ReleaseCardTags';
+import { FOIL_TAG, ReleaseCardSuggestedTagChip, ReleaseCardTagChips, ReleaseCardTagsEditor } from './ReleaseCardTags';
+import { FoilSuggestControl, FoilSuggestionBanner, POOL_TOOLBAR_POPOVER_CLASS } from './FoilSuggestions';
+import { foilSuggestionTitle, useFoilSuggestions } from './useFoilSuggestions';
+import { PoolPreviewBanner } from './PoolPreviewBanner';
 import { ReleaseCardPreviewRankBadge, ReleaseCardPreviewRankPicker } from './ReleaseCardPreviewRank';
 import { AlgorithmCutLineSummary, AlgorithmMatchBadge } from './AlgorithmMatch';
 import { AlgorithmCutoff } from './AlgorithmCutoff';
@@ -627,14 +630,35 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
     const isImageMatchActive = groupBy === 'image_match' || (poolFilters.image_match?.length ?? 0) > 0;
     // Match scores only show while sorting by them, so the grid stays quiet otherwise
     const isMatchSortActive = sortBy === 'match_score' || sortBy === 'match_margin';
+    // Foil picks waiting to be applied, by source card id: saved cards not already tagged FOIL. Null
+    // when none are showing (browsing, or an Algorithm preview is on screen instead).
+    const foils = useFoilSuggestions(releaseId, edition.id, token);
+    const pendingFoils = useMemo(() => {
+        if (readOnly || activePreview || !foils.result) return null;
+        const pending = new Map<string, FoilSuggestion>();
+        for (const card of cards) {
+            const suggestion = card.source_card_id ? foils.suggestions.get(card.source_card_id) : undefined;
+            if (suggestion && !card.tags.includes(FOIL_TAG)) pending.set(suggestion.source_card_id, suggestion);
+        }
+        return pending;
+    }, [readOnly, activePreview, foils.result, foils.suggestions, cards]);
+    const showOnlyFoilSuggestions = !!pendingFoils && foils.onlySuggested;
     const filteredCards = useMemo(
-        () => filterPoolCards(displayCards, poolFilters, poolSearch),
-        [displayCards, poolFilters, poolSearch]
+        () => filterPoolCards(displayCards, poolFilters, poolSearch)
+            .filter(card => !showOnlyFoilSuggestions || (!!card.source_card_id && !!pendingFoils?.has(card.source_card_id))),
+        [displayCards, poolFilters, poolSearch, showOnlyFoilSuggestions, pendingFoils]
     );
     const isPoolFiltered = filteredCards.length !== displayCards.length;
     function clearPoolFilters() {
         setPoolFilters({});
         setPoolSearch('');
+        foils.setOnlySuggested(false);
+    }
+
+    function handleApplyFoilSuggestions() {
+        if (!pendingFoils) return;
+        persist(cards.map(c => c.source_card_id && pendingFoils.has(c.source_card_id) ? { ...c, tags: [...c.tags, FOIL_TAG] } : c));
+        foils.clear();
     }
 
     const poolGroups = useMemo(
@@ -890,6 +914,7 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
     const handleRemoveCardStable = useStableCallback(handleRemoveCard);
     const handleNumberInputChangeStable = useStableCallback(handleNumberInputChange);
     const handleNumberInputBlurStable = useStableCallback(handleNumberInputBlur);
+    const handleSkipFoilSuggestionStable = useStableCallback(foils.skip);
     const isManualNumberingEditable = !activePreview && numbering.mode === 'manual' && !readOnly;
 
     function handlePrefixInputChange(value: string) {
@@ -1266,18 +1291,12 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
                         <Tabs.Content value="cards" className="flex-1 min-h-0 flex flex-col focus:outline-none">
                             {isAlgorithmRunning && <AlgorithmRunningBanner />}
                             {activePreview && !isAlgorithmRunning && (
-                                <div className="flex flex-col gap-2 px-3 py-2.5 border-b border-(--preview-accent)/30 bg-(--preview-accent)/10 shrink-0">
-                                    <div className="flex flex-col gap-0.5">
-                                        <div className={`flex items-center gap-1.5 ${headingClass('panel')} text-(--preview-accent)!`}>
-                                            <FaWandMagicSparkles />
-                                            Algorithm Preview — {activePreview.summary.actual_count} player{activePreview.summary.actual_count === 1 ? '' : 's'}
-                                        </div>
-                                        <span className="text-[11px] text-(--text-secondary)">
-                                            {cards.length === 0
-                                                ? 'Not saved yet. Save it as this edition\'s pool, or discard it.'
-                                                : `Not saved yet. Your saved pool has ${cards.length} card${cards.length === 1 ? '' : 's'} — choose how the preview should change it.`}
-                                        </span>
-                                    </div>
+                                <PoolPreviewBanner
+                                    title={`Algorithm Preview — ${activePreview.summary.actual_count} player${activePreview.summary.actual_count === 1 ? '' : 's'}`}
+                                    description={cards.length === 0
+                                        ? 'Not saved yet. Save it as this edition\'s pool, or discard it.'
+                                        : `Not saved yet. Your saved pool has ${cards.length} card${cards.length === 1 ? '' : 's'} — choose how the preview should change it.`}
+                                >
                                     {activePreview.summary.warnings.length > 0 && (
                                         <div className="flex flex-col gap-1">
                                             {activePreview.summary.warnings.map((warning, i) => (
@@ -1334,7 +1353,10 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
                                             Discard preview
                                         </button>
                                     </div>
-                                </div>
+                                </PoolPreviewBanner>
+                            )}
+                            {pendingFoils && (
+                                <FoilSuggestionBanner foils={foils} count={pendingFoils.size} onApply={handleApplyFoilSuggestions} />
                             )}
                             {((!readOnly && !activePreview) || displayCards.length > 0) && (
                                 <div className={`flex flex-wrap items-center gap-x-2 gap-y-2 px-3 py-2 border-b border-(--divider) shrink-0 ${CHROME_SURFACE_CLASS}`}>
@@ -1428,6 +1450,7 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
 
                                     {!readOnly && !activePreview && (
                                         <div className="flex flex-wrap items-center gap-2 ml-auto">
+                                            {cards.length > 0 && <FoilSuggestControl foils={foils} disabled={saving} />}
                                             <span className={`${FIELD_LABEL_CLASS} shrink-0`}>
                                                 Numbering
                                             </span>
@@ -1465,7 +1488,7 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
                                                     </button>
 
                                                     {showNumberingSettings && (
-                                                        <div className="absolute right-0 top-full mt-2 w-80 max-w-[calc(100vw-2rem)] p-3 bg-(--background-secondary) border border-(--divider) rounded-card shadow-overlay z-50 flex flex-col gap-4">
+                                                        <div className={POOL_TOOLBAR_POPOVER_CLASS}>
                                                             {numbering.mode === 'auto' && (
                                                                 <>
                                                                     <div className="flex flex-col gap-2">
@@ -1628,6 +1651,8 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
                                                             onRemove={readOnly ? undefined : handleRemoveCardStable}
                                                             onNumberChange={handleNumberInputChangeStable}
                                                             onNumberBlur={handleNumberInputBlurStable}
+                                                            foilSuggestion={card.source_card_id ? pendingFoils?.get(card.source_card_id) : undefined}
+                                                            onSkipFoilSuggestion={handleSkipFoilSuggestionStable}
                                                         />
                                                     ))}
                                                 </div>
@@ -1786,11 +1811,14 @@ type PoolCardRowProps = {
     onRemove?: (card: ReleaseCard) => void;
     onNumberChange: (cardId: string, value: string) => void;
     onNumberBlur: (cardId: string) => void;
+    /** An unapplied foil pick for this card, shown as a dashed FOIL? tag. */
+    foilSuggestion?: FoilSuggestion;
+    onSkipFoilSuggestion?: (sourceCardId: string) => void;
 };
 
 /** One pool grid card. Memoized (with stable callbacks from the builder) because the pool can be
  * hundreds of cards, and loading another page or opening a card shouldn't re-render all of them. */
-const PoolCardRow = memo(function PoolCardRow({ card, showFullCards, editionStyle, numberLabel, setNumber, numberInputValue, numberPrefix, showMatchBadge, onOpen, onRemove, onNumberChange, onNumberBlur }: PoolCardRowProps) {
+const PoolCardRow = memo(function PoolCardRow({ card, showFullCards, editionStyle, numberLabel, setNumber, numberInputValue, numberPrefix, showMatchBadge, onOpen, onRemove, onNumberChange, onNumberBlur, foilSuggestion, onSkipFoilSuggestion }: PoolCardRowProps) {
     // Full cards show the edition style and set number they'll print with
     const styleOverrides = useMemo<CardStyleOverrides>(
         () => ({ style: releaseCardStyle(editionStyle, card.card_overrides), setNumber }),
@@ -1842,11 +1870,18 @@ const PoolCardRow = memo(function PoolCardRow({ card, showFullCards, editionStyl
                 {showFullCards
                     ? <CardItemFromCardDatabaseRecord card={card.card_snapshot} onClick={handleOpen} styleOverrides={styleOverrides} />
                     : <CardItemCompactFromCardDatabaseRecord card={card.card_snapshot} onClick={handleOpen} />}
-                {(card.tags.length > 0 || card.preview_rank) && (
+                {(card.tags.length > 0 || card.preview_rank || foilSuggestion) && (
                     // Overlaid on the bottom edge (like the top-edge badges) so tags don't change row height
                     <div className="absolute -bottom-1 left-1 translate-y-1/2 z-10 pointer-events-none flex items-center gap-1">
                         {card.preview_rank && <ReleaseCardPreviewRankBadge rank={card.preview_rank} />}
                         <ReleaseCardTagChips tags={card.tags} />
+                        {foilSuggestion && (
+                            <ReleaseCardSuggestedTagChip
+                                tag={FOIL_TAG}
+                                title={foilSuggestionTitle(foilSuggestion)}
+                                onDismiss={onSkipFoilSuggestion && (() => onSkipFoilSuggestion(foilSuggestion.source_card_id))}
+                            />
+                        )}
                     </div>
                 )}
                 {showMatchBadge && (

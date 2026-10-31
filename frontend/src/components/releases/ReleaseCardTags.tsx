@@ -8,8 +8,10 @@ import { FaPlus, FaXmark } from 'react-icons/fa6';
 import { FIELD_LABEL_CLASS, fieldClass } from '../shared/fieldStyles';
 import { choiceClass } from '../shared/choiceStyles';
 
+/** The tag for cards that will be printed as foils (see `FoilSuggestions`). */
+export const FOIL_TAG = 'FOIL';
 /** Always offered in the editor, even before any card in the edition uses them. */
-const DEFAULT_TAG_SUGGESTIONS = ['FOIL'];
+const DEFAULT_TAG_SUGGESTIONS = [FOIL_TAG];
 /** Mirrors the backend's `_RELEASE_CARD_TAG_MAX_LENGTH`. */
 const TAG_MAX_LENGTH = 24;
 
@@ -40,6 +42,25 @@ export function ReleaseCardTagChips({ tags, onRemove }: { tags: string[]; onRemo
                 </span>
             ))}
         </div>
+    );
+}
+
+/** A tag that's only suggested so far (an unapplied foil pick): dashed, with a "?" until applied. */
+export function ReleaseCardSuggestedTagChip({ tag, title, onDismiss }: { tag: string; title?: string; onDismiss?: () => void }) {
+    return (
+        <span title={title} className="inline-flex items-center gap-1 rounded-plate border border-dashed border-(--warning) bg-(--background-secondary) text-(--text-primary) font-semibold uppercase leading-none text-[9px] py-0.5 px-1.5">
+            {tag}?
+            {onDismiss && (
+                <button
+                    type="button"
+                    onClick={e => { e.stopPropagation(); onDismiss(); }}
+                    aria-label={`Skip ${tag} suggestion`}
+                    className="pointer-events-auto flex items-center justify-center w-3 h-3 rounded-full hover:bg-(--red)/90 hover:text-white transition-colors cursor-pointer"
+                >
+                    <FaXmark className="text-[8px]" />
+                </button>
+            )}
+        </span>
     );
 }
 
