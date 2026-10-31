@@ -1,8 +1,9 @@
 import { type ShowdownBotCardChart } from '../../../api/showdownBotCard';
-import { getContrastTextColor } from '../../../functions/colors';
+import { darkenIfLowContrastOnWhite } from '../../../functions/colors';
 import { CardChart, buildChartRangesFromValues } from '../card_elements/CardChart';
 import { CAPS_LABEL_CLASS } from '../../shared/fieldStyles';
 import { StatTile } from '../../shared/StatTile';
+import { useTheme } from '../../shared/SiteSettingsContext';
 
 const OUTS = new Set(['PU', 'SO', 'GB', 'FB']);
 const TOTAL = 20;
@@ -49,6 +50,7 @@ const RESULT_ORDER_DEFAULT = ['PU', 'SO', 'GB', 'FB', 'BB', '1B', '1B+', '2B', '
 const RESULT_ORDER_2000 = ['SO', 'PU', 'GB', 'FB', 'BB', '1B', '1B+', '2B', '3B', 'HR'];
 
 export function BaselineOpponentBreakdown({ chart, primaryColor, secondaryColor, className }: BaselineOpponentBreakdownProps) {
+    const { isDark } = useTheme();
     const isEmpty = !chart;
     const data = isEmpty ? PLACEHOLDER_CHART : chart!;
 
@@ -61,8 +63,8 @@ export function BaselineOpponentBreakdown({ chart, primaryColor, secondaryColor,
         return (ia === -1 ? 99 : ia) - (ib === -1 ? 99 : ib);
     });
 
-    const primaryTextColor = getContrastTextColor(primaryColor || 'rgb(156,163,175)');
-    const secondaryTextColor = getContrastTextColor(secondaryColor || 'rgb(239,68,68)');
+    const primaryBarColor = primaryColor && !isDark ? darkenIfLowContrastOnWhite(primaryColor) : primaryColor;
+    const secondaryBarColor = secondaryColor && !isDark ? darkenIfLowContrastOnWhite(secondaryColor) : secondaryColor;
 
     const chartDataToRender = Object.keys(data.results ?? {}).length > 0 ? data.ranges : buildChartRangesFromValues(data.values ?? {}, data.set, data.is_pitcher);
 
@@ -84,7 +86,7 @@ export function BaselineOpponentBreakdown({ chart, primaryColor, secondaryColor,
             </div>
             <div className="space-y-1.5">
                 {outcomes.map(([key, value]) => (
-                    <Bar key={key} label={key} value={value} color={outcomeColor(key, primaryTextColor, secondaryTextColor)} blurred={isEmpty} />
+                    <Bar key={key} label={key} value={value} color={outcomeColor(key, primaryBarColor, secondaryBarColor)} blurred={isEmpty} />
                 ))}
             </div>
         </div>
