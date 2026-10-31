@@ -71,10 +71,11 @@ export function ImageLibrariesButton({ onClose, tipMoment = false }: { onClose?:
                 type="button"
                 onClick={() => setIsOpen(true)}
                 title="Google Drive folders your card images come from"
+                aria-label="Image Libraries"
                 className={buttonClass('secondary', 'sm', 'min-h-5')}
             >
                 <FaGoogleDrive className="text-[12px] shrink-0" />
-                <span><span className="hidden sm:inline">Image </span>Libraries</span>
+                <span className="hidden sm:inline">Image Libraries</span>
                 {overview && <span className="hidden sm:inline text-(--text-tertiary) tabular-nums">{driveCount}</span>}
             </button>
             {isOpen && (

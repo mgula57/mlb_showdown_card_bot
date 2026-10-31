@@ -159,7 +159,7 @@ export function EditionImages({ releaseId, releaseName, edition, readOnly, token
 
     return (
         <div className="flex flex-col flex-1 min-h-0">
-            <div className="flex flex-col gap-2 px-4 py-3 border-b border-(--divider) shrink-0">
+            <div className="flex flex-col gap-2 px-3 py-2 border-b border-(--divider) shrink-0">
                 <div className="flex flex-wrap items-center gap-2">
                     {data ? (
                         STATUS_ORDER.filter(status => counts[status] > 0).map(status => (
@@ -176,7 +176,7 @@ export function EditionImages({ releaseId, releaseName, edition, readOnly, token
                     )}
 
                     {data && (
-                        <label className="relative flex items-center">
+                        <label className="relative flex items-center grow basis-48 min-w-0">
                             <FaMagnifyingGlass className="absolute left-2.5 text-[11px] text-(--text-tertiary) pointer-events-none" />
                             <input
                                 type="search"
@@ -184,13 +184,13 @@ export function EditionImages({ releaseId, releaseName, edition, readOnly, token
                                 onChange={e => setNameQuery(e.target.value)}
                                 placeholder="Search by name"
                                 aria-label="Search cards by name"
-                                className={fieldClass('sm', 'w-44 pl-7 focus:outline-none')}
+                                className={fieldClass('sm', 'w-full pl-7 focus:outline-none')}
                             />
                         </label>
                     )}
 
                     {data && (
-                        <div className="flex items-center gap-2 ml-auto">
+                        <div className="flex flex-wrap items-center gap-2">
                             {updatedZipEntries.length > 0 && !isZipping && (
                                 <button
                                     type="button"

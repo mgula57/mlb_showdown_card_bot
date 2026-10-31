@@ -4,7 +4,7 @@
  * pool grid that the owner applies or discards. Suggest only: nothing is tagged until applied.
  */
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { FaSpinner, FaWandMagicSparkles } from 'react-icons/fa6';
 import type { FoilSetType } from '../../api/releases';
 import { buttonClass } from '../shared/buttonStyles';
@@ -42,6 +42,16 @@ export function FoilSuggestControl({ foils, disabled }: FoilSuggestControlProps)
     const [isOpen, setIsOpen] = useState(false);
     const [setType, setSetType] = useState<FoilSetType>('BASE');
     const containerRef = useRef<HTMLDivElement>(null);
+    const popoverRef = useRef<HTMLDivElement>(null);
+
+    // Slides the panel left when it would hang past the screen edge, so it never widens the page
+    useLayoutEffect(() => {
+        const popover = popoverRef.current;
+        if (!isOpen || !popover) return;
+        popover.style.transform = '';
+        const overflow = popover.getBoundingClientRect().right - (document.documentElement.clientWidth - 8);
+        if (overflow > 0) popover.style.transform = `translateX(-${overflow}px)`;
+    }, [isOpen]);
 
     useEffect(() => {
         if (!isOpen) return;
@@ -61,14 +71,16 @@ export function FoilSuggestControl({ foils, disabled }: FoilSuggestControlProps)
             <button
                 type="button"
                 onClick={() => setIsOpen(v => !v)}
+                title="Suggest foils"
+                aria-label="Suggest foils"
                 className={buttonClass('secondary', 'sm', 'min-h-9')}
             >
-                <FaWandMagicSparkles className="text-[12px]" /> Suggest foils
+                <FaWandMagicSparkles className="text-[12px]" /> <span className="hidden sm:inline">Suggest foils</span>
             </button>
 
             {isOpen && (
                 // Hangs right on the toolbar's single wide row, where the button ends it; left once the rows stack
-                <div className={`${POOL_TOOLBAR_POPOVER_CLASS} left-0 @7xl:left-auto @7xl:right-0`}>
+                <div ref={popoverRef} className={`${POOL_TOOLBAR_POPOVER_CLASS} left-0 @7xl:left-auto @7xl:right-0`}>
                     <div className="flex flex-col gap-2">
                         <span className={FIELD_LABEL_CLASS}>This edition is</span>
                         <div className="flex gap-1.5">
@@ -121,13 +133,14 @@ export function FoilSuggestionBanner({ foils, count, onApply }: FoilSuggestionBa
             title={`Foil suggestions — ${count} card${count === 1 ? '' : 's'}`}
             description={
                 <>
-                    Not saved yet. Suggested cards show a dashed FOIL? tag: hover it to see why, or skip it with ×.
+                    Not saved yet.
+                    <span className="hidden sm:inline"> Suggested cards show a dashed FOIL? tag: hover it to see why, or skip it with ×.</span>
                     {existingCount > 0 && ` Keeps the ${existingCount} card${existingCount === 1 ? '' : 's'} already tagged FOIL, for ${existingCount + count} of ${target}.`}
                     {count === 0 && existingCount >= target && ' This edition already has enough foils.'}
                 </>
             }
         >
-            <div className="flex flex-wrap items-center gap-2">
+            <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
                 <button
                     type="button"
                     onClick={onApply}

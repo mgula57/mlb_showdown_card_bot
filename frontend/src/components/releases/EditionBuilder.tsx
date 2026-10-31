@@ -1106,30 +1106,31 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
     return (
         <div className="flex flex-col flex-1 min-h-0">
             {/* Step indicator */}
-            <div className={`flex flex-wrap items-center gap-x-3 gap-y-2 px-4 py-3 border-b border-(--divider) shrink-0 ${CHROME_SURFACE_CLASS}`}>
+            <div className={`flex flex-wrap items-center gap-x-2 sm:gap-x-3 gap-y-2 px-3 sm:px-4 py-3 border-b border-(--divider) shrink-0 ${CHROME_SURFACE_CLASS}`}>
                 {/* Numbered as a workflow while editing; plain views while browsing */}
                 <StepButton number={readOnly ? undefined : 1} label={readOnly ? 'Cards' : 'Player Pool'} mobileLabel={readOnly ? undefined : 'Pool'} isActive={!reviewOpen && step === 'pool'} onClick={handleOpenPoolStep} />
-                <div className={`${readOnly ? 'w-3' : 'w-4 sm:w-8'} h-px bg-(--divider) shrink-0`} />
+                <div className={`${readOnly ? 'w-2 sm:w-3' : 'w-2 sm:w-8'} h-px bg-(--divider) shrink-0`} />
                 <StepButton ref={setImagesStepButton} number={readOnly ? undefined : 2} label="Images" isActive={!reviewOpen && step === 'images'} onClick={handleOpenImagesStep} />
                 {onReviewOpenChange && (
                     <>
-                        <div className="w-4 sm:w-8 h-px bg-(--divider) shrink-0" />
+                        <div className="w-2 sm:w-8 h-px bg-(--divider) shrink-0" />
                         <StepButton number={3} label="Review" isActive={reviewOpen} onClick={() => onReviewOpenChange(true)} />
                     </>
                 )}
 
                 {!readOnly && (
-                    <div className="flex items-center gap-2 ml-auto">
+                    <div className="flex items-center gap-1.5 sm:gap-2 ml-auto">
                         <ImageLibrariesButton onClose={liveImageMatches.refresh} tipMoment={!reviewOpen && step === 'images' && cards.length > 0} />
                         <button
                             ref={setStyleButton}
                             type="button"
                             onClick={() => setShowStyleModal(true)}
                             title="Default card style for this edition"
+                            aria-label="Card Style"
                             className={buttonClass('secondary', 'sm', 'min-h-5')}
                         >
                             <FaPalette className="text-[12px] shrink-0" />
-                            <span><span className="hidden sm:inline">Card </span>Style</span>
+                            <span className="hidden sm:inline">Card Style</span>
                             <span className="hidden sm:contents">{formSectionSummary(styleSummary)}</span>
                         </button>
                     </div>
@@ -1850,7 +1851,7 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
 
 function StepButton({ number, label, mobileLabel, isActive, onClick, ref }: { number?: number; label: string; mobileLabel?: string; isActive: boolean; onClick: () => void; ref?: Ref<HTMLButtonElement> }) {
     return (
-        <button ref={ref} type="button" onClick={onClick} className="group flex items-center gap-2 cursor-pointer">
+        <button ref={ref} type="button" onClick={onClick} className="group flex items-center gap-1.5 sm:gap-2 cursor-pointer">
             {number !== undefined && <span className={`flex items-center justify-center w-5 h-5 rounded-full text-[11px] font-semibold tabular-nums shrink-0 transition-colors
                 ${isActive ? 'bg-(--showdown-blue-fill) text-white' : 'border border-(--text-tertiary) text-(--text-tertiary) group-hover:border-(--text-secondary) group-hover:text-(--text-secondary)'}`}>
                 {number}
