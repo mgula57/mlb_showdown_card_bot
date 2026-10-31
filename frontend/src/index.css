@@ -74,6 +74,7 @@
     --background-secondary: #ffffff;
     --background-tertiary: #e2e6ea;
     --background-quaternary: #d6dbe1;
+    --release-tile-field: var(--background-quaternary);
     --divider: #d3d8de;
     --rule-strong: #9aa3ad;
     /* Outline around set badge lettering (SetBadge): white in both themes, like the printed set
@@ -174,6 +175,7 @@
     --background-secondary: #161b22;
     --background-tertiary: #212833;
     --background-quaternary: #2b333e;
+    --release-tile-field: var(--background-tertiary);
 
     --divider: #2f3844;
     --rule-strong: #4a5461;

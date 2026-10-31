@@ -87,7 +87,7 @@ export function ReleaseItem({ release, onClick, showPublishStatus = false }: Rel
                 </div>
 
                 {/* Card fan on the silver card-back field */}
-                <div className="relative flex-1 min-h-0 bg-(--background-tertiary) bg-pinstripe">
+                <div className="relative flex-1 min-h-0 bg-(--release-tile-field) bg-pinstripe">
                     {images.length > 0 ? (
                         <ReleaseCardFan images={images} />
                     ) : !isPublished ? (

@@ -21,6 +21,7 @@ All colors come from tokens in [`src/index.css`](src/index.css). Components neve
 | Page background | `--background-primary` | Silver in light, near-black in dark |
 | Panels, inputs, chart boxes | `--background-secondary` | White in light |
 | Quiet fills, skeletons, table headers | `--background-tertiary`, `--background-quaternary` | Silver steps |
+| Release tile field | `--release-tile-field` | A deeper silver in light mode, returning to the existing tertiary surface in dark mode |
 | Hairline borders | `--divider` | Default border for everything |
 | Strong rule | `--rule-strong` | Frames, hover borders, `shadow-raised` edge |
 | Text | `--text-primary`, `--text-secondary`, `--text-tertiary` | Tertiary is captions and meta |
