@@ -458,6 +458,7 @@ function EditionChangesSection({ changes }: { changes: ReleaseEditionChanges }) 
             <div className="flex flex-wrap items-center gap-2 px-4 py-2 bg-(--background-tertiary)">
                 <span className="text-[13px] font-bold">{changes.name}</span>
                 {changes.is_new && <Plate variant="navy" size="sm">New edition</Plate>}
+                {changes.is_removed && <Plate variant="red" size="sm">Removing edition</Plate>}
                 {changes.renamed_from && <span className="text-[12px] text-(--text-tertiary)">was {changes.renamed_from}</span>}
             </div>
             <div className="flex gap-2 px-4 pt-3">

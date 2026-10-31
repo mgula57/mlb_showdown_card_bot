@@ -16,6 +16,7 @@ import { headingClass } from '../shared/headingStyles';
 import { FIELD_LABEL_CLASS } from '../shared/fieldStyles';
 import { choiceClass } from '../shared/choiceStyles';
 import { useAuth } from '../auth/AuthContext';
+import { useBeforeUnloadWarning } from '../../hooks/useBeforeUnloadWarning';
 import PointBucketsEditor from './PointBucketsEditor';
 import { validatePointBuckets } from './pointBuckets';
 import PositionTargetsTable from './PositionTargetsTable';
@@ -274,6 +275,7 @@ export function AlgorithmBuilder({ releaseId, edition, token, defaultShowdownSet
     const [savedConfig, setSavedConfig] = useState<AlgorithmConfig>(config);
     const [saving, setSaving] = useState(false);
     const isDirty = useMemo(() => !isDeepEqual(config, savedConfig), [config, savedConfig]);
+    useBeforeUnloadWarning(isDirty);
     const [status, setStatus] = useState<'idle' | 'running' | 'error'>('idle');
     const [error, setError] = useState<string | null>(null);
     const { isAdmin } = useAuth();

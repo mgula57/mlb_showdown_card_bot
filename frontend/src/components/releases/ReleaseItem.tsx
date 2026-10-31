@@ -221,7 +221,7 @@ export function NewReleaseTile({ onClick }: { onClick: () => void }) {
         >
             <FaPlus className="text-[20px]" />
             <span className={CAPS_LABEL_CLASS}>New release</span>
-            <span className="text-[12px] max-w-40">Pick the players, the editions and the point values.</span>
+            <span className="text-[12px] max-w-40">Pick the players, the editions and generate images.</span>
         </button>
     );
 }

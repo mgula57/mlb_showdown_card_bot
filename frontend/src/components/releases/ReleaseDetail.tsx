@@ -2,10 +2,12 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import * as Tabs from '@radix-ui/react-tabs';
 import type { Release, ReleaseEdition, ReleaseEditionSummary, ReleaseReviewItem } from '../../api/releases';
 import { recordReleaseView } from '../../api/releases';
-import { fetchEdition, createEdition, updateEdition, updateRelease, editionSummaryOf, releaseDraftRequest } from '../../api/releases';
+import { fetchEdition, createEdition, updateEdition, updateRelease, editionSummaryOf, releaseDraftRequest, deleteRelease, deleteEdition, restoreEdition } from '../../api/releases';
+import { ReleaseDeleteModal } from './ReleaseDeleteModal';
 import { EditionBuilder, EditionBuilderSkeleton, type EditionNavRequest } from './EditionBuilder';
 import { ReleaseReviewPanel } from './ReleaseReviewPanel';
 import { useReleaseReview } from './useReleaseReview';
+import { useBeforeUnloadWarning } from '../../hooks/useBeforeUnloadWarning';
 import { ReleaseShareSheet } from './ReleaseShareSheet';
 import { ReleaseHeaderButton } from './ReleaseHeaderButton';
 import { ReleasePublicHeader } from './ReleasePublicHeader';
@@ -13,7 +15,7 @@ import { ReleaseOnboardingContext, useReleaseOnboardingState } from './releaseOn
 import { ReleaseOnboardingScope, ReleaseOnboardingWelcome, ReleaseTip } from './ReleaseOnboarding';
 import FormInput from '../customs/FormInput';
 import { ModeBanner, ModeBannerButton } from '../shared/ModeBanner';
-import { FaArrowLeft, FaCheck, FaEye, FaGlobe, FaPen, FaPlus, FaShareNodes, FaSpinner, FaXmark } from 'react-icons/fa6';
+import { FaArrowLeft, FaCheck, FaEye, FaGlobe, FaPen, FaPlus, FaRotateLeft, FaShareNodes, FaSpinner, FaTrashCan, FaXmark } from 'react-icons/fa6';
 
 import { InlineError } from '../shared/InlineError';
 import { Heading } from '../shared/Heading';
@@ -28,6 +30,8 @@ type ReleaseDetailProps = {
     onEditionChange: (slug: string) => void;
     onBack: () => void;
     onReleaseUpdated: (release: Release) => void;
+    /** The owner deleted (or retired) the release. */
+    onDeleted: (releaseId: string) => void;
     token?: string;
     /** A card link's release card id, to open in the edition from the URL. */
     cardRef?: string | null;
@@ -46,7 +50,7 @@ const EDITION_TAB_CLASS =
     'data-[state=inactive]:border-transparent data-[state=inactive]:text-(--text-tertiary) data-[state=inactive]:hover:text-(--text-secondary)';
 
 
-export function ReleaseDetail({ release, readOnly, editionSlug, onEditionChange, onBack, onReleaseUpdated, token, cardRef, onCardLinkOpened }: ReleaseDetailProps) {
+export function ReleaseDetail({ release, readOnly, editionSlug, onEditionChange, onBack, onReleaseUpdated, onDeleted, token, cardRef, onCardLinkOpened }: ReleaseDetailProps) {
     const isOwner = !readOnly;
     // Other users can only open published editions — the release itself still lists drafts.
     const editions = isOwner ? release.editions : release.editions.filter(e => e.is_published);
@@ -77,6 +81,8 @@ export function ReleaseDetail({ release, readOnly, editionSlug, onEditionChange,
     const handleUnsavedPreviewChange = useCallback((editionId: string, hasUnsavedPreview: boolean) => {
         setUnsavedPreviews(prev => prev[editionId] === hasUnsavedPreview ? prev : { ...prev, [editionId]: hasUnsavedPreview });
     }, []);
+    // An algorithm run can take a while; a reload or closed tab shouldn't drop it unasked
+    useBeforeUnloadWarning(Object.values(unsavedPreviews).some(Boolean));
 
     const activeEdition = editions.find(e => e.slug === editionSlug) ?? editions[0] ?? null;
     const activeEditionId = activeEdition?.id ?? null;
@@ -87,6 +93,9 @@ export function ReleaseDetail({ release, readOnly, editionSlug, onEditionChange,
     const [publishedVersion, setPublishedVersion] = useState<number | null>(null);
     const [confirmingDiscard, setConfirmingDiscard] = useState(false);
     const [discarding, setDiscarding] = useState(false);
+    /** Which delete confirmation is open. */
+    const [deleteTarget, setDeleteTarget] = useState<'release' | 'edition' | null>(null);
+    const [restoring, setRestoring] = useState(false);
     /** The share sheet, with an eyebrow line when it opens right after a first publish. */
     const [shareSheet, setShareSheet] = useState<{ eyebrow?: string } | null>(null);
 
@@ -187,6 +196,41 @@ export function ReleaseDetail({ release, readOnly, editionSlug, onEditionChange,
             setError(err instanceof Error ? err.message : 'Failed to discard changes.');
         } finally {
             setDiscarding(false);
+        }
+    }
+
+    async function handleDeleteRelease() {
+        if (!token) return;
+        await deleteRelease(release.id, token);
+        setDeleteTarget(null);
+        onDeleted(release.id);
+    }
+
+    /** A published edition's removal is staged until the next publish; a never-published one goes now. */
+    async function handleDeleteEdition() {
+        if (!token || !activeEdition) return;
+        const { outcome, release: updated } = await deleteEdition(release.id, activeEdition.id, token);
+        setDeleteTarget(null);
+        closeEditionForm();
+        if (outcome !== 'staged') {
+            const goneIds = [activeEdition.id, activeEdition.draft?.id];
+            setEditionCache(prev => Object.fromEntries(Object.entries(prev).filter(([id]) => !goneIds.includes(id))));
+            const next = updated.editions[0];
+            if (next) onEditionChange(next.slug);
+        }
+        mergeRelease(updated);
+    }
+
+    async function handleRestoreEdition() {
+        if (!token || !activeEdition || restoring) return;
+        setRestoring(true);
+        setError(null);
+        try {
+            mergeRelease(await restoreEdition(release.id, activeEdition.id, token));
+        } catch (err) {
+            setError(err instanceof Error ? err.message : 'Failed to keep the edition.');
+        } finally {
+            setRestoring(false);
         }
     }
 
@@ -331,6 +375,17 @@ export function ReleaseDetail({ release, readOnly, editionSlug, onEditionChange,
                                     <FaPen className="text-[10px]" />
                                 </button>
                             )}
+                            {isEditing && (
+                                <button
+                                    type="button"
+                                    onClick={() => setDeleteTarget('release')}
+                                    aria-label="Delete release"
+                                    title="Delete release"
+                                    className="text-(--text-tertiary) hover:text-(--showdown-red) transition-colors shrink-0 cursor-pointer"
+                                >
+                                    <FaTrashCan className="text-[10px]" />
+                                </button>
+                            )}
                             {release.is_official && <Plate variant="navy" size="sm">Official</Plate>}
                             {isOwner && !isPublished && <Plate variant="outline" size="sm">Draft</Plate>}
                         </div>
@@ -350,6 +405,9 @@ export function ReleaseDetail({ release, readOnly, editionSlug, onEditionChange,
                                 {isOwner && isPublished && !edition.is_published && (
                                     <Plate variant="outline" size="sm" className="ml-1.5">Draft</Plate>
                                 )}
+                                {isEditing && edition.pending_removal && (
+                                    <Plate variant="red" size="sm" className="ml-1.5">Removing</Plate>
+                                )}
                             </Tabs.Trigger>
                         ))}
                         {isEditing && (
@@ -361,15 +419,25 @@ export function ReleaseDetail({ release, readOnly, editionSlug, onEditionChange,
                                 <FaPlus className="text-[10px]" /> Edition
                             </button>
                         )}
-                        {isEditing && activeEditionId && (
-                            <button
-                                type="button"
-                                onClick={() => openEditionForm('rename')}
-                                title="Rename edition"
-                                className="flex items-center gap-1 px-2 py-2.5 text-[13px] font-semibold text-(--text-tertiary) hover:text-(--text-secondary) transition-colors shrink-0 cursor-pointer"
-                            >
-                                <FaPen className="text-[10px]" /> Rename
-                            </button>
+                        {isEditing && activeEdition && !activeEdition.pending_removal && (
+                            <>
+                                <button
+                                    type="button"
+                                    onClick={() => openEditionForm('rename')}
+                                    title="Rename edition"
+                                    className="flex items-center gap-1 px-2 py-2.5 text-[13px] font-semibold text-(--text-tertiary) hover:text-(--text-secondary) transition-colors shrink-0 cursor-pointer"
+                                >
+                                    <FaPen className="text-[10px]" /> Rename
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setDeleteTarget('edition')}
+                                    title="Delete edition"
+                                    className="flex items-center gap-1 px-2 py-2.5 text-[13px] font-semibold text-(--text-tertiary) hover:text-(--showdown-red) transition-colors shrink-0 cursor-pointer"
+                                >
+                                    <FaTrashCan className="text-[10px]" /> Delete
+                                </button>
+                            </>
                         )}
                     </Tabs.List>
 
@@ -463,6 +531,18 @@ export function ReleaseDetail({ release, readOnly, editionSlug, onEditionChange,
                     </ModeBanner>
                 )}
 
+                {isEditing && activeEdition?.pending_removal && (
+                    <ModeBanner
+                        tone="red"
+                        label="REMOVING"
+                        detail={`— ${activeEdition.name} comes off the release when you publish. Until then it stays live`}
+                    >
+                        <ModeBannerButton onClick={handleRestoreEdition} disabled={restoring}>
+                            {restoring ? <FaSpinner className="animate-spin" /> : <FaRotateLeft />} Keep edition
+                        </ModeBannerButton>
+                    </ModeBanner>
+                )}
+
                 {error && (
                     <InlineError size="md" className="mx-4 mt-2 shrink-0">
                         {error}
@@ -527,7 +607,8 @@ export function ReleaseDetail({ release, readOnly, editionSlug, onEditionChange,
                                     releaseId={release.id}
                                     releaseName={release.name}
                                     edition={loadedEdition}
-                                    readOnly={!isEditing}
+                                    // An edition staged for removal is frozen until it's kept or published away
+                                    readOnly={!isEditing || !!edition.pending_removal}
                                     token={token}
                                     defaultShowdownSet={release.default_showdown_set}
                                     onEditionUpdated={handleEditionUpdated}
@@ -569,6 +650,46 @@ export function ReleaseDetail({ release, readOnly, editionSlug, onEditionChange,
                     onReleaseUpdated={mergeRelease}
                     onClose={() => setShareSheet(null)}
                 />
+            )}
+
+            {deleteTarget === 'release' && (
+                <ReleaseDeleteModal
+                    title={`Delete ${release.name}?`}
+                    confirmLabel="Delete release"
+                    onConfirm={handleDeleteRelease}
+                    onCancel={() => setDeleteTarget(null)}
+                >
+                    {isStaged ? (
+                        <p>It comes off the release list, card search and its share links, for you and everyone else. Teams already using its cards keep them, marked as retired.</p>
+                    ) : (
+                        <p>Deletes the release, its editions and their cards. Any of its cards already on your teams stay there, marked as retired.</p>
+                    )}
+                    <p className="font-semibold text-(--text-primary)">This can't be undone.</p>
+                </ReleaseDeleteModal>
+            )}
+
+            {deleteTarget === 'edition' && activeEdition && (
+                activeEdition.published_at ? (
+                    <ReleaseDeleteModal
+                        title={`Remove ${activeEdition.name}?`}
+                        confirmLabel="Remove on publish"
+                        onConfirm={handleDeleteEdition}
+                        onCancel={() => setDeleteTarget(null)}
+                    >
+                        <p>It stays live until you publish your changes, and you can keep it until then.</p>
+                        <p>Once published, it comes off the release. Teams already using its cards keep them, marked as retired.</p>
+                    </ReleaseDeleteModal>
+                ) : (
+                    <ReleaseDeleteModal
+                        title={`Delete ${activeEdition.name}?`}
+                        confirmLabel="Delete edition"
+                        onConfirm={handleDeleteEdition}
+                        onCancel={() => setDeleteTarget(null)}
+                    >
+                        <p>Deletes the edition and its {shownOf(activeEdition).card_count} card{shownOf(activeEdition).card_count === 1 ? '' : 's'}. Any already on your teams stay there, marked as retired.</p>
+                        <p className="font-semibold text-(--text-primary)">This can't be undone.</p>
+                    </ReleaseDeleteModal>
+                )
             )}
 
             <ReleaseOnboardingWelcome />

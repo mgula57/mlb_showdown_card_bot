@@ -66,6 +66,8 @@ function VersionChanges({ version }: { version: ReleaseVersion }) {
             {version.changes.map(change => {
                 const parts = change.is_new
                     ? [`new edition, ${change.added} card${change.added === 1 ? '' : 's'}`]
+                    : change.is_removed
+                    ? [`edition removed, ${change.removed} card${change.removed === 1 ? '' : 's'} retired`]
                     : [
                         change.renamed_from && `renamed from ${change.renamed_from}`,
                         change.added > 0 && `+${change.added} added`,

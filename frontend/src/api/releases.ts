@@ -19,6 +19,8 @@ export type ReleaseEditionSummary = {
     card_count: number;
     /** The owner's private working copy of this published edition, while they edit it. */
     draft: ReleaseEditionDraftSummary | null;
+    /** Owner only: deleted while the release is published, so it stays live until the next publish retires it. */
+    pending_removal?: boolean;
 };
 
 export type ReleaseEditionDraftSummary = {
@@ -122,6 +124,7 @@ export const editionSummaryOf = (edition: ReleaseEdition): ReleaseEditionSummary
     published_at: edition.published_at,
     card_count: edition.cards.length,
     draft: null,
+    pending_removal: false,
 });
 
 export type ReleaseCreatePayload = {
@@ -191,6 +194,8 @@ export type ReleaseEditionChanges = {
     name: string;
     renamed_from: string | null;
     is_new: boolean;
+    /** A published edition the owner deleted: publishing retires it, so every card counts as removed. */
+    is_removed: boolean;
     added: ReleaseCardChange[];
     removed: ReleaseCardChange[];
     changed: ReleaseCardChange[];
@@ -415,7 +420,7 @@ export type ReleaseVersion = {
     version: number;
     note: string | null;
     /** Per edition that changed: counts of added / removed / changed cards (see `EditionChanges.summary`). */
-    changes: Array<{ name: string; renamed_from: string | null; is_new: boolean; added: number; removed: number; changed: number; renumbered: number }>;
+    changes: Array<{ name: string; renamed_from: string | null; is_new: boolean; is_removed?: boolean; added: number; removed: number; changed: number; renumbered: number }>;
     published_at: string | null;
 };
 
@@ -554,7 +559,9 @@ export async function releaseDraftRequest(releaseId: string, action: 'start' | '
     return res.json();
 }
 
-export async function deleteRelease(releaseId: string, token: string): Promise<void> {
+/** Deletes the release. One that was ever published, or has cards on teams, is retired instead
+ *  (`retired: true`): gone from every list, link and search, with teams keeping its cards as retired. */
+export async function deleteRelease(releaseId: string, token: string): Promise<{ retired: boolean }> {
     const res = await fetch(`${API_BASE}/releases/${releaseId}`, {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` },
@@ -563,6 +570,7 @@ export async function deleteRelease(releaseId: string, token: string): Promise<v
         const err = await res.json().catch(() => ({}));
         throw new Error(err.error || `Failed to delete release: ${res.status}`);
     }
+    return res.json();
 }
 
 // =============================================================================
@@ -609,7 +617,11 @@ export async function updateEdition(releaseId: string, editionId: string, payloa
     return res.json();
 }
 
-export async function deleteEdition(releaseId: string, editionId: string, token: string): Promise<void> {
+/** How deleting an edition went: a published one is `staged` until the next publish; a
+ *  never-published one is `deleted`, or `retired` when some of its cards are on teams. */
+export type EditionDeleteOutcome = 'staged' | 'deleted' | 'retired';
+
+export async function deleteEdition(releaseId: string, editionId: string, token: string): Promise<{ outcome: EditionDeleteOutcome; release: Release }> {
     const res = await fetch(`${API_BASE}/releases/${releaseId}/editions/${editionId}`, {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` },
@@ -618,6 +630,20 @@ export async function deleteEdition(releaseId: string, editionId: string, token:
         const err = await res.json().catch(() => ({}));
         throw new Error(err.error || `Failed to delete edition: ${res.status}`);
     }
+    return res.json();
+}
+
+/** Undoes a published edition's staged removal. Returns the updated release. */
+export async function restoreEdition(releaseId: string, editionId: string, token: string): Promise<Release> {
+    const res = await fetch(`${API_BASE}/releases/${releaseId}/editions/${editionId}/restore`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || `Failed to restore edition: ${res.status}`);
+    }
+    return res.json();
 }
 
 export type AlgorithmPreviewOptions = {

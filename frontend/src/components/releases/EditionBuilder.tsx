@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef, useEffect, useCallback, type ReactNode, type Ref } from 'react';
+import { useState, useMemo, useRef, useEffect, useCallback, memo, type ReactNode, type Ref } from 'react';
 import * as Tabs from '@radix-ui/react-tabs';
 import type { ReleaseEdition, ReleaseCard, AlgorithmPreviewResult, AlgorithmPreviewPlayer, ReleaseCardImageStatus } from '../../api/releases';
 import { updateEdition, rebuildEditionCard, customEditionCard } from '../../api/releases';
@@ -26,6 +26,7 @@ import { ReleaseCardPreviewRankBadge, ReleaseCardPreviewRankPicker } from './Rel
 import { AlgorithmCutLineSummary, AlgorithmMatchBadge } from './AlgorithmMatch';
 import { AlgorithmCutoff } from './AlgorithmCutoff';
 import { useMediaQuery } from '../../hooks/useMediaQuery';
+import { useStableCallback } from '../../hooks/useStableCallback';
 import { useLiveImageMatches } from './useLiveImageMatches';
 import { ImageLibrariesButton, ReleaseDriveNotice } from './ReleaseImageLibraries';
 import { ConnectDriveButton } from '../account/ImageLibrarySettings';
@@ -293,12 +294,26 @@ function loadSavedBuildPanelWidth(): number | null {
     }
 }
 
+/** The newest card list waiting to save, and every `persist` call it settles. */
+type PendingCardSave = {
+    cards: ReleaseCard[];
+    manualPicks?: ManualPicks;
+    waiters: ((saved: boolean) => void)[];
+};
+
 export function EditionBuilder({ releaseId, releaseName, edition, readOnly, token, defaultShowdownSet, onEditionUpdated, reviewOpen = false, onReviewOpenChange, review, navRequest, onUnsavedPreviewChange, openCardRef, onCardLinkOpened, cardLinkSlugs }: EditionBuilderProps) {
     const [cards, setCards] = useState<ReleaseCard[]>(edition.cards);
     // Latest cards, for saves that land after an await (e.g. a chart rebuild)
     const cardsRef = useRef(cards);
     cardsRef.current = cards;
     const [saving, setSaving] = useState(false);
+    // Card list saves (see `persist`): the last state the server confirmed (what a failed save
+    // reverts to), the newest unsent state, and whether a save is in flight
+    const confirmedRef = useRef<{ cards: ReleaseCard[]; manualPicks: ManualPicks }>({
+        cards: edition.cards, manualPicks: parseManualPicks(edition.attributes),
+    });
+    const pendingSaveRef = useRef<PendingCardSave | null>(null);
+    const isSavingRef = useRef(false);
     const [error, setError] = useState<string | null>(null);
     const [previewResult, setPreviewResult] = useState<AlgorithmPreviewResult | null>(null);
     // The latest run's summary outlives saving its preview, so the Cutoff tab can still explain the saved picks
@@ -457,39 +472,63 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
     );
 
     /** Saves the edition's card list (optimistically), plus the Algorithm's manual picks when they
-     * changed with it. Resolves false if the save failed. */
-    async function persist(nextCards: ReleaseCard[], nextManualPicks?: ManualPicks): Promise<boolean> {
-        if (!token) return false;
-        const previous = cards;
-        const previousManualPicks = manualPicks;
+     * changed with it. Resolves false if the save failed.
+     *
+     * Saves run one at a time, so responses can't land out of order. Each sends the whole list, so
+     * edits made while one is in flight coalesce into a single follow-up save of the newest state. */
+    function persist(nextCards: ReleaseCard[], nextManualPicks?: ManualPicks): Promise<boolean> {
+        if (!token) return Promise.resolve(false);
         setCards(nextCards);
         if (nextManualPicks) setManualPicks(nextManualPicks);
-        setSaving(true);
         setError(null);
-        try {
-            const updated = await updateEdition(releaseId, edition.id, {
-                cards: nextCards.map(c => ({
-                    card_number: c.card_number,
-                    source_card_id: c.source_card_id,
-                    source_card_type: c.source_card_type,
-                    card_snapshot: c.card_snapshot,
-                    tags: c.tags,
-                    preview_rank: c.preview_rank,
-                    card_overrides: c.card_overrides,
-                })),
-                ...(nextManualPicks ? { attributes: { manual_picks: nextManualPicks } } : {}),
-            }, token);
-            setCards(updated.cards);
-            onEditionUpdated(updated);
-            return true;
-        } catch (err: any) {
-            setCards(previous);
-            setManualPicks(previousManualPicks);
-            setError(err.message ?? 'Failed to save changes.');
-            return false;
-        } finally {
-            setSaving(false);
+        return new Promise(resolve => {
+            const queued = pendingSaveRef.current;
+            pendingSaveRef.current = {
+                cards: nextCards,
+                manualPicks: nextManualPicks ?? queued?.manualPicks,
+                waiters: [...(queued?.waiters ?? []), resolve],
+            };
+            if (!isSavingRef.current) drainSaves(token);
+        });
+    }
+
+    async function drainSaves(token: string) {
+        isSavingRef.current = true;
+        setSaving(true);
+        while (pendingSaveRef.current) {
+            const save = pendingSaveRef.current;
+            pendingSaveRef.current = null;
+            try {
+                const updated = await updateEdition(releaseId, edition.id, {
+                    cards: save.cards.map(c => ({
+                        card_number: c.card_number,
+                        source_card_id: c.source_card_id,
+                        source_card_type: c.source_card_type,
+                        card_snapshot: c.card_snapshot,
+                        tags: c.tags,
+                        preview_rank: c.preview_rank,
+                        card_overrides: c.card_overrides,
+                    })),
+                    ...(save.manualPicks ? { attributes: { manual_picks: save.manualPicks } } : {}),
+                }, token);
+                confirmedRef.current = { cards: updated.cards, manualPicks: save.manualPicks ?? confirmedRef.current.manualPicks };
+                onEditionUpdated(updated);
+                // Newer edits are already on screen, and their save's response replaces this one
+                if (!pendingSaveRef.current) setCards(updated.cards);
+                save.waiters.forEach(resolve => resolve(true));
+            } catch (err) {
+                // Queued edits were made on top of the failed one, so they go with it. (A cast: TS
+                // keeps the `= null` narrowing above across the await, but persist() may have queued more.)
+                const dropped = (pendingSaveRef.current as PendingCardSave | null)?.waiters ?? [];
+                pendingSaveRef.current = null;
+                setCards(confirmedRef.current.cards);
+                setManualPicks(confirmedRef.current.manualPicks);
+                setError(err instanceof Error ? err.message : 'Failed to save changes.');
+                [...save.waiters, ...dropped].forEach(resolve => resolve(false));
+            }
         }
+        isSavingRef.current = false;
+        setSaving(false);
     }
 
     /** Applies the current numbering mode to a candidate card list, e.g. after an add/remove. */
@@ -637,6 +676,7 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
         if (!token) return;
         try {
             const updated = await updateEdition(releaseId, edition.id, { attributes: { manual_picks: next } }, token);
+            confirmedRef.current = { ...confirmedRef.current, manualPicks: next };
             onEditionUpdated(updated);
         } catch (err: any) {
             setManualPicks(previous);
@@ -806,8 +846,20 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
         if (value === undefined) return;
         const parsed = value.trim() === '' ? null : parseInt(value, 10);
         if (parsed !== null && Number.isNaN(parsed)) return;
+        // Numbers are unique per edition; the server would refuse the whole save
+        const holder = parsed !== null && cards.find(c => c.id !== cardId && c.card_number === parsed);
+        if (holder) {
+            setError(`#${parsed} is already ${holder.card_snapshot.name}'s number. Clear that card's number first.`);
+            return;
+        }
         persist(cards.map(c => c.id === cardId ? { ...c, card_number: parsed } : c));
     }
+
+    // Stable identities so memoized pool rows only re-render when their own card changes
+    const handleRemoveCardStable = useStableCallback(handleRemoveCard);
+    const handleNumberInputChangeStable = useStableCallback(handleNumberInputChange);
+    const handleNumberInputBlurStable = useStableCallback(handleNumberInputBlur);
+    const isManualNumberingEditable = !activePreview && numbering.mode === 'manual' && !readOnly;
 
     function handlePrefixInputChange(value: string) {
         setNumbering(prev => ({ ...prev, prefix: sanitizePrefix(value) }));
@@ -1523,73 +1575,23 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
                                                     </div>
                                                 )}
                                                 <div className={poolGridClass(showFullCards)}>
-                                                    {group.cards.map(card => {
-                                                        const cardProps = {
-                                                            card: card.card_snapshot,
-                                                            onClick: () => setDetailCard(card),
-                                                        };
-                                                        // Full cards show the edition style and set number they'll print with
-                                                        const styleOverrides: CardStyleOverrides = {
-                                                            style: releaseCardStyle(editionStyle, card.card_overrides),
-                                                            setNumber: printedSetNumber(card),
-                                                        };
-                                                        return (
-                                                        <div key={card.id} className="group/row flex items-center gap-1.5">
-                                                            {/* Set number with the remove button stacked beneath it, to save horizontal space. */}
-                                                            <div className="flex flex-col items-end gap-1 shrink-0">
-                                                                {!activePreview && numbering.mode === 'manual' && !readOnly ? (
-                                                                    <div className="flex items-center gap-1 shrink-0">
-                                                                        {numbering.prefix && (
-                                                                            <span className="text-[13px] font-mono text-(--text-tertiary)">{numbering.prefix}</span>
-                                                                        )}
-                                                                        <input
-                                                                            type="number"
-                                                                            value={editingNumbers[card.id] ?? (card.card_number?.toString() ?? '')}
-                                                                            onChange={e => handleNumberInputChange(card.id, e.target.value)}
-                                                                            onBlur={() => handleNumberInputBlur(card.id)}
-                                                                            placeholder="—"
-                                                                            className={fieldClass('md', 'w-14 font-mono text-right tabular-nums focus:outline-none')}
-                                                                        />
-                                                                    </div>
-                                                                ) : (
-                                                                    <span className="text-[13px] font-mono text-(--text-tertiary) w-7 text-right shrink-0">
-                                                                        {formatCardNumber(card.card_number, displayCards.length, numbering.zeroPad, numbering.prefix)}
-                                                                    </span>
-                                                                )}
-                                                                {!readOnly && (
-                                                                    <button
-                                                                        type="button"
-                                                                        onClick={() => handleRemoveCard(card)}
-                                                                        title="Remove and exclude from Algorithm runs"
-                                                                        aria-label="Remove"
-                                                                        data-remove-button
-                                                                        className="flex items-center justify-center w-5 h-5 rounded-full text-(--text-tertiary) hover:bg-(--red)/90 hover:text-white transition-colors shrink-0 cursor-pointer"
-                                                                    >
-                                                                        <FaXmark className="text-[11px]" />
-                                                                    </button>
-                                                                )}
-                                                            </div>
-                                                            {/* Hovering the remove button outlines the card it removes. */}
-                                                            <div className={`relative flex-1 min-w-0 transition-shadow group-has-[[data-remove-button]:hover]/row:ring-2 group-has-[[data-remove-button]:hover]/row:ring-(--red)/80 ${showFullCards ? 'rounded-card max-w-100' : 'rounded-card'}`}>
-                                                                {showFullCards
-                                                                    ? <CardItemFromCardDatabaseRecord {...cardProps} styleOverrides={styleOverrides} />
-                                                                    : <CardItemCompactFromCardDatabaseRecord {...cardProps} />}
-                                                                {(card.tags.length > 0 || card.preview_rank) && (
-                                                                    // Overlaid on the bottom edge (like the top-edge badges) so tags don't change row height
-                                                                    <div className="absolute -bottom-1 left-1 translate-y-1/2 z-10 pointer-events-none flex items-center gap-1">
-                                                                        {card.preview_rank && <ReleaseCardPreviewRankBadge rank={card.preview_rank} />}
-                                                                        <ReleaseCardTagChips tags={card.tags} />
-                                                                    </div>
-                                                                )}
-                                                                {isMatchSortActive && (
-                                                                    <div className="absolute -bottom-1 right-1 translate-y-1/2 z-10">
-                                                                        <AlgorithmMatchBadge card={card} />
-                                                                    </div>
-                                                                )}
-                                                            </div>
-                                                        </div>
-                                                        );
-                                                    })}
+                                                    {group.cards.map(card => (
+                                                        <PoolCardRow
+                                                            key={card.id}
+                                                            card={card}
+                                                            showFullCards={showFullCards}
+                                                            editionStyle={editionStyle}
+                                                            numberLabel={formatCardNumber(card.card_number, displayCards.length, numbering.zeroPad, numbering.prefix)}
+                                                            setNumber={printedSetNumber(card)}
+                                                            numberInputValue={isManualNumberingEditable ? (editingNumbers[card.id] ?? (card.card_number?.toString() ?? '')) : undefined}
+                                                            numberPrefix={numbering.prefix}
+                                                            showMatchBadge={isMatchSortActive}
+                                                            onOpen={setDetailCard}
+                                                            onRemove={readOnly ? undefined : handleRemoveCardStable}
+                                                            onNumberChange={handleNumberInputChangeStable}
+                                                            onNumberBlur={handleNumberInputBlurStable}
+                                                        />
+                                                    ))}
                                                 </div>
                                             </div>
                                         ))}
@@ -1728,6 +1730,95 @@ function AlgorithmRunningBanner() {
         </div>
     );
 }
+
+type PoolCardRowProps = {
+    card: ReleaseCard;
+    showFullCards: boolean;
+    editionStyle: CardStyleSettings;
+    /** Number shown beside the card. */
+    numberLabel: string;
+    /** Set number printed on full cards; null when the edition isn't numbered. */
+    setNumber: string | null;
+    /** Manual numbering input value; undefined shows the read-only label instead. */
+    numberInputValue?: string;
+    numberPrefix?: string;
+    showMatchBadge: boolean;
+    onOpen: (card: ReleaseCard) => void;
+    /** Undefined hides the remove button. */
+    onRemove?: (card: ReleaseCard) => void;
+    onNumberChange: (cardId: string, value: string) => void;
+    onNumberBlur: (cardId: string) => void;
+};
+
+/** One pool grid card. Memoized (with stable callbacks from the builder) because the pool can be
+ * hundreds of cards, and loading another page or opening a card shouldn't re-render all of them. */
+const PoolCardRow = memo(function PoolCardRow({ card, showFullCards, editionStyle, numberLabel, setNumber, numberInputValue, numberPrefix, showMatchBadge, onOpen, onRemove, onNumberChange, onNumberBlur }: PoolCardRowProps) {
+    // Full cards show the edition style and set number they'll print with
+    const styleOverrides = useMemo<CardStyleOverrides>(
+        () => ({ style: releaseCardStyle(editionStyle, card.card_overrides), setNumber }),
+        [editionStyle, card.card_overrides, setNumber]
+    );
+    const handleOpen = useCallback(() => onOpen(card), [onOpen, card]);
+    return (
+        // Offscreen rows skip layout and paint, so repaints (opening a card, images loading) don't
+        // re-process the whole pool. The clip margin keeps the edge badges and hover ring from clipping;
+        // heights are the measured row heights, until a row has rendered once.
+        <div className={`group/row flex items-center gap-1.5 [content-visibility:auto] [overflow-clip-margin:16px] [contain-intrinsic-width:auto_0px] ${showFullCards ? '[contain-intrinsic-height:auto_124px]' : '[contain-intrinsic-height:auto_58px]'}`}>
+            {/* Set number with the remove button stacked beneath it, to save horizontal space. */}
+            <div className="flex flex-col items-end gap-1 shrink-0">
+                {numberInputValue !== undefined ? (
+                    <div className="flex items-center gap-1 shrink-0">
+                        {numberPrefix && (
+                            <span className="text-[13px] font-mono text-(--text-tertiary)">{numberPrefix}</span>
+                        )}
+                        <input
+                            type="number"
+                            value={numberInputValue}
+                            onChange={e => onNumberChange(card.id, e.target.value)}
+                            onBlur={() => onNumberBlur(card.id)}
+                            placeholder="—"
+                            className={fieldClass('md', 'w-14 font-mono text-right tabular-nums focus:outline-none')}
+                        />
+                    </div>
+                ) : (
+                    <span className="text-[13px] font-mono text-(--text-tertiary) w-7 text-right shrink-0">
+                        {numberLabel}
+                    </span>
+                )}
+                {onRemove && (
+                    <button
+                        type="button"
+                        onClick={() => onRemove(card)}
+                        title="Remove and exclude from Algorithm runs"
+                        aria-label="Remove"
+                        data-remove-button
+                        className="flex items-center justify-center w-5 h-5 rounded-full text-(--text-tertiary) hover:bg-(--red)/90 hover:text-white transition-colors shrink-0 cursor-pointer"
+                    >
+                        <FaXmark className="text-[11px]" />
+                    </button>
+                )}
+            </div>
+            {/* Hovering the remove button outlines the card it removes. */}
+            <div className={`relative flex-1 min-w-0 transition-shadow group-has-[[data-remove-button]:hover]/row:ring-2 group-has-[[data-remove-button]:hover]/row:ring-(--red)/80 ${showFullCards ? 'rounded-card max-w-100' : 'rounded-card'}`}>
+                {showFullCards
+                    ? <CardItemFromCardDatabaseRecord card={card.card_snapshot} onClick={handleOpen} styleOverrides={styleOverrides} />
+                    : <CardItemCompactFromCardDatabaseRecord card={card.card_snapshot} onClick={handleOpen} />}
+                {(card.tags.length > 0 || card.preview_rank) && (
+                    // Overlaid on the bottom edge (like the top-edge badges) so tags don't change row height
+                    <div className="absolute -bottom-1 left-1 translate-y-1/2 z-10 pointer-events-none flex items-center gap-1">
+                        {card.preview_rank && <ReleaseCardPreviewRankBadge rank={card.preview_rank} />}
+                        <ReleaseCardTagChips tags={card.tags} />
+                    </div>
+                )}
+                {showMatchBadge && (
+                    <div className="absolute -bottom-1 right-1 translate-y-1/2 z-10">
+                        <AlgorithmMatchBadge card={card} />
+                    </div>
+                )}
+            </div>
+        </div>
+    );
+});
 
 /** The pool grid's columns: full cards get wider tracks than compact rows. */
 function poolGridClass(showFullCards: boolean) {

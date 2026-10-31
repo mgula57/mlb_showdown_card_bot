@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, memo } from 'react';
 import type { ReleaseEdition, ReleaseCardImage, ReleaseCardImageStatus, EditionImages as EditionImagesData } from '../../api/releases';
 import { fetchEditionImages, renderEditionImages, cancelEditionImageRender, isImageJobActive } from '../../api/releases';
 import type { CardDatabaseRecord } from '../../api/card_db/cardDatabase';
@@ -17,6 +17,7 @@ import { InlineError } from '../shared/InlineError';
 import { buttonClass } from '../shared/buttonStyles';
 import { Plate } from '../shared/Plate';
 import { EmptyState } from '../shared/EmptyState';
+import { useStableCallback } from '../../hooks/useStableCallback';
 /** How often to refresh statuses while a render job runs (each card takes a few seconds). */
 const POLL_INTERVAL_MS = 2500;
 /** Skeleton tiles shown while statuses load. */
@@ -98,6 +99,7 @@ export function EditionImages({ releaseId, releaseName, edition, readOnly, token
     const visibleImages = statusFilter ? images.filter(image => image.status === statusFilter) : images;
     // The detail modal follows its card's latest status (e.g. while a render of it runs)
     const detail = detailImage ? images.find(image => image.source_card_id === detailImage.source_card_id) ?? detailImage : null;
+    const openDetail = useStableCallback((sourceCardId: string) => setDetailImage(images.find(image => image.source_card_id === sourceCardId) ?? null));
 
     async function handleZipDownload(entries: ZipEntry[], fileNameSuffix?: string) {
         const savedAll = await zipDownload.start(entries, editionZipFileName(releaseName, edition.name, fileNameSuffix));
@@ -242,10 +244,13 @@ export function EditionImages({ releaseId, releaseName, edition, readOnly, token
                             <ReleaseImageTile
                                 // Keyed by path so a re-rendered image starts from its skeleton again
                                 key={`${image.source_card_id}:${image.thumbnail_path}`}
-                                image={image}
-                                snapshot={snapshotsById.get(image.source_card_id)}
+                                sourceCardId={image.source_card_id}
+                                setNumber={image.set_number}
+                                status={image.status}
+                                thumbnailPath={image.thumbnail_path}
+                                name={snapshotsById.get(image.source_card_id)?.name}
                                 isQueued={jobActive && image.status !== 'rendered'}
-                                onClick={() => setDetailImage(image)}
+                                onOpen={openDetail}
                             />
                         ))}
                     </div>
@@ -436,23 +441,29 @@ function ReleaseImageTileSkeleton() {
 }
 
 type ReleaseImageTileProps = {
-    image: ReleaseCardImage;
-    snapshot?: CardDatabaseRecord;
+    sourceCardId: string;
+    setNumber: string | null;
+    status: ReleaseCardImageStatus;
+    thumbnailPath: string | null;
+    name?: string;
     /** Will be rendered by the running job. */
     isQueued: boolean;
-    onClick: () => void;
+    onOpen: (sourceCardId: string) => void;
 };
 
-function ReleaseImageTile({ image, snapshot, isQueued, onClick }: ReleaseImageTileProps) {
-    const thumbnailSrc = image.thumbnail_path ? cardImagePublicUrl(image.thumbnail_path) : null;
+/** Takes the image's fields rather than the image object: each status poll returns fresh objects,
+ * and memo then skips every tile whose status didn't change. Offscreen tiles skip layout and paint
+ * (content-visibility), sized to a typical tile until first rendered. */
+const ReleaseImageTile = memo(function ReleaseImageTile({ sourceCardId, setNumber, status, thumbnailPath, name, isQueued, onOpen }: ReleaseImageTileProps) {
+    const thumbnailSrc = thumbnailPath ? cardImagePublicUrl(thumbnailPath) : null;
     return (
-        <button type="button" onClick={onClick} className="group flex flex-col gap-1.5 text-left min-w-0 cursor-pointer">
+        <button type="button" onClick={() => onOpen(sourceCardId)} className="group flex flex-col gap-1.5 text-left min-w-0 cursor-pointer [content-visibility:auto] [contain-intrinsic-size:auto_140px_auto_236px]">
             <div className="relative aspect-5/7 rounded-control overflow-hidden border border-(--divider) bg-(--background-secondary) group-hover:border-(--text-tertiary) transition-colors">
                 {thumbnailSrc ? (
                     <CardImageWithSkeleton
                         src={thumbnailSrc}
-                        alt={snapshot?.name ?? image.source_card_id}
-                        dimmed={image.status === 'stale'}
+                        alt={name ?? sourceCardId}
+                        dimmed={status === 'stale'}
                         className="w-full h-full object-contain"
                     />
                 ) : (
@@ -460,8 +471,8 @@ function ReleaseImageTile({ image, snapshot, isQueued, onClick }: ReleaseImageTi
                         <FaImage className="text-2xl opacity-40" />
                     </div>
                 )}
-                {image.status !== 'rendered' && (
-                    <div className="absolute top-1.5 left-1.5"><StatusBadge status={image.status} /></div>
+                {status !== 'rendered' && (
+                    <div className="absolute top-1.5 left-1.5"><StatusBadge status={status} /></div>
                 )}
                 {isQueued && thumbnailSrc && (
                     <div className="absolute bottom-1.5 right-1.5 flex items-center justify-center w-5 h-5 rounded-full bg-(--background-primary)/80">
@@ -470,12 +481,12 @@ function ReleaseImageTile({ image, snapshot, isQueued, onClick }: ReleaseImageTi
                 )}
             </div>
             <div className="flex items-baseline gap-1.5 min-w-0 text-[12px]">
-                {image.set_number && <span className="font-mono text-(--text-tertiary) shrink-0">{image.set_number}</span>}
-                <span className="font-semibold text-(--text-primary) truncate">{snapshot?.name ?? image.source_card_id}</span>
+                {setNumber && <span className="font-mono text-(--text-tertiary) shrink-0">{setNumber}</span>}
+                <span className="font-semibold text-(--text-primary) truncate">{name ?? sourceCardId}</span>
             </div>
         </button>
     );
-}
+});
 
 type ReleaseImageDetailModalProps = {
     image: ReleaseCardImage;

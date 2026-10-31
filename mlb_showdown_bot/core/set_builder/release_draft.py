@@ -29,6 +29,8 @@ class EditionChanges(BaseModel):
     name: str
     renamed_from: Optional[str] = None
     is_new: bool = False
+    # The owner deleted this published edition; publishing retires it (every card counts as removed)
+    is_removed: bool = False
     added: list[CardChange] = []
     removed: list[CardChange] = []
     changed: list[CardChange] = []
@@ -41,14 +43,14 @@ class EditionChanges(BaseModel):
     @property
     def has_changes(self) -> bool:
         return bool(
-            self.is_new or self.renamed_from or self.added or self.removed or self.changed
+            self.is_new or self.is_removed or self.renamed_from or self.added or self.removed or self.changed
             or self.renumbered or self.details_changed or self.settings_changed
         )
 
     def summary(self) -> dict:
         """The compact record kept with the published version."""
         return {
-            'name': self.name, 'renamed_from': self.renamed_from, 'is_new': self.is_new,
+            'name': self.name, 'renamed_from': self.renamed_from, 'is_new': self.is_new, 'is_removed': self.is_removed,
             'added': len(self.added), 'removed': len(self.removed), 'changed': len(self.changed),
             'renumbered': self.renumbered,
         }
@@ -87,8 +89,12 @@ class ReleaseDraft:
         return (self.release.get('published_version') or 0) > 0
 
     def working_edition_ids(self) -> list[str]:
-        """The editions as the owner is building them: each one's working copy if it has one."""
-        return [(edition.get('draft') or {}).get('id') or edition['id'] for edition in self.release.get('editions') or []]
+        """The editions as the owner is building them: each one's working copy if it has one. Editions
+        staged for removal are left out, since publishing retires them."""
+        return [
+            (edition.get('draft') or {}).get('id') or edition['id']
+            for edition in self.release.get('editions') or [] if not edition.get('pending_removal')
+        ]
 
     def changes(self) -> Optional[ReleaseChanges]:
         """What publishing would change, or None before the first publish (everything is new then)."""
@@ -99,6 +105,14 @@ class ReleaseDraft:
 
     def _edition_changes(self, summary: dict) -> Optional[EditionChanges]:
         draft_id = (summary.get('draft') or {}).get('id')
+        if summary.get('pending_removal'):
+            live = self.db.get_edition(summary['id'], self.user_id)
+            if live is None:
+                return None
+            return EditionChanges(
+                edition_id=live['id'], name=live['name'], is_removed=True,
+                removed=[self._live_card_change(c, _card_detail(c['card_snapshot'])) for c in live['cards']],
+            )
         if summary.get('published_at') is None:
             working = self.db.get_edition(summary['id'], self.user_id)
             if working is None:

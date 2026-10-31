@@ -1,6 +1,7 @@
 import os
 import threading
 import traceback
+from collections import Counter
 from flask import Blueprint, g, jsonify, request
 from pydantic import ValidationError
 from ..core.card.images import ImageLibrary
@@ -17,6 +18,7 @@ from ..core.set_builder.showdown_bot_set import AlgorithmPreviewRequest
 from ..core.set_builder.wotc_set_profile import WotcSetProfile
 from .image_libraries import UserImageLibraries
 from .user_settings import require_auth, optional_user_id
+from .utils.view_counter import RecentViews
 
 releases_bp = Blueprint('releases', __name__)
 
@@ -24,6 +26,7 @@ releases_bp = Blueprint('releases', __name__)
 # sim cap; `RELEASE_IMAGE_MAX_CONCURRENT` retunes it without a code change.
 _MAX_CONCURRENT_RENDERS = max(1, int(os.environ.get('RELEASE_IMAGE_MAX_CONCURRENT', 1)))
 _render_slots = threading.BoundedSemaphore(_MAX_CONCURRENT_RENDERS)
+_recent_views = RecentViews()
 
 
 @releases_bp.route('/releases', methods=['GET'])
@@ -49,7 +52,8 @@ def create_release():
         if not payload.get('name'):
             return jsonify({'error': 'name is required'}), 400
         db = PostgresDB()
-        release_id = db.create_release(g.user_id, payload)
+        # Every release starts with a single "main" edition, so the user never has to create one first
+        release_id = db.create_release(g.user_id, payload, with_main_edition=True)
         release = db.get_release(release_id, g.user_id)
         db.close_connection()
         return jsonify(release), 201
@@ -117,14 +121,19 @@ def update_release(release_id: str):
 @releases_bp.route('/releases/<release_id>', methods=['DELETE'])
 @require_auth
 def delete_release(release_id: str):
+    """Delete the release, or retire it if it was ever published or has cards on teams (see
+    `PostgresDB.delete_release`). `retired` says which; a retired release keeps its card images."""
     try:
-        db = PostgresDB()
-        deleted = db.delete_release(release_id, g.user_id)
-        db.close_connection()
-        if not deleted:
+        with PostgresDB() as db:
+            result = db.delete_release(release_id, g.user_id)
+        if result is None:
             return jsonify({'error': 'Release not found or not owned by user'}), 404
-        ReleaseImageStorage().delete_folder(release_id)
-        return jsonify({'success': True}), 200
+        retired, orphaned_paths = result
+        if retired:
+            ReleaseImageStorage().delete(orphaned_paths)
+        else:
+            ReleaseImageStorage().delete_folder(release_id)
+        return jsonify({'success': True, 'retired': retired}), 200
     except Exception as exc:
         traceback.print_exc()
         return jsonify({'error': str(exc)}), 500
@@ -136,6 +145,29 @@ LIVE_EDITION_ERROR = 'This edition has been published. Edit its working copy ins
 def _is_live_edition(edition: dict | None) -> bool:
     """A published edition (not a working copy). Its cards may be on teams, so it only changes by publishing."""
     return bool(edition and edition.get('published_at') and not edition.get('draft_of'))
+
+
+def _duplicate_card_numbers_error(cards) -> str | None:
+    """Why a card list can't be saved because two cards share a number, else None. Numbers are unique
+    per edition (`unique_card_number`); repeated source cards are skipped, as the upsert keeps only the first."""
+    if not isinstance(cards, list):
+        return None
+    seen_source_ids: set = set()
+    counts: Counter = Counter()
+    for card in cards:
+        if not isinstance(card, dict):
+            continue
+        source_card_id = card.get('source_card_id')
+        if source_card_id and source_card_id in seen_source_ids:
+            continue
+        seen_source_ids.add(source_card_id)
+        if card.get('card_number') is not None:
+            counts[card['card_number']] += 1
+    duplicates = sorted(number for number, count in counts.items() if count > 1)
+    if not duplicates:
+        return None
+    listed = ', '.join(f"#{number}" for number in duplicates[:5]) + (f" and {len(duplicates) - 5} more" if len(duplicates) > 5 else '')
+    return f"Two cards can't share a number: {listed} {'is' if len(duplicates) == 1 else 'are'} used more than once."
 
 
 def _owned_release(db: PostgresDB, release_id: str, user_id: str) -> dict | None:
@@ -296,7 +328,8 @@ def get_saved_releases():
 
 @releases_bp.route('/releases/<release_id>/view', methods=['POST'])
 def record_release_view(release_id: str):
-    """Count a visit to a published release. The owner's own visits don't count."""
+    """Count a visit to a published release. The owner's own visits don't count, nor do repeat
+    visits from the same viewer within a few hours (see `RecentViews`)."""
     try:
         user_id = optional_user_id()
         with PostgresDB() as db:
@@ -304,6 +337,8 @@ def record_release_view(release_id: str):
             if release is None:
                 return jsonify({'error': 'Release not found'}), 404
             if user_id is not None and release['created_by'] == user_id:
+                return jsonify({'counted': False}), 200
+            if not _recent_views.is_new(release_id, user_id):
                 return jsonify({'counted': False}), 200
             db.record_release_view(release_id)
         return jsonify({'counted': True}), 200
@@ -383,6 +418,8 @@ def create_edition(release_id: str):
             return jsonify({'error': 'Request body must be a JSON object'}), 400
         if not payload.get('name'):
             return jsonify({'error': 'name is required'}), 400
+        if (duplicate_error := _duplicate_card_numbers_error(payload.get('cards'))):
+            return jsonify({'error': duplicate_error}), 400
         db = PostgresDB()
         edition_id = db.create_edition(release_id, g.user_id, payload)
         if edition_id is None:
@@ -418,6 +455,8 @@ def update_edition(release_id: str, edition_id: str):
         payload = request.get_json(silent=True)
         if not payload or not isinstance(payload, dict):
             return jsonify({'error': 'Request body must be a JSON object'}), 400
+        if (duplicate_error := _duplicate_card_numbers_error(payload.get('cards'))):
+            return jsonify({'error': duplicate_error}), 400
         db = PostgresDB()
         if _is_live_edition(db.get_edition(edition_id, g.user_id)):
             db.close_connection()
@@ -439,14 +478,33 @@ def update_edition(release_id: str, edition_id: str):
 @releases_bp.route('/releases/<release_id>/editions/<edition_id>', methods=['DELETE'])
 @require_auth
 def delete_edition(release_id: str, edition_id: str):
+    """Delete an edition (see `PostgresDB.remove_edition`): a published one is staged until the next
+    publish, a never-published one goes now. Returns the `outcome` and the updated release."""
     try:
-        db = PostgresDB()
-        deleted_release_id = db.delete_edition(edition_id, g.user_id)
-        db.close_connection()
-        if not deleted_release_id:
-            return jsonify({'error': 'Edition not found or not owned by user'}), 404
-        ReleaseImageStorage().delete_folder(deleted_release_id, edition_id)
-        return jsonify({'success': True}), 200
+        with PostgresDB() as db:
+            result = db.remove_edition(edition_id, g.user_id) if _owned_edition(db, release_id, edition_id, g.user_id) else None
+            if result is None:
+                return jsonify({'error': 'Edition not found or not owned by user'}), 404
+            outcome = result[1]
+            release = db.get_release(release_id, g.user_id)
+        if outcome == 'deleted':
+            ReleaseImageStorage().delete_folder(release_id, edition_id)
+        return jsonify({'outcome': outcome, 'release': release}), 200
+    except Exception as exc:
+        traceback.print_exc()
+        return jsonify({'error': str(exc)}), 500
+
+
+@releases_bp.route('/releases/<release_id>/editions/<edition_id>/restore', methods=['POST'])
+@require_auth
+def restore_edition(release_id: str, edition_id: str):
+    """Undo a published edition's staged removal. Returns the updated release."""
+    try:
+        with PostgresDB() as db:
+            if _owned_edition(db, release_id, edition_id, g.user_id) is None or not db.restore_edition(edition_id, g.user_id):
+                return jsonify({'error': 'Edition not found or not owned by user'}), 404
+            release = db.get_release(release_id, g.user_id)
+        return jsonify(release), 200
     except Exception as exc:
         traceback.print_exc()
         return jsonify({'error': str(exc)}), 500
@@ -482,10 +540,10 @@ def preview_algorithm(release_id: str, edition_id: str):
             return jsonify({'error': 'Admin access required to re-run cards'}), 403
 
         db = PostgresDB()
-        edition = db.get_edition(edition_id, g.user_id)
-        if edition is None or edition['release_id'] != release_id:
+        # Owner only: it's the heaviest endpoint, and `get_edition` alone also returns others' published editions
+        if _owned_edition(db, release_id, edition_id, g.user_id) is None:
             db.close_connection()
-            return jsonify({'error': 'Edition not found'}), 404
+            return jsonify({'error': 'Edition not found or not owned by user'}), 404
 
         try:
             algorithm_request = AlgorithmPreviewRequest(**payload)

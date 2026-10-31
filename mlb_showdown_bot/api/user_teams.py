@@ -11,6 +11,7 @@ from ..core.supabase import SupabaseClientManager, upload_to_supabase
 from .user_settings import require_auth, optional_user_id
 from .utils.file_upload import process_uploaded_file, cleanup_uploaded_file
 from .utils.profanity_filter import ProfanityFilter
+from .utils.view_counter import RecentViews
 
 user_teams_bp = Blueprint('user_teams', __name__)
 
@@ -207,6 +208,9 @@ def like_team(team_id: str):
         return jsonify({'error': str(exc)}), 500
 
 
+_recent_team_views = RecentViews()
+
+
 @user_teams_bp.route('/user/teams/<team_id>/view', methods=['POST'])
 def record_team_view(team_id: str):
     try:
@@ -218,6 +222,9 @@ def record_team_view(team_id: str):
             # Skip counting the owner's own views. An anonymous viewer is never the owner,
             # so this only ever skips when the caller is signed in as the team's owner.
             if user_id is not None and team.get('user_id') == user_id:
+                return jsonify({'counted': False}), 200
+            # Nor a repeat view from the same viewer within a few hours
+            if not _recent_team_views.is_new(team_id, user_id):
                 return jsonify({'counted': False}), 200
             db.record_team_view(team_id)
         return jsonify({'counted': True}), 200

@@ -7,8 +7,6 @@ import {
     fetchSavedReleases,
     fetchRelease,
     createRelease,
-    createEdition,
-    editionSummaryOf,
     type Release,
     type PublicReleaseSort,
 } from '../../api/releases';
@@ -27,23 +25,48 @@ import { BetaBadge } from '../shared/BetaBadge';
 import { buttonClass } from '../shared/buttonStyles';
 import { EmptyState } from '../shared/EmptyState';
 import { PinstripeBackdrop } from '../shared/PinstripeBackdrop';
-/** A release that has been opened in this session. Each one keeps its own mounted ReleaseDetail
- *  (hidden when not addressed by the URL) so unsaved builder progress survives navigation. */
 /** Release tiles: two per row on phones, fixed-width tiles that wrap on wider screens. */
 const RELEASE_GRID = 'grid grid-cols-2 sm:flex sm:flex-wrap gap-3';
 
+/** Other people's releases kept mounted at once. They have no unsaved work to protect, so the
+ *  least recently viewed one unmounts (and refetches if reopened) rather than piling up in memory. */
+const MAX_MOUNTED_READ_ONLY = 3;
+
+/** A release that has been opened in this session. Each one keeps its own mounted ReleaseDetail
+ *  (hidden when not addressed by the URL) so unsaved builder progress survives navigation. */
 type OpenRelease = {
     release: Release;
     readOnly: boolean;
     /** Last edition slug viewed in this release — restored when navigating back to it. */
     editionSlug: string | null;
+    /** When it was last on screen, as a sequence number, for unmounting the stalest read-only one. */
+    lastViewed: number;
 };
+
+/** `open` without the read-only releases past `MAX_MOUNTED_READ_ONLY`, least recently viewed first. */
+function withReadOnlyCap(open: Record<string, OpenRelease>): Record<string, OpenRelease> {
+    const stale = Object.values(open)
+        .filter(o => o.readOnly)
+        .sort((a, b) => b.lastViewed - a.lastViewed)
+        .slice(MAX_MOUNTED_READ_ONLY);
+    if (stale.length === 0) return open;
+    const kept = { ...open };
+    for (const o of stale) delete kept[o.release.id];
+    return kept;
+}
+
+/** A list tile with the like/save state from a fuller copy of the release. Only those, since the
+ *  owner's copy also carries unpublished editions a public tile mustn't show. */
+function withEngagement(tile: Release, updated: Release): Release {
+    return { ...tile, like_count: updated.like_count, liked_by_me: updated.liked_by_me, saved_by_me: updated.saved_by_me };
+}
 
 export default function Releases() {
     const { session, loading: authLoading } = useAuth();
     const location = useLocation();
     const navigate = useNavigate();
     const token = session?.access_token;
+    const userId = session?.user?.id;
 
     const [userReleases, setUserReleases] = useState<Release[]>([]);
     const [savedReleases, setSavedReleases] = useState<Release[]>([]);
@@ -67,22 +90,30 @@ export default function Releases() {
     // Only fetched while the list is on screen
     const community = useCommunityReleases(communitySort, communitySearch, isOnReleaseBuilder && !releaseIdFromUrl);
 
-    // Auth change invalidates the cached list
-    useEffect(() => { setListLoaded(false); }, [token]);
+    // Signing in, out, or as someone else invalidates the cached list. Keyed on the user id (not the
+    // token) so routine token refreshes don't reload it.
+    useEffect(() => { setListLoaded(false); }, [userId]);
 
     // Load the releases list lazily — only when viewing the list, so a direct visit to a
     // release URL opens the release without first loading every release.
     useEffect(() => {
         if (authLoading || !isOnReleaseBuilder || releaseIdFromUrl || listLoaded) return;
         loadReleases();
-    }, [authLoading, isOnReleaseBuilder, releaseIdFromUrl, listLoaded, token]);
+    }, [authLoading, isOnReleaseBuilder, releaseIdFromUrl, listLoaded, userId]);
 
     const activeOpenRelease = releaseIdFromUrl ? openReleases[releaseIdFromUrl] : undefined;
     const isActiveReleaseMounted = !!activeOpenRelease;
 
+    // Stamps the release on screen as most recently viewed (see `MAX_MOUNTED_READ_ONLY`)
+    const viewSeq = useRef(0);
+    useEffect(() => {
+        if (!releaseIdFromUrl) return;
+        const seq = ++viewSeq.current;
+        setOpenReleases(prev => prev[releaseIdFromUrl] ? { ...prev, [releaseIdFromUrl]: { ...prev[releaseIdFromUrl], lastViewed: seq } } : prev);
+    }, [releaseIdFromUrl, isActiveReleaseMounted]);
+
     // readOnly is resolved per release when it mounts, so a different signed-in user needs fresh
     // mounts. Keyed on the user id (not the token) so routine token refreshes keep progress.
-    const userId = session?.user?.id;
     const mountedForUserRef = useRef(userId);
     useEffect(() => {
         if (mountedForUserRef.current === userId) return;
@@ -126,27 +157,36 @@ export default function Releases() {
     }, [releaseIdFromUrl, editionSlugFromUrl, isOnReleaseBuilder, isActiveReleaseMounted]);
 
     function mountRelease(release: Release, readOnly: boolean, editionSlug: string | null = null) {
-        setOpenReleases(prev => prev[release.id] ? prev : { ...prev, [release.id]: { release, readOnly, editionSlug } });
+        const seq = ++viewSeq.current;
+        setOpenReleases(prev => prev[release.id]
+            ? prev
+            : withReadOnlyCap({ ...prev, [release.id]: { release, readOnly, editionSlug, lastViewed: seq } })
+        );
     }
 
+    /** Loads each section on its own, so one failing (say, Saved) doesn't blank the others. A
+     *  partial load isn't marked loaded, so coming back to the list retries. */
     async function loadReleases() {
         setLoading(true);
         setError(null);
-        try {
-            const [publicReleases, myReleases, saved] = await Promise.all([
-                fetchPublicReleases(100, 0, { section: 'official', sort: 'new' }),
-                token ? fetchMyReleases(token) : Promise.resolve([]),
-                token ? fetchSavedReleases(token) : Promise.resolve([]),
-            ]);
-            setOfficialReleases(publicReleases.filter(r => r.created_by !== session?.user?.id));
-            setUserReleases(myReleases);
-            setSavedReleases(saved);
+        const [official, mine, saved] = await Promise.allSettled([
+            fetchPublicReleases(100, 0, { section: 'official', sort: 'new' }),
+            token ? fetchMyReleases(token) : Promise.resolve([]),
+            token ? fetchSavedReleases(token) : Promise.resolve([]),
+        ]);
+        if (official.status === 'fulfilled') setOfficialReleases(official.value.filter(r => r.created_by !== userId));
+        if (mine.status === 'fulfilled') setUserReleases(mine.value);
+        if (saved.status === 'fulfilled') setSavedReleases(saved.value);
+        const failed = [official, mine, saved].filter(result => result.status === 'rejected');
+        if (failed.length === 0) {
             setListLoaded(true);
-        } catch (err: any) {
-            setError(err.message ?? 'Failed to load releases.');
-        } finally {
-            setLoading(false);
+        } else {
+            const reason = (failed[0] as PromiseRejectedResult).reason;
+            setError(failed.length === 3
+                ? (reason instanceof Error ? reason.message : 'Failed to load releases.')
+                : 'Some releases didn\'t load. Reload the page to try again.');
         }
+        setLoading(false);
     }
 
     function openRelease(release: Release, readOnly: boolean) {
@@ -160,29 +200,57 @@ export default function Releases() {
         }
     }
 
+    /** Community tiles show every release as visitors see it (published editions only). The user's
+     *  own open in the builder, so they mount the full copy from My Releases, or fetch it. */
+    function openCommunityRelease(release: Release) {
+        if (release.created_by !== userId) {
+            openRelease(release, true);
+            return;
+        }
+        const own = userReleases.find(r => r.id === release.id);
+        if (own) {
+            openRelease(own, false);
+            return;
+        }
+        // Mounting happens once the URL's release is fetched (the effect above)
+        navigate('/release-builder/' + release.id);
+    }
+
     function goBack() {
         navigate('/release-builder');
     }
 
+    function handleReleaseDeleted(releaseId: string) {
+        const without = (list: Release[]) => list.filter(r => r.id !== releaseId);
+        setUserReleases(without);
+        setSavedReleases(without);
+        setOfficialReleases(without);
+        community.mapReleases(r => r.id === releaseId ? null : r);
+        setOpenReleases(prev => {
+            const rest = { ...prev };
+            delete rest[releaseId];
+            return rest;
+        });
+        navigate('/release-builder', { replace: true });
+    }
+
     async function handleCreate(payload: ReleaseCreatePayload) {
         if (!token) return;
+        // Created with its "main" edition in one request, so a failure never leaves a release without one
         const created = await createRelease(payload, token);
-        // Every release starts with a single "main" edition — no need to make the user create one manually.
-        const mainEdition = await createEdition(created.id, { name: 'main' }, token);
-        const newRelease: Release = {
-            ...created,
-            editions: [
-                editionSummaryOf(mainEdition),
-            ],
-        };
-        setUserReleases(prev => [newRelease, ...prev]);
+        const mainSlug = created.editions[0]?.slug ?? null;
+        setUserReleases(prev => [created, ...prev]);
         setShowCreateModal(false);
-        mountRelease(newRelease, false, mainEdition.slug);
-        navigate(`/release-builder/${newRelease.id}/${mainEdition.slug}`);
+        mountRelease(created, false, mainSlug);
+        navigate(`/release-builder/${created.id}${mainSlug ? `/${mainSlug}` : ''}`);
     }
 
     function handleReleaseUpdated(updated: Release) {
         setUserReleases(prev => prev.map(r => r.id === updated.id ? updated : r));
+        // A like from the release's header shows on its public tiles too
+        const syncTile = (r: Release) => r.id === updated.id ? withEngagement(r, updated) : r;
+        setOfficialReleases(prev => prev.map(syncTile));
+        community.mapReleases(syncTile);
         // Saving or unsaving in the release's header adds it to (or drops it from) the Saved section
         if (updated.saved_by_me !== undefined) {
             setSavedReleases(prev => {
@@ -214,6 +282,7 @@ export default function Releases() {
                             onCardLinkOpened={() => editionSlugFromUrl && navigate(`/release-builder/${release.id}/${editionSlugFromUrl}`, { replace: true })}
                             onBack={goBack}
                             onReleaseUpdated={handleReleaseUpdated}
+                            onDeleted={handleReleaseDeleted}
                             token={token}
                         />
                     </div>
@@ -391,8 +460,7 @@ export default function Releases() {
                     <>
                         <div className={`${RELEASE_GRID} ${loadingCommunity ? 'opacity-60' : ''} transition-opacity`}>
                             {releases.map(release => (
-                                // The user's own open in the builder, as from My Releases
-                                <ReleaseItem key={release.id} release={release} onClick={() => openRelease(release, release.created_by !== userId)} />
+                                <ReleaseItem key={release.id} release={release} onClick={() => openCommunityRelease(release)} />
                             ))}
                         </div>
                         {hasMore && (

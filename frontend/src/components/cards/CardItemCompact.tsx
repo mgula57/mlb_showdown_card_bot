@@ -17,6 +17,48 @@ import { useLayoutEffect, useRef, type Ref } from "react";
 // =============================================================================
 
 /** The team/year and points badges under a compact card's name: the card's condensed bold face, like the plates beside the name on a full card. */
+// Icons sit inline after the name when the full name and icons fit on the row, otherwise in the
+// top-right corner. One observer fits every compact card, so a list mounting a page of cards does
+// all its style writes, then all its reads, then all its writes (one forced layout per batch
+// instead of two per card).
+type NameIconsFit = { name: HTMLElement; icons: HTMLElement };
+const nameIconsFits = new Map<Element, NameIconsFit>();
+let nameIconsObserver: ResizeObserver | null = null;
+let fontsRefitPending = false;
+
+function fitNameIcons(rows: Iterable<Element>) {
+    const items = [...rows].flatMap(row => {
+        const fit = nameIconsFits.get(row);
+        return fit ? [{ row, ...fit }] : [];
+    });
+    // Measure each name at its natural width with the icons out of the flow
+    items.forEach(({ name, icons }) => { icons.dataset.inline = 'false'; name.style.flexShrink = '0'; });
+    const inline = items.map(({ row, name, icons }) => {
+        const iconsWidth = icons.getBoundingClientRect().width;
+        return iconsWidth > 0 && name.getBoundingClientRect().width + iconsWidth + 4 <= row.clientWidth;
+    });
+    items.forEach(({ name, icons }, i) => { name.style.flexShrink = ''; icons.dataset.inline = String(inline[i]); });
+}
+
+/** Fits the row now (the observer's first callback runs before paint) and whenever it resizes. */
+function observeNameIcons(row: HTMLElement, fit: NameIconsFit): () => void {
+    nameIconsObserver ??= new ResizeObserver(entries => fitNameIcons(entries.map(entry => entry.target)));
+    nameIconsFits.set(row, fit);
+    nameIconsObserver.observe(row);
+    // Names measured before the display font loads are too narrow, so refit everything once it does
+    if (document.fonts?.status === 'loading' && !fontsRefitPending) {
+        fontsRefitPending = true;
+        document.fonts.ready
+            .then(() => fitNameIcons(nameIconsFits.keys()))
+            .catch(() => { /* fonts API unavailable */ })
+            .finally(() => { fontsRefitPending = false; });
+    }
+    return () => {
+        nameIconsObserver?.unobserve(row);
+        nameIconsFits.delete(row);
+    };
+}
+
 const STAT_BADGE_CLASS = 'font-display-upright uppercase text-[10px] leading-none shrink-0 rounded-plate px-0.75 py-0.5';
 
 export type CardItemActionButton = {
@@ -154,7 +196,6 @@ export const CardItemCompact = ({
     const firstName = getFirstName(card?.name);
     const lastName = getLastName(card?.name);
 
-    // Icons sit inline after the name when the full name and icons fit on the row, otherwise in the top-right corner
     const nameRowRef = useRef<HTMLDivElement>(null);
     const nameRef = useRef<HTMLSpanElement>(null);
     const iconsRef = useRef<HTMLDivElement>(null);
@@ -165,22 +206,8 @@ export const CardItemCompact = ({
         const name = nameRef.current;
         const icons = iconsRef.current;
         if (!row || !name || !icons) return;
-
-        const fit = () => {
-            // Measure the name at its natural width with the icons out of the flow
-            icons.dataset.inline = 'false';
-            name.style.flexShrink = '0';
-            const nameWidth = name.getBoundingClientRect().width;
-            const iconsWidth = icons.getBoundingClientRect().width;
-            name.style.flexShrink = '';
-            icons.dataset.inline = String(iconsWidth > 0 && nameWidth + iconsWidth + 4 <= row.clientWidth);
-        };
-
-        fit();
-        const observer = new ResizeObserver(fit);
-        observer.observe(row);
-        document.fonts?.ready.then(fit).catch(() => { /* fonts API unavailable */ });
-        return () => observer.disconnect();
+        // Re-observing on a name/icons change refits it, since observe() always reports once
+        return observeNameIcons(row, { name, icons });
     }, [card?.name, iconsKey, isRedacted]);
 
     return (
