@@ -18,8 +18,8 @@ type SummaryChartsProps = {
 
 const POINTS_BUCKET_SIZE = 50;
 const CHART_ACCENT = 'var(--secondary)';
-// WOTC reference series: a distinct hue from the user's near-monochrome bars, defined in both themes.
-const COMPARE_ACCENT = 'var(--showdown-blue)';
+// WOTC reference series: red separates it from the dark bars in light mode; blue remains clearer in dark.
+const COMPARE_ACCENT = 'var(--chart-compare)';
 
 // =============================================================================
 // MARK: - AGGREGATION

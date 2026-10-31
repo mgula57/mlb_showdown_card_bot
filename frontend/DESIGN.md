@@ -26,6 +26,7 @@ All colors come from tokens in [`src/index.css`](src/index.css). Components neve
 | Text | `--text-primary`, `--text-secondary`, `--text-tertiary` | Tertiary is captions and meta |
 | Brand | `--showdown-blue`, `--showdown-red` | Navy for primary actions, selection and frames; red for the active tab and emphasis. As text, borders, rings and tints |
 | Brand fills | `--showdown-blue-fill`, `--showdown-red-fill` | Solid fills that carry white text: primary and feature buttons, navy and red plates, count badges, mode bars. Equal to the brand colors in light; a shade darker in dark so white text keeps 4.5:1. Write `bg-(--showdown-blue-fill)`, never a solid `bg-(--showdown-blue)` |
+| WOTC comparison bars | `--chart-compare` | Red in light mode and blue in dark mode to distinguish the reference series from the set's dark bars |
 | Stat plates | `--plate`, `--plate-ink` | Silver plate in light, raised gray plate in dark. Team-color fields use the dark `onField` plate instead |
 | Status | `--green`, `--red`, `--warning`, `--success`, `--error`, `--live` | Semantic only, never decorative |
 | Team-color fields | `--card-edge`, `--field-ink`, `--field-live` | Same in both themes; see below |

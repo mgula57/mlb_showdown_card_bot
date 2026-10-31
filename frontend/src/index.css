@@ -58,6 +58,7 @@
     --showdown-blue: #1a3b5f;
     --showdown-red: #b3342b;
     --showdown-gray: #6e6e73;
+    --chart-compare: var(--showdown-red);
     /* Solid fills that carry white text (primary and feature buttons, navy/red plates, count
        badges). Same as the brand colors in light; a shade darker in dark so white text keeps 4.5:1. */
     --showdown-blue-fill: var(--showdown-blue);
@@ -162,6 +163,7 @@
     --showdown-blue: #4f86cf;
     --showdown-red: #e0574d;
     --showdown-gray: #a0a0a5;
+    --chart-compare: var(--showdown-blue);
     --showdown-blue-fill: #3775c8;
     --showdown-red-fill: #da362a;
 
