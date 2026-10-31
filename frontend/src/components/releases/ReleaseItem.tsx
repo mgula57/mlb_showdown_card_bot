@@ -76,7 +76,10 @@ export function ReleaseItem({ release, onClick, showPublishStatus = false }: Rel
             <div className="relative h-full flex flex-col overflow-hidden rounded-card border border-(--divider)">
                 {/* Official plate + every included set, wrapping onto a second row when there are many */}
                 <div className="absolute top-0.5 inset-x-0.5 z-1 flex items-start justify-between gap-1 pointer-events-none">
-                    {release.is_official ? <Plate variant="navy" size="sm">Official</Plate> : <span />}
+                    <div className="flex flex-wrap items-start gap-1">
+                        {release.is_official && <Plate variant="navy" size="sm">Official</Plate>}
+                        {release.is_wip && <Plate variant="outline" size="sm" className="bg-(--background-secondary)">WIP</Plate>}
+                    </div>
                     <SetBadgeRow
                         sets={sets}
                         className="flex flex-wrap items-center justify-end gap-1 p-0.5"

@@ -88,6 +88,7 @@ export function ReleasePublicHeader({ release, cardCount, editionCount, isOwner,
                     <div className="flex items-center gap-2 min-w-0">
                         <Heading level="page" as="h1" fit>{release.name}</Heading>
                         {release.is_official && <Plate variant="navy" size="sm">Official</Plate>}
+                        {release.is_wip && <Plate variant="outline" size="sm" title="Work in progress: more cards or changes are coming">WIP</Plate>}
                         {isOwner && !release.is_listed && <Plate variant="outline" size="sm" title="Opens from its link but isn't listed in Community or search">Link only</Plate>}
                     </div>
                     <div className="flex flex-wrap items-center gap-x-1.5 text-[13px] text-(--text-secondary)">

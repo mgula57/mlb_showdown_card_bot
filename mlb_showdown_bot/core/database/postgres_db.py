@@ -6813,6 +6813,8 @@ class PostgresDB:
             # Owner's toggle for "Remix" (see `remix_release`): others may start a release from this one.
             # Remixes record their source in `fork_parent_id`
             cur.execute("ALTER TABLE internal.releases ADD COLUMN IF NOT EXISTS allow_remix BOOLEAN NOT NULL DEFAULT TRUE;")
+            # Owner's "work in progress" label, shown on the release's tile and header
+            cur.execute("ALTER TABLE internal.releases ADD COLUMN IF NOT EXISTS is_wip BOOLEAN NOT NULL DEFAULT FALSE;")
             # Views and likes (see `_toggle_like`), the same shape as user_teams'
             cur.execute("""
                 ALTER TABLE internal.releases
@@ -7042,7 +7044,7 @@ class PostgresDB:
         SELECT
             r.id, r.name, r.description, r.created_by, r.is_official,
             r.fork_parent_id, r.slug, r.default_showdown_set, r.created_at, r.updated_at,
-            r.published_at, r.published_version, r.share_image_path, r.view_count, r.like_count, r.is_listed, r.allow_remix,
+            r.published_at, r.published_version, r.share_image_path, r.view_count, r.like_count, r.is_listed, r.allow_remix, r.is_wip,
             -- The release this one was remixed from, for its credit. Linked only while anyone can find it
             -- (published, listed, not retired), so a remix never exposes a link-only release
             (SELECT json_build_object(
@@ -8312,7 +8314,7 @@ class PostgresDB:
                 return slug
             slug = f"{base_slug}-{secrets.token_hex(3)}"
 
-    _RELEASE_ALLOWED_FIELDS = frozenset({'name', 'description', 'default_showdown_set', 'is_listed', 'allow_remix'})
+    _RELEASE_ALLOWED_FIELDS = frozenset({'name', 'description', 'default_showdown_set', 'is_listed', 'allow_remix', 'is_wip'})
 
     @staticmethod
     def _release_payload_fields(payload: dict) -> dict:

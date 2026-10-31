@@ -102,7 +102,7 @@ def update_release(release_id: str):
         payload = request.get_json(silent=True)
         if not payload or not isinstance(payload, dict):
             return jsonify({'error': 'Request body must be a JSON object'}), 400
-        for flag in ('is_listed', 'allow_remix'):
+        for flag in ('is_listed', 'allow_remix', 'is_wip'):
             if flag in payload and not isinstance(payload[flag], bool):
                 return jsonify({'error': f'{flag} must be true or false'}), 400
         if 'name' in payload:

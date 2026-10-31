@@ -11,7 +11,7 @@ const OPTIONS = [
     { isListed: false, label: 'Link only', detail: 'Anyone with the link, not listed' },
 ] as const;
 
-type SharingField = 'is_listed' | 'allow_remix';
+type SharingField = 'is_listed' | 'allow_remix' | 'is_wip';
 
 type ReleaseSharingSettingsProps = {
     release: Release;
@@ -19,7 +19,7 @@ type ReleaseSharingSettingsProps = {
     onReleaseUpdated: (release: Release) => void;
 };
 
-/** Listed or link-only, and whether others may remix it. Saved to the release right away (like its
+/** Listed or link-only, whether others may remix it, and its WIP tag. Saved to the release right away (like its
  *  description), so both can be picked before publishing and switched at any time after, and the
  *  link stays the same either way. Turning remixes off keeps the remixes already made. */
 export function ReleaseSharingSettings({ release, token, onReleaseUpdated }: ReleaseSharingSettingsProps) {
@@ -69,6 +69,13 @@ export function ReleaseSharingSettings({ release, token, onReleaseUpdated }: Rel
                 description="Others can start their own release from this one. Theirs credits yours."
                 isEnabled={release.allow_remix}
                 onChange={enabled => save('allow_remix', !enabled)}
+                isDisabled={saving !== null}
+            />
+            <FormEnabler
+                label={<span className="flex items-center gap-1.5">{saving?.field === 'is_wip' && <FaSpinner className="animate-spin text-[10px]" />}Mark as work in progress</span>}
+                description="Shows a WIP tag so people know more cards or changes are coming."
+                isEnabled={release.is_wip}
+                onChange={enabled => save('is_wip', !enabled)}
                 isDisabled={saving !== null}
             />
             {error && <InlineError size="sm">{error}</InlineError>}

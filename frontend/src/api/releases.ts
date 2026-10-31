@@ -58,6 +58,8 @@ export type Release = {
     fork_parent: ReleaseForkParent | null;
     /** The owner lets others remix it (start their own release from it). On by default. */
     allow_remix: boolean;
+    /** Owner-set "work in progress" label. */
+    is_wip: boolean;
     slug: string;
     default_showdown_set: string | null;
     editions: ReleaseEditionSummary[];
@@ -151,6 +153,7 @@ export type ReleaseCreatePayload = {
 export type ReleaseUpdatePayload = Partial<ReleaseCreatePayload> & {
     is_listed?: boolean;
     allow_remix?: boolean;
+    is_wip?: boolean;
 };
 
 export type ReleaseEditionCreatePayload = {
