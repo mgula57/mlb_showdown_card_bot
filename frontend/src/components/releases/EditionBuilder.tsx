@@ -1106,14 +1106,14 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
     return (
         <div className="flex flex-col flex-1 min-h-0">
             {/* Step indicator */}
-            <div className={`flex items-center gap-3 px-4 py-3 border-b border-(--divider) shrink-0 ${CHROME_SURFACE_CLASS}`}>
+            <div className={`flex flex-wrap items-center gap-x-3 gap-y-2 px-4 py-3 border-b border-(--divider) shrink-0 ${CHROME_SURFACE_CLASS}`}>
                 {/* Numbered as a workflow while editing; plain views while browsing */}
-                <StepButton number={readOnly ? undefined : 1} label={readOnly ? 'Cards' : 'Player Pool'} isActive={!reviewOpen && step === 'pool'} onClick={handleOpenPoolStep} />
-                <div className={`${readOnly ? 'w-3' : 'w-8'} h-px bg-(--divider) shrink-0`} />
+                <StepButton number={readOnly ? undefined : 1} label={readOnly ? 'Cards' : 'Player Pool'} mobileLabel={readOnly ? undefined : 'Pool'} isActive={!reviewOpen && step === 'pool'} onClick={handleOpenPoolStep} />
+                <div className={`${readOnly ? 'w-3' : 'w-4 sm:w-8'} h-px bg-(--divider) shrink-0`} />
                 <StepButton ref={setImagesStepButton} number={readOnly ? undefined : 2} label="Images" isActive={!reviewOpen && step === 'images'} onClick={handleOpenImagesStep} />
                 {onReviewOpenChange && (
                     <>
-                        <div className="w-8 h-px bg-(--divider) shrink-0" />
+                        <div className="w-4 sm:w-8 h-px bg-(--divider) shrink-0" />
                         <StepButton number={3} label="Review" isActive={reviewOpen} onClick={() => onReviewOpenChange(true)} />
                     </>
                 )}
@@ -1683,7 +1683,7 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
                             )}
 
                             {/* Card Grid */}
-                            <div className={`flex-1 min-h-0 overflow-y-auto p-3 ${activePreview ? 'bg-(--preview-accent)/4' : 'bg-(--background-tertiary)'}`}>
+                            <div className={`flex-1 min-h-0 overflow-y-auto overflow-x-hidden p-3 ${activePreview ? 'bg-(--preview-accent)/4' : 'bg-(--background-tertiary)'}`}>
                                 {isAlgorithmRunning ? (
                                     <PoolGridSkeleton showFullCards={showFullCards} />
                                 ) : displayCards.length > 0 && filteredCards.length === 0 ? (
@@ -1848,7 +1848,7 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
     );
 }
 
-function StepButton({ number, label, isActive, onClick, ref }: { number?: number; label: string; isActive: boolean; onClick: () => void; ref?: Ref<HTMLButtonElement> }) {
+function StepButton({ number, label, mobileLabel, isActive, onClick, ref }: { number?: number; label: string; mobileLabel?: string; isActive: boolean; onClick: () => void; ref?: Ref<HTMLButtonElement> }) {
     return (
         <button ref={ref} type="button" onClick={onClick} className="group flex items-center gap-2 cursor-pointer">
             {number !== undefined && <span className={`flex items-center justify-center w-5 h-5 rounded-full text-[11px] font-semibold tabular-nums shrink-0 transition-colors
@@ -1856,7 +1856,7 @@ function StepButton({ number, label, isActive, onClick, ref }: { number?: number
                 {number}
             </span>}
             <span className={`${headingClass('panel')} transition-colors ${isActive ? '' : 'text-(--text-tertiary)! group-hover:text-(--text-secondary)!'}`}>
-                {label}
+                {mobileLabel ? <><span className="sm:hidden">{mobileLabel}</span><span className="hidden sm:inline">{label}</span></> : label}
             </span>
         </button>
     );
