@@ -504,11 +504,12 @@ type ReleaseImageTileProps = {
 
 /** Takes the image's fields rather than the image object: each status poll returns fresh objects,
  * and memo then skips every tile whose status didn't change. Offscreen tiles skip layout and paint
- * (content-visibility), sized to a typical tile until first rendered. */
+ * (content-visibility, desktop only: on phones the page itself scrolls and mobile browsers fail to
+ * paint or hit-test tiles scrolled into view, leaving a handful visible), sized to a typical tile until first rendered. */
 const ReleaseImageTile = memo(function ReleaseImageTile({ sourceCardId, setNumber, status, thumbnailPath, name, isQueued, onOpen }: ReleaseImageTileProps) {
     const thumbnailSrc = thumbnailPath ? cardImagePublicUrl(thumbnailPath) : null;
     return (
-        <button type="button" onClick={() => onOpen(sourceCardId)} className="group flex flex-col gap-1.5 text-left min-w-0 cursor-pointer [content-visibility:auto] [contain-intrinsic-size:auto_140px_auto_236px]">
+        <button type="button" onClick={() => onOpen(sourceCardId)} className="group flex flex-col gap-1.5 text-left min-w-0 cursor-pointer md:[content-visibility:auto] md:[contain-intrinsic-size:auto_140px_auto_236px]">
             <div className="relative aspect-5/7 rounded-control overflow-hidden border border-(--divider) bg-(--background-secondary) group-hover:border-(--text-tertiary) transition-colors">
                 {thumbnailSrc ? (
                     <CardImageWithSkeleton
