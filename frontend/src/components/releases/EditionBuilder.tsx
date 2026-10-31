@@ -1369,6 +1369,9 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
                                             ))}
                                         </div>
                                     )}
+                                    <p className="text-[11px] text-(--text-secondary)">
+                                        Card styles and chart versions can be customized once the preview is applied. Open a saved card and hit Customize.
+                                    </p>
                                     <AlgorithmCutLineSummary cutLines={activePreview.summary.cut_lines ?? []} />
                                     {previewSavePlan && cards.length > 0 && (
                                         <ul className="flex flex-col gap-0.5 text-[11px] text-(--text-secondary)">
@@ -1739,7 +1742,7 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
                                                             numberIssue={numberIssueFor(card, numberingIssues)}
                                                             showMatchBadge={isMatchSortActive}
                                                             onOpen={setDetailCard}
-                                                            onRemove={readOnly ? undefined : handleRemoveCardStable}
+                                                            onRemove={readOnly || activePreview ? undefined : handleRemoveCardStable}
                                                             onNumberChange={handleNumberInputChangeStable}
                                                             onNumberBlur={handleNumberInputBlurStable}
                                                             foilSuggestion={card.source_card_id ? pendingFoils?.get(card.source_card_id) : undefined}

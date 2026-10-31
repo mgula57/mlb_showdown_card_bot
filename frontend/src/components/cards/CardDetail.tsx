@@ -608,7 +608,8 @@ export const CardDetail = memo(function CardDetail({ showdownBotCardData: showdo
     const card = activeCardData?.card;
 
     const showCustomize = !!card && hasStyleEditor;
-    const showOpenInBuilder = !!card && context !== 'custom';
+    // Release cards are restyled with Customize once they're in the edition, so Open in Builder would only confuse
+    const showOpenInBuilder = !!card && context !== 'custom' && context !== 'release';
     const showDraft = !!card && !!onDraft;
     const hasHeaderActions = showCustomize || showOpenInBuilder || showDraft || !!onClose;
 

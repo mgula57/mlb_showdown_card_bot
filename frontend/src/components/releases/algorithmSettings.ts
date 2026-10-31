@@ -75,12 +75,14 @@ function countSeasons(years: string): number {
 }
 
 /** Rough run time in seconds: a fixed setup cost plus time per season per showdown set.
- *  A heuristic, not a measurement - tune the constants against real runs. */
+ *  A heuristic, not a measurement, and deliberately conservative: better to finish early than
+ *  to sit past the estimate. Tune the constants against real runs. */
 export function estimateAlgorithmSeconds(config: AlgorithmConfig): number {
-    const SETUP_SECONDS = 5;
-    const SECONDS_PER_SEASON_SET = 1.5;
+    const SETUP_SECONDS = 15;
+    const SECONDS_PER_SEASON_SET = 3;
+    const MIN_SECONDS = 20;
     const seconds = SETUP_SECONDS + countSeasons(config.years) * Math.max(1, allShowdownSets(config).length) * SECONDS_PER_SEASON_SET;
-    return Math.round(seconds / 5) * 5 || 5;
+    return Math.max(MIN_SECONDS, Math.ceil(seconds / 5) * 5);
 }
 
 /** Single low-point bucket fields that older editions saved before `point_buckets` existed. */
