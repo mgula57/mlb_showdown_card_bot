@@ -54,7 +54,8 @@ from .trends.trends import TrendDatapoint
 
 from ..supabase import upload_to_supabase
 
-from ..data.stat_reduction import nerf_stats_by_run_value, shrink_stats_toward_replacement_level
+from ..data.stat_reduction import nerf_stats_by_run_value
+from ..data.stat_normalizer import StatNormalizer
 
 from ..version import __version__
 
@@ -101,7 +102,7 @@ class ShowdownPlayerCard(BaseModel):
     is_variable_speed_00_01: bool = False
     is_wotc: bool = False
     nerf_by_run_value: Optional[float] = None
-    regress_small_sample_to_replacement: bool = False
+    stat_normalizer: Optional[StatNormalizer] = None # REGRESSES A SMALL REAL SAMPLE TOWARD A BASELINE
     tags: Optional[list[str]] = None # USER LABELS FOR TRACKING (EX: 'FOIL' FOR CARDS THAT WILL BE PRINTED AS FOILS)
     
     # ENVIRONMENT
@@ -265,19 +266,19 @@ class ShowdownPlayerCard(BaseModel):
             self.is_stats_estimate = True
             self.warnings.append(f"Stats have been nerfed by a run value of {self.nerf_by_run_value}. The purpose is to normalize stats for players coming from different leagues (e.g. KBO, NPB, MINORS) to create a more accurate card against MLB pitching/hitting.")
 
-        # IF STATS SHOULD BE REGRESSED TOWARD REPLACEMENT LEVEL FOR A SMALL REAL SAMPLE
-        if self.regress_small_sample_to_replacement:
+        # IF STATS SHOULD BE REGRESSED TOWARD A BASELINE FOR A SMALL REAL SAMPLE
+        if self.stat_normalizer:
             try:
-                shrink_year = max(convert_year_string_to_list(self.year))
-                self.stats_period.stats = shrink_stats_toward_replacement_level(
-                    stats=self.stats,
-                    year=shrink_year,
+                self.stats_period.stats, normalizer_warnings = self.stat_normalizer.normalize(
+                    stats=self.stats_for_card,
+                    year=max(convert_year_string_to_list(self.year)),
                     is_pitcher=self.is_pitcher,
+                    real_ip=total_ip_for_calculations(float(self.stats_for_card.get('IP') or 0)) if self.is_pitcher else None,
                 )
                 self.is_stats_estimate = True
-                self.warnings.append("Stats have been regressed toward replacement level to account for a small real sample size.")
+                self.warnings.extend(normalizer_warnings)
             except (KeyError, ValueError):
-                pass
+                self.warnings.append(f"Could not find a {self.stat_normalizer.type.label} baseline for this season. Stats were not normalized.")
 
         # UPDATE IMAGE COLORS
         self.image.color_primary = self._team_color_rgb_str()
@@ -313,7 +314,7 @@ class ShowdownPlayerCard(BaseModel):
 
         # STATS DISPLAYED ON FRONTEND
         self.real_vs_projected_stats = self._calculate_real_vs_projected_stats()
-        stats_are_adjusted = self.nerf_by_run_value or self.regress_small_sample_to_replacement
+        stats_are_adjusted = self.nerf_by_run_value or self.stat_normalizer
         self.image.stat_highlights_list = self._generate_stat_highlights_list(stats=self.stats_for_card if not stats_are_adjusted else self.stats)
         self.image.award_summary_list = self._generate_award_summary_list(award_summary=self.stats_for_card.get('award_summary', None))
 
@@ -335,7 +336,7 @@ class ShowdownPlayerCard(BaseModel):
         the rebuilt card keeps the same `id`. Any field can be overridden via kwargs.
 
         Args:
-          overrides: Card fields to change on the rebuilt card (ex: `regress_small_sample_to_replacement=True`).
+          overrides: Card fields to change on the rebuilt card (ex: `stat_normalizer='REPLACEMENT_LEVEL'`).
 
         Returns:
           New, fully built ShowdownPlayerCard.
@@ -352,7 +353,7 @@ class ShowdownPlayerCard(BaseModel):
             is_stats_estimate=self.is_stats_estimate, chart_version=self.chart_version,
             date_override=self.date_override, command_out_override=self.command_out_override,
             commands_excluded=self.commands_excluded, is_variable_speed_00_01=self.is_variable_speed_00_01,
-            nerf_by_run_value=self.nerf_by_run_value, regress_small_sample_to_replacement=self.regress_small_sample_to_replacement,
+            nerf_by_run_value=self.nerf_by_run_value, stat_normalizer=self.stat_normalizer.model_copy(deep=True, update={'summary': None}) if self.stat_normalizer else None,
             image=self.image.model_copy(deep=True),
         )
         inputs.update(overrides)
@@ -365,6 +366,10 @@ class ShowdownPlayerCard(BaseModel):
     @model_validator(mode="before")
     def ensure_required_inputs(cls, values: dict) -> dict:
                 
+        # LEGACY BOOLEAN (OLD CLIENTS, STORED CARD DATA) MAPS TO THE REPLACEMENT LEVEL NORMALIZER
+        if values.pop('regress_small_sample_to_replacement', False) and not values.get('stat_normalizer', None):
+            values['stat_normalizer'] = 'REPLACEMENT_LEVEL'
+
         # HANDLE EMPTY ERA INPUT AS DYNAMIC
         if values.get('era', None) is None:
             values['era'] = "DYNAMIC"
@@ -477,6 +482,10 @@ class ShowdownPlayerCard(BaseModel):
             return nationality
         stats:dict = info.data.get('stats', {})
         return Nationality(stats.get('nationality', Nationality.NONE))
+
+    @field_validator('stat_normalizer', mode='before')
+    def parse_stat_normalizer(cls, stat_normalizer: Any) -> Optional[StatNormalizer]:
+        return StatNormalizer.from_input(stat_normalizer)
 
     @field_validator('player_type_override', mode='before')
     def parse_player_type_override(cls, player_type_override:str, info:ValidationInfo) -> PlayerType:

@@ -45,6 +45,7 @@ import { fromBoxscoreDetail } from '../../domain/adapters/fromMlbApi';
 // Visual breakdown panels
 import OutcomeProbability from './card_detail/OutcomeProbability';
 import RealVsProjectedVisual from './card_detail/RealVsProjectedVisual';
+import StatNormalizerBreakdown from './card_detail/StatNormalizerBreakdown';
 import PointsContributionBars from './card_detail/PointsContributionBars';
 import { CardComps } from './card_detail/CardComps';
 import { CardStyleEditor, type CardStyleEditorConfig } from './card_detail/CardStyleEditor';
@@ -580,6 +581,16 @@ export const CardDetail = memo(function CardDetail({ showdownBotCardData: showdo
                         playerIdForLinescoreHighlight={activeCardData?.card?.mlb_id ?? undefined}
                     />
                 </div>
+            )}
+
+            {/* Normalizer blend (real sample vs baseline) */}
+            {activeCardData?.card?.stat_normalizer?.summary && (
+                <SectionPanel isLoading={isLoadingPanels} title="Normalized Stats" subtitle='Share of the card from real stats vs the normalizer'>
+                    <StatNormalizerBreakdown
+                        summary={activeCardData.card.stat_normalizer.summary}
+                        playerType={activeCardData.card.player_type?.toUpperCase() as 'HITTER' | 'PITCHER'}
+                    />
+                </SectionPanel>
             )}
 
             {/* Card vs Real Stats */}

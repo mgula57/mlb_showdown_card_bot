@@ -5,7 +5,6 @@ from .helpers_and_weights import (
     DEFAULT_LINEAR_WEIGHTS, REPLACEMENT_RUN_GAP_PA_BASIS,
     num, recompute_derived_batting_stats, round_if_float, scale_counting_stats_to_pa_basis
 )
-from .replacement_season_averages import get_replacement_hitting_avgs, get_replacement_pitching_avgs
 
 
 def nerf_stats_by_run_value(
@@ -95,25 +94,24 @@ def nerf_stats_by_run_value(
     return stat_line
 
 
-def shrink_stats_toward_replacement_level(
+def shrink_stats_toward_baseline(
     stats: dict[str, Any],
-    year: int,
-    is_pitcher: bool,
+    baseline: dict[str, Any],
     full_sample_pa: float = REPLACEMENT_RUN_GAP_PA_BASIS,
-    weights: dict[str, float] | None = None,
 ) -> dict[str, Any]:
-    """Regress a small real sample toward that year's replacement-level baseline.
+    """Regress a small real sample toward a baseline stat line (see `StatNormalizer`).
 
     Each outcome rate (BB/HBP/1B/2B/3B/HR/SO per PA) is blended between the real stat line and
-    the replacement-level rate for that category, weighted by how much real PA the player
-    actually has vs. `full_sample_pa`:
+    the baseline's rate for that category, weighted by how much real PA the player actually has
+    vs. `full_sample_pa`:
 
-        blended_rate = real_weight * real_rate + (1 - real_weight) * replacement_rate
+        blended_rate = real_weight * real_rate + (1 - real_weight) * baseline_rate
         real_weight  = min(1.0, real_pa / full_sample_pa)
 
     At real_pa >= full_sample_pa the stats are returned unchanged - there's enough sample to
     trust them outright. Below it, a callup's or spot starter's hot small sample gets pulled
-    proportionally toward replacement level instead of standing in as his true talent.
+    proportionally toward the baseline (replacement level, league average, the player's own
+    history, ...) instead of standing in as his true talent.
 
     PA/AB/G/GS/IP are left untouched - this only tempers *rate* performance, not how much he
     actually played, so real-usage-based logic elsewhere (roster tiering, workload) is unaffected.
@@ -121,32 +119,27 @@ def shrink_stats_toward_replacement_level(
     stat_line = deepcopy(stats)
 
     real_pa = num(stat_line.get("PA"))
-    if real_pa <= 0 or full_sample_pa <= 0:
+    baseline_pa = num(baseline.get("PA"))
+    if real_pa <= 0 or full_sample_pa <= 0 or baseline_pa <= 0:
         return stat_line
 
     real_weight = min(1.0, real_pa / full_sample_pa)
     if real_weight >= 1.0:
         return stat_line
-    replacement_weight = 1.0 - real_weight
-
-    replacement_avgs = (
-        get_replacement_pitching_avgs(year=year, weights=weights) if is_pitcher
-        else get_replacement_hitting_avgs(year=year, weights=weights)
-    )
-    replacement_pa = num(replacement_avgs.get("PA"), default=REPLACEMENT_RUN_GAP_PA_BASIS)
+    baseline_weight = 1.0 - real_weight
 
     for stat in ("BB", "HBP", "1B", "2B", "3B", "HR", "SO"):
         real_rate = num(stat_line.get(stat)) / real_pa
-        replacement_rate = (num(replacement_avgs.get(stat)) / replacement_pa) if replacement_pa > 0 else 0.0
-        blended_rate = real_weight * real_rate + replacement_weight * replacement_rate
+        baseline_rate = num(baseline.get(stat)) / baseline_pa
+        blended_rate = real_weight * real_rate + baseline_weight * baseline_rate
         if isinstance(stat_line.get(stat), (int, float)):
             stat_line[stat] = blended_rate * real_pa
 
     recompute_derived_batting_stats(stat_line)
 
-    stat_line["_replacement_shrink_real_pa"] = real_pa
-    stat_line["_replacement_shrink_real_weight"] = real_weight
-    stat_line["_replacement_shrink_full_sample_pa"] = full_sample_pa
+    stat_line["_baseline_shrink_real_pa"] = real_pa
+    stat_line["_baseline_shrink_real_weight"] = real_weight
+    stat_line["_baseline_shrink_full_sample_pa"] = full_sample_pa
 
     for key, value in list(stat_line.items()):
         stat_line[key] = round_if_float(value)

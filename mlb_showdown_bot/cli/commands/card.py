@@ -57,7 +57,7 @@ def card_main(
     show_year_text: bool = typer.Option(False, "--show_year_text", "-yrt", help="Optionally add separate year text to the image. Applies to 2000-2005 only."),
     nickname_index: Optional[int] = typer.Option(None, "--nickname_index", "-nick", help="Optionally choose a nickname to show for images. Enter a number based on ordering from bref, max is 3"),
     is_wotc: bool = typer.Option(False, "--is_wotc", "-wotc", help="Try loading from WOTC cards."),
-    regress_small_sample_to_replacement: bool = typer.Option(False, "--regress_to_replacement", "-rtr", help="Regress small sample stats toward replacement level for more realistic stats."),
+    stat_normalizer: Optional[str] = typer.Option(None, "--stat_normalizer", "-norm", help="Regress small sample stats toward a baseline. Options are REPLACEMENT_LEVEL, LEAGUE_AVERAGE, PLAYER_CAREER, PLAYER_LAST_YEAR, PLAYER_TRAILING_3, PLAYER_TRAILING_5."),
     
     # DATABASE/CACHE
     datasource: str = typer.Option(None, "--datasource", "-ds", help="Datasource to use for stats and info. Options are MLB_API or BREF."),

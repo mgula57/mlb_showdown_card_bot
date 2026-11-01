@@ -10,6 +10,7 @@ import ast
 from .showdown_player_card import ShowdownPlayerCard, ImageLibrary, ImageSource, ShowdownImage, PlayerType, Team, Edition
 from .images import DEFAULT_RENDER_FILE_FORMAT
 from ..data.replacement_season_averages import get_replacement_hitting_avgs, get_replacement_pitching_avgs
+from ..data.stat_normalizer import StatNormalizer, StatNormalizerType
 from .stats.baseball_ref_scraper import BaseballReferenceScraper
 from .stats.stats_period import StatsPeriod, StatsPeriodType, StatsPeriodDateAggregation, StatsPeriodLeague
 from .utils.shared_functions import convert_to_date, convert_year_string_to_list
@@ -419,6 +420,17 @@ def generate_card(image_libraries: list[ImageLibrary] = None, **kwargs) -> dict[
                 kwargs.pop('edition', None)
                 stats['warnings'] = stats.get('warnings', []) + ["Could not find WBC team for this player in the database. Double check the player was a part of a WBC roster in the year provided or following year. Note that non-MLB WBC players are only available for 2025/2026."]
 
+        # PLAYER-BASED NORMALIZERS NEED THE PLAYER'S OTHER ARCHIVED SEASONS
+        # KWARGS KEEP THE RAW INPUT FOR LOGGING; THE CARD GETS THE BUILT NORMALIZER
+        stat_normalizer = StatNormalizer.from_input(kwargs.get('stat_normalizer', None))
+        if stat_normalizer and stat_normalizer.type.is_player_based:
+            stat_normalizer.baseline = fetch_stat_normalizer_baseline(
+                normalizer_type=stat_normalizer.type,
+                bref_id=stats.get('bref_id', None) or kwargs.get('bref_id', None),
+                player_type=kwargs.get('player_type_override', None) or stats.get('type', None),
+                card_years=stats_period.year_list or convert_year_string_to_list(str(kwargs['year'])) or [],
+            )
+
         # PROCESS CARD
         image_source = ImageSource(**kwargs)
         image_source.set_libraries(image_libraries)
@@ -429,7 +441,7 @@ def generate_card(image_libraries: list[ImageLibrary] = None, **kwargs) -> dict[
             realtime_game_logs=[game_boxscore] if game_boxscore else None, 
             image=image,
             warnings=stats.get('warnings', []),
-            **kwargs
+            **(kwargs | {'stat_normalizer': stat_normalizer})
         )
 
         # EXTRA OPTIONS
@@ -553,6 +565,32 @@ def generate_card(image_libraries: list[ImageLibrary] = None, **kwargs) -> dict[
         }
     
         return final_card_payload
+
+def fetch_stat_normalizer_baseline(normalizer_type: StatNormalizerType, bref_id: Optional[str], player_type: PlayerType | str | None, card_years: list[int]) -> Optional[dict[str, Any]]:
+    """Build a player-based normalizer's baseline from the player's other seasons in the archive.
+
+    Returns:
+      Baseline stat line, or None when the player has no usable other seasons (card falls back to replacement level).
+    """
+    if not bref_id or not player_type:
+        return None
+    player_type_str = (player_type.value if isinstance(player_type, PlayerType) else str(player_type)).upper()
+
+    try:
+        with PostgresDB(is_archive=True) as db:
+            archive_rows = db.fetch_all_player_year_stats_from_archive(bref_id=bref_id)
+    except Exception as e:
+        print(f"Failed to fetch stat normalizer seasons: {e}")
+        return None
+
+    # FULL-SEASON ROWS ONLY (NO SNAPSHOTS OR TEAM SPLITS), ONE PER YEAR
+    seasons: dict[int, dict[str, Any]] = {}
+    for row in archive_rows:
+        if row.player_type.upper() != player_type_str or row.historical_date or row.team_override or not row.stats:
+            continue
+        seasons.setdefault(int(row.year), row.stats)
+
+    return normalizer_type.player_baseline(seasons=seasons, card_years=[int(y) for y in card_years])
 
 def generate_all_historical_yearly_cards_for_player(actual_card:ShowdownPlayerCard, **kwargs) -> CareerTrends:
     """Generate all historical yearly cards for a player."""

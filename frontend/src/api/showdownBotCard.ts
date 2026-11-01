@@ -517,6 +517,9 @@ export type ShowdownBotCard = {
     stats_period?: StatsPeriod;
     is_stats_estimate?: boolean;
 
+    /** What a small real sample was regressed toward, and how it blended */
+    stat_normalizer?: StatNormalizer | null;
+
     /** Flag indicating if the card is a WOTC card */
     is_wotc?: boolean;
 
@@ -769,6 +772,39 @@ export type PointsCategoryBreakdown = {
  * Shows how accurately the generated card would reproduce the player's
  * actual statistical performance in simulated games.
  */
+/** One rate stat for the real sample, the normalizer's baseline, and the blend the card is built from */
+export type StatNormalizerSummaryStat = {
+    /** Rate stat name (OPS, OBP, SLG, K%, WHIP). Against, for pitchers */
+    stat: string;
+    real: number;
+    baseline: number;
+    blended: number;
+};
+
+/** How much of a normalized card came from the real sample vs the normalizer's baseline */
+export type StatNormalizerSummary = {
+    /** Type actually used (ex: 'PLAYER_CAREER'), REPLACEMENT_LEVEL when a player option had no other seasons */
+    type: string;
+    /** Display name (ex: 'Player Career Avg'). Replacement Level when a player option had no other seasons */
+    label: string;
+    /** Share of the card from the real sample, 0-1 (1 = full sample, unchanged) */
+    real_weight: number;
+    real_pa: number;
+    /** PA at which the real sample is used as-is (600, or ~60 IP of batters faced for relievers) */
+    full_sample_pa: number;
+    /** Seasons the baseline was built from, for player options */
+    baseline_years?: number[] | null;
+    stats: StatNormalizerSummaryStat[];
+};
+
+/** Regresses a small real sample toward a baseline (backend `StatNormalizer`) */
+export type StatNormalizer = {
+    /** Requested type (ex: 'PLAYER_CAREER') */
+    type: string;
+    /** Real vs baseline blend, set once the card is built */
+    summary?: StatNormalizerSummary | null;
+};
+
 export type RealVsProjectedStat = {
     /** Statistical category name (e.g., "OBP", "SLG", "HR") */
     stat: string;

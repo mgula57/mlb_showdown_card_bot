@@ -61,7 +61,7 @@ import CardBuildIcon from './CardBuildIcon';
 import ImageLibraryOrderHint from './ImageLibraryOrderHint';
 import { SetStyleFields, ImageStyleFields } from './CardStyleFields';
 import { NewBadge } from '../shared/NewBadge';
-import { setStyleSummary, imageStyleSummary, chartVersionOptions } from './cardStyle';
+import { setStyleSummary, imageStyleSummary, chartVersionOptions, statNormalizerOptions } from './cardStyle';
 import { formSectionSummary, optionSummaryItem } from './FormSectionSummary';
 import { formInputsFromCard, type CustomizeCardRouteState } from './customizeCard';
 
@@ -115,7 +115,7 @@ export interface CustomCardFormState {
     chart_version?: string; // e.g. "1"
     era?: string; // e.g. "Dynamic"
     is_variable_speed_00_01?: boolean; // Whether to use variable speed for 00-01
-    regress_small_sample_to_replacement?: boolean; // Whether to regress small sample stats toward replacement level
+    stat_normalizer?: string; // e.g. "REPLACEMENT_LEVEL", what a small real sample is regressed toward
 
     // Added in post-processing, not user inputs
     randomize?: boolean; // Tags if user randomly generated the card
@@ -158,7 +158,7 @@ export const FORM_DEFAULTS: CustomCardFormState = {
     chart_version: "1",
     era: "DYNAMIC",
     is_variable_speed_00_01: false,
-    regress_small_sample_to_replacement: false
+    stat_normalizer: "NONE"
 };
 
 /** Whether a year string spans multiple seasons (CAREER, ranges like "2000-2004", or combos like "2006+2014") */
@@ -191,7 +191,9 @@ const loadFormSettings = (): CustomCardFormState => {
     try {
         const saved = localStorage.getItem(STORAGE_KEY);
         if (saved) {
-            const parsedSettings = JSON.parse(saved);
+            const { regress_small_sample_to_replacement, ...parsedSettings } = JSON.parse(saved);
+            // Legacy toggle (pre-Normalizer) carries over as the Replacement Level normalizer
+            if (regress_small_sample_to_replacement && !parsedSettings.stat_normalizer) parsedSettings.stat_normalizer = 'REPLACEMENT_LEVEL';
             // Merge with defaults to ensure all required fields exist
             return { ...FORM_DEFAULTS, ...parsedSettings };
         }
@@ -432,7 +434,7 @@ function CustomCardBuilder({ isHidden, embed }: CustomCardBuilderProps) {
                 if (form.era !== FORM_DEFAULTS.era) {
                     summaries.push(optionSummaryItem(eraOptions, form.era || 'DYNAMIC', 'Era'));                }
                 if (isSet00_01 && form.is_variable_speed_00_01 !== FORM_DEFAULTS.is_variable_speed_00_01) summaries.push({ value: 'Variable Speed' });
-                if (form.regress_small_sample_to_replacement !== FORM_DEFAULTS.regress_small_sample_to_replacement) summaries.push({ value: 'Regress Small Sample' });
+                if (form.stat_normalizer && form.stat_normalizer !== FORM_DEFAULTS.stat_normalizer) summaries.push(optionSummaryItem(statNormalizerOptions, form.stat_normalizer, 'Normalizer'));
                 break;
         }
         
@@ -1348,15 +1350,18 @@ function CustomCardBuilder({ isHidden, embed }: CustomCardBuilderProps) {
                                                 />
                                             )}
 
-                                            <div className="col-span-2 flex items-center gap-1.5">
-                                                <FormEnabler
-                                                    label={<span className="inline-flex items-center gap-1.5">Regress to Replacement Level <NewBadge /></span>}
-                                                    className="flex-1"
-                                                    isEnabled={form.regress_small_sample_to_replacement || false}
-                                                    onChange={(isEnabled) => setForm({ ...form, regress_small_sample_to_replacement: !isEnabled })}
-                                                />
-                                                <InfoTooltip iconSize="text-[16px]" text="Blends a player's real stats toward that year's replacement level, weighted by how few plate appearances/innings they actually have. A callup's hot 40-PA stretch gets pulled toward replacement level instead of standing in as his true talent; players with a full season are unaffected." />
-                                            </div>
+                                            <FormDropdown
+                                                label={
+                                                    <span className="inline-flex items-center gap-1.5">
+                                                        Normalizer <NewBadge />
+                                                        <InfoTooltip iconSize="text-[16px]" text="Blends a player's real stats toward a baseline, weighted by how few plate appearances/innings they actually have. A callup's hot 40-PA stretch gets pulled toward the baseline instead of standing in as his true talent; full seasons (600 PA, or ~60 IP for relievers) are unaffected. Player options use his other seasons (Last Year/Trailing use the most recent seasons played before this one) and fall back to Replacement Level if there are none." />
+                                                    </span>
+                                                }
+                                                className="col-span-2"
+                                                options={statNormalizerOptions}
+                                                selectedOption={form.stat_normalizer || 'NONE'}
+                                                onChange={(value) => setForm({ ...form, stat_normalizer: value })}
+                                            />
 
                                         </FormSection>
                                     </>

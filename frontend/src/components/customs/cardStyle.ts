@@ -123,6 +123,17 @@ export const chartVersionOptions: SelectOption[] = [
     { 'value': '5', 'label': 'Version 5' },
 ];
 
+/** What a small real sample is regressed toward. Values map to the backend `StatNormalizerType` enum. */
+export const statNormalizerOptions: SelectOption[] = [
+    { 'value': 'NONE', 'label': 'None' },
+    { 'value': 'REPLACEMENT_LEVEL', 'label': 'Replacement Level' },
+    { 'value': 'LEAGUE_AVERAGE', 'label': 'League Average' },
+    { 'value': 'PLAYER_CAREER', 'label': 'Player Career Avg' },
+    { 'value': 'PLAYER_LAST_YEAR', 'label': 'Player Last Year' },
+    { 'value': 'PLAYER_TRAILING_3', 'label': 'Player Trailing 3 Years' },
+    { 'value': 'PLAYER_TRAILING_5', 'label': 'Player Trailing 5 Years' },
+];
+
 export const outerGlowOptions: SelectOption[] = [
     { "label": "Glow 1x", "value": "1" },
     { "label": "Glow 2x", "value": "2" },
