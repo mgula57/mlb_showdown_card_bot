@@ -12,7 +12,8 @@ const LEVEL_CLASSES: Record<HeadingLevel, string> = {
 };
 
 /** Room on the right for the italic display face, which leans past its own box; without it an
- *  `overflow: hidden` edge (truncate, line-clamp) shaves the last letter. */
+ *  `overflow: hidden` edge (truncate, line-clamp) shaves the last letter, and so does a hover color
+ *  change, which repaints only the element's box. */
 export const SLANT_ROOM_CLASS = 'pr-[0.12em]';
 
 export function headingClass(level: HeadingLevel): string {
