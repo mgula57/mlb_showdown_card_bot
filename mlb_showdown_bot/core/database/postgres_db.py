@@ -6894,6 +6894,17 @@ class PostgresDB:
                 ALTER TABLE internal.release_cards
                     ADD COLUMN IF NOT EXISTS retired_at TIMESTAMP WITH TIME ZONE;
             """)
+            # Snapshot fields the release list tiles read for every card in a release. Stored generated
+            # columns, so the tiles never decompress the TOASTed card_snapshot (~90ms per release) and
+            # saves need no extra writes
+            cur.execute("""
+                ALTER TABLE internal.release_cards
+                    ADD COLUMN IF NOT EXISTS card_name TEXT GENERATED ALWAYS AS (card_snapshot->>'name') STORED,
+                    ADD COLUMN IF NOT EXISTS card_points NUMERIC GENERATED ALWAYS AS (
+                        CASE WHEN jsonb_typeof(card_snapshot->'points') = 'number'
+                             THEN (card_snapshot->>'points')::numeric END) STORED,
+                    ADD COLUMN IF NOT EXISTS card_showdown_set TEXT GENERATED ALWAYS AS (card_snapshot->>'showdown_set') STORED;
+            """)
             # One row per publish: what changed and the owner's note
             cur.execute("""
                 CREATE TABLE IF NOT EXISTS internal.release_versions (
@@ -7008,9 +7019,8 @@ class PostgresDB:
                            ORDER BY p.preview_rank NULLS LAST, p.edition_name, p.points DESC NULLS LAST
                        )
                   FROM (
-                    SELECT i.thumbnail_path, i.storage_path, rc.card_snapshot->>'name' AS name, rc.preview_rank, pe.name AS edition_name,
-                           CASE WHEN jsonb_typeof(rc.card_snapshot->'points') = 'number'
-                                THEN (rc.card_snapshot->>'points')::numeric END AS points
+                    SELECT i.thumbnail_path, i.storage_path, rc.card_name AS name, rc.preview_rank, pe.name AS edition_name,
+                           rc.card_points AS points
                       FROM internal.release_editions pe
                       JOIN internal.release_cards rc ON rc.edition_id = pe.id AND rc.retired_at IS NULL
                       JOIN internal.release_card_images i
@@ -7029,12 +7039,12 @@ class PostgresDB:
     # `{edition_filter}` limits which editions count (like `_RELEASE_PREVIEW_IMAGES_COLUMN`).
     _RELEASE_SHOWDOWN_SETS_COLUMN = """
             COALESCE((
-                SELECT array_agg(DISTINCT rc.card_snapshot->>'showdown_set')
+                SELECT array_agg(DISTINCT rc.card_showdown_set)
                   FROM internal.release_editions pe
                   JOIN internal.release_cards rc ON rc.edition_id = pe.id AND rc.retired_at IS NULL
                  WHERE pe.release_id = r.id
                    AND {draft_scope}
-                   AND rc.card_snapshot->>'showdown_set' IS NOT NULL
+                   AND rc.card_showdown_set IS NOT NULL
                    {edition_filter}
             ), ARRAY[]::text[]) AS showdown_sets,
     """
