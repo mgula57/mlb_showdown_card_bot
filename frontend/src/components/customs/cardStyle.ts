@@ -73,7 +73,6 @@ export type ImageParallelOption = SelectOption & { fullImage?: string; descripti
 export const imageParallelOptions: ImageParallelOption[] = [
     // Ungrouped options must come first, or they render under the previous group's header
     { "label": "Base", "value": "NONE", 'symbol': '―' },
-    { "label": "Mystery", "value": "MYSTERY", ...parallelSample('mystery'), "description": "Hides the player's name and photo behind a silhouette." },
 
     // Groups render a header when `group` changes, so keep each group contiguous
     { "label": "Gold", "value": "GOLD", "borderColor": "border-(--gold)", ...parallelSample('gold'), "description": "A solid gold background behind the team logo.", "group": "Gold" },
@@ -93,6 +92,8 @@ export const imageParallelOptions: ImageParallelOption[] = [
 
     { "label": "Comic Book Hero", "value": "CB", ...parallelSample('comic-book-hero'), "description": "Comic-style action lines behind the player.", "group": "Stylized" },
     { "label": "Black and White", "value": "B&W", ...parallelSample('black-and-white'), "description": "The whole image, player included, in black and white.", "group": "Stylized" },
+
+    { "label": "Mystery", "value": "MYSTERY", ...parallelSample('mystery'), "description": "Hides the player's name and photo behind a silhouette.", "group": "Misc" },
 ];
 
 export const imageColoringOptions: SelectOption[] = [
