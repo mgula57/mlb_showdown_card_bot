@@ -59,6 +59,7 @@ import { usePanelClose } from '../shared/panelClose';
 import { cardImagePublicUrl } from '../../api/supabase';
 
 import { Heading } from '../shared/Heading';
+import { SLANT_ROOM_CLASS } from '../shared/headingStyles';
 import { CAPS_LABEL_CLASS } from '../shared/fieldStyles';
 /**
  * Props for the CardDetail component
@@ -632,7 +633,7 @@ export const CardDetail = memo(function CardDetail({ showdownBotCardData: showdo
                 <Heading level="page" as="h2">
                     <a
                         href={card.bref_url || '#'}
-                        className="hover:text-(--showdown-blue) transition-colors"
+                        className={`hover:text-(--showdown-blue) transition-colors ${SLANT_ROOM_CLASS}`}
                         target="_blank"
                         rel="noopener noreferrer"
                     >
