@@ -1,3 +1,4 @@
+import { ImageLightbox } from './shared/ImageLightbox';
 import { Link } from 'react-router-dom';
 import {
     FaChevronRight, FaChevronDown, FaShieldAlt,
@@ -5,11 +6,10 @@ import {
     FaCompass, FaCalendar, FaAward
 } from 'react-icons/fa';
 import CardBuildIcon from './customs/CardBuildIcon';
-import { FaXmark, FaPeopleGroup, FaLayerGroup } from 'react-icons/fa6';
+import { FaPeopleGroup, FaLayerGroup } from 'react-icons/fa6';
 import LiveIcon from './shared/icons/LiveIcon';
 import { FaDiscord } from 'react-icons/fa';
 import { useState, useEffect, useRef } from 'react';
-import { createPortal } from 'react-dom';
 import { useTheme } from './shared/SiteSettingsContext';
 import { useSiteSettings } from './shared/SiteSettingsContext';
 import { useAuth } from './auth/AuthContext';
@@ -685,26 +685,7 @@ export default function Home() {
             )}
 
             {/* Recent card lightbox */}
-            {recentCardModal && createPortal(
-                <div
-                    className="fixed inset-0 z-9999 flex items-center justify-center bg-black/80"
-                    onClick={() => setRecentCardModal(null)}
-                >
-                    <button
-                        className="absolute top-4 right-4 text-white/70 hover:text-white transition-colors text-xl cursor-pointer"
-                        onClick={() => setRecentCardModal(null)}
-                    >
-                        <FaXmark />
-                    </button>
-                    <img
-                        src={recentCardModal}
-                        alt="Card full view"
-                        className="max-h-[90vh] max-w-[90vw] object-contain rounded-card shadow-overlay"
-                        onClick={(e) => e.stopPropagation()}
-                    />
-                </div>,
-                document.body
-            )}
+            {recentCardModal && <ImageLightbox src={recentCardModal} onClose={() => setRecentCardModal(null)} />}
 
             {/* Cards Section */}
             <div className="max-w-7xl mx-auto py-6 border-t border-(--divider)">

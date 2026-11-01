@@ -1,7 +1,7 @@
+import { ImageLightbox } from '../shared/ImageLightbox';
 import { useState, useEffect } from "react";
-import { createPortal } from "react-dom";
 import { type CustomCardLogRecord } from "../../api/card_db/cardDatabase";
-import { FaCircleCheck, FaCircleXmark, FaShuffle, FaImage, FaXmark, FaExpand } from "react-icons/fa6";
+import { FaCircleCheck, FaCircleXmark, FaShuffle, FaImage, FaExpand } from "react-icons/fa6";
 import { SetBadge } from "../shared/SetBadge";
 import type { CustomCardFormState } from "../customs/CustomCardBuilder";
 import { titleCase } from "../../functions/text";
@@ -248,29 +248,7 @@ export const CardHistory = ({ history, onSelectCard }: CardHistoryProps) => {
             </ul>
 
             {/* Lightbox */}
-            {modalImageUrl && createPortal(
-                <div
-                    className="fixed inset-0 z-9999 flex items-center justify-center bg-black/80"
-                    onClick={() => setModalImageUrl(null)}
-                >
-                    <button
-                        type="button"
-                        aria-label="Close"
-                        className="absolute top-4 right-4 text-white/70 hover:text-white transition-colors text-xl cursor-pointer"
-                        onClick={() => setModalImageUrl(null)}
-                    >
-                        <FaXmark />
-                    </button>
-                    <img
-                        src={modalImageUrl}
-                        alt="Card full view"
-                        // design-ok: card art keeps its printed corner radius
-                        className="max-h-[90vh] max-w-[90vw] object-contain rounded-lg shadow-overlay"
-                        onClick={(e) => e.stopPropagation()}
-                    />
-                </div>,
-                document.body
-            )}
+            {modalImageUrl && <ImageLightbox src={modalImageUrl} onClose={() => setModalImageUrl(null)} />}
         </div>
     );
 };

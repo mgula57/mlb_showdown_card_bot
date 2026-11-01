@@ -1,6 +1,8 @@
 import { useEffect } from 'react';
 import { FaCaretDown } from 'react-icons/fa6';
 import { Heading } from './Heading';
+import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
+import { UnderToolbarFill } from './UnderToolbarFill';
 
 type SlideOverProps = {
     isOpen: boolean;
@@ -22,27 +24,15 @@ type SlideOverProps = {
  * corner. Hidden on lg+ (use the desktop panel instead).
  */
 export function SlideOver({ isOpen, onClose, title, children, handleContent }: SlideOverProps) {
-    // Lock the background while open, same reasoning as BottomSheet's expanded lock:
-    // `overflow: hidden` alone isn't reliable on mobile Safari, so pin the body and
-    // cut pointer-events to everything except the panel/backdrop themselves.
+    // Lock the background while open: overflow lock for scrolling, plus cutting pointer-events to
+    // everything except the panel/backdrop themselves.
+    useBodyScrollLock(isOpen);
     useEffect(() => {
         if (!isOpen) return;
-        const scrollY = window.scrollY;
         const body = document.body;
-        const prev = { position: body.style.position, top: body.style.top, width: body.style.width, overflow: body.style.overflow, pointerEvents: body.style.pointerEvents };
-        body.style.position = 'fixed';
-        body.style.top = `-${scrollY}px`;
-        body.style.width = '100%';
-        body.style.overflow = 'hidden';
+        const prev = body.style.pointerEvents;
         body.style.pointerEvents = 'none';
-        return () => {
-            body.style.position = prev.position;
-            body.style.top = prev.top;
-            body.style.width = prev.width;
-            body.style.overflow = prev.overflow;
-            body.style.pointerEvents = prev.pointerEvents;
-            window.scrollTo(0, scrollY);
-        };
+        return () => { body.style.pointerEvents = prev; };
     }, [isOpen]);
 
     return (
@@ -58,6 +48,7 @@ export function SlideOver({ isOpen, onClose, title, children, handleContent }: S
                 `}
                 onClick={onClose}
             />
+            {isOpen && <UnderToolbarFill zIndex={40} className="left-0 w-full bg-black/50 lg:hidden" />}
 
             {/* Panel — slides up from fully off-screen. Height uses lvh (same reasoning as
                 the backdrop) rather than dvh so it never exposes a gap at the bottom edge

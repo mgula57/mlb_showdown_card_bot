@@ -160,7 +160,7 @@ export function Modal({ children, onClose, title, subtitle, footer, size = 'lg',
     return (
         <>
         <div 
-            className="fixed left-0 top-0 w-screen h-lvh bg-black/50 flex items-center justify-center z-50 p-4 cursor-pointer"
+            className="fixed left-0 top-0 w-screen h-lvh bg-black/50 flex items-center justify-center z-50 p-4 cursor-pointer pointer-events-auto"
             onClick={handleBackdropClick}
         >
             {/* Modal container with responsive sizing and theming. flex-col so the header and

@@ -3,7 +3,7 @@ import Cropper, { type Area } from 'react-easy-crop';
 import { FaSpinner } from 'react-icons/fa';
 
 import { buttonClass } from '../shared/buttonStyles';
-import { Heading } from '../shared/Heading';
+import { Modal } from '../shared/Modal';
 interface AvatarCropModalProps {
     imageSrc: string;
     onApply: (blob: Blob) => void;
@@ -52,44 +52,14 @@ const AvatarCropModal: React.FC<AvatarCropModalProps> = ({ imageSrc, onApply, on
     };
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70">
-            <div className="bg-(--background-secondary) rounded-card shadow-overlay w-full max-w-md mx-4 overflow-hidden">
-                <div className="px-5 py-4 border-b border-form-element">
-                    <Heading level="section">Crop Photo</Heading>
-                    <p className="text-xs text-secondary mt-0.5">Drag to reposition · scroll or pinch to zoom</p>
-                </div>
-
-                {/* Crop area */}
-                <div className="relative w-full" style={{ height: 320 }}>
-                    <Cropper
-                        image={imageSrc}
-                        crop={crop}
-                        zoom={zoom}
-                        aspect={1}
-                        cropShape="round"
-                        showGrid={false}
-                        onCropChange={setCrop}
-                        onZoomChange={setZoom}
-                        onCropComplete={onCropComplete}
-                    />
-                </div>
-
-                {/* Zoom slider */}
-                <div className="px-5 py-3 border-t border-form-element">
-                    <input
-                        type="range"
-                        min={1}
-                        max={3}
-                        step={0.01}
-                        value={zoom}
-                        onChange={e => setZoom(Number(e.target.value))}
-                        className="w-full accent-(--showdown-blue)"
-                        aria-label="Zoom"
-                    />
-                </div>
-
-                {/* Actions */}
-                <div className="px-5 py-4 border-t border-form-element flex justify-end gap-3">
+        <Modal
+            size="sm"
+            onClose={onCancel}
+            title="Crop Photo"
+            subtitle="Drag to reposition · scroll or pinch to zoom"
+            disableCloseButton={isUploading}
+            footer={
+                <div className="flex justify-end gap-3">
                     <button
                         type="button"
                         onClick={onCancel}
@@ -108,8 +78,37 @@ const AvatarCropModal: React.FC<AvatarCropModalProps> = ({ imageSrc, onApply, on
                         {isUploading ? 'Saving…' : 'Apply'}
                     </button>
                 </div>
+            }
+        >
+            {/* Crop area */}
+            <div className="relative w-full" style={{ height: 320 }}>
+                <Cropper
+                    image={imageSrc}
+                    crop={crop}
+                    zoom={zoom}
+                    aspect={1}
+                    cropShape="round"
+                    showGrid={false}
+                    onCropChange={setCrop}
+                    onZoomChange={setZoom}
+                    onCropComplete={onCropComplete}
+                />
             </div>
-        </div>
+
+            {/* Zoom slider */}
+            <div className="px-4 py-3 border-t border-form-element">
+                <input
+                    type="range"
+                    min={1}
+                    max={3}
+                    step={0.01}
+                    value={zoom}
+                    onChange={e => setZoom(Number(e.target.value))}
+                    className="w-full accent-(--showdown-blue)"
+                    aria-label="Zoom"
+                />
+            </div>
+        </Modal>
     );
 };
 

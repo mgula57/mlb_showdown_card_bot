@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { FaXmark, FaWandMagicSparkles, FaSpinner } from 'react-icons/fa6';
+import { FaWandMagicSparkles, FaSpinner } from 'react-icons/fa6';
 import { buttonClass } from '../shared/buttonStyles';
 
 import type { AutofillStrategy, PtsDistribution } from '../../api/userTeams';
@@ -15,7 +15,7 @@ import {
 import FormEnabler from '../customs/FormEnabler';
 import { FIELD_LABEL_CLASS, CAPS_LABEL_CLASS, fieldClass } from '../shared/fieldStyles';
 import { choiceClass } from '../shared/choiceStyles';
-import { Heading } from '../shared/Heading';
+import { Modal } from '../shared/Modal';
 type BucketSizes = {
     offense: number;   // always 9
     rotation: number;  // num_starters
@@ -190,39 +190,65 @@ export function AutofillPanel({ ptsLimit, bucketSizes, existingPts, existingPick
 
     const sliderStep = 10;
 
-    return (
-        <div
-            className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
-            onClick={onClose}
-        >
-            <div
-                className="bg-(--background-primary) rounded-card w-full max-w-sm shadow-overlay border border-(--divider) overflow-hidden"
-                onClick={e => e.stopPropagation()}
-            >
-                {/* Header */}
-                <div className="flex items-center justify-between px-4 pt-4 pb-3 border-b border-(--divider)">
-                    <div>
-                        <Heading level="section" className="flex items-center gap-1.5">
-                            <FaWandMagicSparkles className="text-(--showdown-red) text-base" />
-                            Autofill Roster
-                        </Heading>
-                        <div className="text-[11px] text-(--text-secondary) mt-0.5">
-                            {targetConfirmed ? (
-                                <>Budget: <span className="font-bold text-(--text-primary)">{effectiveLimit.toLocaleString()} pts</span></>
-                            ) : (
-                                'This team has no points cap — pick a target to autofill against'
-                            )}
+    const footer = (
+        <>
+                    {error && (
+                        <div className="bg-(--red)/10 border border-(--red)/30 rounded-control px-3 py-2.5 space-y-2">
+                            <div className="text-[12px] font-semibold text-(--red)">
+                                Autofill couldn't complete
+                            </div>
+                            <p className="text-[11px] text-(--red) leading-snug">
+                                {error}
+                            </p>
                         </div>
-                    </div>
-                    <button
-                        type="button"
-                        onClick={onClose}
-                        className="text-(--text-tertiary) hover:text-(--text-primary) transition-colors hover:bg-(--divider) rounded-control p-1 cursor-pointer"
-                    >
-                        <FaXmark />
-                    </button>
-                </div>
+                    )}
+                    {!targetConfirmed ? (
+                        <button
+                            type="button"
+                            onClick={confirmTarget}
+                            disabled={customTarget < totalFloors}
+                            className={buttonClass('primary', 'md', 'w-full py-2.5!')}
+                        >
+                            Continue
+                        </button>
+                    ) : (
+                        <button
+                            type="button"
+                            onClick={handleConfirm}
+                            disabled={loading || overBudget || totalAllocated > effectiveLimit}
+                            className={buttonClass('primary', 'md', 'w-full transform-gpu py-2.5!')}
+                        >
+                            {loading ? (
+                                <span key="loading" className="flex items-center gap-2">
+                                    <FaSpinner className="animate-spin" />
+                                    Filling…
+                                </span>
+                            ) : (
+                                <span key="idle" className="flex items-center gap-2">
+                                    <FaWandMagicSparkles />
+                                    Fill Roster
+                                </span>
+                            )}
+                        </button>
+                    )}
+        </>
+    );
 
+    return (
+        <Modal
+            size="sm"
+            onClose={onClose}
+            title={
+                <span className="flex items-center gap-1.5">
+                    <FaWandMagicSparkles className="text-(--showdown-red) text-base" />
+                    Autofill Roster
+                </span>
+            }
+            subtitle={targetConfirmed
+                ? `Budget: ${effectiveLimit.toLocaleString()} pts`
+                : 'This team has no points cap — pick a target to autofill against'}
+            footer={footer}
+        >
                 {existingPickCount > 0 && (
                     <div className="px-4 pt-3">
                         <FormEnabler
@@ -415,49 +441,6 @@ export function AutofillPanel({ ptsLimit, bucketSizes, existingPts, existingPick
                 </div>
                 )}
 
-                {/* Footer */}
-                <div className="flex flex-col gap-2 px-4 pb-4 pt-3 border-t border-(--divider)">
-                    {error && (
-                        <div className="bg-(--red)/10 border border-(--red)/30 rounded-control px-3 py-2.5 space-y-2">
-                            <div className="text-[12px] font-semibold text-(--red)">
-                                Autofill couldn't complete
-                            </div>
-                            <p className="text-[11px] text-(--red) leading-snug">
-                                {error}
-                            </p>
-                        </div>
-                    )}
-                    {!targetConfirmed ? (
-                        <button
-                            type="button"
-                            onClick={confirmTarget}
-                            disabled={customTarget < totalFloors}
-                            className={buttonClass('primary', 'md', 'w-full py-2.5!')}
-                        >
-                            Continue
-                        </button>
-                    ) : (
-                        <button
-                            type="button"
-                            onClick={handleConfirm}
-                            disabled={loading || overBudget || totalAllocated > effectiveLimit}
-                            className={buttonClass('primary', 'md', 'w-full transform-gpu py-2.5!')}
-                        >
-                            {loading ? (
-                                <span key="loading" className="flex items-center gap-2">
-                                    <FaSpinner className="animate-spin" />
-                                    Filling…
-                                </span>
-                            ) : (
-                                <span key="idle" className="flex items-center gap-2">
-                                    <FaWandMagicSparkles />
-                                    Fill Roster
-                                </span>
-                            )}
-                        </button>
-                    )}
-                </div>
-            </div>
-        </div>
+        </Modal>
     );
 }

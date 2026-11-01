@@ -1963,64 +1963,42 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
 
             {/* Confirmation modal: choose which position to assign the picked card */}
             {confirmCard && (
-                <div
-                    // `pointer-events-auto` is required: this modal renders as a sibling of the
-                    // draft-search SlideOver, which pins `body { pointer-events: none }` while
-                    // open. Without it, touches on mobile fall through to the panel underneath.
-                    className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 pointer-events-auto"
-                    onClick={() => setConfirmCard(null)}
+                <Modal
+                    size="sm"
+                    onClose={() => setConfirmCard(null)}
+                    title="Choose a position"
+                    subtitle="Where should this card be placed?"
                 >
-                    <div
-                        className="bg-(--background-primary) rounded-card w-full max-w-md shadow-overlay border border-(--divider) overflow-hidden"
-                        onClick={e => e.stopPropagation()}
-                    >
-                        {/* Header */}
-                        <div className="flex items-start justify-between px-4 pt-4 pb-3 border-b border-(--divider)">
-                            <div>
-                                <Heading level="section">Choose a position</Heading>
-                                <div className="text-[11px] text-(--text-secondary) mt-0.5">Where should this card be placed?</div>
-                            </div>
-                            <button
-                                type="button"
-                                onClick={() => setConfirmCard(null)}
-                                aria-label="Close"
-                                className="text-(--text-tertiary) hover:text-(--text-primary) transition-colors mt-0.5 cursor-pointer"
-                            >
-                                <FaXmark className="text-[13px]" />
-                            </button>
-                        </div>
-
-                        {/* Card preview */}
-                        <div className="px-4 py-3 border-b border-(--divider)">
-                            <CardItemFromCardDatabaseRecord card={confirmCard} />
-                        </div>
-
-                        {/* Position buttons */}
-                        <div className="px-4 py-3 flex flex-col gap-2">
-                            {confirmFieldPositions.length > 0 && (
-                                <div className="grid grid-cols-2 lg:grid-cols-3 gap-1.5">
-                                    {confirmFieldPositions.map(renderPositionButton)}
-                                </div>
-                            )}
-                            {confirmRotationPositions.length > 0 && (
-                                <>
-                                    <div className={`${CAPS_LABEL_CLASS} text-(--text-tertiary)`}>Rotation</div>
-                                    <div className="grid grid-cols-2 lg:grid-cols-3 gap-1.5">
-                                        {confirmRotationPositions.map(renderPositionButton)}
-                                    </div>
-                                </>
-                            )}
-                            {confirmBullpenPositions.length > 0 && (
-                                <>
-                                    <div className={`${CAPS_LABEL_CLASS} text-(--text-tertiary)`}>Bullpen</div>
-                                    <div className="flex flex-wrap gap-1.5">
-                                        {confirmBullpenPositions.map(renderPositionButton)}
-                                    </div>
-                                </>
-                            )}
-                        </div>
+                    {/* Card preview */}
+                    <div className="px-4 py-3 border-b border-(--divider)">
+                        <CardItemFromCardDatabaseRecord card={confirmCard} />
                     </div>
-                </div>
+
+                    {/* Position buttons */}
+                    <div className="px-4 py-3 flex flex-col gap-2">
+                        {confirmFieldPositions.length > 0 && (
+                            <div className="grid grid-cols-2 lg:grid-cols-3 gap-1.5">
+                                {confirmFieldPositions.map(renderPositionButton)}
+                            </div>
+                        )}
+                        {confirmRotationPositions.length > 0 && (
+                            <>
+                                <div className={`${CAPS_LABEL_CLASS} text-(--text-tertiary)`}>Rotation</div>
+                                <div className="grid grid-cols-2 lg:grid-cols-3 gap-1.5">
+                                    {confirmRotationPositions.map(renderPositionButton)}
+                                </div>
+                            </>
+                        )}
+                        {confirmBullpenPositions.length > 0 && (
+                            <>
+                                <div className={`${CAPS_LABEL_CLASS} text-(--text-tertiary)`}>Bullpen</div>
+                                <div className="flex flex-wrap gap-1.5">
+                                    {confirmBullpenPositions.map(renderPositionButton)}
+                                </div>
+                            </>
+                        )}
+                    </div>
+                </Modal>
             )}
 
             {showPublishModal && token && (
