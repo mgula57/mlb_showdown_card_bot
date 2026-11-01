@@ -39,7 +39,7 @@ from .utils.shared_functions import convert_to_date, convert_number_to_ordinal, 
 from .stats.accolade import Accolade
 from .stats.special_accolade import SpecialAccolades
 from .stats.metrics import DefenseMetric
-from .stats.stats_period import StatsPeriod, StatsPeriodType, TeamSelection
+from .stats.stats_period import PostseasonRound, StatsPeriod, StatsPeriodType, TeamSelection
 from .stats.real_vs_projected_stat import RealVsProjectedStat
 from .stats.datasource import Datasource
 
@@ -4982,6 +4982,12 @@ class ShowdownPlayerCard(BaseModel):
         """
 
         # LOGO
+        # WORLD SERIES HAS A DEDICATED LOGO PER YEAR (EX: team_logos/WS-2026.png) THAT INCLUDES THE YEAR.
+        # FALL BACK TO THE GENERIC POSTSEASON LOGO IF THERE IS NONE
+        world_series_logo_path = self._world_series_logo_path()
+        if world_series_logo_path:
+            logo_size = self.set.template_component_size(TemplateImageComponent.POSTSEASON)
+            return Image.open(world_series_logo_path).resize(logo_size, Image.Resampling.LANCZOS)
         postseason_logo_image = Image.open(self._template_img_path('Postseason'))
 
         # ADD YEAR(S)
@@ -5016,6 +5022,15 @@ class ShowdownPlayerCard(BaseModel):
         postseason_logo_image = postseason_logo_image.resize(logo_size, Image.Resampling.LANCZOS)
 
         return postseason_logo_image
+
+    def _world_series_logo_path(self) -> Optional[str]:
+        """Path to the World Series logo, if the period is isolated to the World Series and the logo exists.
+        Multi-year/career cards use the year the player had the most World Series games in."""
+        year = self.stats_period.postseason_round_year or self.stats_period.year_int
+        if self.stats_period.postseason_round != PostseasonRound.WORLD_SERIES or year is None:
+            return None
+        path = self._team_logo_path(f'WS-{year}')
+        return path if os.path.isfile(path) else None
 
     def _wbc_image(self) -> Image.Image:
         """Identifies year and creates image for optional WBC edition logo.

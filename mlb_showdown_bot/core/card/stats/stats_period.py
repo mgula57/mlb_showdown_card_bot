@@ -225,6 +225,7 @@ class StatsPeriod(BaseModel):
     # SPLIT
     split: Optional[str] = None
     situation_code: Optional[str] = None
+    postseason_round_year: Optional[int] = None  # Year the player had the most games in the isolated postseason round. Set from game logs
 
     # OVERRIDES
     team_override: Optional[Team] = None
@@ -660,6 +661,7 @@ class StatsPeriod(BaseModel):
         last_year = self.year_list[-1]
         is_multi_year = first_year != last_year
         postseason_round = self.postseason_round
+        round_games_by_year: dict[int, int] = {}
         for game_log_data in game_logs:
 
             # ------------------------
@@ -704,6 +706,10 @@ class StatsPeriod(BaseModel):
             # SKIP ROW IF IT FAILS THE DATE OR YEAR CHECKS
             if not date_check or not year_check:
                 continue 
+
+            # COUNT GAMES IN THE ROUND BY YEAR
+            if postseason_round:
+                round_games_by_year[year_from_game_log] = round_games_by_year.get(year_from_game_log, 0) + 1
 
             # ADD TO GAMES PLAYED
             game_log_data['G'] = 1
@@ -784,6 +790,9 @@ class StatsPeriod(BaseModel):
         aggregated_data = fill_empty_stat_categories(stats_data=aggregated_data, is_pitcher=is_pitcher, is_game_logs=True)
         
         self.stats = aggregated_data
+        # MOST GAMES IN THE ROUND, TIES GO TO THE LATEST YEAR
+        if round_games_by_year:
+            self.postseason_round_year = max(round_games_by_year, key=lambda year: (round_games_by_year[year], year))
         self.display_text = self._display_text()
 
     def _display_text(self) -> str:
