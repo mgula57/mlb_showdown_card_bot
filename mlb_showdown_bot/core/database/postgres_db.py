@@ -8210,7 +8210,7 @@ class PostgresDB:
                 edition_id,
                 card.get('source_card_id'),
                 card.get('source_card_type'),
-                extras.Json(card['card_snapshot']),
+                extras.Json(PostgresDB._strip_unused_game_logs(card['card_snapshot'])),
                 card.get('card_number'),
                 PostgresDB._normalize_release_card_tags(card.get('tags')),
                 preview_rank,
@@ -8232,6 +8232,24 @@ class PostgresDB:
                 retired_at       = NULL,
                 updated_at       = NOW()
         """, batch)
+
+    _GAME_LOG_KEYS = ('game_logs', 'postseason_game_logs')
+
+    @staticmethod
+    def _strip_unused_game_logs(snapshot: dict) -> dict:
+        """Drop an embedded card's game logs (~40% of `card_data`) unless its stats period reads them
+        (`StatsPeriodType.uses_game_logs`). A period type that is missing or unrecognized keeps them."""
+        card_data = snapshot.get('card_data') if isinstance(snapshot, dict) else None
+        if not isinstance(card_data, dict) or not isinstance(card_data.get('stats'), dict):
+            return snapshot
+        period_type = (card_data.get('stats_period') or {}).get('type')
+        try:
+            if StatsPeriodType(period_type).uses_game_logs:
+                return snapshot
+        except ValueError:
+            return snapshot
+        stats = {key: value for key, value in card_data['stats'].items() if key not in PostgresDB._GAME_LOG_KEYS}
+        return {**snapshot, 'card_data': {**card_data, 'stats': stats}}
 
     _RELEASE_CARD_MAX_PREVIEW_RANK = 3
 
