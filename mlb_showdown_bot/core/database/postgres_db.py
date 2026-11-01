@@ -7637,46 +7637,36 @@ class PostgresDB:
             cur.execute("DELETE FROM internal.release_saves WHERE release_id = %s", (release_id,))
             return True, orphaned_paths
 
-    _EDITION_BASE_SELECT = """
-        SELECT
-            e.id, e.release_id, e.name, e.attributes, e.slug, e.is_published, e.draft_of, e.published_at, e.cards_version,
-            e.created_at, e.updated_at,
-            COALESCE(
-                json_agg(
-                    json_build_object(
-                        'id',               rc.id,
-                        'card_number',      rc.card_number,
-                        'source_card_id',   rc.source_card_id,
-                        'source_card_type', rc.source_card_type,
-                        'card_snapshot',    rc.card_snapshot,
-                        'tags',             rc.tags,
-                        'preview_rank',     rc.preview_rank,
-                        'card_overrides',   rc.card_overrides
-                    ) ORDER BY rc.card_number
-                ) FILTER (WHERE rc.id IS NOT NULL),
-                '[]'::json
-            ) AS cards
-        FROM internal.release_editions e
-        JOIN internal.releases r ON r.id = e.release_id
-        LEFT JOIN internal.release_cards rc ON rc.edition_id = e.id AND rc.retired_at IS NULL
-    """
-
     def get_edition(self, edition_id: str, user_id: str | None = None) -> dict | None:
         """Return a single edition with its full card list. Enforces ownership unless published."""
         if not self.connection:
             return None
-        query = self._EDITION_BASE_SELECT + """
+        edition_query = """
+            SELECT e.id, e.release_id, e.name, e.attributes, e.slug, e.is_published, e.draft_of, e.published_at,
+                   e.cards_version, e.created_at, e.updated_at
+            FROM internal.release_editions e
+            JOIN internal.releases r ON r.id = e.release_id
             WHERE e.id = %s AND e.retired_at IS NULL AND r.retired_at IS NULL
               AND (e.is_published = TRUE OR r.created_by = %s)
-            GROUP BY e.id
+        """
+        # Cards are fetched as rows, not json_agg'd: aggregating with ORDER BY sorts every wide
+        # card_snapshot and spills to temp files, while unique_card_number already yields card_number order
+        cards_query = """
+            SELECT id, card_number, source_card_id, source_card_type, card_snapshot, tags, preview_rank, card_overrides
+            FROM internal.release_cards
+            WHERE edition_id = %s AND retired_at IS NULL
+            ORDER BY card_number
         """
         with self.connection.cursor(cursor_factory=RealDictCursor) as cur:
-            cur.execute(query, (edition_id, user_id))
+            cur.execute(edition_query, (edition_id, user_id))
             row = cur.fetchone()
             if not row:
                 print(f"Edition {edition_id} not found or access denied for user {user_id}.")
                 return None
-            return self._serialize_edition_row(dict(row))
+            cur.execute(cards_query, (edition_id,))
+            row = dict(row)
+            row['cards'] = [{**card, 'id': str(card['id'])} for card in cur.fetchall()]
+            return self._serialize_edition_row(row)
 
     def get_other_edition_players(self, release_id: str, edition_id: str, user_id: str) -> Dict[str, List[str]]:
         """Players carded in the owner's other editions of a release, keyed by bref_id (w/ type override)
