@@ -142,6 +142,7 @@ export function ReleaseDetail({ release, readOnly, editionSlug, onEditionChange,
         fetchEdition(release.id, activeLoadedId, token)
             .then(edition => setEditionCache(prev => ({ ...prev, [edition.id]: edition })))
             .catch(err => setError(err.message ?? 'Failed to load edition.'));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [activeLoadedId, release.id, token]);
 
     function changeMode(next: ViewMode) {

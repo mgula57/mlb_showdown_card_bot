@@ -101,6 +101,7 @@ export function QuickFiltersDropdown({ source, defaultPresets, currentFilters, o
             setSaveMode(false);
             setSaveName('');
         }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [isOpen, isLoggedIn]);
 
     // Close on outside click; also compute left/right alignment on open

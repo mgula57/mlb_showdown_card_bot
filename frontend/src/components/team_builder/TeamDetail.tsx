@@ -389,6 +389,7 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
         if (allowed.length > 0 && !allowed.includes(draftSource)) {
             setDraftSource(allowed[0] as CardSourceType);
         }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [draft.allowed_card_sources]);
 
     useEffect(() => { setDraft(team); setDirty(false); setSaveStatus('idle'); setPendingPickPositions(new Set()); }, [team]);
@@ -400,7 +401,6 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
         setEditMode(false);
         setPendingSettings(null);
         setShowSettingsModal(false);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [team.team_id]);
 
     // Safety net: never leave a "saving" spinner stuck on a slot if a save fails or the team
@@ -469,6 +469,7 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
             .then(seasons => { if (!stale) setTeamSeasons(seasons); })
             .catch(() => { if (!stale) setTeamSeasons([]); });
         return () => { stale = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [team.team_id, token]);
 
     // The user's own in-flight job (at most one can exist) - lets the Sims tab surface it, so a
@@ -503,6 +504,7 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
             }
         }, delay);
         return () => { if (saveTimerRef.current) clearTimeout(saveTimerRef.current); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [draft, dirty]);
 
     // Flush any pending debounced save before navigating away, so a change made in the last
@@ -806,7 +808,10 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
         [draft, pendingSettings],
     );
 
-    const defaultLineup = draft.lineups[0] ?? { name: 'Default', slots: [] };
+    const defaultLineup = useMemo(
+        () => draft.lineups[0] ?? { name: 'Default', slots: [] },
+        [draft.lineups],
+    );
     const primary = draft.primary_color || 'rgb(0,0,0)';
 
     // The mode banner is a flat fill in the team's primary color (see ModeBanner); one set of

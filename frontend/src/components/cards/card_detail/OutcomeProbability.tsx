@@ -194,6 +194,7 @@ export default function OutcomeProbability({ chart, primaryColor, secondaryColor
         setOpponentCommand(defaultOpponentCommand);
         setOpponentCard(null);
         setSearchKey(k => k + 1);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [chart, set]);
 
     const handleOpponentSelect = async (selection: PlayerSearchSelection) => {

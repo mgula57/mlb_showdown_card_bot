@@ -103,7 +103,7 @@ export function Modal({ children, onClose, title, subtitle, footer, size = 'lg',
     useEffect(() => {
         if (pageSection !== pageSectionRef.current) {
             pageSectionRef.current = pageSection;
-            onClose();
+            onCloseRef.current();
         }
     }, [pageSection]);
 

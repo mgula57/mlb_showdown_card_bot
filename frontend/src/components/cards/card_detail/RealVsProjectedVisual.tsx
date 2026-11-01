@@ -87,6 +87,7 @@ function PercentileBar({ stat, real, statRanges, hasRanges, isLoading, playerTyp
         if (animatedPct === targetPct) return; // No animation if value is unchanged
         const frame = requestAnimationFrame(() => setAnimatedPct(targetPct));
         return () => cancelAnimationFrame(frame);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [targetPct, hasValidRange]);
 
     // Early returns after all hooks

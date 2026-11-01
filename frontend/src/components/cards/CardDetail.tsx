@@ -375,6 +375,7 @@ export const CardDetail = memo(function CardDetail({ showdownBotCardData: showdo
             return;
         }
 
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [showdownBotCardData, cardFetchKey, styleOverrides]);
 
     // Image Generation State

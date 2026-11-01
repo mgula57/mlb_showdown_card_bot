@@ -96,6 +96,7 @@ export function CardComps({ card, isLoading }: CardCompsProps) {
             .then(setComps)
             .catch(() => setComps([]))
             .finally(() => setIsFetching(false));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [card?.bref_id, card?.set, card?.year]);
 
     const isEmpty = !isFetching && comps.length === 0 && !isLoading;

@@ -46,6 +46,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({ onClose, onSuccess }) =>
         }, 500);
 
         return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [username, step]);
 
     const handleOAuthSignIn = async (provider: 'google' | 'discord') => {

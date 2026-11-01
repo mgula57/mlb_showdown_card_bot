@@ -361,6 +361,7 @@ export default function Home() {
         }).finally(() => {
             setIsLoadingLeaders(false);
         });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [leaderGroups, userShowdownSet]);
 
     // Fetch total card count on mount
@@ -383,6 +384,7 @@ export default function Home() {
         }, 100);
 
         return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [userShowdownSet]);
 
     useEffect(() => {
@@ -407,6 +409,7 @@ export default function Home() {
             }
             setRecentCards(items);
         }).catch(() => setRecentCards([])).finally(() => setIsLoadingRecentCards(false));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [user, authLoading]);
 
     useEffect(() => {

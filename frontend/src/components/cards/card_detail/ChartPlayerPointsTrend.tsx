@@ -70,8 +70,8 @@ const ChartPlayerPointsTrend = ({ title, trendData }: ChartPlayerPointsTrendProp
      * Generate unique gradient IDs to prevent conflicts between multiple chart instances
      * Each chart needs its own gradient definition in the SVG
      */
-    const gradientId = useMemo(() => `gradient-${Math.random().toString(36).substr(2, 9)}`, [title]);
-    const strokeGradientId = useMemo(() => `stroke-gradient-${Math.random().toString(36).substr(2, 9)}`, [title]);
+    const gradientId = useMemo(() => `gradient-${Math.random().toString(36).substr(2, 9)}`, []);
+    const strokeGradientId = useMemo(() => `stroke-gradient-${Math.random().toString(36).substr(2, 9)}`, []);
 
     /**
      * Create horizontal gradient stops based on team colors over time

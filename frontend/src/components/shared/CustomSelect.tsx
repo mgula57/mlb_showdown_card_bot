@@ -247,6 +247,7 @@ const CustomSelect: React.FC<CustomSelectProps> = ({ value, onChange, options, c
             document.removeEventListener('mousedown', handleClickOutside);
         };
 
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [isOpen, options.length]);
 
     /** 

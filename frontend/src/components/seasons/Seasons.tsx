@@ -4,7 +4,7 @@
  * Displays real MLB season results with Showdown context including
  * player cards, team points, and performance analytics.
  */
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../auth/AuthContext";
 import { DayPicker } from "react-day-picker";
@@ -112,14 +112,14 @@ type SeasonsProps = {
 };
 
 export default function Seasons({ type, title, subtitle, staticSports, staticSeasons }: SeasonsProps) {
-    const STORAGE_KEYS = {
+    const STORAGE_KEYS = useMemo(() => ({
         seasonId: `${type}.seasons.selectedSeasonId`,
         sportId: `${type}.seasons.selectedSportId`,
         leagueGroup: `${type}.seasons.selectedLeagueGroup`,
         activeTab: `${type}.seasons.activeTab`,
         sidebarCollapsed: `${type}.seasons.sidebarCollapsed`,
         starredTeams: `${type}.seasons.starredTeams`,
-    };
+    }), [type]);
 
     const getStoredValue = (key: string): string | null => {
         if (typeof window === "undefined") {
@@ -205,7 +205,6 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
         if (selectedGamePk !== null) {
             setActiveTab('schedule');
         }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [selectedGamePk]);
 
     // `?sim=1` (e.g. "Run again" from a finished sim) opens the Simulate tab with the setup form
@@ -388,7 +387,7 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
     const hideAwardWinners = selectedSeasonYear === nowForAwards.getFullYear()
         && nowForAwards < new Date(nowForAwards.getFullYear(), 10, 1);
 
-    const tabs = [
+    const tabs = useMemo(() => [
         ...(isSelectedSeasonOver ? [] : [{ id: "schedule", label: "Schedule", icon: <FaCalendarDays /> }]),
         { id: "standings", label: "Standings", icon: <FaRankingStar /> },
         { id: "leaders", label: "Leaders", icon: <FaTrophy /> },
@@ -396,7 +395,7 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
         ...(type === "mlb" ? [{ id: "simulate", label: "Simulations", icon: <FaDice /> }] : []),
         { id: "teams", label: "Teams", icon: <FaClipboardList /> },
         // { id: "players", label: "Players", icon: <FaUserGroup /> },
-    ];
+    ], [isSelectedSeasonOver, hideAwardWinners, type]);
 
     // ************************
     // Loading Methods
@@ -741,12 +740,14 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
     // ************************
     useEffect(() => {
         loadSeasons();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
     // Single orchestrated load: sports → leagues → standings + schedules in parallel
     useEffect(() => {
         if (!selectedSeason) return;
         loadAll();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [selectedSeason]);
 
     // Re-run standings + both schedules when user changes league group or showdown set
@@ -754,29 +755,31 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
         if (isRunningLoadAllRef.current || !selectedSeason || leagues.length === 0) return;
         loadStandings();
         loadGamesSchedule();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [selectedLeagueGroup, userShowdownSet]);
 
     // Re-run only games schedule when selected date changes
     useEffect(() => {
         if (!selectedSeason || leagues.length === 0) return;
         loadGamesSchedule();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [gamesDate]);
 
     useEffect(() => {
         setStoredValue(STORAGE_KEYS.seasonId, selectedSeason?.season_id?.toString() ?? null);
-    }, [selectedSeason]);
+    }, [STORAGE_KEYS.seasonId, selectedSeason]);
 
     useEffect(() => {
         setStoredValue(STORAGE_KEYS.sportId, selectedSport?.id?.toString() ?? null);
-    }, [selectedSport]);
+    }, [STORAGE_KEYS.sportId, selectedSport]);
 
     useEffect(() => {
         setStoredValue(STORAGE_KEYS.activeTab, activeTab);
-    }, [activeTab]);
+    }, [STORAGE_KEYS.activeTab, activeTab]);
 
     useEffect(() => {
         setStoredValue(STORAGE_KEYS.sidebarCollapsed, isSidebarCollapsed ? "true" : "false");
-    }, [isSidebarCollapsed]);
+    }, [STORAGE_KEYS.sidebarCollapsed, isSidebarCollapsed]);
 
     useEffect(() => {
         setStoredValue(STORAGE_KEYS.starredTeams, JSON.stringify(starredTeamKeys));
@@ -787,7 +790,7 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
 
     useEffect(() => {
         setStoredValue(STORAGE_KEYS.leagueGroup, selectedLeagueGroup);
-    }, [selectedLeagueGroup]);
+    }, [STORAGE_KEYS.leagueGroup, selectedLeagueGroup]);
 
     useEffect(() => {
         if (!tabs.some((tab) => tab.id === activeTab)) {
@@ -806,6 +809,7 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
         if (selectedTeam === null || selectedTeam.id === undefined) return;
         setSelectedRoster(null);
         loadShowdownTeam(selectedTeam).then(setSelectedRoster);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [selectedTeam, userShowdownSet, activeTab]);
 
     // Load the inline roster shown below the standings table
@@ -813,6 +817,7 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
         if (activeTab !== "standings" || standingsTeam === null) return;
         setStandingsRoster(null);
         loadShowdownTeam(standingsTeam).then(setStandingsRoster);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [standingsTeam, userShowdownSet, activeTab]);
 
     // Scroll the inline roster into view so it's clear the selection did something

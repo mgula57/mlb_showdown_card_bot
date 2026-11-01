@@ -133,7 +133,6 @@ export default function PlayByPlayLog({ plays, cardMap, onCardSelect, isLoadingC
     // list changes (live polling can grow it, and the filter can shrink it).
     useEffect(() => {
         checkScroll();
-        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [visiblePlays, isLoadingCards]);
 
     const filterToggle = (

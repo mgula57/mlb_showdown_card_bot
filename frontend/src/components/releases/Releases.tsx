@@ -103,6 +103,7 @@ export default function Releases() {
     useEffect(() => {
         if (authLoading || !isOnReleaseBuilder || releaseIdFromUrl || listLoaded) return;
         loadReleases();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [authLoading, isOnReleaseBuilder, releaseIdFromUrl, listLoaded, userId]);
 
     const activeOpenRelease = releaseIdFromUrl ? openReleases[releaseIdFromUrl] : undefined;
@@ -143,12 +144,14 @@ export default function Releases() {
                 if (!cancelled) navigate('/release-builder', { replace: true });
             });
         return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [authLoading, releaseIdFromUrl, isOnReleaseBuilder, token]);
 
     // Bare release URL (no edition slug) → restore the edition last viewed in that release.
     useEffect(() => {
         if (!isOnReleaseBuilder || !activeOpenRelease || editionSlugFromUrl || !activeOpenRelease.editionSlug) return;
         navigate(`/release-builder/${activeOpenRelease.release.id}/${activeOpenRelease.editionSlug}`, { replace: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [releaseIdFromUrl, editionSlugFromUrl, isOnReleaseBuilder, isActiveReleaseMounted]);
 
     // Remember the edition being viewed so returning to this release lands on it.

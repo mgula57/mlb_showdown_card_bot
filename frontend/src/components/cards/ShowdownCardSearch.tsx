@@ -1022,6 +1022,7 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
         if (!disableLocalStorage) {
             saveFilters(filters, source);
         }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [filters, source]);
 
     // Clean filters when source changes to remove unavailable filters
@@ -1036,6 +1037,7 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
         if (JSON.stringify(cleanedForEditing) !== JSON.stringify(filtersForEditing)) {
             setFiltersForEditing(cleanedForEditing);
         }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [source]);
 
     // Re-seed whenever the injected `defaultFilters` change. A key that was seeded before but
@@ -1081,6 +1083,7 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
         };
 
         loadHierarchyData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []); // Empty dependency array - only run once
 
     // Note: We don't clear selected card when showdown set changes anymore
@@ -1106,6 +1109,7 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
     // Only My Customs' request depends on the session (sent as a bearer token, required to scope
     // the search) — `authToken` stays a stable `undefined` for other sources so a session
     // resolving/changing (e.g. restoring one from storage on refresh) doesn't refetch every tab.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [effectiveShowdownSet, filters, debouncedSearchText, authToken, scopeFiltersKey]);
 
     // Abort any in-flight card fetch on unmount
@@ -1137,6 +1141,7 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
             root: null
         });
         if (node) observer.current.observe(node);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [isLoading, hasMore, isLoadingMore]);
 
     const getCardsData = async (pageNum: number = 1, append: boolean = false) => {
