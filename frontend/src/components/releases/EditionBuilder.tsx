@@ -741,11 +741,18 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
         const existingSourceIds = new Set(cards.map(c => c.source_card_id).filter(Boolean));
         const remainingSlots = Math.max(0, activePreview.summary.requested_set_size - cards.length);
         const additions = previewCards.filter(c => !existingSourceIds.has(c.source_card_id)).slice(0, remainingSlots);
-        // Replace: the pool becomes the preview; cards that survive keep their tags, preview rank, and overrides
+        // Replace: the pool becomes the preview; cards that survive keep their tags, preview rank, and overrides,
+        // plus their snapshot when the user switched it to an alternate chart version (the preview's is the default)
         const existingCards = new Map(cards.map(c => [c.source_card_id, c]));
         const replacement = previewCards.map(c => {
             const existing = existingCards.get(c.source_card_id);
-            return existing ? { ...c, tags: existing.tags, preview_rank: existing.preview_rank, card_overrides: existing.card_overrides } : c;
+            if (!existing) return c;
+            const keepChart = (existing.card_snapshot.card_data?.chart_version ?? 1) !== (c.card_snapshot.card_data?.chart_version ?? 1);
+            return {
+                ...c,
+                ...(keepChart ? { card_snapshot: existing.card_snapshot } : {}),
+                tags: existing.tags, preview_rank: existing.preview_rank, card_overrides: existing.card_overrides,
+            };
         });
         const newSourceIds = new Set(replacement.map(c => c.source_card_id));
         const droppedCount = cards.filter(c => !newSourceIds.has(c.source_card_id)).length;
