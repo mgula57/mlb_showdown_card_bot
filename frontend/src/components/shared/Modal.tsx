@@ -33,8 +33,8 @@ import PinnedFooterScrollArea from './PinnedFooterScrollArea';
 import { PanelCloseContext, type PanelClose } from './panelClose';
 
 import { Heading } from './Heading';
-// Global counter to track multiple concurrent modals for proper scroll lock management
-let bodyScrollLockCount = 0;
+import { UnderToolbarFill } from './UnderToolbarFill';
+import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
 
 /**
  * Props for the Modal component
@@ -74,7 +74,6 @@ type ModalProps = {
  */
 export function Modal({ children, onClose, title, subtitle, footer, size = 'lg', disableCloseButton = false, isVisible = true }: ModalProps) {
     const modalRef = useRef<HTMLDivElement>(null);
-    const scrollYRef = useRef(0); // Stores scroll position for restoration
 
     /**
      * Untitled modals offer their close action to content that puts its own close button in its
@@ -133,61 +132,8 @@ export function Modal({ children, onClose, title, subtitle, footer, size = 'lg',
         }
     };
 
-    /**
-     * Effect: Body scroll lock mechanism with reference counting
-     * 
-     * Implements sophisticated scroll locking that:
-     * - Increments global counter when modal opens
-     * - Only applies scroll lock on first modal (when counter = 1)
-     * - Preserves current scroll position
-     * - Compensates for scrollbar width to prevent layout shift
-     * - Only restores scroll when all modals are closed (counter = 0)
-     * - Restores exact scroll position on cleanup
-     */
-    useEffect(() => {
-        // Only apply scroll lock when modal is visible
-        if (!isVisible) return;
-
-        // Increment modal count and apply scroll lock if this is the first modal
-        bodyScrollLockCount += 1;
-        if (bodyScrollLockCount === 1) {
-            const body = document.body;
-            const docEl = document.documentElement;
-            
-            // Calculate scrollbar width to prevent layout shift
-            const scrollbarWidth = Math.max(0, window.innerWidth - docEl.clientWidth);
-
-            // Store current scroll position for restoration
-            scrollYRef.current = window.scrollY;
-            
-            // Apply scroll lock styles
-            body.style.position = 'fixed';
-            body.style.top = `-${scrollYRef.current}px`;
-            body.style.width = '100%';
-            if (scrollbarWidth) body.style.paddingRight = `${scrollbarWidth}px`;
-        }
-
-        // Cleanup: decrement counter and restore scroll when all modals are closed
-        return () => {
-            bodyScrollLockCount -= 1;
-            
-            // Only restore scroll when no modals remain open
-            if (bodyScrollLockCount === 0) {
-                const body = document.body;
-                const top = body.style.top;
-                
-                // Remove scroll lock styles
-                body.style.position = '';
-                body.style.top = '';
-                body.style.width = '';
-                body.style.paddingRight = '';
-                
-                // Restore original scroll position
-                const y = parseInt(top || '0', 10) || 0;
-                window.scrollTo(0, -y);
-            }
-        };
-    }, [isVisible]);
+    // Lock background scroll while visible (shared ref-counted lock handles nested modals)
+    useBodyScrollLock(isVisible);
 
     /** Responsive size classes for different modal sizes */
     const sizeClasses = {
@@ -212,6 +158,7 @@ export function Modal({ children, onClose, title, subtitle, footer, size = 'lg',
     );
 
     return (
+        <>
         <div 
             className="fixed left-0 top-0 w-screen h-lvh bg-black/50 flex items-center justify-center z-50 p-4 cursor-pointer"
             onClick={handleBackdropClick}
@@ -267,5 +214,7 @@ export function Modal({ children, onClose, title, subtitle, footer, size = 'lg',
 
             </div>
         </div>
+        {isVisible && <UnderToolbarFill className="left-0 w-full bg-black/50" />}
+        </>
     );
 }

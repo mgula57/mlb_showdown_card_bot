@@ -37,6 +37,7 @@
 
 import React, { type ReactNode, useState, useEffect, useRef } from "react";
 import SideMenu from "./side_menu/SideMenu";
+import { UnderToolbarFill } from "./shared/UnderToolbarFill";
 import ShowdownBotLogo from "./shared/ShowdownBotLogo";
 import { useLocation } from "react-router-dom";
 import { useSiteSettings } from "./shared/SiteSettingsContext";
@@ -285,6 +286,13 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
                 </div>
             )}
 
+            {/* Drawer scrim + menu background continued behind Safari's bottom toolbar (see UnderToolbarFill) */}
+            {isSideMenuOpenMobile && (
+                <>
+                    <UnderToolbarFill zIndex={40} className={`left-0 w-full bg-black/40 md:hidden transition-opacity duration-300 ${isSideMenuVisibleMobile ? 'opacity-100' : 'opacity-0'}`} />
+                    <UnderToolbarFill zIndex={41} className={`left-0 w-64 bg-secondary border-r-2 border-form-element md:hidden transition-opacity duration-300 ${isSideMenuVisibleMobile ? 'opacity-100' : 'opacity-0'}`} />
+                </>
+            )}
 
             {/* Main Content Container with responsive padding for sidebar */}
             <div className={`flex flex-col h-full w-full transition-[padding-left] duration-300 ease-(--side-menu-ease) motion-reduce:transition-none md:pl-(--side-menu-width)`}>

@@ -38,6 +38,7 @@ import { type SideMenuItem as SideMenuItemType } from "../../types/SideMenuItem"
 import ShowdownBotLogo from "../shared/ShowdownBotLogo";
 import ThemeToggleButton from "./ThemeToggleButton";
 import { CAPS_LABEL_CLASS } from '../shared/fieldStyles';
+import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
 
 /**
  * Props for the SideMenu component
@@ -53,9 +54,6 @@ type SideMenuProps = {
     isMobile?: boolean;
 };
 
-// Global reference counter for body scroll lock to handle multiple concurrent overlays
-let bodyScrollLockCount = 0;
-    
 /**
  * Responsive navigation sidebar with mobile overlay and desktop collapsible modes
  * 
@@ -115,93 +113,8 @@ const SideMenu: React.FC<SideMenuProps> = ({ isOpen, setIsOpen, className, isMob
         if (isMobile) setIsOpen(false); // Close menu on mobile after selection
     };
 
-    // Refs for scroll lock mechanism
-    const scrollYRef = React.useRef(0);              // Stores scroll position for restoration
-    const didAcquireLockRef = React.useRef(false);   // Tracks if this component holds a lock
-
-    /**
-     * Effect: Advanced body scroll lock mechanism for mobile overlay mode
-     * 
-     * Implements sophisticated scroll locking that:
-     * - Uses reference counting to handle multiple concurrent overlays
-     * - Preserves exact scroll position during lock/unlock cycles
-     * - Compensates for scrollbar width to prevent layout shifts
-     * - Only applies to mobile overlay mode (not desktop sidebar)
-     * - Ensures proper cleanup on component unmount
-     * 
-     * The lock mechanism works by:
-     * 1. Storing current scroll position
-     * 2. Setting body to fixed position at negative top offset
-     * 3. Adding padding to compensate for hidden scrollbar
-     * 4. Restoring exact position when unlocking
-     */
-    React.useEffect(() => {
-        if (typeof window === 'undefined') return;
-
-        /**
-         * Acquires a scroll lock if not already held by this component
-         * Only the first lock request globally applies the actual body styles
-         */
-        const acquireLock = () => {
-            if (didAcquireLockRef.current) return;
-            
-            bodyScrollLockCount += 1;
-            if (bodyScrollLockCount === 1) {
-                const body = document.body;
-                const docEl = document.documentElement;
-                
-                // Calculate scrollbar width to prevent layout shift
-                const scrollbarWidth = Math.max(0, window.innerWidth - docEl.clientWidth);
-
-                // Store current scroll position for restoration
-                scrollYRef.current = window.scrollY;
-                
-                // Apply scroll lock styles
-                body.style.position = 'fixed';
-                body.style.top = `-${scrollYRef.current}px`;
-                body.style.width = '100%';
-                if (scrollbarWidth) body.style.paddingRight = `${scrollbarWidth}px`;
-            }
-            didAcquireLockRef.current = true;
-        };
-
-        /**
-         * Releases the scroll lock held by this component
-         * Only removes body styles when no other components hold locks
-         */
-        const releaseLock = () => {
-            if (!didAcquireLockRef.current) return;
-            
-            didAcquireLockRef.current = false;
-            if (bodyScrollLockCount > 0) bodyScrollLockCount -= 1;
-            
-            // Only restore scroll when all locks are released
-            if (bodyScrollLockCount === 0) {
-                const body = document.body;
-                
-                // Remove lock styles
-                body.style.position = '';
-                body.style.top = '';
-                body.style.width = '';
-                body.style.paddingRight = '';
-                
-                // Restore exact scroll position
-                const y = scrollYRef.current || 0;
-                window.scrollTo(0, y);
-            }
-        };
-
-        // Only apply scroll lock for mobile overlay mode (not desktop sidebar)
-        const shouldLock = isOpen && (isMobile === true);
-
-        if (shouldLock) acquireLock();
-        else releaseLock();
-
-        return () => {
-            // Ensure cleanup releases any held lock
-            releaseLock();
-        };
-    }, [isOpen, isMobile]);
+    // Lock background scroll while the mobile overlay is open
+    useBodyScrollLock(isOpen && isMobile === true);
 
     /**
      * Sliding active-tab indicator
