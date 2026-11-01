@@ -24,6 +24,7 @@ import CustomSelect from '../shared/CustomSelect';
 import ShowdownBotLogo from '../shared/ShowdownBotLogo';
 import { useCustomizeCard } from '../customs/customizeCard';
 import { SetBadge, SET_SELECT_OPTIONS } from "../shared/SetBadge";
+import FormEnabler from '../customs/FormEnabler';
 
 
 // Chart accuracy table (kept as table — compact and precise)
@@ -390,12 +391,15 @@ export const CardDetail = memo(function CardDetail({ showdownBotCardData: showdo
     // Inline style editor (`styleEditor`, or the unsaved local one) — closes, and drops any local
     // restyle, whenever a different card is shown
     const [isStyleEditorOpen, setIsStyleEditorOpen] = useState<boolean>(false);
+    // The viewer's "Show Border" choice for a bordered image; null until they pick, then the default applies
+    const [showBorderChoice, setShowBorderChoice] = useState<boolean | null>(null);
     const styleEditorCardKey = cardId ?? `${showdownBotCardDataProp?.card?.bref_id}-${showdownBotCardDataProp?.card?.year}-${showdownBotCardDataProp?.card?.set}`;
     const hasStyleEditor = !!styleEditor || !!localStyleDefaults;
     useEffect(() => {
         setIsStyleEditorOpen(false);
         setLocalStyleBase(null);
         setLocalStyle(null);
+        setShowBorderChoice(null);
     }, [styleEditorCardKey, hasStyleEditor]);
     const localStyleEditor = useMemo<CardStyleEditorConfig | undefined>(() => localStyleBase ? {
         style: localStyle ?? localStyleBase,
@@ -560,7 +564,10 @@ export const CardDetail = memo(function CardDetail({ showdownBotCardData: showdo
     };
 
     const cardImageMaxHeight = '@xl:max-h-[600px] @xl:overflow-hidden @3xl:max-h-[700px]';
-    const cropBorder = cardImagePath != null && !!activeCardData?.card?.image?.is_bordered && !!styleOverrides?.storagePath;
+    const hasBorder = cardImagePath != null && !!activeCardData?.card?.image?.is_bordered;
+    // Release renders hide their printable border by default; other bordered cards show theirs
+    const showBorder = showBorderChoice ?? !styleOverrides?.storagePath;
+    const cropBorder = hasBorder && !showBorder;
     const cardImageStyle: CSSProperties = activeCardData?.card?.image ? {
         '--card-glow-lo': addOpacityToRGB(teamGlowColor, 0.52),
         '--card-glow-md': addOpacityToRGB(teamGlowColor, 0.66),
@@ -935,6 +942,17 @@ export const CardDetail = memo(function CardDetail({ showdownBotCardData: showdo
                             </div>
                         )}
                     </div>
+
+                    {hasBorder && (
+                        <div className="flex justify-center pt-3">
+                            <FormEnabler
+                                size="sm"
+                                label="Show Border"
+                                isEnabled={showBorder}
+                                onChange={() => setShowBorderChoice(!showBorder)}
+                            />
+                        </div>
+                    )}
                 </div>
 
                 {/* Right column */}
