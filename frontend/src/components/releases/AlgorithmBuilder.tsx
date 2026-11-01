@@ -79,7 +79,10 @@ const showdownSetOptions = showdownSets.map(s => setSelectOption(s.value, { comp
 /** Number of WOTC base sets (2000-2005) — sizes the template chip skeletons while profiles load. */
 const WOTC_BASE_SET_COUNT = 6;
 
-const percentLabel = (fraction: number) => Math.round(fraction * 100);
+/** Mirrors `AlgorithmPreviewRequest.set_size` on the backend. */
+const MAX_SET_SIZE = 780;
+
+const percentLabel =(fraction: number) => Math.round(fraction * 100);
 
 /** Structural equality that ignores object key order — edition attributes round-trip through
  * Postgres JSONB, which reorders keys, so `JSON.stringify` comparisons aren't reliable. */
@@ -476,7 +479,7 @@ export function AlgorithmBuilder({ releaseId, edition, token, defaultShowdownSet
                         label="Set Size"
                         type="number"
                         value={config.set_size}
-                        onChange={value => setConfig(prev => ({ ...prev, set_size: parseInt(value || '0', 10) || 0 }))}
+                        onChange={value => setConfig(prev => ({ ...prev, set_size: Math.min(parseInt(value || '0', 10) || 0, MAX_SET_SIZE) }))}
                     />
 
                     <YearsInput
