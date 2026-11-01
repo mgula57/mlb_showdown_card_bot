@@ -3301,8 +3301,10 @@ class ShowdownPlayerCard(BaseModel):
             name_text, color = self._player_name_text_image()
             name_image_component = TemplateImageComponent.PLAYER_NAME
             name_paste_location = self.set.template_component_paste_coordinates(component=name_image_component, special_edition=self.image.special_edition)
+            if self.set == Set._2000 and not self.set.is_special_edition_name_styling(self.image.special_edition):
+                name_paste_location = (name_paste_location[0] + self.image.parallel.name_x_shift_2000, name_paste_location[1])
             is_special_style = self.set.is_special_edition_name_styling(self.image.special_edition)
-            if self.set.is_00_01 and not is_special_style:
+            if self.set.is_00_01 and not is_special_style and self.image.parallel != ImageParallel.BOOSTER: # BOOSTER'S NAME IS SEE-THROUGH, A SHADOW WOULD SHOW THROUGH IT
                 # ADD BACKGROUND BLUR EFFECT FOR 2001 CARDS
                 name_text_blurred = name_text.filter(ImageFilter.BLUR)
                 shadow_paste_coordinates = (name_paste_location[0] + 6, name_paste_location[1] + 6)
@@ -4142,6 +4144,15 @@ class ShowdownPlayerCard(BaseModel):
                 padding = 0
                 is_y_centered = True
                 overlay_image_path = self._template_img_path('2000-Name-Text-Background')
+                if self.image.parallel == ImageParallel.BOOSTER:
+                    # GHOSTED ITALIC LETTERS: A SEE-THROUGH WHITE FILL WITH A THIN LIGHT OUTLINE, SO THE NAME SITS QUIETLY IN THE BACKDROP
+                    red, green, blue, _ = self._team_color_rgbs(is_secondary_color=self.image.use_secondary_color, ignore_team_overrides=True, team_override=self.team_override_for_images)
+                    name_font_path = helvetica_neue_lt_path
+                    name_size = 150
+                    name_color = (255, 255, 255, 60)
+                    has_border = True
+                    border_color = tuple(int(c + (255 - c) * 0.75) for c in (red, green, blue)) + (200,)
+                    overlay_image_path = None
             case Set._2001:
                 name_rotation = 90
                 name_alignment = "left"
@@ -5560,6 +5571,7 @@ class ShowdownPlayerCard(BaseModel):
         is_img_download_error = False
         breakout_background: Optional[Image.Image] = None
         breakout_player: Optional[Image.Image] = None
+        booster_background_found = False
         for img_component in self.image_component_ordered_list:
             
             # ADD SILHOUETTE IF NECESSARY
@@ -5809,6 +5821,16 @@ class ShowdownPlayerCard(BaseModel):
 
             # PASTE IMAGE
             player_img_components.append((image, paste_coordinates))
+
+            # BOOSTER: THE BACKGROUND PHOTO SHOWS THROUGH THE MIDDLE, SO THE FOIL AND LINES GO RIGHT OVER IT
+            if self.image.parallel == ImageParallel.BOOSTER and img_component == PlayerImageComponent.BACKGROUND:
+                booster_background_found = True
+                player_img_components.append((self._booster_frame_image(size=card_size, background=image), (0,0)))
+
+        # BOOSTER: NO BACKGROUND PHOTO FOUND, THE MIDDLE FALLS BACK TO A TEAM COLOR TONE
+        if self.image.parallel == ImageParallel.BOOSTER and not booster_background_found:
+            card_size = self.set.card_size_bordered if self.image.is_bordered else self.set.card_size
+            player_img_components.insert(0, (self._booster_frame_image(size=card_size, background=None), (0,0)))
 
         # BREAKOUT: FRAME GOES UNDER EVERY OTHER LAYER SO THE PLAYER BREAKS OUT OF IT
         if self.image.parallel == ImageParallel.BREAKOUT:
@@ -6956,6 +6978,166 @@ class ShowdownPlayerCard(BaseModel):
         card.alpha_composite(name_image, dest=(photo_box[0] + border - name_padding, frame_box[1] - name_padding))
 
         return card
+
+    def _booster_frame_image(self, size:tuple[int,int], background:Optional[Image.Image] = None) -> Image.Image:
+        """Layer for the Booster parallel, recreating the 2002 booster pack art: faded halftone dots on silver on the outside
+        with two gently curved lines in team color framing the middle, which is left see-through for the background photo.
+
+        Args:
+          size: Size of the card.
+          background: Player background image, already cropped to the card. When missing, the middle is a team color gradient.
+
+        Returns:
+          PIL Image ('RGBA') of the full card layer.
+        """
+
+        width, height = size
+
+        # SETS WHOSE TEMPLATE TAKES UP THE RIGHT SIDE: DRAW IN THE OPEN WIDTH ON THE LEFT, THEN EXTEND THE EDGE OVER THE REST
+        content_width = int(width * self.set.booster_content_width)
+        if content_width >= width:
+            return self._booster_content_image(size=size, background=background)
+        content_background = background.crop((0, 0, content_width, height)) if background else None
+        content_layer = self._booster_content_image(size=(content_width, height), background=content_background)
+        layer = Image.new('RGBA', size)
+        layer.paste(content_layer, (0, 0))
+        layer.paste(content_layer.crop((content_width - 1, 0, content_width, height)).resize((width - content_width, height)), (content_width, 0))
+        return layer
+
+    def _booster_content_image(self, size:tuple[int,int], background:Optional[Image.Image] = None) -> Image.Image:
+        """Booster parallel's dotted backdrop, lines, and photo, drawn across the full width given.
+
+        Args:
+          size: Size of the area to draw.
+          background: Player background image, already cropped to the area. When missing, the middle is a team color gradient.
+
+        Returns:
+          PIL Image ('RGBA') of the layer.
+        """
+
+        width, height = size
+        edge_inset, bulge = 0.12, 0.12 # LINES START AT THE EDGES AND PINCH IN TOWARD THE MIDDLE
+        line_width, trim_width = 0.030, 0.006 # TEAM COLOR LINE, WHITE TRIM ON BOTH SIDES
+
+        def band(inner:float, outer:float) -> Image.Image:
+            return self._booster_band_mask(size=size, edge_inset=edge_inset, bulge=bulge, inner=inner, outer=outer)
+
+        # DOTTED BACKDROP, THEN THE PHOTO FILLS THE MIDDLE. EVERYTHING OUTSIDE THE LINES IS BACKDROP
+        # OFFSETS ARE MEASURED FROM WHERE THE PHOTO STARTS: POSITIVE GOES TOWARD THE MIDDLE OF THE CARD, NEGATIVE TOWARD THE EDGE
+        layer = self._booster_dots_image(size=size)
+        if background is None:
+            gradient = Image.linear_gradient('L').resize(size).transpose(Image.Transpose.FLIP_TOP_BOTTOM)
+            background = self._team_toned_image(gradient)
+        middle_mask = band(inner=0.0, outer=0.5)
+        layer.paste(background, mask=ImageChops.multiply(middle_mask, background.getchannel('A')))
+
+        # SHADOW ON THE BACKDROP, THEN WHITE TRIM AROUND THE TEAM COLOR LINE
+        total_width = line_width + trim_width * 2
+        shadow_mask = ImageChops.offset(band(inner=0.0, outer=-total_width), 0, int(height * 0.004)).filter(ImageFilter.GaussianBlur(width * 0.006)).point(lambda a: int(a * 0.5))
+        layer.paste((0, 0, 0, 255), mask=shadow_mask)
+        layer.paste((255, 255, 255, 255), mask=band(inner=0.0, outer=-total_width))
+        line_color = self._team_color_rgbs(is_secondary_color=self.image.use_secondary_color, ignore_team_overrides=True, team_override=self.team_override_for_images)
+        layer.paste(line_color[:3] + (255,), mask=band(inner=-trim_width, outer=-trim_width - line_width))
+
+        return layer
+
+    def _booster_band_mask(self, size:tuple[int,int], edge_inset:float, bulge:float, inner:float, outer:float) -> Image.Image:
+        """Anti-aliased mask of the area between the Booster's curved lines, or a strip along them.
+
+        Each line's distance from its card edge follows a sine arch, so it pinches in toward the middle of the card.
+        The two offsets set the area's boundaries relative to the line, as a fraction of card width.
+
+        Args:
+          size: Size of the mask.
+          edge_inset: Distance of the lines from the card edges at the top and bottom, as a fraction of card width.
+          bulge: How much further in the lines are at the middle of the card, as a fraction of card width.
+          inner: One boundary of the area. Positive is toward the middle of the card, negative toward the card edge.
+          outer: The other boundary. inner=0.0, outer=0.5 is the whole middle (the sides meet at the center).
+
+        Returns:
+          PIL Image ('L') mask.
+        """
+
+        width, height = size
+        supersample = 2
+        steps = 120
+
+        def edge_x(y_fraction:float, offset:float) -> float:
+            return (edge_inset + bulge * math.sin(math.pi * y_fraction) + offset) * width * supersample
+
+        # ONE POLYGON PER SIDE. THE LEFT SIDE ENDS ARE OFFSET TOWARD THE LEFT EDGE, THE RIGHT SIDE MIRRORS IT
+        mask = Image.new('L', (width * supersample, height * supersample), 0)
+        draw = ImageDraw.Draw(mask)
+        ys = [(i / steps) for i in range(steps + 1)]
+        for is_right in [False, True]:
+            near = [(edge_x(y, inner), y) for y in ys]
+            far = [(edge_x(y, outer), y) for y in reversed(ys)]
+            points = [((width * supersample - x) if is_right else x, y * height * supersample) for x, y in near + far]
+            draw.polygon(points, fill=255)
+
+        return mask.resize(size, resample=Image.Resampling.LANCZOS)
+
+    def _booster_dots_image(self, size:tuple[int,int]) -> Image.Image:
+        """Outside of the Booster lines: smooth silver blending into the team color toward the bottom and darkening toward the card edges,
+        covered in round, faded halftone dots that fade out toward the bottom.
+
+        Args:
+          size: Size of the image.
+
+        Returns:
+          PIL Image ('RGBA') of the dotted backdrop.
+        """
+
+        width, height = size
+        is_dark = self.image.is_dark_mode
+        base_gray = 90 if is_dark else 185
+
+        # SOFT SILVER THAT BLENDS TO THE TEAM COLOR DOWN THE CARD, DARKER TOWARD EITHER SIDE
+        red, green, blue, _ = self._team_color_rgbs(is_secondary_color=self.image.use_secondary_color, ignore_team_overrides=True, team_override=self.team_override_for_images)
+        dark_color = (int(red * 0.35), int(green * 0.35), int(blue * 0.35))
+        horizontal = Image.linear_gradient('L').rotate(90).resize(size) # 0 LEFT TO 255 RIGHT
+        edge_strength = ImageChops.lighter(horizontal, horizontal.transpose(Image.Transpose.FLIP_LEFT_RIGHT)) # 128 MIDDLE, 255 AT EITHER EDGE
+        edge_strength = edge_strength.point(lambda v: int(max(v - 150, 0) / 105 * 255 * 0.55))
+        backdrop = Image.new('RGBA', size, (base_gray, base_gray, base_gray + 8, 255))
+
+        # VERTICAL BLEND: SILVER AT THE TOP TO THE TEAM COLOR AT THE BOTTOM
+        blend_strength = Image.linear_gradient('L').resize(size).point(lambda v: int(v * 0.8))
+        backdrop.paste((red, green, blue, 255), mask=blend_strength)
+        backdrop.paste(dark_color + (255,), mask=edge_strength)
+
+        # FADED DOTS, A LIGHT TINT OF THE TEAM COLOR SO THEY SHOW ON THE DARKER SIDES
+        dots_mask = self._halftone_grid_mask(size=size).point(lambda a: int(a * 0.30))
+        backdrop.paste(tuple(int(c + (255 - c) * 0.6) for c in (red, green, blue)) + (255,), mask=dots_mask)
+        return backdrop
+
+    def _halftone_grid_mask(self, size:tuple[int,int]) -> Image.Image:
+        """Mask of evenly sized, round halftone dots in a staggered grid that fade out from the top of the card to the bottom.
+
+        Args:
+          size: Size of the mask.
+
+        Returns:
+          PIL Image ('L') mask.
+        """
+
+        width, height = size
+        supersample = 3 # DRAW LARGER AND SCALE DOWN SO THE DOTS STAY ROUND AND SMOOTH
+        mask = Image.new('L', (width * supersample, height * supersample), 0)
+        draw = ImageDraw.Draw(mask)
+        spacing = width * 0.026 * supersample
+        radius = spacing * 0.24 # SMALL ENOUGH THAT NEIGHBORS NEVER TOUCH, WHICH READS AS HEXAGONS
+        row_count = int(height * supersample / (spacing * 0.5)) + 2
+        for row in range(row_count):
+            y = row * spacing * 0.5
+            x_start = -spacing + (spacing * 0.5 if row % 2 else 0) # STAGGER EVERY OTHER ROW
+            for column in range(int(width * supersample / spacing) + 3):
+                x = x_start + column * spacing
+                draw.ellipse((x - radius, y - radius, x + radius, y + radius), fill=255)
+        mask = mask.resize(size, resample=Image.Resampling.LANCZOS)
+
+        # FADE FROM FULL STRENGTH AT THE TOP TO FAINT AT THE BOTTOM
+        fade = Image.linear_gradient('L').resize(size).point(lambda v: int(255 * (1 - 0.8 * v / 255)))
+        return ImageChops.multiply(mask, fade)
 
     def _breakout_name_image(self, length:int) -> tuple[Image.Image, int]:
         """Player's name for the Breakout backdrop: vertical, team toned metallic letters with a white outline

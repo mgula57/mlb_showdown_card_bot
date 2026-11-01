@@ -3,7 +3,8 @@ Renders one sample card per image parallel and saves two images of each to the f
 crop the custom card builder's Image Parallel dropdown shows as a preview, and the full card shown
 when hovering that preview. Base (NONE) is skipped since it has no preview.
 
-Every sample uses the same player, year, and set so the parallel is the only thing that changes.
+Every sample uses the same player, year, and set so the parallel is the only thing that changes. Parallels built from the
+team color are shown in the secondary color, to show off something other than the default.
 
 Usage:
     python -m mlb_showdown_bot.scripts.parallel_samples
@@ -45,6 +46,7 @@ class ParallelSampleGenerator:
     name: str = 'Mike Piazza'
     year: str = '2000'
     set: str = '2001'
+    team_colored_coloring: str = 'SECONDARY'
     output_folder: str = FRONTEND_OUTPUT_FOLDER
     variants: tuple[SampleVariant, ...] = (ZOOMED_VARIANT, FULL_CARD_VARIANT)
     parallels: list[ImageParallel] = field(default_factory=lambda: [p for p in ImageParallel if p != ImageParallel.NONE])
@@ -62,6 +64,7 @@ class ParallelSampleGenerator:
             year=self.year,
             set=self.set,
             image_parallel=parallel.value,
+            image_coloring=self.team_colored_coloring if parallel.is_team_colored else 'PRIMARY',
             image_output_folder_path=render_folder,
             image_output_file_name=file_name,
             image_file_format=ImageFileFormat.PNG,

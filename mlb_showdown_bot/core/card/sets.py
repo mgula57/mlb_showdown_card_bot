@@ -1234,6 +1234,14 @@ class Set(str, Enum):
             case '2004' | '2005': return BreakoutFrameBounds(left=0.05, right=0.95, bottom=0.73, min_top=0.06, max_top=0.22)
             case 'CLASSIC' | 'EXPANDED': return BreakoutFrameBounds(left=0.06, right=0.94, bottom=0.70, min_top=0.08, max_top=0.25)
 
+    @property
+    def booster_content_width(self) -> float:
+        """Fraction of the card's width, from the left, the Booster parallel's lines are centered in. 02/03 templates take up the right side."""
+        match self.value:
+            case '2002': return 0.82
+            case '2003': return 0.86
+            case _: return 1.0
+
     def player_image_components_list(self, is_special:bool=False) -> list[PlayerImageComponent]:
         if is_special:
             match self.value:

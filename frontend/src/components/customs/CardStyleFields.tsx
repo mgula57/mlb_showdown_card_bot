@@ -24,7 +24,7 @@ import { Eyebrow } from '../shared/Eyebrow';
 import { NewBadge } from '../shared/NewBadge';
 
 /** Parallels added recently enough to flag in the dropdown menu */
-const NEW_PARALLELS = new Set(['BREAKOUT']);
+const NEW_PARALLELS = new Set(['BREAKOUT', 'BOOSTER']);
 
 const parallelOptionsWithBadges = imageParallelOptions.map(option =>
     NEW_PARALLELS.has(option.value) ? { ...option, trailing: <NewBadge /> } : option
