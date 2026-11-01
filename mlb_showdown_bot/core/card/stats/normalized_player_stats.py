@@ -1097,6 +1097,7 @@ class PlayerStatsNormalizer:
 
             game_log_entry = {
                 'date': game_date,
+                **({'ps_round': split.game_type.value if split.game_type else None} if log_model is PostseasonGameLog else {}),
                 'team_ID': team_id,
                 'lg_ID': lg_id,
                 'game_pk': game_pk,
@@ -1776,7 +1777,7 @@ class GameLog(BaseGameLog):
 
 class PostseasonGameLog(BaseGameLog):
     """Postseason game log"""
-    pass
+    ps_round: Optional[str] = None  # Round of the game. MLB API gameType code (e.g., "D"), same key Baseball Reference uses
 
 class Hand(str, Enum):
 

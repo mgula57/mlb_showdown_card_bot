@@ -75,7 +75,7 @@ class BaseballReferenceScraper(BaseModel):
         if self.team_override is None:
             for team_id in [team.value for team in Team]:
                 team_match = f'({team_id})' in self.name.upper()
-                if team_match and not self.stats_period.is_multi_year and not self.stats_period.is_full_career and self.stats_period.split is None:
+                if team_match and not self.stats_period.is_multi_year and not self.stats_period.is_full_career and (self.stats_period.type != StatsPeriodType.SPLIT or self.stats_period.split is None):
                     self.team_override = Team(team_id)
 
         # VALIDATE TEAM OVERRIDE

@@ -84,7 +84,7 @@ export interface CustomCardFormState {
     stats_period_type: string; // e.g. "REGULAR"
     start_date?: string | null; // e.g. "2023-05-01"
     end_date?: string | null; // e.g. "2023-10-01"
-    split?: string | null; // e.g. "First Half"
+    split?: string | null; // e.g. "First Half". For POST periods, the postseason round code (e.g. "W")
     league: string; // e.g. "MLB" or "MILB"
     team_selection?: string; // e.g. "GAMES_PLAYED". Only applies to multi-year stats periods (CAREER, ranges, combos)
 
@@ -312,6 +312,15 @@ function CustomCardBuilder({ isHidden, embed }: CustomCardBuilderProps) {
         { 'value': 'SPLIT', 'label': 'Split', 'symbol': '🔀', 'borderColor': 'border-(--showdown-blue)' },
     ]
 
+    // Postseason rounds (values are the MLB API game type codes the backend stores in `split`). Empty = all rounds
+    const postseasonRoundOptions: SelectOption[] = [
+        { 'value': '', 'label': 'All Rounds' },
+        { 'value': 'F', 'label': 'Wild Card' },
+        { 'value': 'D', 'label': 'Division Series' },
+        { 'value': 'L', 'label': 'League Championship Series' },
+        { 'value': 'W', 'label': 'World Series' },
+    ]
+
     const leagueOptions: SelectOption[] = [
         { 'value': 'MLB', 'label': 'MLB' },
         { 'value': 'MILB', 'label': 'MiLB' }
@@ -401,7 +410,9 @@ function CustomCardBuilder({ isHidden, embed }: CustomCardBuilderProps) {
                 }
                 if (form.start_date) summaries.push({ label: 'Start', value: form.start_date });
                 if (form.end_date) summaries.push({ label: 'End', value: form.end_date });
-                if (form.split) {
+                if (form.split && form.stats_period_type === 'POST') {
+                    summaries.push(optionSummaryItem(postseasonRoundOptions, form.split, 'Round'));
+                } else if (form.split) {
                     const yearNum = parseInt(form.year, 10);
                     const splitLabel = (!isNaN(yearNum) && yearNum >= 2026)
                         ? (splitOptions.find(o => o.value === form.split)?.label ?? form.split)
@@ -496,7 +507,7 @@ function CustomCardBuilder({ isHidden, embed }: CustomCardBuilderProps) {
             }
 
             // For 2026+ splits the stored value is a situation code — resolve to description + code
-            if (isMlbApiYear && finalPayload.split) {
+            if (isMlbApiYear && finalPayload.split && finalPayload.stats_period_type === 'SPLIT') {
                 const matched = splitOptions.find(o => o.value === finalPayload.split);
                 if (matched) {
                     finalPayload.situation_code = matched.value;
@@ -663,6 +674,7 @@ function CustomCardBuilder({ isHidden, embed }: CustomCardBuilderProps) {
 
         document.addEventListener('keydown', handleKeyDown);
         return () => document.removeEventListener('keydown', handleKeyDown);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [form, isHidden]); // Re-bind when form changes so handleBuild has latest state
 
     // Handle loading status removal after a delay
@@ -753,8 +765,8 @@ function CustomCardBuilder({ isHidden, embed }: CustomCardBuilderProps) {
     // Dynamic stats period handling
     useEffect(() => {
 
-        // Remove split value if not in SPLIT mode to prevent invalid combinations
-        if (form.stats_period_type !== 'SPLIT' && form.split) {
+        // Remove split value if not in a mode that uses it (SPLIT, or POST for the round) to prevent invalid combinations
+        if (!['SPLIT', 'POST'].includes(form.stats_period_type) && form.split) {
             setForm(prevForm => ({
                 ...prevForm,
                 split: null
@@ -798,6 +810,7 @@ function CustomCardBuilder({ isHidden, embed }: CustomCardBuilderProps) {
                 end_date: null
             }));
         }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [form.year, form.stats_period_type]);
 
 
@@ -876,6 +889,7 @@ function CustomCardBuilder({ isHidden, embed }: CustomCardBuilderProps) {
 
         // Clear the state so a refresh or back/forward doesn't re-apply it over later edits
         navigate(location.pathname, { replace: true, state: null });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [location.state]);
 
     // Fetch MLB situation codes when the user is in SPLIT mode for 2026+ seasons
@@ -928,6 +942,16 @@ function CustomCardBuilder({ isHidden, embed }: CustomCardBuilderProps) {
                             onChange={(value) => setForm({ ...form, end_date: value })}
                         />
                     </>
+                );
+            case 'POST':
+                return (
+                    <FormDropdown
+                        label="Round"
+                        options={postseasonRoundOptions}
+                        selectedOption={form.split || ''}
+                        onChange={(value) => setForm({ ...form, split: value || null })}
+                        className='col-span-full'
+                    />
                 );
             case 'SPLIT': {
                 const yearNum = parseInt(form.year, 10);
@@ -1196,7 +1220,7 @@ function CustomCardBuilder({ isHidden, embed }: CustomCardBuilderProps) {
                                                 label="Period"
                                                 options={statsPeriodOptions}
                                                 selectedOption={form.stats_period_type}
-                                                onChange={(value) => setForm({ ...form, stats_period_type: value })}
+                                                onChange={(value) => setForm({ ...form, stats_period_type: value, split: null })}
                                                 disabled={form.league === 'MILB'}
                                             />
 

@@ -53,6 +53,24 @@ def check_for_preprocessed_card(**kwargs) -> ShowdownPlayerCard:
 
     return None
 
+def resolve_mlb_id(mlb_api, name: str = None, name_original: str = None) -> int | None:
+    """Find a player's MLB ID from whatever the user's name field holds: an MLB ID, a BREF ID (from the player search), or a plain name."""
+    name = str(name or '').strip()
+    mlb_id: int | None = int(name) if name.isdigit() else None
+
+    # BREF ID (EX: 'judgeaa01')
+    if mlb_id is None and name and ' ' not in name and name[-2:].isdigit():
+        with PostgresDB(is_archive=True) as db:
+            mlb_id = (db.fetch_mlb_ids_from_bref_ids([name]) or {}).get(name)
+
+    # PLAIN NAME
+    if mlb_id is None:
+        search_name = str(name_original or name).split('(')[0].strip()
+        search_results = mlb_api.people.search_players(name=search_name, active_status='both') if search_name else []
+        mlb_id = search_results[0].id if search_results else None
+
+    return mlb_id
+
 def find_mlb_id_for_mlb_api_career(stats_period: StatsPeriod, name: str = None, name_original: str = None, **kwargs) -> int | None:
     """For a full career request, return the player's MLB ID if their career reaches MLB API seasons (MLB_API_FIRST_SEASON+). Otherwise None.
     
@@ -60,19 +78,7 @@ def find_mlb_id_for_mlb_api_career(stats_period: StatsPeriod, name: str = None, 
     """
     try:
         mlb_api = build_mlb_api(kwargs)
-        name = str(name or '').strip()
-        mlb_id: int | None = int(name) if name.isdigit() else None
-
-        # BREF ID (EX: 'judgeaa01')
-        if mlb_id is None and name and ' ' not in name and name[-2:].isdigit():
-            with PostgresDB(is_archive=True) as db:
-                mlb_id = (db.fetch_mlb_ids_from_bref_ids([name]) or {}).get(name)
-
-        # PLAIN NAME
-        if mlb_id is None:
-            search_name = str(name_original or name).split('(')[0].strip()
-            search_results = mlb_api.people.search_players(name=search_name, active_status='both') if search_name else []
-            mlb_id = search_results[0].id if search_results else None
+        mlb_id = resolve_mlb_id(mlb_api, name=name, name_original=name_original)
 
         if mlb_id is None:
             return None
@@ -198,6 +204,10 @@ def generate_card(image_libraries: list[ImageLibrary] = None, **kwargs) -> dict[
         if stats_period.has_game_logs and stats_period.is_multi_year:
             expected_source = Datasource.MLB_API
 
+        # ISOLATING A POSTSEASON ROUND REQUIRES LIVE GAME LOGS (ARCHIVED ONES CAN BE MISSING THE ROUND)
+        if stats_period.requires_live_mlb_api:
+            expected_source = Datasource.MLB_API
+
         # FULL CAREERS THAT REACH MLB API SEASONS CAN'T BE BUILT FROM BREF
         career_mlb_id = None
         if stats_period.is_full_career and expected_source == Datasource.BREF:
@@ -246,6 +256,9 @@ def generate_card(image_libraries: list[ImageLibrary] = None, **kwargs) -> dict[
                 # NORMALIZE FORMAT
                 mlb_stats_api = build_mlb_api(kwargs)
                 league = kwargs.get('league', 'MLB')
+                # THE NAME FIELD CAN HOLD A BREF ID (FROM THE PLAYER SEARCH), SO RESOLVE THE REAL PLAYER ID WHEN ISOLATING A POSTSEASON ROUND
+                if career_mlb_id is None and stats_period.requires_live_mlb_api:
+                    career_mlb_id = resolve_mlb_id(mlb_stats_api, name=kwargs.get('name'), name_original=kwargs.get('name_original'))
                 # Strip all extra overrides from the search name (ex: "Shohei Ohtani (Pitching)" -> "Shohei Ohtani") to improve MLB API search results. MLB API is very bad at handling extra characters in the search query.
                 search_name = str(career_mlb_id) if career_mlb_id else (kwargs.get('name_original', '') if stats_period.is_multi_year else kwargs.get('name', ''))
                 if search_name:

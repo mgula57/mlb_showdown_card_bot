@@ -30,7 +30,7 @@ class StatsPeriodType(str, Enum):
     
     @property
     def enable_split(self) -> bool:
-        return self in [StatsPeriodType.SPLIT]
+        return self in [StatsPeriodType.SPLIT, StatsPeriodType.POSTSEASON]
     
     @property
     def player_image_search_term(self) -> str:
@@ -52,6 +52,50 @@ class StatsPeriodType(str, Enum):
     @property
     def check_for_realtime_stats(self) -> bool:
         return self in [StatsPeriodType.REGULAR_SEASON, StatsPeriodType.DATE_RANGE]
+
+class PostseasonRound(str, Enum):
+    """A single postseason round. Values match the MLB API `gameType` codes. Stored in `StatsPeriod.split` for POSTSEASON periods."""
+
+    WILD_CARD = "F"
+    DIVISION_SERIES = "D"
+    LEAGUE_CHAMPIONSHIP_SERIES = "L"
+    WORLD_SERIES = "W"
+
+    @property
+    def label(self) -> str:
+        match self:
+            case PostseasonRound.WILD_CARD: return "Wild Card"
+            case PostseasonRound.DIVISION_SERIES: return "Division Series"
+            case PostseasonRound.LEAGUE_CHAMPIONSHIP_SERIES: return "League Championship Series"
+            case PostseasonRound.WORLD_SERIES: return "World Series"
+
+    @property
+    def card_text(self) -> str:
+        """Short text for the stats period banner on the card image."""
+        match self:
+            case PostseasonRound.LEAGUE_CHAMPIONSHIP_SERIES: return "LCS"
+            case _: return self.label.upper()
+
+    @classmethod
+    def parse(cls, value: Any) -> Optional['PostseasonRound']:
+        """
+        Resolve a round from any of the formats it shows up in: the code itself ("D"), a label ("World Series"),
+        or a Baseball Reference `ps_round` value ("WS", "ALCS", "NLDS1", "ALWC"). Returns None if unrecognized.
+        """
+        if value is None: return None
+        text = str(value).strip().upper()
+        if not text: return None
+
+        for round in cls:
+            if text in (round.value, round.name.replace('_', ' '), round.label.upper()):
+                return round
+
+        # BASEBALL REFERENCE ABBREVIATIONS. ORDER MATTERS ("ALCS" CONTAINS "CS" BUT NOT "DS")
+        if 'WC' in text or 'WILD' in text: return cls.WILD_CARD
+        if 'DS' in text or 'DIV' in text: return cls.DIVISION_SERIES
+        if 'CS' in text or 'LEAGUE' in text: return cls.LEAGUE_CHAMPIONSHIP_SERIES
+        if 'WS' in text or 'WORLD' in text: return cls.WORLD_SERIES
+        return None
 
 class StatsPeriodDateAggregation(str, Enum):
     DAY = "DAY"
@@ -265,6 +309,10 @@ class StatsPeriod(BaseModel):
             if len(self.split) == 0:
                 self.split = None
 
+        # POSTSEASON USES THE SPLIT TO ISOLATE A SINGLE ROUND. STORE THE NORMALIZED CODE, DROP IF UNRECOGNIZED
+        if self.type == StatsPeriodType.POSTSEASON:
+            self.split = self.postseason_round.value if self.postseason_round else None
+
         self.display_text = self._display_text()
         
 
@@ -344,6 +392,21 @@ class StatsPeriod(BaseModel):
         return "-".join([str(v).replace('/','-') for v in values if v is not None])
     
     @property
+    def postseason_round(self) -> Optional[PostseasonRound]:
+        """The round a POSTSEASON period is isolated to. None for all rounds."""
+        if self.type != StatsPeriodType.POSTSEASON:
+            return None
+        return PostseasonRound.parse(self.split)
+
+    @property
+    def requires_live_mlb_api(self) -> bool:
+        """
+        True when the stats must come from the MLB API instead of the archive/Baseball Reference.
+        Archived postseason game logs don't all carry their round, so a round can only be isolated from live logs.
+        """
+        return self.postseason_round is not None
+
+    @property
     def is_date_range(self) -> bool:
         return self.start_date and self.end_date
     
@@ -367,7 +430,7 @@ class StatsPeriod(BaseModel):
                     if dates_formatted_list[0] == dates_formatted_list[1]:
                         return f"{dates_formatted_list[0]}"
                 return f"{dates_split}"
-            case StatsPeriodType.POSTSEASON: return f"POSTSEASON"
+            case StatsPeriodType.POSTSEASON: return f"POSTSEASON ({self.postseason_round.label})" if self.postseason_round else "POSTSEASON"
             case StatsPeriodType.SPLIT: return f"SPLIT ({self.split or 'N/A'})"
     
     @property
@@ -375,7 +438,7 @@ class StatsPeriod(BaseModel):
         match self.type:
             case StatsPeriodType.REGULAR_SEASON: return "No regular season data available"
             case StatsPeriodType.DATE_RANGE: return f"No data found from {self.string.replace('(', '').replace(')','')}"
-            case StatsPeriodType.POSTSEASON: return f"No postseason data available"
+            case StatsPeriodType.POSTSEASON: return f"No {self.postseason_round.label} data available" if self.postseason_round else "No postseason data available"
             case StatsPeriodType.SPLIT: return f"Split '{self.split or 'N/A'}' not found"
 
     @property
@@ -596,6 +659,7 @@ class StatsPeriod(BaseModel):
         first_year = self.year_list[0]
         last_year = self.year_list[-1]
         is_multi_year = first_year != last_year
+        postseason_round = self.postseason_round
         for game_log_data in game_logs:
 
             # ------------------------
@@ -629,6 +693,10 @@ class StatsPeriod(BaseModel):
                 # UPDATE 'date_game' WITH FORMATTED DATE
                 game_log_data['date_game'] = game_log_date.strftime("%b %-d")
             
+            # SKIP IF ISOLATING A POSTSEASON ROUND AND THIS GAME WAS IN A DIFFERENT ONE
+            if postseason_round and PostseasonRound.parse(game_log_data.get('ps_round')) != postseason_round:
+                continue
+
             # SKIP IF TEAM OVERRIDE IS PRESENT AND TEAM DOESN'T MATCH
             if team_override and game_log_data.get('team_ID', 'n/a') != team_override.value:
                 continue
@@ -728,7 +796,7 @@ class StatsPeriod(BaseModel):
         text:str = None
         match self.type:
             case StatsPeriodType.POSTSEASON:
-                text = 'POSTSEASON'
+                text = self.postseason_round.card_text if self.postseason_round else 'POSTSEASON'
             case StatsPeriodType.DATE_RANGE:
                 if self.stats is None:
                     return None
