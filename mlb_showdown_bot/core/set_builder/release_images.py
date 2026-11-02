@@ -120,8 +120,8 @@ class EditionNumbering(BaseModel):
         """Number printed on the card, e.g. "AS007" (frontend `formatCardNumber`). None leaves it off."""
         if self.mode == 'none' or card_number is None:
             return None
-        # Only digit-only numbers pad; free-form ones ("CC-A") print as typed
-        number = str(card_number).zfill(len(str(total_cards))) if self.zero_pad and str(card_number).isdigit() else str(card_number)
+        # Manual numbers print as typed; auto numbers pad when enabled, digit-only ones only; free-form ones ("CC-A") print as typed
+        number = str(card_number).zfill(len(str(total_cards))) if self.mode == 'auto' and self.zero_pad and str(card_number).isdigit() else str(card_number)
         return f"{self.prefix}{number}"
 
 

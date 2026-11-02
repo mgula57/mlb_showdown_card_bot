@@ -281,12 +281,17 @@ const isDigits = (value: string) => /^\d+$/.test(value);
 
 const compareCardNumbers = (a: string, b: string) => a.localeCompare(b, undefined, { numeric: true });
 
-/** Trims typed text and drops leading zeros from plain numbers ("007" -> "7"), so padding stays a display setting
- * and "7" / "007" can't both be used. Anything else ("CC-A") is kept as typed. Blank clears the number. */
+/** Trims typed text, keeping it exactly as entered ("007" stays "007"). Blank clears the number. */
 function normalizeCardNumber(value: string): string | null {
-    const trimmed = value.trim();
-    if (trimmed === '') return null;
-    return isDigits(trimmed) ? String(Number(trimmed)) : trimmed;
+    return value.trim() || null;
+}
+
+/** The next manual number: the highest plain number plus one, padded to the longest number already in use
+ * so a set typed as 001, 002… keeps counting 010, 011… */
+function nextManualCardNumber(cards: ReleaseCard[]): string {
+    const numbers = cards.map(c => c.card_number).filter((n): n is string => n !== null && isDigits(n));
+    const next = String(Math.max(0, ...numbers.map(Number)) + 1);
+    return next.padStart(Math.max(0, ...numbers.map(n => n.length)), '0');
 }
 
 /** The number without its prefix. Plain numbers zero-pad to the width of the card count when enabled; free-form text is left as typed. */
@@ -824,7 +829,7 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
     function addCardSnapshot(snapshot: CardDatabaseRecord, nextManualPicks?: ManualPicks) {
         const currentCards = cardsRef.current;
         const nextNumber = numbering.mode === 'manual'
-            ? String(Math.max(0, ...currentCards.map(c => Number(c.card_number) || 0)) + 1)
+            ? nextManualCardNumber(currentCards)
             : null;
         const newCard: ReleaseCard = {
             id: `pending-${snapshot.id}`,
@@ -913,7 +918,7 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
     function printedSetNumber(card: ReleaseCard): string | null {
         return numbering.mode === 'none' || card.card_number === null
             ? null
-            : formatCardNumber(card.card_number, displayCards.length, numbering.zeroPad, numbering.prefix);
+            : formatCardNumber(card.card_number, displayCards.length, numbering.mode === 'auto' && numbering.zeroPad, numbering.prefix);
     }
     const detailStyleOverrides = useMemo<CardStyleOverrides | undefined>(
         () => detailCard ? { style: detailCardStyle, setNumber: printedSetNumber(detailCard) } : undefined,
@@ -1677,12 +1682,14 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
                                                                     </>
                                                                 )}
 
-                                                                <FormEnabler
-                                                                    label="Zero-pad"
-                                                                    isEnabled={numbering.zeroPad}
-                                                                    onChange={zeroPad => persistNumberingSettings({ ...numbering, zeroPad: !zeroPad })}
-                                                                    className="min-h-10 text-[13px]"
-                                                                />
+                                                                {numbering.mode === 'auto' && (
+                                                                    <FormEnabler
+                                                                        label="Zero-pad"
+                                                                        isEnabled={numbering.zeroPad}
+                                                                        onChange={zeroPad => persistNumberingSettings({ ...numbering, zeroPad: !zeroPad })}
+                                                                        className="min-h-10 text-[13px]"
+                                                                    />
+                                                                )}
 
                                                                 <div className="flex flex-col gap-1">
                                                                     <span className={FIELD_LABEL_CLASS}>Prefix</span>
@@ -1760,9 +1767,9 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
                                                             card={card}
                                                             showFullCards={showFullCards}
                                                             editionStyle={editionStyle}
-                                                            numberLabel={formatCardNumber(card.card_number, displayCards.length, numbering.zeroPad, numbering.prefix)}
+                                                            numberLabel={formatCardNumber(card.card_number, displayCards.length, numbering.mode === 'auto' && numbering.zeroPad, numbering.prefix)}
                                                             setNumber={printedSetNumber(card)}
-                                                            numberInputValue={isManualNumberingEditable ? (editingNumbers[card.id] ?? (card.card_number === null ? '' : padCardNumber(card.card_number, displayCards.length, numbering.zeroPad))) : undefined}
+                                                            numberInputValue={isManualNumberingEditable ? (editingNumbers[card.id] ?? (card.card_number === null ? '' : card.card_number)) : undefined}
                                                             numberPrefix={numbering.prefix}
                                                             numberIssue={numberIssueFor(card, numberingIssues)}
                                                             showMatchBadge={isMatchSortActive}

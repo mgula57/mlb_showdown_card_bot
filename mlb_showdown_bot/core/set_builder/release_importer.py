@@ -51,13 +51,12 @@ class ReleaseImporter:
     def edition_attributes(self, edition_code: str) -> dict:
         """Manual numbering that reproduces the export's set numbers (e.g. 001, CC01)."""
         prefix = '' if edition_code == self.BASE_EDITION_CODE else edition_code
-        return {'numbering': {'mode': 'manual', 'zeroPad': True, 'prefix': prefix}}
+        return {'numbering': {'mode': 'manual', 'prefix': prefix}}
 
     @staticmethod
     def _card_number(card: dict) -> str | None:
-        """The export's set number without its edition prefix or zero padding (e.g. "CC07" -> "7")."""
-        digits = re.sub(r'\D', '', str(card['image'].get('set_number') or ''))
-        return str(int(digits)) if digits else None
+        """The export's set number without its edition prefix, padding kept (e.g. "CC07" -> "07")."""
+        return re.sub(r'\D', '', str(card['image'].get('set_number') or '')) or None
 
     # ---------------------------------------------------------------------
     # MARK: - SNAPSHOTS
