@@ -109,9 +109,9 @@ export function ReleaseItem({ release, onClick, showPublishStatus = false }: Rel
                             {release.description}
                         </div>
                     )}
-                    {/* Stacked on phones, where the tile is too narrow for the creator name beside the counts */}
-                    <div className="flex flex-col gap-0.5 min-w-0 sm:flex-row sm:items-center sm:justify-between sm:gap-1.5">
-                        <span className="flex items-center gap-1 min-w-0 text-[11px] font-medium text-(--text-tertiary)">
+                    {/* Counts drop to their own line when the creator name is too long to sit beside them */}
+                    <div className="flex flex-wrap items-center justify-between gap-x-1.5 gap-y-0.5 min-w-0">
+                        <span className="flex items-center gap-1 min-w-0 max-w-full text-[11px] font-medium text-(--text-tertiary)">
                             <span className="truncate">{release.creator_username ? `by ${release.creator_username}` : ''}</span>
                             {release.like_count > 0 && (
                                 <span
@@ -123,7 +123,7 @@ export function ReleaseItem({ release, onClick, showPublishStatus = false }: Rel
                                 </span>
                             )}
                         </span>
-                        <span className="sm:shrink-0 text-[11px] font-semibold tabular-nums text-(--text-tertiary)">
+                        <span className="shrink-0 whitespace-nowrap text-[11px] font-semibold tabular-nums text-(--text-tertiary)">
                             {editionCount} ed. · {totalCards} card{totalCards === 1 ? '' : 's'}
                         </span>
                     </div>
