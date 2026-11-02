@@ -116,11 +116,12 @@ class EditionNumbering(BaseModel):
         raw = (attributes or {}).get('numbering')
         return cls(**raw) if isinstance(raw, dict) else cls()
 
-    def set_number(self, card_number: Optional[int], total_cards: int) -> Optional[str]:
+    def set_number(self, card_number: Optional[str], total_cards: int) -> Optional[str]:
         """Number printed on the card, e.g. "AS007" (frontend `formatCardNumber`). None leaves it off."""
         if self.mode == 'none' or card_number is None:
             return None
-        number = str(card_number).zfill(len(str(total_cards))) if self.zero_pad else str(card_number)
+        # Only digit-only numbers pad; free-form ones ("CC-A") print as typed
+        number = str(card_number).zfill(len(str(total_cards))) if self.zero_pad and str(card_number).isdigit() else str(card_number)
         return f"{self.prefix}{number}"
 
 

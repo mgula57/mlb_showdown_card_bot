@@ -1185,7 +1185,7 @@ class AlgorithmPreviewRequest(BaseModel):
     intentionally excluded (they must never be attacker-settable from the web).
     """
 
-    set_size: int = Field(..., ge=1, le=780)
+    set_size: int = Field(..., ge=1, le=800)
     years: str = Field(..., description="Flexible year string, e.g. '2023', '2000-2004', '2006+2014'")
     showdown_sets: List[str] = Field(..., min_length=1)
     pitcher_showdown_sets: Optional[List[str]] = None

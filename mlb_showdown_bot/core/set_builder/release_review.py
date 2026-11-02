@@ -133,8 +133,10 @@ class EditionReview:
         numbering = EditionNumbering.from_attributes(self.edition.get('attributes'))
         if numbering.mode == 'none':
             return []
-        numbers = [card['card_number'] for card in self.cards if card.get('card_number') is not None]
-        unnumbered = len(self.cards) - len(numbers)
+        labels = [str(card['card_number']) for card in self.cards if card.get('card_number') is not None]
+        unnumbered = len(self.cards) - len(labels)
+        # Gaps only mean something when the numbers are a plain 1..N run, not free-form labels
+        numbers = [int(label) for label in labels] if all(label.isdigit() for label in labels) else []
         items = []
         if unnumbered:
             items.append(self._item('unnumbered', ReviewLevel.CHECK, f"{_plural(unnumbered, 'card')} with no number",
@@ -143,7 +145,7 @@ class EditionReview:
         if gaps:
             items.append(self._item('number_gaps', ReviewLevel.CHECK, f"Numbering skips {_plural(len(gaps), 'number')}",
                                     f"Missing {_listed([str(n) for n in gaps])}.", fix='pool'))
-        return items or [self._item('numbering', ReviewLevel.CHECK, f"Every card is numbered, 1–{len(self.cards)}, no gaps", passed=True)]
+        return items or [self._item('numbering', ReviewLevel.CHECK, f"Every card is numbered, 1–{len(self.cards)}, no gaps" if numbers else 'Every card is numbered', passed=True)]
 
     def _duplicate_players_item(self) -> ReviewItem:
         names: dict[str, str] = {}

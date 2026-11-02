@@ -289,7 +289,7 @@ function compareBySort(a: ReleaseCard, b: ReleaseCard, sortBy: PoolSortBy): numb
         case 'name': return lastName(a.card_snapshot.name).localeCompare(lastName(b.card_snapshot.name));
         case 'team': return franchiseTeam(a).localeCompare(franchiseTeam(b));
         case 'position': return POSITION_ORDER.indexOf(primaryPosition(a)) - POSITION_ORDER.indexOf(primaryPosition(b));
-        case 'set_number': return (a.card_number ?? Infinity) - (b.card_number ?? Infinity);
+        case 'set_number': return (a.card_number ?? '').localeCompare(b.card_number ?? '', undefined, { numeric: true });
         default: return (SIDE_STATS[sortBy].value(a) ?? 0) - (SIDE_STATS[sortBy].value(b) ?? 0);
     }
 }

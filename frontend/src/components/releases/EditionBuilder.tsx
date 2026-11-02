@@ -222,7 +222,7 @@ function sortForAutoNumbering(cards: ReleaseCard[], layers: SortLayer[]): Releas
 
 function renumberSorted(cards: ReleaseCard[], layers: SortLayer[]): ReleaseCard[] {
     const sorted = sortForAutoNumbering(cards, layers);
-    const numbered = sorted.map((c, i) => ({ ...c, card_number: i + 1 }));
+    const numbered = sorted.map((c, i) => ({ ...c, card_number: String(i + 1) }));
     // Preserve the caller's array order — only the numbers change, not the sort-order-on-screen.
     const byId = new Map(numbered.map(c => [c.id, c]));
     return cards.map(c => byId.get(c.id) ?? c);
@@ -232,21 +232,23 @@ type NumberIssue = 'duplicate' | 'unnumbered';
 
 type NumberingIssues = {
     /** Numbers held by more than one card (only possible in data saved before the uniqueness check). */
-    duplicates: Set<number>;
-    /** Missing numbers between 1 and the highest one, as the Review step counts them. */
+    duplicates: Set<string>;
+    /** Missing numbers between 1 and the highest one, as the Review step counts them. Empty when any number is free-form text. */
     gaps: number[];
     unnumbered: number;
 };
 
 /** Mirrors the Review step's numbering checks (release_review.py `_numbering_items`), plus duplicates. */
 function findNumberingIssues(cards: ReleaseCard[]): NumberingIssues {
-    const counts = new Map<number, number>();
+    const counts = new Map<string, number>();
     for (const c of cards) {
         if (c.card_number !== null) counts.set(c.card_number, (counts.get(c.card_number) ?? 0) + 1);
     }
-    const max = Math.max(0, ...counts.keys());
     const gaps: number[] = [];
-    for (let n = 1; n <= max; n++) if (!counts.has(n)) gaps.push(n);
+    if ([...counts.keys()].every(isDigits)) {
+        const max = Math.max(0, ...[...counts.keys()].map(Number));
+        for (let n = 1; n <= max; n++) if (!counts.has(String(n))) gaps.push(n);
+    }
     return {
         duplicates: new Set([...counts].filter(([, count]) => count > 1).map(([num]) => num)),
         gaps,
@@ -262,12 +264,12 @@ function numberIssueFor(card: ReleaseCard, issues: NumberingIssues | null): Numb
 
 /** "2 gaps: #14, #37 · 3 unnumbered", listing at most a few numbers per part. */
 function numberingIssuesSummary(issues: NumberingIssues): string {
-    const listed = (nums: number[]) => {
+    const listed = (nums: (string | number)[]) => {
         const shown = nums.slice(0, 5).map(n => `#${n}`).join(', ');
         return nums.length > 5 ? `${shown} +${nums.length - 5} more` : shown;
     };
     const plural = (count: number, word: string) => `${count} ${word}${count === 1 ? '' : 's'}`;
-    const duplicates = [...issues.duplicates].sort((a, b) => a - b);
+    const duplicates = [...issues.duplicates].sort(compareCardNumbers);
     return [
         duplicates.length > 0 && `${plural(duplicates.length, 'duplicate')}: ${listed(duplicates)}`,
         issues.gaps.length > 0 && `${plural(issues.gaps.length, 'gap')}: ${listed(issues.gaps)}`,
@@ -275,9 +277,26 @@ function numberingIssuesSummary(issues: NumberingIssues): string {
     ].filter(Boolean).join(' · ');
 }
 
-function formatCardNumber(num: number | null, totalCount: number, zeroPad: boolean, prefix?: string): string {
+const isDigits = (value: string) => /^\d+$/.test(value);
+
+const compareCardNumbers = (a: string, b: string) => a.localeCompare(b, undefined, { numeric: true });
+
+/** Trims typed text and drops leading zeros from plain numbers ("007" -> "7"), so padding stays a display setting
+ * and "7" / "007" can't both be used. Anything else ("CC-A") is kept as typed. Blank clears the number. */
+function normalizeCardNumber(value: string): string | null {
+    const trimmed = value.trim();
+    if (trimmed === '') return null;
+    return isDigits(trimmed) ? String(Number(trimmed)) : trimmed;
+}
+
+/** The number without its prefix. Plain numbers zero-pad to the width of the card count when enabled; free-form text is left as typed. */
+function padCardNumber(num: string, totalCount: number, zeroPad: boolean): string {
+    return zeroPad && isDigits(num) ? num.padStart(String(totalCount).length, '0') : num;
+}
+
+function formatCardNumber(num: string | null, totalCount: number, zeroPad: boolean, prefix?: string): string {
     if (num === null) return prefix ? `${prefix}—` : '—';
-    const numStr = zeroPad ? String(num).padStart(String(totalCount).length, '0') : String(num);
+    const numStr = padCardNumber(num, totalCount, zeroPad);
     return prefix ? `${prefix}${numStr}` : numStr;
 }
 
@@ -286,7 +305,7 @@ function formatCardNumber(num: number | null, totalCount: number, zeroPad: boole
 function buildReleaseCardsFromPreview(players: AlgorithmPreviewPlayer[]): ReleaseCard[] {
     return players.map(record => ({
         id: `pending-${record.id}`,
-        card_number: record.algorithm_set_number ?? null,
+        card_number: record.algorithm_set_number == null ? null : String(record.algorithm_set_number),
         source_card_id: record.id,
         source_card_type: record.source,
         card_snapshot: record,
@@ -805,7 +824,7 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
     function addCardSnapshot(snapshot: CardDatabaseRecord, nextManualPicks?: ManualPicks) {
         const currentCards = cardsRef.current;
         const nextNumber = numbering.mode === 'manual'
-            ? (currentCards.length > 0 ? Math.max(0, ...currentCards.map(c => c.card_number ?? 0)) + 1 : 1)
+            ? String(Math.max(0, ...currentCards.map(c => Number(c.card_number) || 0)) + 1)
             : null;
         const newCard: ReleaseCard = {
             id: `pending-${snapshot.id}`,
@@ -961,8 +980,7 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
             return next;
         });
         if (value === undefined) return;
-        const parsed = value.trim() === '' ? null : parseInt(value, 10);
-        if (parsed !== null && Number.isNaN(parsed)) return;
+        const parsed = normalizeCardNumber(value);
         // Numbers are unique per edition; the server would refuse the whole save
         const holder = parsed !== null && cards.find(c => c.id !== cardId && c.card_number === parsed);
         if (holder) {
@@ -1744,7 +1762,7 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
                                                             editionStyle={editionStyle}
                                                             numberLabel={formatCardNumber(card.card_number, displayCards.length, numbering.zeroPad, numbering.prefix)}
                                                             setNumber={printedSetNumber(card)}
-                                                            numberInputValue={isManualNumberingEditable ? (editingNumbers[card.id] ?? (card.card_number?.toString() ?? '')) : undefined}
+                                                            numberInputValue={isManualNumberingEditable ? (editingNumbers[card.id] ?? (card.card_number === null ? '' : padCardNumber(card.card_number, displayCards.length, numbering.zeroPad))) : undefined}
                                                             numberPrefix={numbering.prefix}
                                                             numberIssue={numberIssueFor(card, numberingIssues)}
                                                             showMatchBadge={isMatchSortActive}
@@ -1945,14 +1963,14 @@ const PoolCardRow = memo(function PoolCardRow({ card, showFullCards, editionStyl
                             <span className="text-[13px] font-mono text-(--text-tertiary)">{numberPrefix}</span>
                         )}
                         <input
-                            type="number"
+                            type="text"
                             value={numberInputValue}
                             onChange={e => onNumberChange(card.id, e.target.value)}
                             onBlur={() => onNumberBlur(card.id)}
                             placeholder="—"
                             title={issueTitle}
                             aria-invalid={numberIssue === 'duplicate' || undefined}
-                            className={fieldClass('md', `w-14 font-mono text-right tabular-nums focus:outline-none ${numberIssue === 'duplicate' ? 'border-(--red)! text-(--red)' : numberIssue === 'unnumbered' ? 'border-(--warning)!' : ''}`)}
+                            className={fieldClass('md', `w-16 font-mono text-right tabular-nums focus:outline-none ${numberIssue === 'duplicate' ? 'border-(--red)! text-(--red)' : numberIssue === 'unnumbered' ? 'border-(--warning)!' : ''}`)}
                         />
                     </div>
                 ) : (

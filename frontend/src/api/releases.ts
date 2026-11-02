@@ -101,7 +101,7 @@ export type ReleaseCardOverrides = {
 
 export type ReleaseCard = {
     id: string;
-    card_number: number | null;
+    card_number: string | null;
     source_card_id: string | null;
     source_card_type: string | null;
     /** Cards saved from an Algorithm run also carry how they were picked (see `AlgorithmPickFields`) */
@@ -160,7 +160,7 @@ export type ReleaseEditionCreatePayload = {
     name: string;
     attributes?: Record<string, unknown>;
     cards?: Array<{
-        card_number?: number | null;
+        card_number?: string | null;
         source_card_id?: string | null;
         source_card_type?: string | null;
         card_snapshot: CardDatabaseRecord;

@@ -71,7 +71,7 @@ export type CardDatabaseRecord = {
     set_number?: string | null;
 
     // Release Builder edition (RELEASE source only)
-    card_number?: number | null;
+    card_number?: string | null;
     release_edition_id?: string;
     release_edition_name?: string;
     release_edition_slug?: string;

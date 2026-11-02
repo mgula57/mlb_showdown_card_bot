@@ -8,7 +8,7 @@ snapshot, still saves the full list (`PUT /editions/<id>`).
 from collections import Counter
 from typing import Optional
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class ReleaseCardPatch(BaseModel):
@@ -17,10 +17,20 @@ class ReleaseCardPatch(BaseModel):
     model_config = ConfigDict(extra='forbid')
 
     source_card_id: str = Field(min_length=1)
-    card_number: Optional[int] = None
+    card_number: Optional[str] = Field(None, max_length=32)
     tags: Optional[list[str]] = None
     preview_rank: Optional[int] = Field(None, ge=1, le=3)
     card_overrides: Optional[dict] = None
+
+    @field_validator('card_number', mode='before')
+    @classmethod
+    def _clean_card_number(cls, value):
+        """Numbers are trimmed free-form text; blank clears the number. A bare int (older clients) becomes text."""
+        if isinstance(value, int) and not isinstance(value, bool):
+            value = str(value)
+        if isinstance(value, str):
+            return value.strip() or None
+        return value
 
     def changes(self) -> dict:
         """The fields this patch sets, by name (a field sent as null clears it)."""
@@ -47,14 +57,14 @@ class ReleaseCardNumbers:
             seen_source_ids.add(source_card_id)
             if card.get('card_number') is not None:
                 counts[card['card_number']] += 1
-        duplicates = sorted(number for number, count in counts.items() if count > 1)
+        duplicates = sorted((number for number, count in counts.items() if count > 1), key=lambda n: (len(str(n)), str(n)))
         if not duplicates:
             return None
         listed = ', '.join(f"#{number}" for number in duplicates[:5]) + (f" and {len(duplicates) - 5} more" if len(duplicates) > 5 else '')
         return f"Two cards can't share a number: {listed} {'is' if len(duplicates) == 1 else 'are'} used more than once."
 
     @classmethod
-    def patched_duplicate_error(cls, current: dict[str, Optional[int]], patches: list[ReleaseCardPatch]) -> Optional[str]:
+    def patched_duplicate_error(cls, current: dict[str, Optional[str]], patches: list[ReleaseCardPatch]) -> Optional[str]:
         """`duplicate_error` for the edition's numbers (`current`, by source card id) after `patches`."""
         numbers = dict(current)
         for patch in patches:

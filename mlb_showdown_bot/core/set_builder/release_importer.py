@@ -41,7 +41,7 @@ class ReleaseImporter:
         for card in self.cards:
             groups[card['image'].get('edition') or self.BASE_EDITION_CODE].append(card)
         for cards in groups.values():
-            cards.sort(key=self._card_number)
+            cards.sort(key=lambda card: int(self._card_number(card) or 0))
         # BASE EDITION FIRST, EXPANSIONS ALPHABETICAL
         return dict(sorted(groups.items(), key=lambda kv: (kv[0] != self.BASE_EDITION_CODE, kv[0])))
 
@@ -54,9 +54,10 @@ class ReleaseImporter:
         return {'numbering': {'mode': 'manual', 'zeroPad': True, 'prefix': prefix}}
 
     @staticmethod
-    def _card_number(card: dict) -> int | None:
+    def _card_number(card: dict) -> str | None:
+        """The export's set number without its edition prefix or zero padding (e.g. "CC07" -> "7")."""
         digits = re.sub(r'\D', '', str(card['image'].get('set_number') or ''))
-        return int(digits) if digits else None
+        return str(int(digits)) if digits else None
 
     # ---------------------------------------------------------------------
     # MARK: - SNAPSHOTS

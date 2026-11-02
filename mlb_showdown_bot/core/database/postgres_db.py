@@ -6862,7 +6862,7 @@ class PostgresDB:
                     source_card_id    TEXT,
                     source_card_type  TEXT,
                     card_snapshot     JSONB NOT NULL,
-                    card_number       INTEGER,
+                    card_number       TEXT,
                     card_overrides    JSONB,
                     created_at        TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
                     updated_at        TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
@@ -6872,6 +6872,16 @@ class PostgresDB:
             cur.execute("""
                 ALTER TABLE internal.release_cards
                     ALTER COLUMN card_number DROP NOT NULL;
+            """)
+            # Card numbers are free-form strings ("007", "CC01"); the guard skips a table rewrite once converted
+            cur.execute("""
+                DO $$
+                BEGIN
+                    IF (SELECT data_type FROM information_schema.columns
+                         WHERE table_schema = 'internal' AND table_name = 'release_cards' AND column_name = 'card_number') = 'integer' THEN
+                        ALTER TABLE internal.release_cards ALTER COLUMN card_number TYPE TEXT USING card_number::text;
+                    END IF;
+                END $$;
             """)
             cur.execute("""
                 ALTER TABLE internal.release_cards
@@ -7450,6 +7460,8 @@ class PostgresDB:
     # Release drafts (see `ReleaseDraft`)
     # ---------------------------------------
 
+    # Natural order for text numbers ("2" before "10"); NULLs last
+    _RELEASE_CARD_NUMBER_ORDER = "length(card_number), card_number"
     _RELEASE_CARD_COPY_COLUMNS = "source_card_id, source_card_type, card_snapshot, card_number, tags, preview_rank, card_overrides"
     _RELEASE_IMAGE_COPY_COLUMNS = "source_card_id, render_hash, storage_path, thumbnail_path, rendered_at, failed_hash, error"
 
@@ -7577,7 +7589,7 @@ class PostgresDB:
                 with self.connection.cursor(cursor_factory=RealDictCursor) as dict_cur:
                     dict_cur.execute(f"""
                         SELECT {self._RELEASE_CARD_COPY_COLUMNS} FROM internal.release_cards
-                         WHERE edition_id = %s AND retired_at IS NULL ORDER BY card_number
+                         WHERE edition_id = %s AND retired_at IS NULL ORDER BY {self._RELEASE_CARD_NUMBER_ORDER}
                     """, (draft_id,))
                     cards = [dict(row) for row in dict_cur.fetchall()]
                 self._upsert_release_cards(cur, edition_id, cards, retire_removed=True)
@@ -7660,12 +7672,12 @@ class PostgresDB:
               AND (e.is_published = TRUE OR r.created_by = %s)
         """
         # Cards are fetched as rows, not json_agg'd: aggregating with ORDER BY sorts every wide
-        # card_snapshot and spills to temp files, while unique_card_number already yields card_number order
+        # card_snapshot and spills to temp files, so rows come back in natural card_number order
         cards_query = """
             SELECT id, card_number, source_card_id, source_card_type, card_snapshot, tags, preview_rank, card_overrides
             FROM internal.release_cards
             WHERE edition_id = %s AND retired_at IS NULL
-            ORDER BY card_number
+            ORDER BY length(card_number), card_number
         """
         with self.connection.cursor(cursor_factory=RealDictCursor) as cur:
             cur.execute(edition_query, (edition_id, user_id))
@@ -7787,7 +7799,7 @@ class PostgresDB:
                 cur.execute("UPDATE internal.release_editions SET updated_at = NOW() WHERE id = %s", (edition_id,))
         return True
 
-    def get_owned_edition_card_numbers(self, release_id: str, edition_id: str, user_id: str) -> Optional[tuple[bool, dict[str, Optional[int]]]]:
+    def get_owned_edition_card_numbers(self, release_id: str, edition_id: str, user_id: str) -> Optional[tuple[bool, dict[str, Optional[str]]]]:
         """For a card patch, without loading card snapshots: whether the edition is live (published,
         not a working copy, so it only changes by publishing) and its card numbers by source card id.
         None if user_id doesn't own it."""
@@ -7826,7 +7838,7 @@ class PostgresDB:
                     UPDATE internal.release_cards rc SET card_number = v.card_number, updated_at = NOW()
                       FROM (VALUES %s) AS v(edition_id, source_card_id, card_number)
                      WHERE rc.edition_id = v.edition_id AND rc.source_card_id = v.source_card_id AND rc.retired_at IS NULL
-                """, [(edition_id, source_id, number) for source_id, number in numbered], template="(%s::uuid, %s, %s::int)")
+                """, [(edition_id, source_id, number) for source_id, number in numbered], template="(%s::uuid, %s, %s)")
             for source_id, changes in patches:
                 columns: dict = {}
                 if 'tags' in changes:

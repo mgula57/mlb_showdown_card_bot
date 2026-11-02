@@ -80,7 +80,7 @@ const showdownSetOptions = showdownSets.map(s => setSelectOption(s.value, { comp
 const WOTC_BASE_SET_COUNT = 6;
 
 /** Mirrors `AlgorithmPreviewRequest.set_size` on the backend. */
-const MAX_SET_SIZE = 780;
+const MAX_SET_SIZE = 800;
 
 const percentLabel =(fraction: number) => Math.round(fraction * 100);
 
