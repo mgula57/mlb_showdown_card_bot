@@ -5908,7 +5908,7 @@ class ShowdownPlayerCard(BaseModel):
 
         return image
 
-    def _query_local_drive_for_auto_images(self, folder_path:str, components_dict:dict[PlayerImageComponent, str], bref_id:str, mlb_id:Optional[int] = None, year:int = None) -> dict[PlayerImageComponent, str]:
+    def _query_local_drive_for_auto_images(self, folder_path:str, components_dict:dict[PlayerImageComponent, str], bref_id:str, mlb_id:Optional[int] = None, year:int = None) -> tuple[dict[PlayerImageComponent, str], Optional[float]]:
         """Attempts to query local drive for a player image, if it does not exist use siloutte background.
 
         Args:
@@ -5919,30 +5919,31 @@ class ShowdownPlayerCard(BaseModel):
           year: Year(s) of card.
 
         Returns:
-          Dict of image paths per component.
+          Tuple with the dict of image paths per component, and how well they match the card (None if no match).
         """
 
         # CHECK FOR FOLDER
         if not os.path.exists(folder_path):
-            return components_dict
+            return (components_dict, None)
         
         # CHECK FOR FILES
         files = os.listdir(folder_path)
         if not files:
-            return components_dict
+            return (components_dict, None)
 
         # SEARCH FILES FOR BREF ID MATCHES
         file_matches_bref_id = [{'id': os.path.join(folder_path, f), 'name': f } for f in files if (f'({bref_id})' in f or (mlb_id and str(mlb_id) in f))]
-        file_matches_metadata_dict = self._img_file_matches_dict(files_metadata=file_matches_bref_id, components_dict=components_dict, bref_id=bref_id, year=year)
-        
-        return file_matches_metadata_dict
+        return self._img_file_matches_dict(files_metadata=file_matches_bref_id, components_dict=components_dict, bref_id=bref_id, year=year)
 
     def _downloaded_components(self, components_dict:dict[PlayerImageComponent, str]) -> list[PlayerImageComponent]:
         """Components in the dict that have a matched file to download."""
         return [typ for typ in self.image_component_ordered_list if components_dict.get(typ, None) is not None and typ.is_loaded_via_download]
 
     def _query_image_libraries_for_auto_player_image_urls(self, components_dict:dict[PlayerImageComponent, str]) -> tuple[dict[PlayerImageComponent, str], dict[str, str], type[GoogleDriveClient]]:
-        """Search each image library in the user's preferred order and use the first one with a full match.
+        """Search every image library and use the one whose images best fit the card.
+
+        The user's library order only breaks ties, so an earlier library wins over a later one only
+        when its images match the card (year, team, edition, etc.) at least as well.
 
         Args:
           components_dict: Dict of all the image types to included in the image.
@@ -5954,26 +5955,31 @@ class ShowdownPlayerCard(BaseModel):
             Drive client with access to the matched library's files.
         """
         local_folder_path = os.getenv('AUTO_IMAGE_PATH')
+        best: Optional[tuple[float, ImageLibrary, dict[PlayerImageComponent, str], dict[str, str], type[GoogleDriveClient]]] = None
         for library in self.image.source.libraries or [ImageLibrary.showdown_bot()]:
             file_versions: dict[str, str] = {}
             if library.is_showdown_bot:
                 drive_client = GoogleDriveClient
                 if local_folder_path:
                     # USE LOCAL FOLDER AS DIRECTORY
-                    matches = self._query_local_drive_for_auto_images(folder_path=local_folder_path, components_dict=dict(components_dict), bref_id=self.bref_id, mlb_id=self.mlb_id, year=self.year)
+                    matches, score = self._query_local_drive_for_auto_images(folder_path=local_folder_path, components_dict=dict(components_dict), bref_id=self.bref_id, mlb_id=self.mlb_id, year=self.year)
                 else:
-                    matches, file_versions = self._query_google_drive_for_auto_player_image_urls(folder_id=self.set.player_image_gdrive_folder_id, components_dict=dict(components_dict), bref_id=self.bref_id, mlb_id=self.mlb_id, year=self.year)
+                    matches, file_versions, score = self._query_google_drive_for_auto_player_image_urls(folder_id=self.set.player_image_gdrive_folder_id, components_dict=dict(components_dict), bref_id=self.bref_id, mlb_id=self.mlb_id, year=self.year)
             else:
                 drive_client = UserDriveClient
-                matches, file_versions = self._query_google_drive_for_auto_player_image_urls(folder_id=library.folder_id, components_dict=dict(components_dict), bref_id=self.bref_id, mlb_id=self.mlb_id, year=self.year, drive_client=drive_client)
+                matches, file_versions, score = self._query_google_drive_for_auto_player_image_urls(folder_id=library.folder_id, components_dict=dict(components_dict), bref_id=self.bref_id, mlb_id=self.mlb_id, year=self.year, drive_client=drive_client)
 
-            if len(self._downloaded_components(matches)) > 0:
-                self.image.source.library_name = library.name
-                return (matches, file_versions, drive_client)
+            # STRICTLY GREATER, SO TIES KEEP THE LIBRARY THAT IS EARLIER IN THE USER'S ORDER
+            if len(self._downloaded_components(matches)) > 0 and score is not None and (best is None or score > best[0]):
+                best = (score, library, matches, file_versions, drive_client)
 
-        return (components_dict, {}, GoogleDriveClient)
+        if best is None:
+            return (components_dict, {}, GoogleDriveClient)
+        _, library, matches, file_versions, drive_client = best
+        self.image.source.library_name = library.name
+        return (matches, file_versions, drive_client)
 
-    def _query_google_drive_for_auto_player_image_urls(self, folder_id:str, components_dict:dict[PlayerImageComponent, str], bref_id:str, mlb_id:Optional[int] = None, year:int = None, drive_client:type[GoogleDriveClient] = GoogleDriveClient) -> tuple:
+    def _query_google_drive_for_auto_player_image_urls(self, folder_id:str, components_dict:dict[PlayerImageComponent, str], bref_id:str, mlb_id:Optional[int] = None, year:int = None, drive_client:type[GoogleDriveClient] = GoogleDriveClient) -> tuple[dict[PlayerImageComponent, str], dict[str, str], Optional[float]]:
         """Attempts to query google drive for a player image, if 
         it does not exist use siloutte background.
 
@@ -5990,6 +5996,7 @@ class ShowdownPlayerCard(BaseModel):
           Tuple with the following:
             Dict of image urls per component.
             Dict of file id -> version (md5 checksum, falling back to modified time).
+            How well the matched images fit the card (None if no match).
         """
 
         # GAIN ACCESS TO GOOGLE DRIVE
@@ -5997,7 +6004,7 @@ class ShowdownPlayerCard(BaseModel):
         file_service = drive_client.files_service()
         if file_service is None:
             # IF NO CREDS, RETURN NONE
-            return (components_dict, file_versions)
+            return (components_dict, file_versions, None)
 
         # GET LIST OF FILE METADATA FROM CORRECT FOLDER
         files_metadata = []
@@ -6027,12 +6034,12 @@ class ShowdownPlayerCard(BaseModel):
             
         
         # LOOK FOR SUBSTRING IN FILE NAMES
-        file_matches_metadata_dict = self._img_file_matches_dict(files_metadata=files_metadata, components_dict=components_dict, bref_id=bref_id, year=year)
+        file_matches_metadata_dict, match_score = self._img_file_matches_dict(files_metadata=files_metadata, components_dict=components_dict, bref_id=bref_id, year=year)
         file_versions = {f['id']: f.get('md5Checksum') or f.get('modifiedTime') for f in files_metadata if f.get('id') and (f.get('md5Checksum') or f.get('modifiedTime'))}
         
-        return (file_matches_metadata_dict, file_versions)
+        return (file_matches_metadata_dict, file_versions, match_score)
     
-    def _img_file_matches_dict(self, files_metadata:list[dict], components_dict:dict[PlayerImageComponent, str], bref_id:str, year:int) -> dict[PlayerImageComponent, str]:
+    def _img_file_matches_dict(self, files_metadata:list[dict], components_dict:dict[PlayerImageComponent, str], bref_id:str, year:int) -> tuple[dict[PlayerImageComponent, str], Optional[float]]:
         """ Iterate through gdrive files and find matches to the player and other settings defined by user.
          
         Args:
@@ -6042,7 +6049,8 @@ class ShowdownPlayerCard(BaseModel):
           year: Year(s) of card.
 
         Returns:
-          Dict where the key represents the component type and the value is the file id for download.
+          Tuple with the dict where the key represents the component type and the value is the file id for download,
+          and the combined match score of the chosen files (None if a component has no file).
         """
 
         # FILTER LIST TO ONLY BREF ID MATCHES FOR IMG COMPONENT TYPE
@@ -6075,13 +6083,14 @@ class ShowdownPlayerCard(BaseModel):
         # CHECK THAT THERE ARE MATCHES IN EACH COMPONENT
         num_matches_per_component = [len(matches) for _, matches in component_player_file_matches_dict.items()]
         if len(num_matches_per_component) == 0:
-            return components_dict
+            return (components_dict, None)
         if min(num_matches_per_component) < 1:
-            return components_dict
+            return (components_dict, None)
 
         # ORDER EACH COMPONENT'S FILE LIST BY HOW WELL IT MATCHES PARAMETERS
         component_img_url_dict: dict[PlayerImageComponent, str] = {}
         component_photo_files: dict[PlayerImageComponent, dict[str, tuple[str, float]]] = {}
+        file_scores: dict[str, float] = {}
         for component, img_file_list in component_player_file_matches_dict.items():
             img_file_list = sorted(img_file_list, key = lambda i: len(i['name']), reverse=False)
             match_scores: dict[str, float] = {}
@@ -6097,6 +6106,8 @@ class ShowdownPlayerCard(BaseModel):
                 photo_key = os.path.basename(img_name).split('-', 1)[-1]
                 component_photo_files[component].setdefault(photo_key, (img_id, match_scores[img_id]))
 
+            file_scores.update(match_scores)
+
             # GET BEST MATCH
             sorted_matches = sorted(match_scores.items(), key=operator.itemgetter(1), reverse=True)
             file_id = sorted_matches[0][0]
@@ -6111,7 +6122,7 @@ class ShowdownPlayerCard(BaseModel):
         # UPDATE EXISTING DICT
         components_dict.update(component_img_url_dict)
 
-        return components_dict
+        return (components_dict, sum(file_scores[file_id] for file_id in component_img_url_dict.values()))
 
     def _image_name_match_score(self, img_name:str, year:int) -> float:
         """Calculate the match score for a given image name.

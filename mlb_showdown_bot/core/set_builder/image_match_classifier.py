@@ -82,7 +82,7 @@ class LibraryImageIndex:
 
 class ImageMatchClassifier:
     """Classifies cards against a user's image libraries the way an edition render searches them:
-    libraries in the user's order, using the first one with any image of the player.
+    every library is searched and the best match wins, with the user's order breaking ties.
 
     Library listings are cached per process for `CACHE_TTL`, so reopening an edition is fast and
     `refresh` re-reads Drive."""
@@ -121,12 +121,13 @@ class ImageMatchClassifier:
                 files = index.files_for(card)
                 if not files:
                     continue
-                library_name = library.name
-                match_type = min(
+                library_match_type = min(
                     (file.match_type(card.year, card.team_id, card.player_type_override) for file in files),
                     key=lambda m: m.rank,
                 )
-                break
+                # STRICTLY BETTER, SO TIES KEEP THE LIBRARY EARLIER IN THE USER'S ORDER
+                if library_name is None or library_match_type.rank < match_type.rank:
+                    match_type, library_name = library_match_type, library.name
             matches[card.id] = {'image_match_type': match_type.value, 'library_name': library_name}
         checked_at = min((loaded_at for _, _, loaded_at in indexes), default=datetime.now(timezone.utc))
         return {'matches': matches, 'checked_at': checked_at.isoformat()}
