@@ -1,5 +1,5 @@
 /**
- * @fileoverview Step 3 of the Release Builder: the release-wide checklist an owner sees before
+ * @fileoverview Step 4 of the Release Builder: the release-wide checklist an owner sees before
  * publishing (from `GET /releases/<id>/review`), the release tile as others will see it, and the
  * publish / unpublish controls. Publishing is release-wide, so this is one panel for every edition.
  * Once a release is published, it also lists what republishing would change and which saved teams

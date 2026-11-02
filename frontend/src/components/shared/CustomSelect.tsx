@@ -349,6 +349,7 @@ const CustomSelect: React.FC<CustomSelectProps> = ({ value, onChange, options, c
                 createPortal(
                     <div 
                         ref={dropdownRef}
+                        data-select-menu
                         className={`
                             ${dropdownClassName}
                             fixed z-1000

@@ -62,3 +62,11 @@ export function serializeYears(draft: YearsDraft): string {
     if (draft.mode === 'range') return draft.from === draft.to ? draft.from : `${draft.from}-${draft.to}`;
     return draft.list.join('+');
 }
+
+/** Whether `year` falls in a years string. A blank or unreadable string covers every year, so nothing reads as out of scope. */
+export function yearsInclude(years: string, year: number | string): boolean {
+    const draft = parseYearsValue(years);
+    if (validateYears(draft).error) return true;
+    const target = Number(year);
+    return draft.mode === 'range' ? target >= Number(draft.from) && target <= Number(draft.to) : draft.list.includes(target);
+}

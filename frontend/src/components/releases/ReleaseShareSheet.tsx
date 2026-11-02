@@ -100,7 +100,7 @@ export function ReleaseShareSheet({ release, onClose, eyebrow, ownerToken, onRel
         >
             <div className="flex flex-col gap-4 p-4">
                 {imageUrl ? (
-                    <div className="relative w-full aspect-[1200/630] rounded-card bg-(--background-tertiary) overflow-hidden">
+                    <div className="relative w-full aspect-1200/630 rounded-card bg-(--background-tertiary) overflow-hidden">
                         <img
                             key={imageUrl}
                             src={imageUrl}
@@ -122,7 +122,7 @@ export function ReleaseShareSheet({ release, onClose, eyebrow, ownerToken, onRel
                     </div>
                 ) : (
                     <div className="flex flex-col gap-1.5">
-                        <div aria-hidden className={`w-full aspect-[1200/630] rounded-card bg-(--background-tertiary) flex items-center justify-center ${shareImage.loading ? 'animate-pulse' : ''}`}>
+                        <div aria-hidden className={`w-full aspect-1200/630 rounded-card bg-(--background-tertiary) flex items-center justify-center ${shareImage.loading ? 'animate-pulse' : ''}`}>
                             <FaSpinner className="animate-spin text-(--text-tertiary)" />
                         </div>
                         <span className="text-[12px] text-(--text-tertiary)">Making the preview image…</span>

@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef, useEffect, useCallback, memo, type ReactNode, type Ref } from 'react';
+import { useState, useMemo, useRef, useEffect, useLayoutEffect, useCallback, memo, type ReactNode, type Ref } from 'react';
 import * as Tabs from '@radix-ui/react-tabs';
 import type { ReleaseEdition, ReleaseCard, AlgorithmPreviewResult, AlgorithmPreviewPlayer, ReleaseCardImageStatus, FoilSuggestion } from '../../api/releases';
 import { updateEdition, patchEditionCards, rebuildEditionCard, customEditionCard, StaleEditionError } from '../../api/releases';
@@ -6,6 +6,10 @@ import { cardPatchesBetween, mergeCardPatches, type CardPatches } from './cardPa
 import { SummaryCharts } from './SummaryCharts';
 import { AlgorithmBuilder } from './AlgorithmBuilder';
 import { parseAlgorithmSettings, allShowdownSets } from './algorithmSettings';
+import { parseEditionScope, countOutsideScope, type EditionScope } from './editionScope';
+import { EditionSetup } from './EditionSetup';
+import { ScopeSummary } from './ScopeSummary';
+import { yearsInclude } from './years';
 import ShowdownCardSearch from '../cards/ShowdownCardSearch';
 import { CardSource } from '../../types/cardSource';
 import type { CardDatabaseRecord } from '../../api/card_db/cardDatabase';
@@ -76,10 +80,10 @@ type EditionBuilderProps = {
     token?: string;
     defaultShowdownSet?: string | null;
     onEditionUpdated: (edition: ReleaseEdition) => void;
-    /** The release-wide Review step (step 3). Owners only: leave `onReviewOpenChange` out when browsing. */
+    /** The release-wide Review step (step 4). Owners only: leave `onReviewOpenChange` out when browsing. */
     reviewOpen?: boolean;
     onReviewOpenChange?: (open: boolean) => void;
-    /** What step 3 shows; only passed to the edition on screen. */
+    /** What step 4 shows; only passed to the edition on screen. */
     review?: ReactNode;
     /** Opens a step from outside (a Review fix link). A new object re-applies the same request. */
     navRequest?: EditionNavRequest | null;
@@ -111,7 +115,7 @@ const TAB_LIST_CLASS = tabListClass(true, `px-3 shrink-0 ${CHROME_SURFACE_CLASS}
 // =============================================================================
 
 type NumberingMode = 'manual' | 'auto' | 'none';
-type SortCategory = 'team' | 'last_name' | 'points' | 'position';
+type SortCategory = 'team' | 'last_name' | 'first_name' | 'points' | 'position' | 'year' | 'league' | 'player_type' | 'hand' | 'speed';
 type SortDirection = 'asc' | 'desc';
 type SortLayer = { category: SortCategory; direction: SortDirection };
 
@@ -154,8 +158,14 @@ const NUMBERING_MODE_OPTIONS: { label: string; value: NumberingMode }[] = [
 const SORT_CATEGORY_OPTIONS: { label: string; value: SortCategory }[] = [
     { label: 'Team', value: 'team' },
     { label: 'Last Name', value: 'last_name' },
+    { label: 'First Name', value: 'first_name' },
     { label: 'Points', value: 'points' },
     { label: 'Position', value: 'position' },
+    { label: 'Year', value: 'year' },
+    { label: 'League', value: 'league' },
+    { label: 'Hitter / Pitcher', value: 'player_type' },
+    { label: 'Hand', value: 'hand' },
+    { label: 'Speed', value: 'speed' },
 ];
 
 const SORT_CATEGORY_VALUES = SORT_CATEGORY_OPTIONS.map(o => o.value);
@@ -200,6 +210,18 @@ function compareByCategory(a: ReleaseCard, b: ReleaseCard, category: SortCategor
             return (a.card_snapshot.positions_list?.[0] ?? '').localeCompare(b.card_snapshot.positions_list?.[0] ?? '');
         case 'last_name':
             return getLastNameForSort(a.card_snapshot.name).localeCompare(getLastNameForSort(b.card_snapshot.name));
+        case 'first_name':
+            return (a.card_snapshot.name ?? '').localeCompare(b.card_snapshot.name ?? '');
+        case 'year':
+            return (parseInt(String(a.card_snapshot.year), 10) || 0) - (parseInt(String(b.card_snapshot.year), 10) || 0);
+        case 'league':
+            return (a.card_snapshot.league ?? '').localeCompare(b.card_snapshot.league ?? '');
+        case 'player_type':
+            return (a.card_snapshot.player_type ?? '').localeCompare(b.card_snapshot.player_type ?? '');
+        case 'hand':
+            return (a.card_snapshot.hand ?? '').localeCompare(b.card_snapshot.hand ?? '');
+        case 'speed':
+            return (a.card_snapshot.speed ?? 0) - (b.card_snapshot.speed ?? 0);
         case 'team':
         default:
             return (a.card_snapshot.team || '').localeCompare(b.card_snapshot.team || '');
@@ -344,7 +366,7 @@ const BUILD_PANEL_WIDTH_STORAGE_KEY = 'releaseBuilder.buildPanelWidth';
 
 type BuildMethod = 'algorithm' | 'manual' | 'custom';
 const BUILD_METHODS: readonly BuildMethod[] = ['algorithm', 'manual', 'custom'];
-type EditionStep = 'pool' | 'images';
+type EditionStep = 'setup' | 'pool' | 'images';
 /** Set once the owner dismisses the "connect Google Drive" notice. */
 const DRIVE_NOTICE_DISMISSED_KEY = 'releaseBuilderDriveNoticeDismissed';
 /** `build` only exists below md, where the Build Method panel moves from a side column into its own tab.
@@ -406,6 +428,11 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
     const [algorithmEstimateSeconds, setAlgorithmEstimateSeconds] = useState<number | null>(null);
     const [numbering, setNumbering] = useState<NumberingSettings>(() => parseNumberingSettings(edition.attributes));
     const [manualPicks, setManualPicks] = useState<ManualPicks>(() => parseManualPicks(edition.attributes));
+    const [scope, setScope] = useState<EditionScope>(() => parseEditionScope(edition.attributes, defaultShowdownSet));
+    const scopeRef = useRef(scope);
+    const scopeSaveTimer = useRef<number | null>(null);
+    // Manual search normally starts from the scope's seasons; this lets the user look past them
+    const [searchAllSeasons, setSearchAllSeasons] = useState(false);
     const [editingNumbers, setEditingNumbers] = useState<Record<string, string>>({});
     const [showNumberingSettings, setShowNumberingSettings] = useState(false);
     const [showStyleModal, setShowStyleModal] = useState(false);
@@ -416,12 +443,17 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
         try { localStorage.setItem(DRIVE_NOTICE_DISMISSED_KEY, 'true'); } catch { /* storage unavailable */ }
         setIsDriveNoticeDismissed(true);
     }
-    const [step, setStep] = useState<EditionStep>('pool');
+    // A new, empty edition starts on Setup; one with cards is already past it
+    const [step, setStep] = useState<EditionStep>(() => !readOnly && edition.cards.length === 0 ? 'setup' : 'pool');
     // Images mount lazily on first open, then stay mounted so a running render keeps polling
     const [imagesMounted, setImagesMounted] = useState(false);
     function handleOpenImagesStep() {
         setImagesMounted(true);
         setStep('images');
+        onReviewOpenChange?.(false);
+    }
+    function handleOpenSetupStep() {
+        setStep('setup');
         onReviewOpenChange?.(false);
     }
     function handleOpenPoolStep() {
@@ -432,10 +464,31 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
     const editionStyle = useMemo(() => parseEditionStyle(edition.attributes), [edition.attributes]);
     const styleSummary = useMemo(() => editionStyleSummary(editionStyle), [editionStyle]);
     const numberingSettingsRef = useRef<HTMLDivElement>(null);
+    const toolbarRef = useRef<HTMLDivElement>(null);
+    const numberingPopoverRef = useRef<HTMLDivElement>(null);
+    // Centered on the gear, then shifted just enough to stay inside the toolbar
+    const [numberingPopoverShift, setNumberingPopoverShift] = useState(0);
+    useLayoutEffect(() => {
+        const popover = numberingPopoverRef.current;
+        const bounds = toolbarRef.current?.getBoundingClientRect();
+        if (!showNumberingSettings || !popover || !bounds) return;
+        const rect = popover.getBoundingClientRect();
+        const margin = 8;
+        const current = numberingPopoverShift;
+        const left = rect.left - current;
+        const right = rect.right - current;
+        let shift = 0;
+        if (right > bounds.right - margin) shift = bounds.right - margin - right;
+        if (left + shift < bounds.left + margin) shift = bounds.left + margin - left;
+        if (shift !== current) setNumberingPopoverShift(shift);
+    }, [showNumberingSettings, numbering.mode, numbering.autoLive, numbering.sortLayers.length, numberingPopoverShift]);
 
     useEffect(() => {
         const handleClickOutside = (event: MouseEvent) => {
-            if (numberingSettingsRef.current && !numberingSettingsRef.current.contains(event.target as Node)) {
+            const target = event.target as Element;
+            // CustomSelect menus are portaled to <body>, so picking an option inside the panel looks like an outside click
+            if (target.closest?.('[data-select-menu]')) return;
+            if (numberingSettingsRef.current && !numberingSettingsRef.current.contains(target)) {
                 setShowNumberingSettings(false);
             }
         };
@@ -534,29 +587,58 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
         handle.addEventListener('pointercancel', onPointerUp);
     };
 
-    // Manual search starts from the saved Algorithm settings' seasons, so manual adds (which become
-    // inclusions) are cards the Algorithm can use. Games/IP minimums aren't applied: skipping them is
-    // what an inclusion is for.
+    // Manual search starts from the edition's scope (live, not just once saved), so manual adds (which
+    // become inclusions) are cards the Algorithm can use. Games/IP minimums aren't applied: skipping
+    // them is what an inclusion is for. The scope is soft: "Search all seasons" looks past its years.
     const algorithmSettings = useMemo(() => parseAlgorithmSettings(edition.attributes, defaultShowdownSet), [edition.attributes, defaultShowdownSet]);
     // Keyed on content: every save returns a new edition, and new defaults would re-seed (and undo
     // the user clearing) the search's filters.
-    const algorithmShowdownSetsKey = allShowdownSets(algorithmSettings).join(',');
+    const scopeShowdownSetsKey = allShowdownSets(scope).join(',');
     const algorithmAllStarsOnly = algorithmSettings.all_stars_only ?? false;
-    const algorithmVariableSpeed = algorithmSettings.variable_speed ?? false;
     // Different sets for pitchers: hold each player type to its own sets, so a manual add is a card the Algorithm could pick
-    const algorithmHitterSetsKey = algorithmSettings.showdown_sets.join(',');
-    const algorithmPitcherSetsKey = algorithmSettings.pitcher_showdown_sets?.length ? algorithmSettings.pitcher_showdown_sets.join(',') : null;
-    const manualSearchScope = useMemo(() => algorithmPitcherSetsKey ? {
-        showdown_set_hitters: algorithmHitterSetsKey.split(','),
-        showdown_set_pitchers: algorithmPitcherSetsKey.split(','),
-    } : undefined, [algorithmHitterSetsKey, algorithmPitcherSetsKey]);
-    // Manual adds match the Algorithm's speed mode, so the edition's 2000/2001 cards stay consistent
+    const scopeHitterSetsKey = scope.showdown_sets.join(',');
+    const scopePitcherSetsKey = scope.pitcher_showdown_sets?.length ? scope.pitcher_showdown_sets.join(',') : null;
+    const manualSearchScope = useMemo(() => scopePitcherSetsKey ? {
+        showdown_set_hitters: scopeHitterSetsKey.split(','),
+        showdown_set_pitchers: scopePitcherSetsKey.split(','),
+    } : undefined, [scopeHitterSetsKey, scopePitcherSetsKey]);
+    // Manual adds match the scope's speed mode, so the edition's 2000/2001 cards stay consistent
     const manualSearchDefaults = useMemo<Partial<FilterSelections>>(() => ({
-        showdown_set: algorithmShowdownSetsKey ? algorithmShowdownSetsKey.split(',') : undefined,
+        showdown_set: scopeShowdownSetsKey ? scopeShowdownSetsKey.split(',') : undefined,
         awards: algorithmAllStarsOnly ? ['AS'] : undefined,
         // Explicit false overrides the search's variable speed default
-        variable_speed: algorithmVariableSpeed,
-    }), [algorithmShowdownSetsKey, algorithmAllStarsOnly, algorithmVariableSpeed]);
+        variable_speed: scope.variable_speed,
+    }), [scopeShowdownSetsKey, algorithmAllStarsOnly, scope.variable_speed]);
+
+    /** Applies a scope edit right away and saves it shortly after, so typing doesn't save per keystroke. */
+    function changeScope(patch: Partial<EditionScope>) {
+        const next = { ...scopeRef.current, ...patch };
+        scopeRef.current = next;
+        setScope(next);
+        if (!token) return;
+        if (scopeSaveTimer.current !== null) window.clearTimeout(scopeSaveTimer.current);
+        scopeSaveTimer.current = window.setTimeout(() => { void saveScope(); }, 600);
+    }
+
+    const saveScope = useStableCallback(async () => {
+        scopeSaveTimer.current = null;
+        const toSave = scopeRef.current;
+        // Half-typed entries stay local until they're valid
+        if (!token || toSave.set_size <= 0 || toSave.years.trim() === '') return;
+        try {
+            onEditionUpdated(await updateEdition(releaseId, edition.id, { attributes: { scope: toSave } }, token));
+        } catch (err: any) {
+            setError(err.message ?? 'Failed to save the edition scope.');
+        }
+    });
+    // Leaving the edition inside the save delay still saves
+    useEffect(() => () => {
+        if (scopeSaveTimer.current === null) return;
+        window.clearTimeout(scopeSaveTimer.current);
+        void saveScope();
+    }, [saveScope]);
+
+    const outsideScope = useMemo(() => countOutsideScope(cards, scope), [cards, scope]);
 
     const excludeIds = useMemo(
         () => cards.map(c => c.source_card_id).filter((id): id is string => !!id),
@@ -845,6 +927,12 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
     }
 
     function handleAddCard(record: CardDatabaseRecord) {
+        if (!yearsInclude(scope.years, record.year)) {
+            const confirmed = window.confirm(
+                `${record.year} is outside this edition's years (${scope.years}). The card will be added, but running the Algorithm with Replace will drop it unless you widen the years in Edition Scope. Add anyway?`
+            );
+            if (!confirmed) return;
+        }
         addCardSnapshot(record, manualPicksWith(record, 'included'));
     }
 
@@ -873,12 +961,12 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
         setCustomSearchKey(k => k + 1);
     }
     const customBuilderEmbed = useMemo<CustomCardBuilderEmbed>(() => ({
-        showdownSet: algorithmShowdownSetsKey ? algorithmShowdownSetsKey.split(',')[0] : defaultShowdownSet,
+        showdownSet: scopeShowdownSetsKey ? scopeShowdownSetsKey.split(',')[0] : defaultShowdownSet,
         actionLabel: 'Add to Edition',
         completedIds: excludeIds,
         onAction: addCustomCard,
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }), [algorithmShowdownSetsKey, defaultShowdownSet, excludeIds, numbering, token]);
+    }), [scopeShowdownSetsKey, defaultShowdownSet, excludeIds, numbering, token]);
 
     /** Removing a card also excludes that player-year from future Algorithm runs (not a custom card,
      * which isn't one). In a preview, it just drops the card from the (unsaved) preview. */
@@ -1136,15 +1224,21 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
     return (
         <div className="flex flex-col flex-1 min-h-0">
             {/* Step indicator */}
-            <div className={`flex flex-wrap items-center gap-x-2 sm:gap-x-3 gap-y-2 px-3 sm:px-4 py-3 border-b border-(--divider) shrink-0 ${CHROME_SURFACE_CLASS}`}>
+            <div className={`flex items-center gap-x-2 sm:flex-wrap sm:gap-x-3 gap-y-2 px-3 sm:px-4 py-3 border-b border-(--divider) shrink-0 ${CHROME_SURFACE_CLASS}`}>
                 {/* Numbered as a workflow while editing; plain views while browsing */}
-                <StepButton number={readOnly ? undefined : 1} label={readOnly ? 'Cards' : 'Player Pool'} mobileLabel={readOnly ? undefined : 'Pool'} isActive={!reviewOpen && step === 'pool'} onClick={handleOpenPoolStep} />
-                <div className={`${readOnly ? 'w-2 sm:w-3' : 'w-2 sm:w-8'} h-px bg-(--divider) shrink-0`} />
-                <StepButton ref={setImagesStepButton} number={readOnly ? undefined : 2} label="Images" isActive={!reviewOpen && step === 'images'} onClick={handleOpenImagesStep} />
+                {!readOnly && (
+                    <>
+                        <StepButton number={1} label="Setup" isActive={!reviewOpen && step === 'setup'} onClick={handleOpenSetupStep} />
+                        <div className="w-3 sm:w-8 h-px bg-(--divider) shrink-0" />
+                    </>
+                )}
+                <StepButton number={readOnly ? undefined : 2} label={readOnly ? 'Cards' : 'Player Pool'} mobileLabel={readOnly ? undefined : 'Pool'} isActive={!reviewOpen && step === 'pool'} onClick={handleOpenPoolStep} />
+                <div className={`${readOnly ? 'w-2 sm:w-3' : 'w-3 sm:w-8'} h-px bg-(--divider) shrink-0`} />
+                <StepButton ref={setImagesStepButton} number={readOnly ? undefined : 3} label="Images" isActive={!reviewOpen && step === 'images'} onClick={handleOpenImagesStep} />
                 {onReviewOpenChange && (
                     <>
-                        <div className="w-2 sm:w-8 h-px bg-(--divider) shrink-0" />
-                        <StepButton number={3} label="Review" isActive={reviewOpen} onClick={() => onReviewOpenChange(true)} />
+                        <div className="w-3 sm:w-8 h-px bg-(--divider) shrink-0" />
+                        <StepButton number={4} label="Review" isActive={reviewOpen} onClick={() => onReviewOpenChange(true)} />
                     </>
                 )}
 
@@ -1168,7 +1262,7 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
 
                 {saving && (
                     <span className={`${readOnly ? 'ml-auto' : ''} flex items-center gap-1 text-[11px] text-(--text-tertiary)`}>
-                        <FaSpinner className="animate-spin text-[10px]" /> Saving…
+                        <FaSpinner className="animate-spin text-[10px]" /> <span className="hidden sm:inline">Saving…</span>
                     </span>
                 )}
             </div>
@@ -1218,6 +1312,11 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
                 </div>
             )}
 
+            {/* Setup step: just the scope form, so it mounts only while open (its state lives here) */}
+            {!readOnly && !reviewOpen && step === 'setup' && (
+                <EditionSetup scope={scope} onChange={changeScope} outside={outsideScope} onContinue={handleOpenPoolStep} />
+            )}
+
             {/* Player Pool step. Hidden (not unmounted) so the build panel's state survives step switches.
                 One Tabs.Root spans the split so the phone-only tab strip can also switch to the Build panel. */}
             <Tabs.Root
@@ -1261,6 +1360,12 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
                             md:flex-none md:shrink-0 md:w-(--build-panel-width) md:max-w-(--build-panel-max-width) md:border-r md:border-(--divider)
                             ${buildPanelHidden ? 'md:hidden' : 'md:flex'}`}
                     >
+                        <ScopeSummary
+                            scope={scope}
+                            outside={outsideScope}
+                            onSetSizeChange={set_size => changeScope({ set_size })}
+                            onEdit={handleOpenSetupStep}
+                        />
                         <div className={`px-3 pt-2 pb-1 shrink-0 flex items-center justify-between gap-2 ${CHROME_SURFACE_CLASS}`}>
                             <div className="flex items-center gap-1.5">
                                 <button
@@ -1296,6 +1401,8 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
                                     edition={edition}
                                     token={token}
                                     defaultShowdownSet={defaultShowdownSet}
+                                    scope={scope}
+                                    onScopeChange={changeScope}
                                     manualPicks={manualPicks}
                                     onManualPicksChange={persistManualPicks}
                                     onPreviewResult={handlePreviewResult}
@@ -1304,13 +1411,28 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
                                 />
                             </Tabs.Content>
                             <Tabs.Content value="manual" className="flex-1 min-h-0 flex flex-col focus:outline-none">
+                                <div className={`flex items-center gap-3 px-3 py-2 border-b border-(--divider) ${CHROME_SURFACE_CLASS}`}>
+                                    <p className="flex-1 min-w-0 text-[12px] leading-snug text-(--text-tertiary)">
+                                        {searchAllSeasons
+                                            ? 'Searching every season. Cards outside the edition years ask before adding.'
+                                            : `Starts from the Edition Scope: ${scope.years || 'no years'} · ${scopeShowdownSetsKey.split(',').join(', ') || 'no sets'}.`}
+                                    </p>
+                                    <button
+                                        type="button"
+                                        onClick={() => setSearchAllSeasons(prev => !prev)}
+                                        aria-pressed={searchAllSeasons}
+                                        className={choiceClass(searchAllSeasons, 'sm')}
+                                    >
+                                        All Seasons
+                                    </button>
+                                </div>
                                 <ShowdownCardSearch
                                     source={CardSource.BOT}
                                     compact={true}
                                     excludeIds={excludeIds}
                                     defaultFilters={manualSearchDefaults}
                                     scopeFilters={manualSearchScope}
-                                    defaultYears={algorithmSettings.years}
+                                    defaultYears={searchAllSeasons ? undefined : scope.years}
                                     enableVariableSpeedToggle
                                     actionButton={{
                                         icon: <FaPlus />,
@@ -1458,7 +1580,7 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
                                 // Sized by the pool panel (which resizes), not the window: one row when it's wide,
                                 // else view controls over edition tools, each row left-aligned. The container is its
                                 // own stacking context, so z-20 keeps its popovers over the grid's tags and headers.
-                                <div className={`@container relative z-20 px-3 py-2 border-b border-(--divider) shrink-0 ${CHROME_SURFACE_CLASS}`}>
+                                <div ref={toolbarRef} className={`@container relative z-20 px-3 py-2 border-b border-(--divider) shrink-0 ${CHROME_SURFACE_CLASS}`}>
                                     <div className="flex flex-col gap-2 @7xl:flex-row @7xl:items-center">
                                         {displayCards.length > 0 && (
                                             <div className="flex flex-wrap items-center gap-2 @7xl:flex-1 @7xl:min-w-0">
@@ -1609,7 +1731,11 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
                                                         </button>
 
                                                         {showNumberingSettings && (
-                                                            <div className={`${POOL_TOOLBAR_POPOVER_CLASS} right-0`}>
+                                                            <div
+                                                                ref={numberingPopoverRef}
+                                                                className={`${POOL_TOOLBAR_POPOVER_CLASS} left-1/2 -translate-x-1/2`}
+                                                                style={{ marginLeft: numberingPopoverShift }}
+                                                            >
                                                                 {numbering.mode === 'auto' && (
                                                                     <>
                                                                         <div className="flex flex-col gap-2">
@@ -1675,8 +1801,9 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
 
                                                                         <FormEnabler
                                                                             label="Live"
+                                                                            description="Renumber automatically whenever cards change"
                                                                             isEnabled={numbering.autoLive}
-                                                                            onChange={autoLive => handleNumberingSettingChange({ autoLive })}
+                                                                            onChange={autoLive => handleNumberingSettingChange({ autoLive: !autoLive })}
                                                                             className="min-h-10 text-[13px]"
                                                                         />
                                                                     </>
@@ -1886,12 +2013,13 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
 
 function StepButton({ number, label, mobileLabel, isActive, onClick, ref }: { number?: number; label: string; mobileLabel?: string; isActive: boolean; onClick: () => void; ref?: Ref<HTMLButtonElement> }) {
     return (
-        <button ref={ref} type="button" onClick={onClick} className="group flex items-center gap-1.5 sm:gap-2 cursor-pointer">
+        <button ref={ref} type="button" onClick={onClick} aria-label={label} aria-current={isActive ? 'step' : undefined} className="group flex items-center gap-1.5 sm:gap-2 cursor-pointer">
             {number !== undefined && <span className={`flex items-center justify-center w-5 h-5 rounded-full text-[11px] font-semibold tabular-nums shrink-0 transition-colors
                 ${isActive ? 'bg-(--showdown-blue-fill) text-white' : 'border border-(--text-tertiary) text-(--text-tertiary) group-hover:border-(--text-secondary) group-hover:text-(--text-secondary)'}`}>
                 {number}
             </span>}
-            <span className={`${headingClass('panel')} transition-colors ${isActive ? '' : 'text-(--text-tertiary)! group-hover:text-(--text-secondary)!'}`}>
+            {/* Phones keep one row: a numbered step shows its label only while active, the rest are just the number */}
+            <span className={`${headingClass('panel')} transition-colors ${isActive ? '' : `text-(--text-tertiary)! group-hover:text-(--text-secondary)! ${number !== undefined ? 'hidden sm:inline' : ''}`}`}>
                 {mobileLabel ? <><span className="sm:hidden">{mobileLabel}</span><span className="hidden sm:inline">{label}</span></> : label}
             </span>
         </button>

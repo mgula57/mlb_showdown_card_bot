@@ -28,6 +28,7 @@ export function ReleaseTip({ id, show, anchor, placement }: ReleaseTipProps) {
 }
 
 const WELCOME_STEPS = [
+    { label: 'Setup', detail: 'Choose the seasons, showdown sets and size this edition draws from.' },
     { label: 'Player Pool', detail: 'Pick the players with the algorithm, a search, or your own custom cards.' },
     { label: 'Images', detail: 'Choose a card style and render an image for every card.' },
     { label: 'Review & Publish', detail: 'Check for problems, then publish so anyone can browse it.' },
@@ -53,7 +54,7 @@ export function ReleaseOnboardingWelcome() {
         <Modal title="Build your first release" subtitle="A quick tour of the Release Builder" size="sm" onClose={tip.dismiss} footer={footer}>
             <div className="px-4 py-4 flex flex-col gap-3">
                 <p className="text-[13px] text-(--text-secondary)">
-                    A release is your own card set. It holds one or more editions, and you build each one in three steps:
+                    A release is your own card set. It holds one or more editions, and you build each one in four steps:
                 </p>
                 <ol className="flex flex-col gap-2.5">
                     {WELCOME_STEPS.map((step, i) => (

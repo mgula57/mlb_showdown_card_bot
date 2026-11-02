@@ -135,8 +135,10 @@ class ReleaseDraft:
         changes = EditionChanges(
             edition_id=working['id'], name=working['name'],
             renamed_from=live['name'] if live['name'] != working['name'] else None,
-            settings_changed=(live.get('attributes') or {}).get('style') != (working.get('attributes') or {}).get('style')
-                or (live.get('attributes') or {}).get('numbering') != (working.get('attributes') or {}).get('numbering'),
+            settings_changed=any(
+                (live.get('attributes') or {}).get(key) != (working.get('attributes') or {}).get(key)
+                for key in ('style', 'numbering', 'scope')
+            ),
         )
         for source_id, card in working_cards.items():
             snapshot = card['card_snapshot']

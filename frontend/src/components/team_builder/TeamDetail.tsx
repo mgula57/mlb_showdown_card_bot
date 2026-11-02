@@ -1406,7 +1406,7 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                 actions wrap under the info at full width. */}
             <header className="@container relative isolate shrink-0 border-b border-(--divider) bg-(--background-secondary)">
                 <div aria-hidden className="absolute inset-0 -z-10 bg-pinstripe" />
-                <div aria-hidden className="absolute inset-x-0 top-0 h-[3px]" style={{ backgroundColor: primary }} />
+                <div aria-hidden className="absolute inset-x-0 top-0 h-0.75" style={{ backgroundColor: primary }} />
                 <div className="flex flex-wrap md:flex-nowrap items-stretch">
                 <div className="flex flex-col gap-2 basis-full md:basis-auto md:flex-1 min-w-0 px-4 pt-3.5 pb-3 md:pb-3.5">
                     <div className="flex items-center gap-3 min-w-0">

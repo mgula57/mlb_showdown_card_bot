@@ -77,7 +77,7 @@ export function ReleaseDetail({ release, readOnly, editionSlug, onEditionChange,
     // published release) keeps the compact builder header
     const showPublicHeader = !isEditing && isPublished;
 
-    /** Step 3 is release-wide, so it lives here rather than in each edition's builder. */
+    /** Step 4 is release-wide, so it lives here rather than in each edition's builder. */
     const [reviewOpen, setReviewOpen] = useState(false);
     const isReviewing = isEditing && reviewOpen && !!token;
     const review = useReleaseReview(release.id, token, isReviewing);
@@ -424,7 +424,9 @@ export function ReleaseDetail({ release, readOnly, editionSlug, onEditionChange,
                     <div className="hidden md:block w-px my-2.5 bg-(--divider) shrink-0" />
                     </>
                     )}
-                    <Tabs.List className={`order-last md:order-0 w-full md:w-auto md:flex-1 flex items-stretch gap-x-3 min-w-0 overflow-x-auto scrollbar-hide md:border-t-0 ${showPublicHeader ? '' : 'border-t border-(--divider)'}`}>
+                    {/* On mobile the strip is its own row, so it bleeds through the header's px-4 (the
+                        shared carousel pattern): tabs scroll to the screen edge instead of clipping 16px short. */}
+                    <Tabs.List className={`order-last md:order-0 w-[calc(100%+2rem)] -mx-4 px-4 md:w-auto md:mx-0 md:px-0 md:flex-1 flex items-stretch gap-x-3 min-w-0 overflow-x-auto scrollbar-hide md:border-t-0 ${showPublicHeader ? '' : 'border-t border-(--divider)'}`}>
                         {editions.map(edition => (
                             <Tabs.Trigger key={edition.id} value={edition.id} className={EDITION_TAB_CLASS}>
                                 {shownOf(edition).name}

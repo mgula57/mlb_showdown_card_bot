@@ -48,7 +48,7 @@ type EditionImagesProps = {
     statusFilterRequest?: { status: ReleaseCardImageStatus } | null;
 };
 
-/** Step 2 of the Edition Builder: renders every card in the edition (with its edition style and set
+/** Step 3 of the Edition Builder: renders every card in the edition (with its edition style and set
  * number) to Supabase in a background job, and shows each card's image as it lands. */
 export function EditionImages({ releaseId, releaseName, edition, readOnly, token, previewRanks, onPreviewRankChange, statusFilterRequest }: EditionImagesProps) {
     const [data, setData] = useState<EditionImagesData | null>(null);

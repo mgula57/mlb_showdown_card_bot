@@ -1,32 +1,28 @@
 import { useEffect, useMemo, useState } from 'react';
-import { FaWandMagicSparkles, FaSpinner, FaTriangleExclamation, FaStar, FaLayerGroup, FaChevronDown, FaFloppyDisk, FaCheck, FaSliders, FaRotateLeft, FaCodeBranch, FaXmark } from 'react-icons/fa6';
-import type { ReleaseEdition, AlgorithmConfig, AlgorithmPlayerTypeDistribution, AlgorithmPreviewResult, AlgorithmSelectionWeights, AlgorithmTeamMinimums, AlgorithmTeamWeighting, AlgorithmOtherEditionsRule, WotcSetProfile } from '../../api/releases';
+import { FaWandMagicSparkles, FaSpinner, FaTriangleExclamation, FaStar, FaLayerGroup, FaFloppyDisk, FaCheck, FaSliders, FaRotateLeft, FaCodeBranch, FaXmark } from 'react-icons/fa6';
+import type { ReleaseEdition, AlgorithmConfig, AlgorithmPlayerTypeDistribution, AlgorithmPreviewResult, AlgorithmSelectionWeights, AlgorithmTeamMinimums, AlgorithmTeamWeighting, WotcSetProfile } from '../../api/releases';
 import { fetchWotcSetProfiles, previewAlgorithm, updateEdition } from '../../api/releases';
-import { showdownSets } from '../shared/SiteSettingsContext';
-import { hasVariableSpeedSet } from '../../functions/showdownSets';
-import { setSelectOption } from '../shared/SetBadge';
 import FormInput from '../customs/FormInput';
 import FormEnabler from '../customs/FormEnabler';
 import FormDropdown from '../customs/FormDropdown';
-import MultiSelect from '../shared/MultiSelect';
 import PercentageSlider from '../shared/PercentageSlider';
 import { InlineError } from '../shared/InlineError';
 import { Heading } from '../shared/Heading';
-import { headingClass } from '../shared/headingStyles';
-import { FIELD_LABEL_CLASS } from '../shared/fieldStyles';
 import { choiceClass } from '../shared/choiceStyles';
 import { useAuth } from '../auth/AuthContext';
 import { useBeforeUnloadWarning } from '../../hooks/useBeforeUnloadWarning';
 import PointBucketsEditor from './PointBucketsEditor';
 import { validatePointBuckets } from './pointBuckets';
-import YearsInput from './YearsInput';
+import { SettingsGroup, SettingsLabel } from './SettingsGroup';
+import type { AlgorithmRules, EditionScope } from './editionScope';
+import { omitScope } from './editionScope';
 import PositionTargetsTable from './PositionTargetsTable';
 import { distributionFromPositionTargets } from './positionTargets';
 import type { ManualPick, ManualPicks } from './manualPicks';
 import { manualPickLabel, withoutManualPick } from './manualPicks';
 import {
     DEFAULT_PLAYER_TYPE_DISTRIBUTION, DEFAULT_SELECTION_WEIGHTS, DEFAULT_TEAM_MINIMUMS, DEFAULT_LEGEND_MIN_CAREER_WAR, SELECTION_DEFAULTS,
-    CUSTOM_TEMPLATE_ID, ALL_STARS_TEMPLATE_ID, EXPANSION_TEMPLATE_ID, parseAlgorithmSettings, allShowdownSets, estimateAlgorithmSeconds,
+    CUSTOM_TEMPLATE_ID, ALL_STARS_TEMPLATE_ID, EXPANSION_TEMPLATE_ID, parseAlgorithmSettings, estimateAlgorithmSeconds,
 } from './algorithmSettings';
 
 type AlgorithmBuilderProps = {
@@ -34,6 +30,9 @@ type AlgorithmBuilderProps = {
     edition: ReleaseEdition;
     token?: string;
     defaultShowdownSet?: string | null;
+    /** Owned by EditionBuilder and edited in the Scope panel: the Algorithm runs against it live. Templates that preset scope fields write through `onScopeChange`. */
+    scope: EditionScope;
+    onScopeChange: (patch: Partial<EditionScope>) => void;
     /** Owned by EditionBuilder: removing a card from the pool excludes the player, adding one manually includes them. */
     manualPicks: ManualPicks;
     onManualPicksChange: (picks: ManualPicks) => void;
@@ -62,25 +61,14 @@ const TEAM_WEIGHTING_OPTIONS: { value: AlgorithmTeamWeighting; label: string }[]
     { value: 'STRENGTH', label: 'By Team Strength' },
 ];
 
-const OTHER_EDITIONS_OPTIONS: { value: AlgorithmOtherEditionsRule; label: string }[] = [
-    { value: 'ALLOW', label: 'Allow' },
-    { value: 'NEW_TEAM_ONLY', label: 'Only on a New Team' },
-    { value: 'EXCLUDE', label: 'Leave Out' },
-];
-
 const DISTRIBUTION_ROWS: { key: keyof AlgorithmPlayerTypeDistribution; label: string; fillClassName: string }[] = [
     { key: 'hitters_percentage', label: 'Hitters', fillClassName: 'bg-(--showdown-blue-fill)' },
     { key: 'starters_percentage', label: 'Starters', fillClassName: 'bg-(--showdown-red-fill)' },
     { key: 'relievers_percentage', label: 'Relievers', fillClassName: 'bg-(--showdown-gray)' },
 ];
 
-const showdownSetOptions = showdownSets.map(s => setSelectOption(s.value, { compact: true }));
-
 /** Number of WOTC base sets (2000-2005) — sizes the template chip skeletons while profiles load. */
 const WOTC_BASE_SET_COUNT = 6;
-
-/** Mirrors `AlgorithmPreviewRequest.set_size` on the backend. */
-const MAX_SET_SIZE = 800;
 
 const percentLabel =(fraction: number) => Math.round(fraction * 100);
 
@@ -94,55 +82,6 @@ function isDeepEqual(a: unknown, b: unknown): boolean {
     const bKeys = Object.keys(b);
     if (aKeys.length !== bKeys.length) return false;
     return aKeys.every(key => isDeepEqual((a as Record<string, unknown>)[key], (b as Record<string, unknown>)[key]));
-}
-
-const sectionOpenStorageKey = (id: string) => `releaseBuilder.algorithmSection.${id}`;
-
-function loadSectionOpen(id: string, defaultOpen: boolean): boolean {
-    try {
-        const saved = localStorage.getItem(sectionOpenStorageKey(id));
-        return saved === null ? defaultOpen : saved === 'open';
-    } catch {
-        return defaultOpen;
-    }
-}
-
-/** Lightweight collapsible group — used instead of FormSection so the algorithm settings keep
- * as much of the narrow build panel as possible. Shows `summary` while collapsed so the whole
- * config stays readable at a glance; open/closed is remembered per section. */
-function SettingsGroup({ id, title, summary, children, defaultOpen = true }: { id: string; title: string; summary?: string; children: React.ReactNode; defaultOpen?: boolean }) {
-    const [isOpen, setIsOpen] = useState(() => loadSectionOpen(id, defaultOpen));
-
-    function toggle() {
-        const next = !isOpen;
-        setIsOpen(next);
-        try { localStorage.setItem(sectionOpenStorageKey(id), next ? 'open' : 'closed'); } catch { /* storage unavailable */ }
-    }
-
-    return (
-        <section className="flex flex-col gap-2.5 shrink-0 border-t border-(--divider) pt-4">
-            <button
-                type="button"
-                onClick={toggle}
-                aria-expanded={isOpen}
-                className="group flex items-center justify-between gap-3 text-left cursor-pointer"
-            >
-                <span className={`shrink-0 ${headingClass('panel')}`}>{title}</span>
-                <span className="flex items-center gap-2 min-w-0">
-                    {!isOpen && summary && (
-                        <span title={summary} className="text-[11px] font-semibold text-(--text-tertiary) truncate">{summary}</span>
-                    )}
-                    <FaChevronDown className={`shrink-0 text-[10px] text-(--text-tertiary) opacity-60 group-hover:opacity-100 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
-                </span>
-            </button>
-            {isOpen && children}
-        </section>
-    );
-}
-
-/** Field-style caps label for a sub-part of a SettingsGroup. */
-function SettingsLabel({ children }: { children: React.ReactNode }) {
-    return <span className={FIELD_LABEL_CLASS}>{children}</span>;
 }
 
 // =============================================================================
@@ -276,12 +215,14 @@ function TemplateChip({ template, isActive, onSelect }: { template: AlgorithmTem
     );
 }
 
-export function AlgorithmBuilder({ releaseId, edition, token, defaultShowdownSet, manualPicks, onManualPicksChange, onPreviewResult, onRunningChange, onEditionUpdated }: AlgorithmBuilderProps) {
-    const [config, setConfig] = useState<AlgorithmConfig>(() => parseAlgorithmSettings(edition.attributes, defaultShowdownSet));
-    // Last config persisted to the edition — the Save button is enabled only while `config` differs from it
-    const [savedConfig, setSavedConfig] = useState<AlgorithmConfig>(config);
+export function AlgorithmBuilder({ releaseId, edition, token, defaultShowdownSet, scope, onScopeChange, manualPicks, onManualPicksChange, onPreviewResult, onRunningChange, onEditionUpdated }: AlgorithmBuilderProps) {
+    // The Algorithm's own rules. Scope (size, years, sets...) lives in the Scope panel and is merged in below.
+    const [rules, setRules] = useState<AlgorithmRules>(() => omitScope(parseAlgorithmSettings(edition.attributes, defaultShowdownSet)));
+    const config = useMemo<AlgorithmConfig>(() => ({ ...rules, ...scope }), [rules, scope]);
+    // Last rules persisted to the edition — the Save button is enabled only while `rules` differ from it
+    const [savedConfig, setSavedConfig] = useState<AlgorithmRules>(rules);
     const [saving, setSaving] = useState(false);
-    const isDirty = useMemo(() => !isDeepEqual(config, savedConfig), [config, savedConfig]);
+    const isDirty = useMemo(() => !isDeepEqual(rules, savedConfig), [rules, savedConfig]);
     useBeforeUnloadWarning(isDirty);
     const [status, setStatus] = useState<'idle' | 'running' | 'error'>('idle');
     const [error, setError] = useState<string | null>(null);
@@ -319,7 +260,7 @@ export function AlgorithmBuilder({ releaseId, edition, token, defaultShowdownSet
     const teamMinimums = config.team_minimums ?? DEFAULT_TEAM_MINIMUMS;
     const teamMinimumsTotal = teamMinimums.hitters + teamMinimums.starters + teamMinimums.relievers;
     const teamWeighting = config.team_weighting ?? 'EVEN';
-    const otherEditionsRule = config.other_editions_rule ?? 'ALLOW';
+    const otherEditionsRule = config.other_editions_rule;
     const uniquePlayers = config.unique_players ?? true;
     const legendMinCareerWar = config.legend_min_career_war ?? null;
     const hasLegends = legendMinCareerWar !== null;
@@ -329,7 +270,6 @@ export function AlgorithmBuilder({ releaseId, edition, token, defaultShowdownSet
 
     const pitcherShowdownSets = config.pitcher_showdown_sets ?? null;
     const hasPitcherSets = pitcherShowdownSets !== null;
-    const hasSet00_01 = hasVariableSpeedSet(allShowdownSets(config));
 
     const canRun = !!token
         && config.set_size > 0
@@ -342,13 +282,6 @@ export function AlgorithmBuilder({ releaseId, edition, token, defaultShowdownSet
 
     // Shown in each section's header while it's collapsed
     const summaries = {
-        basics: [
-            `${config.set_size} cards`,
-            config.years.trim() || 'no years',
-            ...(hasPitcherSets
-                ? [`${config.showdown_sets.join(', ') || 'no'} hitters`, `${pitcherShowdownSets.join(', ') || 'no'} pitchers`]
-                : [config.showdown_sets.join(', ') || 'no sets']),
-        ].join(' · '),
         eligibility: [
             isAllStarSet
                 ? 'All-Stars only'
@@ -374,36 +307,38 @@ export function AlgorithmBuilder({ releaseId, edition, token, defaultShowdownSet
             ...visibleWeightRows.map(row => `${row.label} ${percentLabel(selectionWeights[row.key])}`),
             ...(hasAwardBoost ? ['Award boost'] : []),
         ].join(' · '),
-        cardOptions: [
-            ...(hasSet00_01 ? [config.variable_speed ? 'Variable speed' : 'Standard speed'] : []),
-            ...(isAdmin && rerunCards ? ['Re-run cards'] : []),
-        ].join(' · '),
+        cardOptions: isAdmin && rerunCards ? 'Re-run cards' : '',
     };
 
     function updateDistribution(patch: Partial<AlgorithmPlayerTypeDistribution>) {
         if (distributionLocked) return;
-        setConfig(prev => ({ ...prev, player_type_distribution: { ...distribution, ...patch } }));
+        setRules(prev => ({ ...prev, player_type_distribution: { ...distribution, ...patch } }));
     }
 
     function updateTeamMinimums(patch: Partial<AlgorithmTeamMinimums>) {
-        setConfig(prev => ({ ...prev, team_minimums: { ...teamMinimums, ...patch } }));
+        setRules(prev => ({ ...prev, team_minimums: { ...teamMinimums, ...patch } }));
     }
 
     function updateWeights(patch: Partial<AlgorithmSelectionWeights>) {
-        setConfig(prev => ({ ...prev, selection_weights: { ...selectionWeights, ...patch } }));
+        setRules(prev => ({ ...prev, selection_weights: { ...selectionWeights, ...patch } }));
     }
 
     function applyTemplate(template: AlgorithmTemplate) {
-        setConfig(prev => ({ ...prev, ...template.preset, template_id: template.id }));
+        const { set_size, years, showdown_sets, pitcher_showdown_sets, variable_speed, other_editions_rule, ...rulePreset } = template.preset;
+        const scopePatch: Partial<EditionScope> = { set_size, years, showdown_sets, pitcher_showdown_sets, variable_speed, other_editions_rule };
+        const definedScopePatch = Object.fromEntries(Object.entries(scopePatch).filter(([, value]) => value !== undefined));
+        if (Object.keys(definedScopePatch).length > 0) onScopeChange(definedScopePatch);
+        setRules(prev => ({ ...prev, ...rulePreset, template_id: template.id }));
     }
 
     async function handleSave() {
         if (!token || saving) return;
-        const toSave = config;
+        const toSave = rules;
         setSaving(true);
         setError(null);
         try {
-            const updated = await updateEdition(releaseId, edition.id, { attributes: { algorithm: toSave } }, token);
+            // Scope rides along so an edition saved before scope existed moves its years, sets and size out of the old algorithm blob
+            const updated = await updateEdition(releaseId, edition.id, { attributes: { algorithm: toSave, scope } }, token);
             setSavedConfig(toSave);
             onEditionUpdated(updated);
         } catch (err: any) {
@@ -473,53 +408,6 @@ export function AlgorithmBuilder({ releaseId, edition, token, defaultShowdownSet
                 )}
             </section>
 
-            <SettingsGroup id="basics" title="Basics" summary={summaries.basics}>
-                <div className="grid grid-cols-2 gap-2">
-                    <FormInput
-                        label="Set Size"
-                        type="number"
-                        value={config.set_size}
-                        onChange={value => setConfig(prev => ({ ...prev, set_size: Math.min(parseInt(value || '0', 10) || 0, MAX_SET_SIZE) }))}
-                    />
-
-                    <YearsInput
-                        className="col-span-full"
-                        value={config.years}
-                        onChange={value => setConfig(prev => ({ ...prev, years: value }))}
-                    />
-
-                    <MultiSelect
-                        label={hasPitcherSets ? 'Hitter Sets' : 'Showdown Sets'}
-                        className="col-span-full"
-                        options={showdownSetOptions}
-                        selections={config.showdown_sets}
-                        onChange={values => setConfig(prev => ({ ...prev, showdown_sets: values }))}
-                        placeholder="Select set(s)..."
-                    />
-
-                    {hasPitcherSets && (
-                        <MultiSelect
-                            label="Pitcher Sets"
-                            className="col-span-full"
-                            options={showdownSetOptions}
-                            selections={pitcherShowdownSets}
-                            onChange={values => setConfig(prev => ({ ...prev, pitcher_showdown_sets: values }))}
-                            placeholder="Select set(s)..."
-                        />
-                    )}
-                </div>
-                <FormEnabler
-                    label="Different Sets for Pitchers"
-                    className="self-start"
-                    isEnabled={hasPitcherSets}
-                    // Starts from the hitters' sets so the config stays runnable until the user changes it
-                    onChange={() => setConfig(prev => ({ ...prev, pitcher_showdown_sets: hasPitcherSets ? null : [...prev.showdown_sets] }))}
-                />
-                <p className="text-[11px] text-(--text-tertiary) -mt-1">
-                    Mix sets by player type, like 2000 hitters with 2001 pitchers.
-                </p>
-            </SettingsGroup>
-
             <SettingsGroup id="eligibility" title="Who's Eligible?" summary={summaries.eligibility} defaultOpen={false}>
                 {isAllStarSet ? (
                     <p className="text-[11px] text-(--text-tertiary)">
@@ -532,19 +420,19 @@ export function AlgorithmBuilder({ releaseId, edition, token, defaultShowdownSet
                                 label="Min PA (Hitters)"
                                 type="number"
                                 value={config.min_pa_hitters ?? 200}
-                                onChange={value => setConfig(prev => ({ ...prev, min_pa_hitters: parseInt(value || '0', 10) || 0 }))}
+                                onChange={value => setRules(prev => ({ ...prev, min_pa_hitters: parseInt(value || '0', 10) || 0 }))}
                             />
                             <FormInput
                                 label="Min IP (Starters)"
                                 type="number"
                                 value={config.min_ip_starters ?? 75}
-                                onChange={value => setConfig(prev => ({ ...prev, min_ip_starters: parseInt(value || '0', 10) || 0 }))}
+                                onChange={value => setRules(prev => ({ ...prev, min_ip_starters: parseInt(value || '0', 10) || 0 }))}
                             />
                             <FormInput
                                 label="Min IP (Relievers)"
                                 type="number"
                                 value={config.min_ip_relievers ?? 30}
-                                onChange={value => setConfig(prev => ({ ...prev, min_ip_relievers: parseInt(value || '0', 10) || 0 }))}
+                                onChange={value => setRules(prev => ({ ...prev, min_ip_relievers: parseInt(value || '0', 10) || 0 }))}
                             />
                         </div>
                         <p className="text-[11px] text-(--text-tertiary)">
@@ -554,7 +442,7 @@ export function AlgorithmBuilder({ releaseId, edition, token, defaultShowdownSet
                             label="Legends"
                             className="self-start"
                             isEnabled={hasLegends}
-                            onChange={() => setConfig(prev => ({ ...prev, legend_min_career_war: hasLegends ? null : DEFAULT_LEGEND_MIN_CAREER_WAR }))}
+                            onChange={() => setRules(prev => ({ ...prev, legend_min_career_war: hasLegends ? null : DEFAULT_LEGEND_MIN_CAREER_WAR }))}
                         />
                         {hasLegends && (
                             <FormInput
@@ -563,7 +451,7 @@ export function AlgorithmBuilder({ releaseId, edition, token, defaultShowdownSet
                                 inputMode="decimal"
                                 step={5}
                                 value={legendMinCareerWar}
-                                onChange={value => setConfig(prev => ({ ...prev, legend_min_career_war: Math.max(0, parseFloat(value || '0') || 0) }))}
+                                onChange={value => setRules(prev => ({ ...prev, legend_min_career_war: Math.max(0, parseFloat(value || '0') || 0) }))}
                             />
                         )}
                         <p className="text-[11px] text-(--text-tertiary) -mt-1">
@@ -575,19 +463,10 @@ export function AlgorithmBuilder({ releaseId, edition, token, defaultShowdownSet
                     label="One Card per Player"
                     className="self-start"
                     isEnabled={uniquePlayers}
-                    onChange={() => setConfig(prev => ({ ...prev, unique_players: !uniquePlayers }))}
+                    onChange={() => setRules(prev => ({ ...prev, unique_players: !uniquePlayers }))}
                 />
                 <p className="text-[11px] text-(--text-tertiary) -mt-1">
                     Keeps only a player's best version when the years or sets would give them more than one card.
-                </p>
-                <FormDropdown
-                    label="Players in Other Editions"
-                    options={OTHER_EDITIONS_OPTIONS}
-                    selectedOption={otherEditionsRule}
-                    onChange={value => setConfig(prev => ({ ...prev, other_editions_rule: (value as AlgorithmOtherEditionsRule) || 'ALLOW' }))}
-                />
-                <p className="text-[11px] text-(--text-tertiary) -mt-1">
-                    For expansion editions: leave out players already carded elsewhere in this release, or only bring them back on a new team (like WOTC's Trading Deadline).
                 </p>
             </SettingsGroup>
 
@@ -615,7 +494,7 @@ export function AlgorithmBuilder({ releaseId, edition, token, defaultShowdownSet
                     <PositionTargetsTable
                         targets={positionTargets}
                         setSize={config.set_size}
-                        onClear={() => setConfig(prev => ({ ...prev, position_targets: [] }))}
+                        onClear={() => setRules(prev => ({ ...prev, position_targets: [] }))}
                     />
                 ) : (
                     <>
@@ -648,7 +527,7 @@ export function AlgorithmBuilder({ releaseId, edition, token, defaultShowdownSet
                 </div>
                 <PointBucketsEditor
                     buckets={pointBuckets}
-                    onChange={buckets => setConfig(prev => ({ ...prev, point_buckets: buckets }))}
+                    onChange={buckets => setRules(prev => ({ ...prev, point_buckets: buckets }))}
                 />
             </SettingsGroup>
 
@@ -657,7 +536,7 @@ export function AlgorithmBuilder({ releaseId, edition, token, defaultShowdownSet
                     label="Cards per Team"
                     options={TEAM_WEIGHTING_OPTIONS}
                     selectedOption={teamWeighting}
-                    onChange={value => setConfig(prev => ({ ...prev, team_weighting: (value as AlgorithmTeamWeighting) || 'EVEN' }))}
+                    onChange={value => setRules(prev => ({ ...prev, team_weighting: (value as AlgorithmTeamWeighting) || 'EVEN' }))}
                 />
                 <p className="text-[11px] text-(--text-tertiary) -mt-1">
                     Even gives every team about the same count (WOTC 2000-01: 15-17 each). By Team Strength gives stronger teams more cards (WOTC 2002-05: 5-16 each).
@@ -699,42 +578,25 @@ export function AlgorithmBuilder({ releaseId, edition, token, defaultShowdownSet
                     label="Award Boost"
                     className="self-start"
                     isEnabled={hasAwardBoost}
-                    onChange={() => setConfig(prev => ({ ...prev, include_all_stars: !hasAwardBoost, include_award_winners: !hasAwardBoost }))}
+                    onChange={() => setRules(prev => ({ ...prev, include_all_stars: !hasAwardBoost, include_award_winners: !hasAwardBoost }))}
                 />
                 <p className="text-[11px] text-(--text-tertiary) -mt-1">
                     Raises Quality for All-Star selections and MVP, Cy Young, Rookie of the Year, Gold Glove and Silver Slugger winners.
                 </p>
             </SettingsGroup>
 
-            {(hasSet00_01 || isAdmin) && (
+            {isAdmin && (
                 <SettingsGroup id="card-options" title="Card Options" summary={summaries.cardOptions} defaultOpen={false}>
-                    {hasSet00_01 && (
-                        <>
-                            <FormEnabler
-                                label="Variable Speed"
-                                className="self-start"
-                                isEnabled={config.variable_speed ?? false}
-                                onChange={() => setConfig(prev => ({ ...prev, variable_speed: !(prev.variable_speed ?? false) }))}
-                            />
-                            <p className="text-[11px] text-(--text-tertiary) -mt-1">
-                                2000/2001 cards use exact speed instead of 10/15/20, with points recalculated. Players are picked on their standard points, so point totals may shift slightly from your buckets.
-                            </p>
-                        </>
-                    )}
-                    {isAdmin && (
-                        <>
-                            <SettingsLabel>Admin</SettingsLabel>
-                            <FormEnabler
-                                label="Re-run Cards"
-                                className="self-start"
-                                isEnabled={rerunCards}
-                                onChange={() => setRerunCards(prev => !prev)}
-                            />
-                            <p className="text-[11px] text-(--text-tertiary) -mt-1">
-                                Rebuilds each selected card with the current card algorithm instead of using the archived version. Slower for large sets.
-                            </p>
-                        </>
-                    )}
+                    <SettingsLabel>Admin</SettingsLabel>
+                    <FormEnabler
+                        label="Re-run Cards"
+                        className="self-start"
+                        isEnabled={rerunCards}
+                        onChange={() => setRerunCards(prev => !prev)}
+                    />
+                    <p className="text-[11px] text-(--text-tertiary) -mt-1">
+                        Rebuilds each selected card with the current card algorithm instead of using the archived version. Slower for large sets.
+                    </p>
                 </SettingsGroup>
             )}
 

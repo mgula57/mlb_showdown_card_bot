@@ -172,7 +172,7 @@ function HomeCardOfTheDay({ card, placeholderSrc, onSelect }: { card?: ShowdownB
                 </div>
                 {/* Stacked: a card-shaped box. On lg the image is out of flow and fills whatever height the
                     shelves beside it leave, so the two columns end level */}
-                <div className="relative w-full max-w-xs mx-auto aspect-[2.5/3.5] lg:max-w-none lg:aspect-auto lg:flex-1 lg:min-h-0">
+                <div className="relative w-full max-w-xs mx-auto aspect-2.5/3.5 lg:max-w-none lg:aspect-auto lg:flex-1 lg:min-h-0">
                     {/* Sized by max-width/height so the img box hugs the art and its corner clips the card */}
                     <div className="absolute inset-0 flex items-center justify-center">
                         <img

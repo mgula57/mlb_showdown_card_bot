@@ -1,7 +1,7 @@
 /**
  * @fileoverview The Algorithm tab's settings: defaults and parsing the last-used config back out of an
- * edition's `attributes`. Shared by AlgorithmBuilder and EditionBuilder (whose Manual search starts
- * from the same seasons).
+ * edition's `attributes`. The edition-wide fields (size, years, sets...) are owned by `editionScope.ts`;
+ * this still reads them from older editions' saved blob so scope can fall back to them.
  */
 
 import type { AlgorithmConfig, AlgorithmPlayerTypeDistribution, AlgorithmSelectionWeights, AlgorithmTeamMinimums } from '../../api/releases';
