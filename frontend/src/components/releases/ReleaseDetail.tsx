@@ -68,6 +68,9 @@ export function ReleaseDetail({ release, readOnly, editionSlug, onEditionChange,
     const loadedIdOf = (edition: ReleaseEditionSummary) => isEditing && edition.draft ? edition.draft.id : edition.id;
     /** What the tab shows for an edition: the working copy's name and count while editing it. */
     const shownOf = (edition: ReleaseEditionSummary) => isEditing && edition.draft ? edition.draft : edition;
+    /** A loaded edition knows its own cards, so prefer that over the summary's count, which a stale
+     *  release snapshot can leave behind. */
+    const cardCountOf = (edition: ReleaseEditionSummary) => editionCache[loadedIdOf(edition)]?.cards.length ?? shownOf(edition).card_count;
     // A published edition without a working copy yet can't be edited, so open them first
     const needsDraft = isEditing && isStaged && release.editions.some(e => e.published_at && !e.draft);
     // Browsing a published release gets the full public header; editing (and previewing a never-
@@ -106,7 +109,7 @@ export function ReleaseDetail({ release, readOnly, editionSlug, onEditionChange,
     // The first-build tour: owners editing a release that has never been published, outside the Review step
     const onboarding = useReleaseOnboardingState(isEditing && !!token && !isStaged && !reviewOpen);
     const [publishButton, setPublishButton] = useState<HTMLButtonElement | null>(null);
-    const totalCardCount = release.editions.reduce((sum, e) => sum + shownOf(e).card_count, 0);
+    const totalCardCount = release.editions.reduce((sum, e) => sum + cardCountOf(e), 0);
 
     /** Releases from publish/draft endpoints lack the list-only fields, so keep ours for those. */
     function mergeRelease(updated: Release) {
@@ -362,7 +365,7 @@ export function ReleaseDetail({ release, readOnly, editionSlug, onEditionChange,
                 {showPublicHeader && (
                     <ReleasePublicHeader
                         release={release}
-                        cardCount={editions.reduce((sum, e) => sum + e.card_count, 0)}
+                        cardCount={editions.reduce((sum, e) => sum + cardCountOf(e), 0)}
                         editionCount={editions.length}
                         isOwner={isOwner}
                         token={token}
@@ -422,7 +425,7 @@ export function ReleaseDetail({ release, readOnly, editionSlug, onEditionChange,
                         {editions.map(edition => (
                             <Tabs.Trigger key={edition.id} value={edition.id} className={EDITION_TAB_CLASS}>
                                 {shownOf(edition).name}
-                                <Plate size="sm" className="ml-1.5">{shownOf(edition).card_count}</Plate>
+                                <Plate size="sm" className="ml-1.5">{cardCountOf(edition)}</Plate>
                                 {/* Only worth flagging per edition when the rest of the release is already public */}
                                 {isOwner && isPublished && !edition.is_published && (
                                     <Plate variant="outline" size="sm" className="ml-1.5">Draft</Plate>
