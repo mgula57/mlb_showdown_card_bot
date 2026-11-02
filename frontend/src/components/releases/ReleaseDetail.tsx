@@ -220,13 +220,16 @@ export function ReleaseDetail({ release, readOnly, editionSlug, onEditionChange,
         const { outcome, release: updated } = await deleteEdition(release.id, activeEdition.id, token);
         setDeleteTarget(null);
         closeEditionForm();
+        // Drop the edition from the release first: if the cache cleared while it was still the active
+        // edition, the load effect would refetch it and 404
+        mergeRelease(updated);
         if (outcome !== 'staged') {
             const goneIds = [activeEdition.id, activeEdition.draft?.id];
             setEditionCache(prev => Object.fromEntries(Object.entries(prev).filter(([id]) => !goneIds.includes(id))));
+            setError(null);
             const next = updated.editions[0];
             if (next) onEditionChange(next.slug);
         }
-        mergeRelease(updated);
     }
 
     async function handleRestoreEdition() {
