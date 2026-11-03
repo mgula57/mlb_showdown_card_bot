@@ -16,6 +16,7 @@ from ..database.postgres_db import PostgresDB
 from .image_match_classifier import ImageMatchCard, ImageMatchClassifier
 from .release_draft import ReleaseChanges, ReleaseDraft
 from .release_images import EditionCardStyle, EditionImagePlan, EditionNumbering
+from .release_style_rules import EditionStyleRules
 
 _ACTIVE_JOB_STATUSES = {'queued', 'running'}
 # How many names/numbers a detail line lists before summarizing the rest
@@ -190,7 +191,8 @@ class EditionReview:
         return [self._item('tags', ReviewLevel.POLISH, f"Tagged: {summary}", passed=True)]
 
     def _style_item(self) -> ReviewItem:
-        if EditionCardStyle.from_attributes(self.edition.get('attributes')) == EditionCardStyle():
+        attributes = self.edition.get('attributes')
+        if EditionCardStyle.from_attributes(attributes) == EditionCardStyle() and not EditionStyleRules.from_attributes(attributes).rules:
             return self._item('style', ReviewLevel.POLISH, 'Card style is the default',
                               'Fine if you meant it. Change it to give the edition its own look.', fix='style')
         return self._item('style', ReviewLevel.POLISH, 'Card style set', passed=True)

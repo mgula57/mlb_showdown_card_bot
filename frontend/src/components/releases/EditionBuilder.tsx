@@ -41,7 +41,7 @@ import { ConnectDriveButton } from '../account/ImageLibrarySettings';
 import { useCopyReleaseLink } from './useCopyReleaseLink';
 import { parseManualPicks, manualPickFor, withManualPick, type ManualPicks } from './manualPicks';
 import { relativeTime } from '../../functions/formatters';
-import { parseEditionStyle, editionStyleSummary, releaseCardStyle, releaseCardOverridesFor } from './editionStyle';
+import { parseEditionStyle, parseEditionStyleRules, editionStyleSummary, releaseCardBaseStyle, releaseCardStyle, releaseCardOverridesFor, type EditionStyleRule } from './editionStyle';
 import type { CardStyleSettings } from '../customs/cardStyle';
 import type { CardStyleEditorConfig } from '../cards/card_detail/CardStyleEditor';
 import type { CardStyleOverrides } from '../cards/cardStyleOverrides';
@@ -493,7 +493,11 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
     }
     const [imagesStatusRequest, setImagesStatusRequest] = useState<{ status: ReleaseCardImageStatus } | null>(null);
     const editionStyle = useMemo(() => parseEditionStyle(edition.attributes), [edition.attributes]);
-    const styleSummary = useMemo(() => editionStyleSummary(editionStyle), [editionStyle]);
+    const styleRules = useMemo(() => parseEditionStyleRules(edition.attributes), [edition.attributes]);
+    const styleSummary = useMemo(() => {
+        const summary = editionStyleSummary(editionStyle);
+        return styleRules.length > 0 ? [...summary, { value: `${styleRules.length} ${styleRules.length === 1 ? 'Rule' : 'Rules'}` }] : summary;
+    }, [editionStyle, styleRules]);
     const numberingSettingsRef = useRef<HTMLDivElement>(null);
     const toolbarRef = useRef<HTMLDivElement>(null);
     const numberingPopoverRef = useRef<HTMLDivElement>(null);
@@ -1045,16 +1049,19 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
     const detailCardPreviewRank = detailCardCurrent?.preview_rank ?? null;
     const editionTags = useMemo(() => [...new Set(cards.flatMap(c => c.tags))].sort(), [cards]);
 
-    // The detail modal renders the release card as it will print: edition style (plus the card's
-    // own overrides) + formatted set number. BOT snapshots don't embed card_data, so CardDetail
-    // hydrates those by card_id. Keyed on the overrides' content: every save returns fresh card
-    // objects, and a new style object would regenerate the image.
-    const detailCardOverridesKey = JSON.stringify(detailCardCurrent?.card_overrides?.style ?? null);
-    const detailCardStyle = useMemo<CardStyleSettings>(
-        () => releaseCardStyle(editionStyle, detailCardCurrent?.card_overrides),
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-        [editionStyle, detailCardOverridesKey]
-    );
+    // The detail modal renders the release card as it will print: edition style, matching rules and
+    // the card's own overrides, plus the formatted set number. BOT snapshots don't embed card_data,
+    // so CardDetail hydrates those by card_id. Keyed on the styles' content: every save returns fresh
+    // card objects (and a tag edit can change which rules match), and a new style object would
+    // regenerate the image.
+    const detailCardBaseStyleRaw = detailCardCurrent ? releaseCardBaseStyle(editionStyle, styleRules, detailCardCurrent) : editionStyle;
+    const detailCardStyleRaw = detailCardCurrent ? releaseCardStyle(editionStyle, styleRules, detailCardCurrent) : editionStyle;
+    const detailCardBaseStyleKey = JSON.stringify(detailCardBaseStyleRaw);
+    const detailCardStyleKey = JSON.stringify(detailCardStyleRaw);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    const detailCardBaseStyle = useMemo<CardStyleSettings>(() => detailCardBaseStyleRaw, [detailCardBaseStyleKey]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    const detailCardStyle = useMemo<CardStyleSettings>(() => detailCardStyleRaw, [detailCardStyleKey]);
     /** The set number as it prints on the card, or null when the edition isn't numbered. */
     function printedSetNumber(card: ReleaseCard): string | null {
         return numbering.mode === 'none' || card.card_number === null
@@ -1074,10 +1081,10 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
         const sourceCardId = detailCard.source_card_id;
         return {
             style: detailCardStyle,
-            defaults: editionStyle,
-            revertTitle: 'Revert to the edition style',
+            defaults: detailCardBaseStyle,
+            revertTitle: 'Revert to the edition style and rules',
             onSave: async (style) => {
-                const card_overrides = releaseCardOverridesFor(style, editionStyle);
+                const card_overrides = releaseCardOverridesFor(style, detailCardBaseStyle);
                 const saved = await persist(cards.map(c => c.source_card_id === sourceCardId ? { ...c, card_overrides } : c));
                 if (!saved) throw new Error('Failed to save card style.');
             },
@@ -1095,7 +1102,7 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
             } : undefined,
         };
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [detailCard, readOnly, activePreview, detailCardStyle, editionStyle, cards, numbering, token]);
+    }, [detailCard, readOnly, activePreview, detailCardStyle, detailCardBaseStyle, cards, numbering, token]);
 
     function handleDetailCardTagsChange(tags: string[]) {
         if (!detailCard) return;
@@ -1973,6 +1980,7 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
                                                             card={card}
                                                             showFullCards={showFullCards}
                                                             editionStyle={editionStyle}
+                                                            styleRules={styleRules}
                                                             numberLabel={formatCardNumber(card.card_number, displayCards.length, numbering.mode === 'auto' && numbering.zeroPad, numbering.prefix)}
                                                             setNumber={printedSetNumber(card)}
                                                             numberInputValue={isManualNumberingEditable ? (editingNumbers[card.id] ?? (card.card_number === null ? '' : card.card_number)) : undefined}
@@ -2028,6 +2036,7 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
                 <EditionStyleModal
                     releaseId={releaseId}
                     edition={edition}
+                    cards={displayCards}
                     token={token}
                     onClose={() => setShowStyleModal(false)}
                     onEditionUpdated={onEditionUpdated}
@@ -2131,6 +2140,7 @@ type PoolCardRowProps = {
     card: ReleaseCard;
     showFullCards: boolean;
     editionStyle: CardStyleSettings;
+    styleRules: EditionStyleRule[];
     /** Number shown beside the card. */
     numberLabel: string;
     /** Set number printed on full cards; null when the edition isn't numbered. */
@@ -2153,11 +2163,11 @@ type PoolCardRowProps = {
 
 /** One pool grid card. Memoized (with stable callbacks from the builder) because the pool can be
  * hundreds of cards, and loading another page or opening a card shouldn't re-render all of them. */
-const PoolCardRow = memo(function PoolCardRow({ card, showFullCards, editionStyle, numberLabel, setNumber, numberInputValue, numberPrefix, numberIssue, showMatchBadge, onOpen, onRemove, onNumberChange, onNumberBlur, foilSuggestion, onSkipFoilSuggestion }: PoolCardRowProps) {
-    // Full cards show the edition style and set number they'll print with
+const PoolCardRow = memo(function PoolCardRow({ card, showFullCards, editionStyle, styleRules, numberLabel, setNumber, numberInputValue, numberPrefix, numberIssue, showMatchBadge, onOpen, onRemove, onNumberChange, onNumberBlur, foilSuggestion, onSkipFoilSuggestion }: PoolCardRowProps) {
+    // Full cards show the style (edition, rules, overrides) and set number they'll print with
     const styleOverrides = useMemo<CardStyleOverrides>(
-        () => ({ style: releaseCardStyle(editionStyle, card.card_overrides), setNumber }),
-        [editionStyle, card.card_overrides, setNumber]
+        () => ({ style: releaseCardStyle(editionStyle, styleRules, card), setNumber }),
+        [editionStyle, styleRules, card, setNumber]
     );
     const handleOpen = useCallback(() => onOpen(card), [onOpen, card]);
     const issueTitle = numberIssue === 'duplicate'

@@ -86,6 +86,21 @@ export function SetStyleFields({ values, onChange, afterEdition }: StyleFieldsPr
     );
 }
 
+/** The Image Parallel dropdown with sample thumbnails. Also used by the Release Builder's style rules. */
+export function ParallelDropdown({ value, onChange, className = '' }: { value: string; onChange: (value: string) => void; className?: string }) {
+    return (
+        <FormDropdown
+            label={<span className="inline-flex items-center gap-1.5">Image Parallel <NewBadge /></span>}
+            className={className}
+            options={parallelOptionsWithBadges}
+            selectedOption={value}
+            onChange={onChange}
+            imageClassName="mr-2 w-5 h-5 shrink-0 object-cover rounded-plate"
+            menuImageClassName="mr-2 w-9 h-10 shrink-0 object-cover rounded-control"
+        />
+    );
+}
+
 /** Image section fields after the image source inputs. Parallel only applies to auto images, so
  * the Custom Card Builder hides it for linked/uploaded images. */
 export function ImageStyleFields({ values, onChange, hideParallel = false }: StyleFieldsProps & { hideParallel?: boolean }) {
@@ -95,14 +110,10 @@ export function ImageStyleFields({ values, onChange, hideParallel = false }: Sty
         : imageParallelOptions.find(option => option.value === values.image_parallel);
     return (
         <>
-            <FormDropdown
-                label={<span className="inline-flex items-center gap-1.5">Image Parallel <NewBadge /></span>}
+            <ParallelDropdown
                 className={`col-span-full ${hideParallel ? 'hidden' : ''}`}
-                options={parallelOptionsWithBadges}
-                selectedOption={values.image_parallel}
+                value={values.image_parallel}
                 onChange={(value) => onChange({ image_parallel: value })}
-                imageClassName="mr-2 w-5 h-5 shrink-0 object-cover rounded-plate"
-                menuImageClassName="mr-2 w-9 h-10 shrink-0 object-cover rounded-control"
             />
             {previewParallel && <ParallelPreview parallel={previewParallel} />}
 

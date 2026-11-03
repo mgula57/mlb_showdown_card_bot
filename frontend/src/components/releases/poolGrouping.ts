@@ -3,7 +3,8 @@ import { IMAGE_MATCH_TYPE_OPTIONS } from '../../api/card_db/cardDatabase';
 import { CardSource } from '../../types/cardSource';
 import { FRANCHISE_CODE, PARENT_POSITION_ORDER, parentPositionGroup } from './SummaryCharts';
 
-export type PoolGroupBy = 'none' | 'team' | 'league' | 'position' | 'type' | 'hand' | 'year' | 'points' | 'command' | 'speed' | 'ip' | 'chart_version' | 'image_match' | 'tag';
+export type PoolGroupBy = 'none' | 'team' | 'league' | 'position' | 'type' | 'hand' | 'year' | 'hof' | 'awards' | 'nationality'
+    | 'points' | 'command' | 'speed' | 'ip' | 'chart_version' | 'image_match' | 'tag';
 export type PoolSortBy = 'set_number' | 'points' | 'name' | 'team' | 'position' | 'year' | 'command' | 'speed' | 'ip'
     | 'volume' | 'g' | 'war' | 'pa' | 'avg' | 'obp' | 'slg' | 'ops' | 'ops_plus' | 'h' | 'hr' | 'sb' | 'bb'
     | 'gs' | 'real_ip' | 'era' | 'whip' | 'w' | 'sv' | 'so' | 'match_score' | 'match_margin';
@@ -20,6 +21,9 @@ export const POOL_GROUP_OPTIONS: { label: string; value: PoolGroupBy; group?: st
     { label: 'Player Type', value: 'type', group: 'Player' },
     { label: 'Handedness', value: 'hand', group: 'Player' },
     { label: 'Year', value: 'year', group: 'Player' },
+    { label: 'Hall of Fame', value: 'hof', group: 'Player' },
+    { label: 'Awards', value: 'awards', group: 'Player' },
+    { label: 'Nationality', value: 'nationality', group: 'Player' },
     { label: 'PTS Tier', value: 'points', group: 'Card' },
     { label: 'Command', value: 'command', group: 'Card' },
     { label: 'Speed', value: 'speed', group: 'Card' },
@@ -318,10 +322,19 @@ function compareChartVersionKeys(a: string, b: string): number {
 }
 
 const UNTAGGED_LABEL = 'Untagged';
+const NO_AWARDS_LABEL = 'No Awards';
+const HOF_LABEL = 'Hall of Fame';
+const NOT_HOF_LABEL = 'Not in Hall of Fame';
 
-/** Tags alphabetically, Untagged last. */
-function compareTagGroupKeys(a: string, b: string): number {
-    return Number(a === UNTAGGED_LABEL) - Number(b === UNTAGGED_LABEL) || a.localeCompare(b);
+/** Alphabetical, with the "has none" bucket (Untagged, No Awards) last. */
+function alphabeticalWithLast(lastLabel: string) {
+    return (a: string, b: string) => Number(a === lastLabel) - Number(b === lastLabel) || a.localeCompare(b);
+}
+
+/** Each distinct award once ("AS" can repeat in the list); "No Awards" for none. */
+function awardLabels(card: ReleaseCard): string | string[] {
+    const awards = [...new Set(card.card_snapshot.awards_list ?? [])];
+    return awards.length > 0 ? awards : NO_AWARDS_LABEL;
 }
 
 const GROUPERS: Record<Exclude<PoolGroupBy, 'none'>, GroupKeyer> = {
@@ -340,6 +353,10 @@ const GROUPERS: Record<Exclude<PoolGroupBy, 'none'>, GroupKeyer> = {
     },
     hand: { keyFn: handLabel, compareKeys: (a, b) => HAND_ORDER.indexOf(a) - HAND_ORDER.indexOf(b) },
     year: { keyFn: card => String(cardYear(card) || 'Unknown'), compareKeys: descendingNumericKeys },
+    hof: { keyFn: card => card.card_snapshot.is_hof ? HOF_LABEL : NOT_HOF_LABEL, compareKeys: alphabeticalWithLast(NOT_HOF_LABEL) },
+    // A card with several awards appears in each award's group
+    awards: { keyFn: awardLabels, compareKeys: alphabeticalWithLast(NO_AWARDS_LABEL) },
+    nationality: { keyFn: card => card.card_snapshot.nationality || 'Unknown', compareKeys: alphabeticalWithLast('Unknown') },
     points: { keyFn: pointsTierLabel, compareKeys: descendingNumericKeys },
     command: { keyFn: commandGroupLabel, compareKeys: compareCommandGroupKeys },
     speed: sideStatGrouper(SIDE_STATS.speed),
@@ -347,7 +364,7 @@ const GROUPERS: Record<Exclude<PoolGroupBy, 'none'>, GroupKeyer> = {
     chart_version: { keyFn: chartVersionLabel, compareKeys: compareChartVersionKeys },
     image_match: { keyFn: imageMatchLabel, compareKeys: (a, b) => IMAGE_MATCH_LABELS.indexOf(a) - IMAGE_MATCH_LABELS.indexOf(b) },
     // A card with several tags appears in each tag's group
-    tag: { keyFn: card => card.tags.length > 0 ? card.tags : UNTAGGED_LABEL, compareKeys: compareTagGroupKeys },
+    tag: { keyFn: card => card.tags.length > 0 ? card.tags : UNTAGGED_LABEL, compareKeys: alphabeticalWithLast(UNTAGGED_LABEL) },
 };
 
 /** Sorts `cards` and splits them into labelled groups (a single unlabelled group when not grouping).
@@ -427,15 +444,23 @@ export function activePoolFilterCount(filters: PoolFilters): number {
     return Object.values(filters).filter(values => values && values.length > 0).length;
 }
 
+/** The dimensions with at least one selected value. */
+export function activePoolFilters(filters: PoolFilters): [PoolFilterBy, string[]][] {
+    return (Object.entries(filters) as [PoolFilterBy, string[] | undefined][])
+        .filter((entry): entry is [PoolFilterBy, string[]] => !!entry[1] && entry[1].length > 0);
+}
+
+/** Whether `card` falls under one of the selected values in every active dimension (true when none are active). */
+export function cardMatchesPoolFilters(card: ReleaseCard, filters: PoolFilters): boolean {
+    return activePoolFilters(filters).every(([filterBy, values]) => [GROUPERS[filterBy].keyFn(card)].flat().some(key => values.includes(key)));
+}
+
 /** Keeps cards matching every active dimension and whose name contains `search` (case-insensitive). */
 export function filterPoolCards(cards: ReleaseCard[], filters: PoolFilters, search: string): ReleaseCard[] {
-    const active = (Object.entries(filters) as [PoolFilterBy, string[] | undefined][])
-        .filter((entry): entry is [PoolFilterBy, string[]] => !!entry[1] && entry[1].length > 0)
-        .map(([filterBy, values]) => ({ keyFn: GROUPERS[filterBy].keyFn, values: new Set(values) }));
     const query = search.trim().toLowerCase();
-    if (active.length === 0 && !query) return cards;
+    if (activePoolFilters(filters).length === 0 && !query) return cards;
     return cards.filter(card =>
         (!query || (card.card_snapshot.name ?? '').toLowerCase().includes(query))
-        && active.every(({ keyFn, values }) => [keyFn(card)].flat().some(key => values.has(key)))
+        && cardMatchesPoolFilters(card, filters)
     );
 }

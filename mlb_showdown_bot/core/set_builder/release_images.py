@@ -20,6 +20,7 @@ from ..card.card_image_builder import CardImageBuilder
 from ..card.images import DEFAULT_RENDER_FILE_FORMAT, ImageLibrary
 from ..database.postgres_db import PostgresDB
 from ..supabase import SupabaseClientManager
+from .release_style_rules import EditionStyleRules
 
 # Bump when card templates/rendering change enough that every release image should re-render
 # (2: JPEG instead of PNG, with 2003 transparency flattened onto white)
@@ -55,12 +56,15 @@ class EditionCardStyle(BaseModel):
         raw = (attributes or {}).get('style')
         return cls(**raw) if isinstance(raw, dict) else cls()
 
-    def with_card_overrides(self, card_overrides: dict | None) -> 'EditionCardStyle':
-        """This style with a release card's own tweaks (`card_overrides.style`) layered on top."""
-        raw = (card_overrides or {}).get('style')
+    def with_style(self, raw: dict | None) -> 'EditionCardStyle':
+        """This style with the given fields layered on top."""
         if not isinstance(raw, dict) or not raw:
             return self
         return EditionCardStyle(**{**self.model_dump(), **raw})
+
+    def with_card_overrides(self, card_overrides: dict | None) -> 'EditionCardStyle':
+        """This style with a release card's own tweaks (`card_overrides.style`) layered on top."""
+        return self.with_style((card_overrides or {}).get('style'))
 
     def image_fields(self) -> dict:
         """`ShowdownImage` values for this style. Mirrors the frontend's `applyCardStyleOverrides`."""
@@ -199,6 +203,7 @@ class EditionImagePlan:
         self.edition_id: str = edition['id']
         self.release_id: str = edition['release_id']
         style = EditionCardStyle.from_attributes(edition.get('attributes'))
+        rules = EditionStyleRules.from_attributes(edition.get('attributes'))
         numbering = EditionNumbering.from_attributes(edition.get('attributes'))
         cards = edition.get('cards') or []
         self.specs: list[ReleaseCardImageSpec] = [
@@ -206,7 +211,8 @@ class EditionImagePlan:
                 source_card_id=card['source_card_id'],
                 card_snapshot=card.get('card_snapshot') or {},
                 set_number=numbering.set_number(card.get('card_number'), len(cards)),
-                style=style.with_card_overrides(card.get('card_overrides')),
+                # Edition style, then matching rules in order, then the card's own overrides
+                style=style.with_style(rules.style_for(card)).with_card_overrides(card.get('card_overrides')),
             )
             for card in cards if card.get('source_card_id')
         ]
