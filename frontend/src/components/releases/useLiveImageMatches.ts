@@ -23,6 +23,8 @@ export function useLiveImageMatches(releaseId: string, editionId: string, cards:
     const [error, setError] = useState<string | null>(null);
     const [checkedAt, setCheckedAt] = useState<string | null>(null);
     const requestSeq = useRef(0);
+    // Server workers cache separately, so after a manual refresh every later check must be at least this fresh
+    const refreshedAtRef = useRef<string | null>(null);
 
     // One entry per snapshot — the same player-season can appear in several Showdown sets
     const snapshots = useMemo(
@@ -40,10 +42,14 @@ export function useLiveImageMatches(releaseId: string, editionId: string, cards:
         setLoading(true);
         setError(null);
         try {
-            const result = await fetchLiveImageMatches(releaseId, editionId, snapshotsRef.current, token, refresh);
+            const result = await fetchLiveImageMatches(releaseId, editionId, snapshotsRef.current, token, refresh, refreshedAtRef.current);
             if (seq !== requestSeq.current) return;
             setMatches(prev => ({ ...prev, ...result.matches }));
+            if (refresh) refreshedAtRef.current = result.checked_at;
             setCheckedAt(result.checked_at);
+            if (result.failed_libraries.length > 0) {
+                setError(`Couldn't read ${result.failed_libraries.join(', ')}. Make sure the folder is still shared with the bot, then click to retry.`);
+            }
         } catch (err) {
             if (seq === requestSeq.current) setError(err instanceof Error ? err.message : 'Failed to check image matches.');
         } finally {

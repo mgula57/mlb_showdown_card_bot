@@ -1,6 +1,7 @@
 import os
 import threading
 import traceback
+from datetime import datetime
 from flask import Blueprint, g, jsonify, request
 from pydantic import ValidationError
 from ..core.card.images import ImageLibrary
@@ -856,7 +857,7 @@ _MAX_IMAGE_MATCH_CARDS = 2000
 def classify_edition_image_matches(release_id: str, edition_id: str):
     """Live auto image match per card snapshot, searching the owner's image libraries (their Google
     Drive folders + Showdown Bot) in the order a render would. Takes `cards` (snapshots) in the body so
-    unsaved algorithm previews can be checked too; `refresh: true` re-reads the libraries from Drive."""
+    unsaved algorithm previews can be checked too; `refresh: true` re-reads the libraries from Drive; `refresh_since` (a prior `checked_at`) does so for any listing read before it."""
     try:
         payload = request.get_json(silent=True) or {}
         snapshots = payload.get('cards')
@@ -870,7 +871,11 @@ def classify_edition_image_matches(release_id: str, edition_id: str):
                 return jsonify({'error': 'Edition not found or not owned by user'}), 404
 
         cards = [card for card in map(ImageMatchCard.from_snapshot, snapshots) if card]
-        classifier = ImageMatchClassifier(UserImageLibraries.for_card_build(g.user_id), refresh=bool(payload.get('refresh')))
+        try:
+            fresh_since = datetime.fromisoformat(payload['refresh_since']) if payload.get('refresh_since') else None
+        except (TypeError, ValueError):
+            return jsonify({'error': 'refresh_since must be an ISO timestamp'}), 400
+        classifier = ImageMatchClassifier(UserImageLibraries.for_card_build(g.user_id), refresh=bool(payload.get('refresh')), fresh_since=fresh_since)
         return jsonify(classifier.classify(cards)), 200
     except Exception as exc:
         traceback.print_exc()

@@ -787,8 +787,8 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
     const [poolSearch, setPoolSearch] = useState('');
     const [showPoolFilters, setShowPoolFilters] = useState(false);
     const activeFilterCount = activePoolFilterCount(poolFilters);
-    // The live image match control only shows while it affects the grid
-    const isImageMatchActive = groupBy === 'image_match' || (poolFilters.image_match?.length ?? 0) > 0;
+    // The live image match control only shows while it affects the grid (or the always-listed filter is open)
+    const isImageMatchActive = showPoolFilters || groupBy === 'image_match' || (poolFilters.image_match?.length ?? 0) > 0;
     // Match scores only show while sorting by them, so the grid stays quiet otherwise
     const isMatchSortActive = sortBy === 'match_score' || sortBy === 'match_margin';
     // Foil picks waiting to be applied, by source card id: saved cards not already tagged FOIL. Null

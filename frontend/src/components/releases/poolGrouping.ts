@@ -409,13 +409,15 @@ export const POOL_FILTER_OPTIONS = POOL_GROUP_OPTIONS.filter(
     (o): o is { label: string; value: PoolFilterBy; group?: string } => o.value !== 'none'
 );
 
-/** Distinct values of a dimension across `cards`, in group order, labelled with their card counts. */
+/** Distinct values of a dimension across `cards`, in group order, labelled with their card counts. Image match always lists every type. */
 export function poolFilterValueOptions(cards: ReleaseCard[], filterBy: PoolFilterBy): { label: string; value: string }[] {
     const { keyFn, compareKeys } = GROUPERS[filterBy];
     const counts = new Map<string, number>();
     for (const card of cards) {
         for (const key of [keyFn(card)].flat()) counts.set(key, (counts.get(key) ?? 0) + 1);
     }
+    // EVERY MATCH TYPE IS LISTED, EVEN AT ZERO, SO IT'S CLEAR WHAT THE CHECK FOUND
+    if (filterBy === 'image_match') for (const label of IMAGE_MATCH_LABELS) counts.set(label, counts.get(label) ?? 0);
     return [...counts.entries()]
         .sort(([a], [b]) => compareKeys(a, b))
         .map(([key, count]) => ({ label: `${key} (${count})`, value: key }));

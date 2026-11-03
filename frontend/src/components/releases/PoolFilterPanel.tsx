@@ -11,12 +11,13 @@ type PoolFilterPanelProps = {
 };
 
 /** One multi-select per grouping dimension. Dimensions with a single value in the pool are hidden
- * (nothing to narrow), unless they already have a selection that needs clearing. */
+ * (nothing to narrow), unless they already have a selection that needs clearing. Image match is
+ * always shown, since "everything matches" is the answer a user opens it to confirm. */
 export function PoolFilterPanel({ cards, filters, onChange }: PoolFilterPanelProps) {
     const dimensions = useMemo(
         () => POOL_FILTER_OPTIONS
             .map(dimension => ({ ...dimension, options: poolFilterValueOptions(cards, dimension.value) }))
-            .filter(dimension => dimension.options.length > 1 || (filters[dimension.value]?.length ?? 0) > 0),
+            .filter(dimension => dimension.options.length > 1 || dimension.value === 'image_match' || (filters[dimension.value]?.length ?? 0) > 0),
         [cards, filters]
     );
 

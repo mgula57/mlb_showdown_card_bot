@@ -892,11 +892,13 @@ export type LiveImageMatches = {
     matches: Record<string, LiveImageMatch>;
     /** When the oldest library listing used was read from Drive. */
     checked_at: string;
+    /** Names of libraries Drive couldn't be read for (unshared, deleted, or a Drive error). */
+    failed_libraries: string[];
 };
 
-/** Re-checks each snapshot's auto image match. `refresh` re-reads the libraries from Drive instead of the ~10 minute server cache. */
-export function fetchLiveImageMatches(releaseId: string, editionId: string, cards: CardDatabaseRecord[], token: string, refresh = false): Promise<LiveImageMatches> {
-    const body = JSON.stringify({ cards, refresh });
+/** Re-checks each snapshot's auto image match. `refresh` re-reads the libraries from Drive instead of the ~10 minute server cache. `refreshSince` (the last refresh's `checked_at`) does the same for any listing a different server worker read before it. */
+export function fetchLiveImageMatches(releaseId: string, editionId: string, cards: CardDatabaseRecord[], token: string, refresh = false, refreshSince: string | null = null): Promise<LiveImageMatches> {
+    const body = JSON.stringify({ cards, refresh, refresh_since: refreshSince });
     return editionImagesRequest(releaseId, editionId, '/matches', { method: 'POST', body }, token);
 }
 

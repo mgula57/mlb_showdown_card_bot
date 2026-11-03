@@ -43,7 +43,9 @@ class ImageMatchCard(BaseModel):
 class LibraryImageIndex:
     """One library's auto images, keyed by player id (bref or MLB id)."""
 
-    def __init__(self, files: list[AutoImageFile]) -> None:
+    def __init__(self, files: list[AutoImageFile], failed: bool = False) -> None:
+        # A FAILED LISTING IS EMPTY, SO IT MUST NOT BE CACHED AS IF THE LIBRARY HAD NO IMAGES
+        self.failed = failed
         self.by_player_id: dict[str, list[AutoImageFile]] = defaultdict(list)
         for file in files:
             self.by_player_id[file.player_id].append(file)
@@ -53,7 +55,13 @@ class LibraryImageIndex:
 
     @classmethod
     def load(cls, library: ImageLibrary) -> 'LibraryImageIndex':
-        return cls(cls._showdown_bot_files() if library.is_showdown_bot else cls._user_library_files(library))
+        if library.is_showdown_bot:
+            return cls(cls._showdown_bot_files())
+        try:
+            return cls(cls._user_library_files(library))
+        except Exception:
+            traceback.print_exc()
+            return cls([], failed=True)
 
     @staticmethod
     def _showdown_bot_files() -> list[AutoImageFile]:
@@ -68,12 +76,8 @@ class LibraryImageIndex:
 
     @staticmethod
     def _user_library_files(library: ImageLibrary) -> list[AutoImageFile]:
-        """Live listing of the user's shared folder. An unshared/missing folder has no images, like at render time."""
-        try:
-            listed = UserDriveFolder(library.folder_id).list_image_files()
-        except Exception:
-            traceback.print_exc()
-            return []
+        """Live listing of the user's shared folder. Raises if Drive can't be read (an unshared/missing folder has no images at render time, but isn't remembered as empty here)."""
+        listed = UserDriveFolder(library.folder_id).list_image_files()
         files = [file for file in (AutoImageFile.from_file_name(f['name']) for f in listed) if file and file.component in ('BG', 'CUT')]
         # A render skips a library without the player's cutout (some styles don't need the BG layer)
         players_with_cut = {file.player_id for file in files if file.component == 'CUT'}
@@ -85,15 +89,17 @@ class ImageMatchClassifier:
     every library is searched and the best match wins, with the user's order breaking ties.
 
     Library listings are cached per process for `CACHE_TTL`, so reopening an edition is fast and
-    `refresh` re-reads Drive."""
+    `refresh` re-reads Drive. The cache is per worker process, so `fresh_since` (the `checked_at` of a
+    manual refresh) also reloads any listing read before it, whichever worker handled that refresh."""
 
     CACHE_TTL = timedelta(minutes=10)
     _cache: dict[str, tuple[LibraryImageIndex, datetime]] = {}
     _lock = threading.Lock()
 
-    def __init__(self, libraries: list[ImageLibrary], refresh: bool = False) -> None:
+    def __init__(self, libraries: list[ImageLibrary], refresh: bool = False, fresh_since: Optional[datetime] = None) -> None:
         self.libraries = libraries
         self.refresh = refresh
+        self.fresh_since = fresh_since
 
     @classmethod
     def _cache_key(cls, library: ImageLibrary) -> str:
@@ -104,16 +110,18 @@ class ImageMatchClassifier:
         now = datetime.now(timezone.utc)
         with self._lock:
             cached = self._cache.get(key)
-        if cached and not self.refresh and now - cached[1] < self.CACHE_TTL:
+        if cached and not self.refresh and now - cached[1] < self.CACHE_TTL and not (self.fresh_since and cached[1] < self.fresh_since):
             return cached
         loaded = (LibraryImageIndex.load(library), now)
-        with self._lock:
-            self._cache[key] = loaded
+        if not loaded[0].failed:
+            with self._lock:
+                self._cache[key] = loaded
         return loaded
 
     def classify(self, cards: list[ImageMatchCard]) -> dict:
-        """Match type and source library per card id, plus when the oldest library listing was read."""
+        """Match type and source library per card id, when the oldest library listing was read, and the libraries Drive couldn't be read for."""
         indexes = [(library, *self._index(library)) for library in self.libraries]
+        failed_libraries = [library.name for library, index, _ in indexes if index.failed]
         matches: dict[str, dict] = {}
         for card in cards:
             match_type, library_name = ImageMatchType.NO_MATCH, None
@@ -130,4 +138,4 @@ class ImageMatchClassifier:
                     match_type, library_name = library_match_type, library.name
             matches[card.id] = {'image_match_type': match_type.value, 'library_name': library_name}
         checked_at = min((loaded_at for _, _, loaded_at in indexes), default=datetime.now(timezone.utc))
-        return {'matches': matches, 'checked_at': checked_at.isoformat()}
+        return {'matches': matches, 'checked_at': checked_at.isoformat(), 'failed_libraries': failed_libraries}
