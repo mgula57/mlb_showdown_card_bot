@@ -370,6 +370,13 @@ export const CardItem = ({
                             </div>
                         )}
 
+                        {/* Non-regular stats periods (dates, splits, etc.) */}
+                        {cardStatsPeriod && !['REGULAR', 'REPLACEMENT'].includes(cardStatsPeriod.type) && cardStatsPeriod.display_text && (
+                            <Plate variant="custom" size="xs" style={colorStylingSecondary}>
+                                {cardStatsPeriod.display_text}
+                            </Plate>
+                        )}
+
                         {isRedacted && (
                             <div className="space-x-2">
                                 {['-----', '----', '----------', '-----'].map((stat, index) => (
@@ -581,6 +588,7 @@ export const CardItemFromCardDatabaseRecord = ({ card, onClick, className, isSel
             cardTeam={card?.wbc_team || card?.team}
             cardName={card?.name}
             cardYear={hideYear ? undefined : card?.card_year}
+            cardStatsPeriod={card?.card_data?.stats_period}
             cardCommand={card?.command}
             cardOuts={card?.outs}
             cardIsPitcher={card?.is_pitcher}
