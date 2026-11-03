@@ -625,6 +625,14 @@ export type ShowdownBotCardImage = {
 
 type StatsPeriodType = "REGULAR" | "DATES" | "POST" | "SPLIT" | "PROJECTED" | "REPLACEMENT";
 
+/** A half of the regular season, split at the All-Star break. The backend sets the date range from it. */
+export type SeasonHalf = 'FIRST_HALF' | 'SECOND_HALF';
+
+export const SEASON_HALF_LABELS: Record<SeasonHalf, string> = {
+    FIRST_HALF: '1st Half',
+    SECOND_HALF: '2nd Half',
+};
+
 export type StatsPeriod = {
     /** Type of stats period (e.g., "REGULAR", "DATES") */
     type: StatsPeriodType;
@@ -636,6 +644,7 @@ export type StatsPeriod = {
     /** Date range bounds (DATES type), formatted YYYY-MM-DD */
     start_date?: string | null;
     end_date?: string | null;
+    season_half?: SeasonHalf | null;
 
     /** Split name (BREF) and MLB API situation code (2026+ SPLIT type) */
     split?: string | null;

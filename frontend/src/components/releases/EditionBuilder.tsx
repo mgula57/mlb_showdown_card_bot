@@ -1,7 +1,7 @@
 import { useState, useMemo, useRef, useEffect, useLayoutEffect, useCallback, memo, type ReactNode, type Ref } from 'react';
 import * as Tabs from '@radix-ui/react-tabs';
 import type { ReleaseEdition, ReleaseCard, AlgorithmPreviewResult, AlgorithmPreviewPlayer, ReleaseCardImageStatus, FoilSuggestion } from '../../api/releases';
-import { updateEdition, patchEditionCards, rebuildEditionCard, customEditionCard, StaleEditionError } from '../../api/releases';
+import { updateEdition, patchEditionCards, rebuildEditionCard, customEditionCard, periodEditionCard, StaleEditionError } from '../../api/releases';
 import { cardPatchesBetween, mergeCardPatches, type CardPatches } from './cardPatches';
 import { SummaryCharts } from './SummaryCharts';
 import { AlgorithmBuilder } from './AlgorithmBuilder';
@@ -933,7 +933,16 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
             );
             if (!confirmed) return;
         }
-        addCardSnapshot(record, manualPicksWith(record, 'included'));
+        const nextManualPicks = manualPicksWith(record, 'included');
+        if (!scope.season_half || !token || !record.card_id) {
+            addCardSnapshot(record, nextManualPicks);
+            return;
+        }
+        // The archive only holds the full season, so the backend builds this card for the edition's stats period
+        setError(null);
+        periodEditionCard(releaseId, edition.id, record.card_id, scope.season_half, !!record.is_variable_speed_00_01, token)
+            .then(snapshot => addCardSnapshot(snapshot, nextManualPicks))
+            .catch(err => setError(err instanceof Error ? err.message : 'Failed to add card.'));
     }
 
     /** A Card Builder custom (date range, multi-year...) has no archived card, so the backend builds

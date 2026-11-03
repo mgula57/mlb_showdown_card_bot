@@ -20,7 +20,7 @@ class ReleaseCardRebuilder:
     MAX_CHART_VERSION = 5
     # Rendered-image outputs of the stored card - a rebuilt chart needs its own image. An output
     # folder would also render one server-side during the build.
-    _IMAGE_OUTPUT_FIELDS = ('output_file_name', 'output_folder_path', 'storage_path', 'thumbnail_storage_path')
+    IMAGE_OUTPUT_FIELDS = ('output_file_name', 'output_folder_path', 'storage_path', 'thumbnail_storage_path')
 
     def __init__(self, db: PostgresDB) -> None:
         self.db = db
@@ -37,7 +37,9 @@ class ReleaseCardRebuilder:
             raise ReleaseCardRebuildError('Card is missing its archived card id.')
 
         is_variable_speed = bool(snapshot.get('is_variable_speed_00_01') or (snapshot.get('card_data') or {}).get('is_variable_speed_00_01'))
-        if chart_version == 1:
+        # A card built for a stats period (half of a season) has no archived version to restore
+        has_period = bool(((snapshot.get('card_data') or {}).get('stats_period') or {}).get('season_half'))
+        if chart_version == 1 and not has_period:
             archived_row = self._archived_row(card_id, is_variable_speed)
             if archived_row is not None:
                 return {**{k: v for k, v in snapshot.items() if k != 'card_data'}, **archived_row}
@@ -60,7 +62,7 @@ class ReleaseCardRebuilder:
         if card_data.get('is_wotc'):
             raise ReleaseCardRebuildError('Only Showdown Bot cards have chart versions.')
 
-        image = {k: v for k, v in (card_data.get('image') or {}).items() if k not in self._IMAGE_OUTPUT_FIELDS}
+        image = {k: v for k, v in (card_data.get('image') or {}).items() if k not in self.IMAGE_OUTPUT_FIELDS}
         try:
             return ShowdownPlayerCard.rebuilt_from_card_data({**card_data, 'image': image, 'chart_version': chart_version, 'is_variable_speed_00_01': is_variable_speed})
         except IndexError:

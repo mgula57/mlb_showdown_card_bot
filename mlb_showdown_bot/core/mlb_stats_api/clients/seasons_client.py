@@ -25,3 +25,11 @@ class SeasonsClient(BaseMLBClient):
             if "404" in str(e):
                 raise Exception(f"Seasons not found for sportId {sport_id}")
             raise
+
+    def get_season(self, season: int, sport_id: int = 1) -> Optional[Season]:
+        """Get a single season's calendar (start/end, All-Star break halves). Unlike `seasons/all`, this
+        endpoint filters by season and includes the half boundaries."""
+
+        data = self._make_request('seasons', params={'sportId': sport_id, 'season': season})
+        seasons_data = data.get('seasons', [])
+        return Season(**seasons_data[0]) if seasons_data else None

@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import type { AlgorithmOtherEditionsRule } from '../../api/releases';
+import { SEASON_HALF_LABELS, type SeasonHalf } from '../../api/showdownBotCard';
 import { showdownSets } from '../shared/SiteSettingsContext';
 import { hasVariableSpeedSet } from '../../functions/showdownSets';
 import { setSelectOption } from '../shared/SetBadge';
@@ -19,6 +20,12 @@ const OTHER_EDITIONS_OPTIONS: { value: AlgorithmOtherEditionsRule; label: string
     { value: 'ALLOW', label: 'Allow' },
     { value: 'NEW_TEAM_ONLY', label: 'Only on a New Team' },
     { value: 'EXCLUDE', label: 'Leave Out' },
+];
+
+const FULL_SEASON = 'FULL_SEASON';
+const STATS_PERIOD_OPTIONS = [
+    { value: FULL_SEASON, label: 'Full Season' },
+    ...(Object.entries(SEASON_HALF_LABELS) as [SeasonHalf, string][]).map(([value, label]) => ({ value, label })),
 ];
 
 const HINT_CLASS = 'text-[11px] text-(--text-tertiary)';
@@ -108,6 +115,18 @@ export function ScopePanel({ scope, onChange, outside }: ScopePanelProps) {
                     </p>
                 </div>
             )}
+
+            <div className="flex flex-col gap-2.5 sm:max-w-1/2">
+                <FormDropdown
+                    label="Stats Period"
+                    options={STATS_PERIOD_OPTIONS}
+                    selectedOption={scope.season_half ?? FULL_SEASON}
+                    onChange={value => onChange({ season_half: value && value !== FULL_SEASON ? value as SeasonHalf : null })}
+                />
+                <p className={`${HINT_CLASS} -mt-1`}>
+                    Build every card from one half of its season, split at the All-Star break. The Algorithm still picks players on their full-season stats, so point totals may shift from your buckets.
+                </p>
+            </div>
 
             <div className="flex flex-col gap-2.5 sm:max-w-1/2">
                 <FormDropdown

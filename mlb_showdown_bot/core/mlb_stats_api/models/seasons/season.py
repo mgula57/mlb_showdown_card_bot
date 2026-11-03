@@ -8,6 +8,8 @@ class Season(BaseModel):
     has_wildcard: Optional[bool] = Field(None, alias='hasWildcard')
     regular_season_start_date: Optional[str] = Field(None, alias='regularSeasonStartDate')
     regular_season_end_date: Optional[str] = Field(None, alias='regularSeasonEndDate')
+    last_date_1st_half: Optional[str] = Field(None, alias='lastDate1stHalf')
+    first_date_2nd_half: Optional[str] = Field(None, alias='firstDate2ndHalf')
     post_season_start_date: Optional[str] = Field(None, alias='postSeasonStartDate')
     post_season_end_date: Optional[str] = Field(None, alias='postSeasonEndDate')
     season_end_date: Optional[str] = Field(None, alias='seasonEndDate')

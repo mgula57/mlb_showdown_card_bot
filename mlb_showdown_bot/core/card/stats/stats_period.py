@@ -177,6 +177,19 @@ class StatsPeriodDateAggregation(str, Enum):
             case StatsPeriodDateAggregation.MONTH:
                 return date(end_date.year, end_date.month, 1)
 
+class SeasonHalf(str, Enum):
+    """A half of the regular season, split at the All-Star break. Resolves to a DATE_RANGE period."""
+
+    FIRST_HALF = "FIRST_HALF"
+    SECOND_HALF = "SECOND_HALF"
+
+    @property
+    def card_text(self) -> str:
+        """Short text for the stats period banner on the card image."""
+        match self:
+            case SeasonHalf.FIRST_HALF: return "1ST HALF"
+            case SeasonHalf.SECOND_HALF: return "2ND HALF"
+
 class StatsPeriodYearType(str, Enum):
     SINGLE_YEAR = "SINGLE_YEAR"
     MULTI_YEAR = "MULTI_YEAR"
@@ -221,6 +234,7 @@ class StatsPeriod(BaseModel):
     # DATE RANGE
     start_date: Optional[date] = None
     end_date: Optional[date] = None
+    season_half: Optional[SeasonHalf] = None  # Labels the date range as a half of the season (the dates are set from it)
 
     # SPLIT
     split: Optional[str] = None
@@ -301,6 +315,7 @@ class StatsPeriod(BaseModel):
         if not self.type.enable_date_range:
             self.start_date = None
             self.end_date = None
+            self.season_half = None
 
         if not self.type.enable_split:
             self.split = None
@@ -807,6 +822,9 @@ class StatsPeriod(BaseModel):
             case StatsPeriodType.POSTSEASON:
                 text = self.postseason_round.card_text if self.postseason_round else 'POSTSEASON'
             case StatsPeriodType.DATE_RANGE:
+                if self.season_half:
+                    text = self.season_half.card_text
+                    return text if self.is_mlb else f"{self.league.value} {text}"
                 if self.stats is None:
                     return None
                 text_list = [self.stats.get('first_game_date', None), self.stats.get('last_game_date', None)]

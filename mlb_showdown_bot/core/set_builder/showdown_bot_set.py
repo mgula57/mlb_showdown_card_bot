@@ -21,8 +21,9 @@ from ..card.showdown_player_card import ShowdownPlayerCard, Expansion, Edition, 
 from ..card.card_generation import generate_card
 from ..card.sets import Set
 from ..card.images import DEFAULT_RENDER_FILE_FORMAT
-from ..card.stats.stats_period import TeamSelection
+from ..card.stats.stats_period import SeasonHalf, TeamSelection
 from ..card.utils.shared_functions import convert_year_string_to_list
+from .release_card_period import ReleaseCardPeriod, ReleaseCardPeriodError
 from .selection import (
     PLAYER_SUBTYPES, OtherEditionsRule, PositionTarget, SelectionReason, SelectionWeights, ShowdownBotSetPlayer, SlotGroup, SlotPosition,
     TeamMinimums, TeamWeighting, WeightedPlayerSelector
@@ -361,11 +362,12 @@ class ShowdownBotSet(BaseModel):
 
         return
 
-    def build_preview_rows(self, db: PostgresDB, rerun_cards: bool = False, variable_speed: bool = False) -> List[dict]:
+    def build_preview_rows(self, db: PostgresDB, rerun_cards: bool = False, variable_speed: bool = False, season_half: Optional[SeasonHalf] = None) -> List[dict]:
         """Build the set and return its `card_bot` rows in set-number order, as the Edition
         Builder's Algorithm preview shows them. With `rerun_cards`, each row's card is rebuilt
         through the current `ShowdownPlayerCard` algorithm instead of the archived version.
-        With `variable_speed`, 2000/2001 cards get uncapped speed and recalculated points."""
+        With `variable_speed`, 2000/2001 cards get uncapped speed and recalculated points.
+        With `season_half`, each card is rebuilt from that half of its season's games."""
         self.build_set_player_list()
 
         # `id` is the player-season, shared by its card in every set, so a pick is its id plus its set
@@ -389,18 +391,18 @@ class ShowdownBotSet(BaseModel):
             row['algorithm_cut_line'] = round(cut_line, 1) if cut_line is not None else None
         rows.sort(key=lambda r: r.get('algorithm_set_number') or 0)
 
-        if (rerun_cards or variable_speed) and rows:
-            self.warnings.extend(self._recompute_preview_rows(db, rows, rerun_cards=rerun_cards, variable_speed=variable_speed))
+        if (rerun_cards or variable_speed or season_half) and rows:
+            self.warnings.extend(self._recompute_preview_rows(db, rows, rerun_cards=rerun_cards, variable_speed=variable_speed, season_half=season_half))
         return rows
 
     @staticmethod
-    def _recompute_preview_rows(db: PostgresDB, rows: List[dict], rerun_cards: bool, variable_speed: bool) -> List[str]:
+    def _recompute_preview_rows(db: PostgresDB, rows: List[dict], rerun_cards: bool, variable_speed: bool, season_half: Optional[SeasonHalf] = None) -> List[str]:
         """Recompute preview rows' archived cards, overwriting each row's card-derived columns in place.
         `rerun_cards` rebuilds every card through the current algorithm; `variable_speed` applies
-        variable speed (and recalculated points) to 2000/2001 cards. Rows that fail keep their
-        archived card. Returns warnings."""
+        variable speed (and recalculated points) to 2000/2001 cards; `season_half` rebuilds every
+        card from that half of its season. Rows that fail keep their archived card. Returns warnings."""
         # Variable speed alone only affects 2000/2001 cards
-        target_rows = rows if rerun_cards else [row for row in rows if Set(row.get('showdown_set')).is_00_01]
+        target_rows = rows if (rerun_cards or season_half) else [row for row in rows if Set(row.get('showdown_set')).is_00_01]
         if not target_rows:
             return []
         archived_cards = db.fetch_cards_for_roster_slots(
@@ -413,29 +415,38 @@ class ShowdownBotSet(BaseModel):
             if card is None:
                 failed_names.append(row.get('name') or row.get('id'))
                 continue
+            points_before = row.get('points') or 0
             try:
-                if rerun_cards:
-                    card = ShowdownPlayerCard.rebuilt_from_card_data(card.as_json())
-                if variable_speed:
-                    card.apply_variable_speed_00_01(True)
+                if season_half:
+                    # Embeds the half-season card (`card_data`), which also carries variable speed
+                    card = ReleaseCardPeriod(db).apply_to_row(row, card, season_half, variable_speed)
+                else:
+                    if rerun_cards:
+                        card = ShowdownPlayerCard.rebuilt_from_card_data(card.as_json())
+                    if variable_speed:
+                        card.apply_variable_speed_00_01(True)
+            except ReleaseCardPeriodError as exc:
+                failed_names.append(f"{row.get('name') or row.get('id')} ({exc})")
+                continue
             except Exception:
                 traceback.print_exc()
                 failed_names.append(row.get('name') or row.get('id'))
                 continue
 
-            points_diff = (card.points or 0) - (row.get('points') or 0)
+            points_diff = (card.points or 0) - points_before
             if points_diff:
                 changed_count += 1
             if row.get('points_change_yoy') is not None:
                 row['points_change_yoy'] += points_diff
-            row.update(card.card_bot_columns())
-            # Like a variable speed search row, so saving it embeds the variable speed card
-            # (`_embed_variable_speed_card_data`) instead of renders loading the standard archived one
-            if card.is_variable_speed_00_01:
-                row['is_variable_speed_00_01'] = True
+            if not season_half:
+                row.update(card.card_bot_columns())
+                # Like a variable speed search row, so saving it embeds the variable speed card
+                # (`_embed_variable_speed_card_data`) instead of renders loading the standard archived one
+                if card.is_variable_speed_00_01:
+                    row['is_variable_speed_00_01'] = True
 
         recomputed_count = len(target_rows) - len(failed_names)
-        actions = [label for label, enabled in [('Re-ran', rerun_cards), ('applied variable speed to', variable_speed)] if enabled]
+        actions = [label for label, enabled in [('Re-ran', rerun_cards and not season_half), (f'built the {season_half.card_text.lower()} of', season_half), ('applied variable speed to', variable_speed)] if enabled]
         warnings = [f"{' and '.join(actions).capitalize()} {recomputed_count} cards ({changed_count} changed points)."]
         if failed_names:
             warnings.append(f"Could not recompute {len(failed_names)} cards, kept archived versions: {', '.join(failed_names)}")
@@ -1210,6 +1221,7 @@ class AlgorithmPreviewRequest(BaseModel):
     manually_excluded_ids: Optional[List[str]] = None
 
     variable_speed: bool = Field(False, description="Uncap speed on 2000/2001 cards (instead of 10/15/20) and recalculate points")
+    season_half: Optional[SeasonHalf] = Field(None, description="Build every card from this half of its season (split at the All-Star break) instead of the full season")
 
     unique_players: bool = True
     team_weighting: TeamWeighting = TeamWeighting.EVEN

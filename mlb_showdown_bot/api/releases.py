@@ -9,6 +9,8 @@ from ..core.database.postgres_db import PostgresDB, StaleEditionError
 from ..core.set_builder.foil_selection import FoilSetType, FoilSuggester
 from ..core.set_builder.image_match_classifier import ImageMatchCard, ImageMatchClassifier
 from ..core.set_builder.release_card_rebuilder import ReleaseCardRebuilder, ReleaseCardRebuildError
+from ..core.card.stats.stats_period import SeasonHalf
+from ..core.set_builder.release_card_period import ReleaseCardPeriod, ReleaseCardPeriodError
 from ..core.set_builder.release_images import EditionImagePlan, EditionImageRenderer, ReleaseImageJobCancelled, ReleaseImageStorage
 from ..core.set_builder.release_custom_card import ReleaseCustomCard, ReleaseCustomCardError
 from ..core.set_builder.release_card_patch import ReleaseCardNumbers, ReleaseCardPatch
@@ -632,7 +634,7 @@ def preview_algorithm(release_id: str, edition_id: str):
             db.close_connection()
             return jsonify({'error': str(exc)}), 400
 
-        players = showdown_set.build_preview_rows(db, rerun_cards=rerun_cards, variable_speed=algorithm_request.variable_speed)
+        players = showdown_set.build_preview_rows(db, rerun_cards=rerun_cards, variable_speed=algorithm_request.variable_speed, season_half=algorithm_request.season_half)
         db.close_connection()
 
         return jsonify({
@@ -697,6 +699,37 @@ def rebuild_edition_card(release_id: str, edition_id: str):
                     card.get('card_snapshot') or {}, card.get('source_card_type'), chart_version,
                 )
             except ReleaseCardRebuildError as exc:
+                return jsonify({'error': str(exc)}), 400
+
+        return jsonify({'card_snapshot': snapshot}), 200
+    except Exception as exc:
+        traceback.print_exc()
+        return jsonify({'error': str(exc)}), 500
+
+
+@releases_bp.route('/releases/<release_id>/editions/<edition_id>/cards/period', methods=['POST'])
+@require_auth
+def period_edition_card(release_id: str, edition_id: str):
+    """The release card snapshot of an archived Bot card built for a half of its season (the
+    edition's stats period), for cards added outside the Algorithm. Body: `card_id` (the archived
+    card), `season_half` and optionally `variable_speed`. Does not persist — the frontend saves the
+    returned snapshot via the PUT /editions/<edition_id> `cards` mechanism."""
+    try:
+        payload = request.get_json(silent=True) or {}
+        card_id = str(payload.get('card_id') or '').strip()
+        if not card_id:
+            return jsonify({'error': 'card_id is required'}), 400
+        try:
+            season_half = SeasonHalf(payload.get('season_half'))
+        except ValueError:
+            return jsonify({'error': 'season_half must be FIRST_HALF or SECOND_HALF'}), 400
+
+        with PostgresDB() as db:
+            if _owned_edition(db, release_id, edition_id, g.user_id) is None:
+                return jsonify({'error': 'Edition not found or not owned by user'}), 404
+            try:
+                snapshot = ReleaseCardPeriod(db).snapshot(card_id, season_half, bool(payload.get('variable_speed')))
+            except ReleaseCardPeriodError as exc:
                 return jsonify({'error': str(exc)}), 400
 
         return jsonify({'card_snapshot': snapshot}), 200

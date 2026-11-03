@@ -1,5 +1,6 @@
 import { fetchCardData, type CardDatabaseRecord, type ImageMatchType } from './card_db/cardDatabase';
 import { CardSource } from '../types/cardSource';
+import type { SeasonHalf } from './showdownBotCard';
 import type { CardStyleSettings } from '../components/customs/cardStyle';
 
 const API_BASE = import.meta.env.PROD ? "/api" : "http://127.0.0.1:5000/api";
@@ -325,6 +326,8 @@ export type AlgorithmConfig = {
     position_targets?: AlgorithmPositionTarget[];
     /** 2000/2001 only: uncap speed (instead of 10/15/20) and recalculate each card's points. */
     variable_speed?: boolean;
+    /** Build every card from this half of its season (split at the All-Star break). Null for the full season. */
+    season_half?: SeasonHalf | null;
     /** At most one card per player, even across multiple years or showdown sets. */
     unique_players?: boolean;
     team_weighting?: AlgorithmTeamWeighting;
@@ -789,6 +792,25 @@ export async function rebuildEditionCard(releaseId: string, editionId: string, s
     if (!res.ok) {
         const err = await res.json().catch(() => ({}));
         throw new Error(err.error || `Failed to rebuild card: ${res.status}`);
+    }
+    const data = await res.json();
+    return data.card_snapshot;
+}
+
+/** The snapshot of an archived Bot card built for a half of its season, with the full card embedded.
+ * For cards added outside the Algorithm. Doesn't persist — save the returned snapshot through `updateEdition`. */
+export async function periodEditionCard(releaseId: string, editionId: string, cardId: string, seasonHalf: SeasonHalf, variableSpeed: boolean, token: string): Promise<CardDatabaseRecord> {
+    const res = await fetch(`${API_BASE}/releases/${releaseId}/editions/${editionId}/cards/period`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ card_id: cardId, season_half: seasonHalf, variable_speed: variableSpeed }),
+    });
+    if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || `Failed to build card for this stats period: ${res.status}`);
     }
     const data = await res.json();
     return data.card_snapshot;
