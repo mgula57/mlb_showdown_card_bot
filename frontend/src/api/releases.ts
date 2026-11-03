@@ -333,6 +333,8 @@ export type AlgorithmConfig = {
     team_weighting?: AlgorithmTeamWeighting;
     team_minimums?: AlgorithmTeamMinimums;
     other_editions_rule?: AlgorithmOtherEditionsRule;
+    /** Only players whose card is on one of these teams (e.g. ["NYY", "BOS"]). Empty for every team. */
+    teams?: string[];
     /** Frontend-only: the Algorithm tab template these settings started from. Saved with the edition; ignored by the backend. */
     template_id?: string;
 };

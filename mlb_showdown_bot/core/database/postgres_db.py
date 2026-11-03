@@ -982,6 +982,7 @@ class PostgresDB:
                 name,
                 year,
                 (card_result->>'bref_id') AS bref_id,
+                (card_result->>'team') AS team,
                 set AS showdown_set,
                 created_on AS updated_at,
                 card_result AS card_data,

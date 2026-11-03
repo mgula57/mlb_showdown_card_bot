@@ -148,6 +148,7 @@ class ShowdownBotSet(BaseModel):
     team_weighting: TeamWeighting = Field(TeamWeighting.EVEN, description="Even share per team, or more cards for stronger teams")
     team_minimums: TeamMinimums = Field(default_factory=TeamMinimums, description="Cards every team gets of each player type")
     other_editions_rule: OtherEditionsRule = Field(OtherEditionsRule.ALLOW, description="How to treat players already in another edition of the release")
+    teams: List[str] = Field(default_factory=list, description="Only players whose card is on one of these teams (ex: ['NYY', 'BOS']). Empty means every team")
     other_edition_players: Dict[str, List[str]] = Field(
         default_factory=dict,
         description="Players already in another edition of the release: bref_id (w/ type override) -> their team ids there"
@@ -642,6 +643,8 @@ class ShowdownBotSet(BaseModel):
 
         # Get all players from the season
         filters = {'year': [str(y) for y in self.years], 'showdown_set': self.all_showdown_sets, 'limit': 2000}
+        if self.teams:
+            filters['team'] = self.teams
         if self.all_stars_only:
             filters['awards'] = ['AS']
         all_players = [p for p in db.fetch_cards_bot(filters) if p.showdown_set in self._showdown_sets_for(p)]
@@ -1227,6 +1230,7 @@ class AlgorithmPreviewRequest(BaseModel):
     team_weighting: TeamWeighting = TeamWeighting.EVEN
     team_minimums: TeamMinimums = Field(default_factory=TeamMinimums)
     other_editions_rule: OtherEditionsRule = OtherEditionsRule.ALLOW
+    teams: List[str] = Field(default_factory=list, description="Only players whose card is on one of these teams. Empty means every team")
 
     def to_showdown_bot_set(self, other_edition_players: Optional[Dict[str, List[str]]] = None) -> ShowdownBotSet:
         """Validate and construct the `ShowdownBotSet` this request describes. `other_edition_players` comes
@@ -1256,5 +1260,6 @@ class AlgorithmPreviewRequest(BaseModel):
             team_weighting=self.team_weighting,
             team_minimums=self.team_minimums,
             other_editions_rule=self.other_editions_rule,
+            teams=self.teams,
             other_edition_players=other_edition_players or {},
         )

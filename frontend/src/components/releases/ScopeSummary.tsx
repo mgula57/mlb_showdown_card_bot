@@ -12,6 +12,7 @@ export function OutsideScopeNotice({ outside }: { outside: OutsideScopeCounts })
     const parts = [
         ...(outside.years > 0 ? [`${plural(outside.years, 'card')} from other seasons`] : []),
         ...(outside.sets > 0 ? [`${plural(outside.sets, 'card')} from other showdown sets`] : []),
+        ...(outside.teams > 0 ? [`${plural(outside.teams, 'card')} from other teams`] : []),
         ...(outside.periods > 0 ? [`${plural(outside.periods, 'card')} built for a different stats period`] : []),
     ];
     if (parts.length === 0) return null;

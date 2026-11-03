@@ -1,6 +1,7 @@
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import type { AlgorithmOtherEditionsRule } from '../../api/releases';
 import { SEASON_HALF_LABELS, type SeasonHalf } from '../../api/showdownBotCard';
+import { fetchTeamHierarchy, type TeamHierarchyRecord } from '../../api/card_db/cardDatabase';
 import { showdownSets } from '../shared/SiteSettingsContext';
 import { hasVariableSpeedSet } from '../../functions/showdownSets';
 import { setSelectOption } from '../shared/SetBadge';
@@ -12,6 +13,7 @@ import YearsInput from './YearsInput';
 import { OutsideScopeNotice } from './ScopeSummary';
 import { allShowdownSets } from './algorithmSettings';
 import { parseSetSize } from './editionScope';
+import { yearsInclude } from './years';
 import type { EditionScope, OutsideScopeCounts } from './editionScope';
 
 const showdownSetOptions = showdownSets.map(s => setSelectOption(s.value, { compact: true }));
@@ -47,6 +49,21 @@ export function ScopePanel({ scope, onChange, outside }: ScopePanelProps) {
         setSyncedYears(scope.years);
         setYearsDraft(scope.years);
     }
+
+    const [hierarchy, setHierarchy] = useState<TeamHierarchyRecord[]>([]);
+    useEffect(() => {
+        fetchTeamHierarchy().then(setHierarchy).catch(() => {});
+    }, []);
+    // Teams that had cards in any of the scope's years, plus any already chosen so they can be removed
+    const teamOptions = useMemo(() => {
+        const inScope = new Set<string>(scope.teams);
+        for (const record of hierarchy) {
+            for (let year = record.min_year; year <= record.max_year; year++) {
+                if (yearsInclude(scope.years, year)) { inScope.add(record.team); break; }
+            }
+        }
+        return [...inScope].sort().map(team => ({ value: team, label: team }));
+    }, [hierarchy, scope.years, scope.teams]);
 
     const hasPitcherSets = scope.pitcher_showdown_sets !== null;
     const hasSet00_01 = hasVariableSpeedSet(allShowdownSets(scope));
@@ -102,42 +119,57 @@ export function ScopePanel({ scope, onChange, outside }: ScopePanelProps) {
                 <p className={`${HINT_CLASS} -mt-1`}>Mix sets by player type, like 2000 hitters with 2001 pitchers.</p>
             </div>
 
-            {hasSet00_01 && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-5 items-start">
                 <div className="flex flex-col gap-2.5">
-                    <FormEnabler
-                        label="Variable Speed"
-                        className="self-start"
-                        isEnabled={scope.variable_speed}
-                        onChange={() => onChange({ variable_speed: !scope.variable_speed })}
+                    <MultiSelect
+                        label="Teams"
+                        options={teamOptions}
+                        selections={scope.teams}
+                        onChange={values => onChange({ teams: values })}
+                        placeholder="All teams"
                     />
                     <p className={`${HINT_CLASS} -mt-1`}>
-                        2000/2001 cards use exact speed instead of 10/15/20, with points recalculated. The Algorithm picks players on their standard points, so point totals may shift slightly from your buckets.
+                        Limit the edition to players on these teams. The Algorithm, Manual and Customs searches all start from them.
                     </p>
                 </div>
-            )}
 
-            <div className="flex flex-col gap-2.5 sm:max-w-1/2">
-                <FormDropdown
-                    label="Stats Period"
-                    options={STATS_PERIOD_OPTIONS}
-                    selectedOption={scope.season_half ?? FULL_SEASON}
-                    onChange={value => onChange({ season_half: value && value !== FULL_SEASON ? value as SeasonHalf : null })}
-                />
-                <p className={`${HINT_CLASS} -mt-1`}>
-                    Build every card from one half of its season, split at the All-Star break. The Algorithm still picks players on their full-season stats, so point totals may shift from your buckets.
-                </p>
-            </div>
+                <div className="flex flex-col gap-2.5">
+                    <FormDropdown
+                        label="Stats Period"
+                        options={STATS_PERIOD_OPTIONS}
+                        selectedOption={scope.season_half ?? FULL_SEASON}
+                        onChange={value => onChange({ season_half: value && value !== FULL_SEASON ? value as SeasonHalf : null })}
+                    />
+                    <p className={`${HINT_CLASS} -mt-1`}>
+                        Build every card from one half of its season, split at the All-Star break. The Algorithm still picks players on their full-season stats, so point totals may shift from your buckets.
+                    </p>
+                </div>
 
-            <div className="flex flex-col gap-2.5 sm:max-w-1/2">
-                <FormDropdown
-                    label="Players in Other Editions"
-                    options={OTHER_EDITIONS_OPTIONS}
-                    selectedOption={scope.other_editions_rule}
-                    onChange={value => onChange({ other_editions_rule: (value as AlgorithmOtherEditionsRule) || 'ALLOW' })}
-                />
-                <p className={`${HINT_CLASS} -mt-1`}>
-                    For expansion editions: leave out players already carded elsewhere in this release, or only bring them back on a new team (like WOTC's Trading Deadline).
-                </p>
+                <div className="flex flex-col gap-2.5">
+                    <FormDropdown
+                        label="Players in Other Editions"
+                        options={OTHER_EDITIONS_OPTIONS}
+                        selectedOption={scope.other_editions_rule}
+                        onChange={value => onChange({ other_editions_rule: (value as AlgorithmOtherEditionsRule) || 'ALLOW' })}
+                    />
+                    <p className={`${HINT_CLASS} -mt-1`}>
+                        For expansion editions: leave out players already carded elsewhere in this release, or only bring them back on a new team (like WOTC's Trading Deadline).
+                    </p>
+                </div>
+
+                {hasSet00_01 && (
+                    <div className="flex flex-col gap-2.5">
+                        <FormEnabler
+                            label="Variable Speed"
+                            className="self-start"
+                            isEnabled={scope.variable_speed}
+                            onChange={() => onChange({ variable_speed: !scope.variable_speed })}
+                        />
+                        <p className={`${HINT_CLASS} -mt-1`}>
+                            2000/2001 cards use exact speed instead of 10/15/20, with points recalculated. The Algorithm picks players on their standard points, so point totals may shift slightly from your buckets.
+                        </p>
+                    </div>
+                )}
             </div>
 
             <OutsideScopeNotice outside={outside} />

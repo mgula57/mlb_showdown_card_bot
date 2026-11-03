@@ -608,7 +608,12 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
         awards: algorithmAllStarsOnly ? ['AS'] : undefined,
         // Explicit false overrides the search's variable speed default
         variable_speed: scope.variable_speed,
-    }), [scopeShowdownSetsKey, algorithmAllStarsOnly, scope.variable_speed]);
+        team: scope.teams.length > 0 ? scope.teams : undefined,
+    }), [scopeShowdownSetsKey, algorithmAllStarsOnly, scope.variable_speed, scope.teams]);
+    // Customs are unscoped (date ranges, splits...), so they only start from the teams
+    const customSearchDefaults = useMemo<Partial<FilterSelections>>(() => ({
+        team: scope.teams.length > 0 ? scope.teams : undefined,
+    }), [scope.teams]);
 
     /** Applies a scope edit right away and saves it shortly after, so typing doesn't save per keystroke. */
     function changeScope(patch: Partial<EditionScope>) {
@@ -930,6 +935,12 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
         if (!yearsInclude(scope.years, record.year)) {
             const confirmed = window.confirm(
                 `${record.year} is outside this edition's years (${scope.years}). The card will be added, but running the Algorithm with Replace will drop it unless you widen the years in Edition Scope. Add anyway?`
+            );
+            if (!confirmed) return;
+        }
+        if (scope.teams.length > 0 && !scope.teams.includes(record.team)) {
+            const confirmed = window.confirm(
+                `${record.team} isn't one of this edition's teams (${scope.teams.join(', ')}). The card will be added, but running the Algorithm with Replace will drop it unless you add the team in Edition Scope. Add anyway?`
             );
             if (!confirmed) return;
         }
@@ -1466,6 +1477,7 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
                                     source={CardSource.CUSTOM}
                                     compact={true}
                                     excludeIds={excludeIds}
+                                    defaultFilters={customSearchDefaults}
                                     actionButton={{
                                         icon: <FaPlus />,
                                         label: 'Add',
