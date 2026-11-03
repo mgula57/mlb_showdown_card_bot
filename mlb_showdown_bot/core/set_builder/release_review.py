@@ -64,6 +64,10 @@ def _listed(values: list[str]) -> str:
     return shown[0] if len(shown) == 1 else f"{', '.join(shown[:-1])} and {shown[-1]}"
 
 
+def _is_single_year(year) -> bool:
+    return len(str(year or '')) == 4 and str(year).isdigit()
+
+
 class EditionReview:
     """Checks for one edition (a `PostgresDB.get_edition` row)."""
 
@@ -124,10 +128,24 @@ class EditionReview:
             for card in self.cards
             if (self.photo_matches.get(str((card.get('card_snapshot') or {}).get('id'))) or {}).get('image_match_type') == ImageMatchType.NO_MATCH.value
         ]
-        if not missing:
-            return [self._item('photos', ReviewLevel.CHECK, 'Every card has a player photo', passed=True)]
-        return [self._item('photos', ReviewLevel.CHECK, f"{_plural(len(missing), 'card')} with no player photo",
-                           f"{_listed(missing)} will print with the silhouette.", fix='images')]
+        items = []
+        if missing:
+            items.append(self._item('photos', ReviewLevel.CHECK, f"{_plural(len(missing), 'card')} with no player photo",
+                                    f"{_listed(missing)} will print with the silhouette.", fix='images'))
+        # Multi-year cards (Super Season, career, ranges) have no single year for a photo to match
+        for id, match_type, title, detail in [
+            ('photos_other_year', ImageMatchType.TEAM_MATCH, 'with a photo from a different year', 'use the right team, but from another season.'),
+            ('photos_other_team', ImageMatchType.YEAR_MATCH, 'with a photo from a different team', 'use the right season, but with another team.'),
+        ]:
+            names = [
+                card['card_snapshot'].get('name') or 'Unknown'
+                for card in self.cards
+                if _is_single_year((card.get('card_snapshot') or {}).get('year'))
+                and (self.photo_matches.get(str(card['card_snapshot'].get('id'))) or {}).get('image_match_type') == match_type.value
+            ]
+            if names:
+                items.append(self._item(id, ReviewLevel.CHECK, f"{_plural(len(names), 'card')} {title}", f"{_listed(names)} {detail}", fix='images'))
+        return items or [self._item('photos', ReviewLevel.CHECK, 'Every card has a player photo', passed=True)]
 
     def _numbering_items(self) -> list[ReviewItem]:
         numbering = EditionNumbering.from_attributes(self.edition.get('attributes'))
