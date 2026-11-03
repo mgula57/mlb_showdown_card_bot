@@ -141,11 +141,11 @@ class EditionReview:
         if unnumbered:
             items.append(self._item('unnumbered', ReviewLevel.CHECK, f"{_plural(unnumbered, 'card')} with no number",
                                     'Renumber the pool or number them by hand.', fix='pool'))
-        gaps = sorted(set(range(1, max(numbers, default=0) + 1)) - set(numbers))
+        gaps = sorted(set(range(min(numbers), max(numbers) + 1)) - set(numbers)) if numbers else []
         if gaps:
             items.append(self._item('number_gaps', ReviewLevel.CHECK, f"Numbering skips {_plural(len(gaps), 'number')}",
                                     f"Missing {_listed([str(n) for n in gaps])}.", fix='pool'))
-        return items or [self._item('numbering', ReviewLevel.CHECK, f"Every card is numbered, 1–{len(self.cards)}, no gaps" if numbers else 'Every card is numbered', passed=True)]
+        return items or [self._item('numbering', ReviewLevel.CHECK, f"Every card is numbered, {min(numbers)}–{max(numbers)}, no gaps" if numbers else 'Every card is numbered', passed=True)]
 
     def _duplicate_players_item(self) -> ReviewItem:
         names: dict[str, str] = {}

@@ -255,7 +255,7 @@ type NumberIssue = 'duplicate' | 'unnumbered';
 type NumberingIssues = {
     /** Numbers held by more than one card (only possible in data saved before the uniqueness check). */
     duplicates: Set<string>;
-    /** Missing numbers between 1 and the highest one, as the Review step counts them. Empty when any number is free-form text. */
+    /** Missing numbers between the lowest and highest one, as the Review step counts them. Empty when any number is free-form text. */
     gaps: number[];
     unnumbered: number;
 };
@@ -267,9 +267,10 @@ function findNumberingIssues(cards: ReleaseCard[]): NumberingIssues {
         if (c.card_number !== null) counts.set(c.card_number, (counts.get(c.card_number) ?? 0) + 1);
     }
     const gaps: number[] = [];
-    if ([...counts.keys()].every(isDigits)) {
-        const max = Math.max(0, ...[...counts.keys()].map(Number));
-        for (let n = 1; n <= max; n++) if (!counts.has(String(n))) gaps.push(n);
+    if (counts.size > 0 && [...counts.keys()].every(isDigits)) {
+        const used = [...counts.keys()].map(Number);
+        // From the lowest number, so a set deliberately numbered 101-250 isn't flagged for 1-100
+        for (let n = Math.min(...used); n <= Math.max(...used); n++) if (!counts.has(String(n))) gaps.push(n);
     }
     return {
         duplicates: new Set([...counts].filter(([, count]) => count > 1).map(([num]) => num)),
@@ -314,6 +315,36 @@ function nextManualCardNumber(cards: ReleaseCard[]): string {
     const numbers = cards.map(c => c.card_number).filter((n): n is string => n !== null && isDigits(n));
     const next = String(Math.max(0, ...numbers.map(Number)) + 1);
     return next.padStart(Math.max(0, ...numbers.map(n => n.length)), '0');
+}
+
+/** Closes gaps and fixes duplicates without reordering: plain numbers keep their relative order (ties keep pool order)
+ * and become consecutive from the lowest, padded to the width already in use. Unnumbered cards take the next numbers
+ * in pool order. Free-form labels are left alone. */
+function tidyManualNumbers(cards: ReleaseCard[]): ReleaseCard[] {
+    const plain = cards.filter(c => c.card_number !== null && isDigits(c.card_number));
+    const start = Math.min(...plain.map(c => Number(c.card_number)), Infinity);
+    const width = Math.max(0, ...plain.map(c => c.card_number!.length));
+    const order = new Map([...plain].sort((a, b) => Number(a.card_number) - Number(b.card_number)).map((c, i) => [c.id, i]));
+    let next = (Number.isFinite(start) ? start : 1) + plain.length;
+    return cards.map(c => {
+        if (order.has(c.id)) return { ...c, card_number: String((Number.isFinite(start) ? start : 1) + order.get(c.id)!).padStart(width, '0') };
+        if (c.card_number !== null) return c;
+        return { ...c, card_number: String(next++).padStart(width, '0') };
+    });
+}
+
+/** For manual numbering when a batch of cards arrives (algorithm fill/replace): cards already in the pool keep their
+ * hand-assigned number, the rest get the next free numbers instead of the algorithm's. */
+function numberArrivalsManually(list: ReleaseCard[], existing: ReleaseCard[]): ReleaseCard[] {
+    const existingBySource = new Map(existing.map(c => [c.source_card_id, c]));
+    const kept = list.map(c => existingBySource.has(c.source_card_id) ? { ...c, card_number: existingBySource.get(c.source_card_id)!.card_number } : null);
+    const used = kept.filter((c): c is ReleaseCard => c !== null);
+    return list.map((c, i) => {
+        if (kept[i]) return kept[i]!;
+        const arrival = { ...c, card_number: nextManualCardNumber(used) };
+        used.push(arrival);
+        return arrival;
+    });
 }
 
 /** The number without its prefix. Plain numbers zero-pad to the width of the card count when enabled; free-form text is left as typed. */
@@ -737,6 +768,8 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
         if (numbering.mode === 'auto' && numbering.autoLive) {
             return renumberSorted(list, numbering.sortLayers);
         }
+        // Hand numbering: cards already in the pool keep their number, new arrivals take the next free ones
+        if (numbering.mode === 'manual') return numberArrivalsManually(list, cardsRef.current);
         return list;
     }
 
@@ -1097,7 +1130,13 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
         // Numbers are unique per edition; the server would refuse the whole save
         const holder = parsed !== null && cards.find(c => c.id !== cardId && c.card_number === parsed);
         if (holder) {
-            setError(`#${parsed} is already ${holder.card_snapshot.name}'s number. Clear that card's number first.`);
+            const current = cards.find(c => c.id === cardId);
+            const previous = current?.card_number ?? null;
+            if (previous === null || !window.confirm(`#${parsed} is ${holder.card_snapshot.name}'s number. Swap, so ${holder.card_snapshot.name} becomes #${previous}?`)) {
+                if (previous === null) setError(`#${parsed} is already ${holder.card_snapshot.name}'s number. Clear that card's number first.`);
+                return;
+            }
+            persist(cards.map(c => c.id === cardId ? { ...c, card_number: parsed } : c.id === holder.id ? { ...c, card_number: previous } : c));
             return;
         }
         persist(cards.map(c => c.id === cardId ? { ...c, card_number: parsed } : c));
@@ -1138,6 +1177,12 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
     }
 
     function handleNumberingModeChange(mode: NumberingMode) {
+        if (mode === numbering.mode) return;
+        // Leaving manual replaces (auto) or clears (none) numbers that may have been assigned by hand
+        if (numbering.mode === 'manual' && mode !== 'manual' && cards.some(c => c.card_number !== null)) {
+            const result = mode === 'none' ? 'clear every card number' : 'renumber every card by the auto-numbering sort order';
+            if (!window.confirm(`Switching from Manual will ${result}, replacing numbers you set by hand. Continue?`)) return;
+        }
         const next = { ...numbering, mode };
         persistNumberingSettings(next);
         if (mode === 'none') {
@@ -1727,14 +1772,27 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
                                                             {numberingIssuesSummary(numberingIssues)}
                                                         </span>
                                                         {/* Auto (not live) already shows "Renumber now" beside it */}
+                                                        {numbering.mode === 'manual' && (
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => persist(tidyManualNumbers(cards))}
+                                                                title="Close gaps and fix duplicates, keeping your order. Unnumbered cards get the next numbers."
+                                                                className={buttonClass('secondary', 'sm', 'min-h-9 shrink-0')}
+                                                            >
+                                                                <FaArrowsRotate className="text-[12px]" /> Tidy
+                                                            </button>
+                                                        )}
                                                         {!(numbering.mode === 'auto' && !numbering.autoLive) && (
                                                             <button
                                                                 type="button"
-                                                                onClick={() => persist(renumberSorted(cards, numbering.sortLayers))}
+                                                                onClick={() => {
+                                                                    if (numbering.mode === 'manual' && !window.confirm('Renumber every card by the auto-numbering sort order? This replaces the numbers you set by hand.')) return;
+                                                                    persist(renumberSorted(cards, numbering.sortLayers));
+                                                                }}
                                                                 title="Number every card 1 to N, using the auto-numbering sort order"
                                                                 className={buttonClass('secondary', 'sm', 'min-h-9 shrink-0')}
                                                             >
-                                                                <FaArrowsRotate className="text-[12px]" /> Renumber
+                                                                <FaArrowsRotate className="text-[12px]" /> Renumber by sort
                                                             </button>
                                                         )}
                                                     </div>
