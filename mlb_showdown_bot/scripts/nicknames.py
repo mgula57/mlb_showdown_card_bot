@@ -15,10 +15,16 @@ import unidecode
 parser = argparse.ArgumentParser(description="Grab list of nicknames from bref and store in a csv file.")
 args = parser.parse_args()
 
+# NICKNAMES NOT LISTED ON BREF, ADDED TO THE FRONT OF THE PLAYER'S LIST
+MANUAL_NICKNAMES = {
+    'suzukic01': ['Ichiro'],
+}
+
 def fetch_data(url:str) -> BeautifulSoup:
 
     scraper = cloudscraper.create_scraper()
     html = scraper.get(url)
+    html.encoding = 'utf-8' # BREF DOESN'T DECLARE A CHARSET, SO REQUESTS FALLS BACK TO ISO-8859-1
     html = html.text.replace("<!--","")
     soup = BeautifulSoup(html, "lxml")
 
@@ -48,7 +54,8 @@ def extract_player_nicknames(soup: BeautifulSoup) -> list[dict]:
         nicknames_raw = unidecode.unidecode(player_soup_row.get_text()) # EX: "Henry Aaron - Hammer,Hammerin' Hank,Bad Henry"
         nicknames_isolated: str = nicknames_raw.split(' - ', 1)[1] # EX: "Hammer,Hammerin' Hank,Bad Henry"
         nicknames_list = [nn.strip() for nn in nicknames_isolated.split(',')]
-        player_data['nicknames'] = nicknames_list
+        manual_nicknames = [nn for nn in MANUAL_NICKNAMES.get(player_data.get('bref_id'), []) if nn not in nicknames_list]
+        player_data['nicknames'] = manual_nicknames + nicknames_list
 
         if len(player_data['bref_id']) == 0:
             print(player_soup_row)
@@ -59,11 +66,12 @@ def extract_player_nicknames(soup: BeautifulSoup) -> list[dict]:
 def export_as_csv(data:dict) -> None:
     df = pd.DataFrame.from_records(data,index=None)
     
-    nickname_columns = ['nickname1', 'nickname2', 'nickname3', 'nickname4', 'nickname5', 'nickname6',]
+    max_nicknames = df.nicknames.str.len().max()
+    nickname_columns = [f'nickname{i}' for i in range(1, max_nicknames + 1)]
     df[nickname_columns] = pd.DataFrame(df.nicknames.tolist(), index= None)
 
     parent_path = Path(os.path.dirname(__file__)).parent
-    export_path = os.path.join(parent_path, 'mlb_showdown_bot', 'nicknames.csv')
+    export_path = os.path.join(parent_path, 'core', 'card', 'data', 'nicknames.csv')
     
     df.to_csv(export_path, index=False)
 
