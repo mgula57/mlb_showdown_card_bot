@@ -64,10 +64,17 @@ def test_only_the_winning_position_changes():
     assert winner.positions_and_defense[CardPosition.SS] == baseline.positions_and_defense[CardPosition.SS]
 
 
-def test_utility_winners_are_unchanged():
-    card = build_card(WALLS_SS, gold_glove_position='UT')
-    assert card.positions_and_defense == build_card(WALLS_SS, gold_glove_position=None).positions_and_defense
-    assert card.notes is None
+def test_utility_winners_use_the_higher_metric_at_every_position():
+    positions = {'2B': {'g': 100, 'oaa': -5.0, 'drs': 16.0}, 'SS': {'g': 60, 'oaa': -5.0, 'drs': 16.0}}
+    baseline = build_card(positions, gold_glove_position=None)
+    winner = build_card(positions, gold_glove_position='UT')
+
+    assert winner.positions_and_defense[CardPosition._2B] > baseline.positions_and_defense[CardPosition._2B]
+    assert winner.positions_and_defense[CardPosition.SS] > baseline.positions_and_defense[CardPosition.SS]
+    assert winner.notes == (
+        'Gold Glove: 2B defense is based on +16 DRS instead of -5 OAA, SS defense is based on +16 DRS instead of -5 OAA. '
+        'Utility winners use whichever rates higher at each position.'
+    )
 
 
 def test_catchers_without_oaa_have_no_note():

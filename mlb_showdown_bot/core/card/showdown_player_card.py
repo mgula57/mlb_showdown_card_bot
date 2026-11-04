@@ -1259,7 +1259,7 @@ class ShowdownPlayerCard(BaseModel):
 
     def _is_gold_glove_position(self, position_name:str) -> bool:
         """True if the position is where the player won their Gold Glove. Outfield winners include the combined OF position.
-        Utility winners ('UT') never match, since the award isn't tied to one position.
+        Utility winners ('UT') match every position, since the award isn't tied to one position.
 
         Args:
           position_name: Position name from the player's stats (ex: 'SS', 'LF', 'OF')
@@ -1270,10 +1270,13 @@ class ShowdownPlayerCard(BaseModel):
         gold_glove_position = self.gold_glove_position
         if gold_glove_position is None:
             return False
+        if gold_glove_position == 'UT':
+            return True
         return position_name == gold_glove_position or (position_name == 'OF' and gold_glove_position in ['LF', 'CF', 'RF'])
 
     def _add_gold_glove_defense_note(self) -> None:
-        """Adds a note explaining a defense rating that uses DRS over OAA because of a Gold Glove. Skips positions that didn't make the final card."""
+        """Adds a note explaining defense ratings that use DRS over OAA because of a Gold Glove. Skips positions that didn't make the final card."""
+        position_details: list[str] = []
         for position, metric_and_value_dict in self.positions_and_real_life_ratings.items():
             is_on_card = position in self.positions_and_defense or (position in [Position.LF, Position.RF] and Position.LFRF in self.positions_and_defense)
             drs = metric_and_value_dict.get(DefenseMetric.DRS, None)
@@ -1281,10 +1284,15 @@ class ShowdownPlayerCard(BaseModel):
             if not is_on_card or drs is None or oaa is None or not self._is_gold_glove_position(position.value):
                 continue
 
-            note = f"Gold Glove: {position.value} defense is based on {drs:+g} DRS instead of {oaa:+g} OAA. Winners use whichever rates higher at their winning position."
-            if note not in (self.notes or ''): # NOTES SURVIVE WHEN A STORED CARD IS REBUILT
-                self.notes = f"{self.notes} {note}" if self.notes else note
+            position_details.append(f"{position.value} defense is based on {drs:+g} DRS instead of {oaa:+g} OAA")
+
+        if len(position_details) == 0:
             return
+
+        rule = 'Utility winners use whichever rates higher at each position.' if self.gold_glove_position == 'UT' else 'Winners use whichever rates higher at their winning position.'
+        note = f"Gold Glove: {', '.join(position_details)}. {rule}"
+        if note not in (self.notes or ''): # NOTES SURVIVE WHEN A STORED CARD IS REBUILT
+            self.notes = f"{self.notes} {note}" if self.notes else note
 
     @property
     def is_defense_regressed_to_median(self) -> bool:
