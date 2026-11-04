@@ -893,7 +893,8 @@ class Team(str, Enum):
                 '1': list(range(1997, 2002)),
             }
             case 'ARI': return {
-                '1': list(range(1998,2007))
+                '1': list(range(1998,2007)),
+                '2': list(range(2007,2024)),
             }
             case 'ATH': return {
                 '1': list(range(1901,1955)),
