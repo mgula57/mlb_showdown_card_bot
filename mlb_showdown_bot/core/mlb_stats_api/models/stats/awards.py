@@ -2,6 +2,7 @@ from pydantic import BaseModel, Field
 from typing import Optional
 
 from ..teams.team import Team
+from .award_recipient import AwardRecipientPlayer
 
 class Award(BaseModel):
 
@@ -9,6 +10,7 @@ class Award(BaseModel):
     name: str
     season: Optional[str] = None
     team: Optional[Team] = None
+    player: Optional[AwardRecipientPlayer] = None
 
     @staticmethod
     def leagues_included() -> list[str]:
@@ -83,6 +85,13 @@ class Award(BaseModel):
             if self.id.startswith(league):
                 return league
         return None
+
+    @property
+    def position(self) -> Optional[str]:
+        """Position the award was won at (ex: 'SS', 'UT'). On an award, this is not always the player's own primary position."""
+        if self.player is None or self.player.primary_position is None:
+            return None
+        return self.player.primary_position.abbreviation
 
     @property
     def award_summary_abbr(self) -> Optional[str]:
