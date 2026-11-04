@@ -282,6 +282,7 @@ class ShowdownPlayerCard(BaseModel):
 
         # POSITIONS_AND_DEFENSE, HAND, IP, SPEED, SPEED_LETTER
         self.positions_and_defense, self.positions_and_real_life_ratings, self.positions_and_games_played = self._positions_and_defense(stats_dict=self.stats_for_card)
+        self._add_gold_glove_defense_note()
         self.positions_list = list(self.positions_and_defense.keys())
         self.positions_and_defense_for_visuals: dict[str, int] = self.calc_positions_and_defense_for_visuals()
         self.positions_and_defense_string: str = self.positions_and_defense_as_string(is_horizontal=True)
@@ -956,6 +957,14 @@ class ShowdownPlayerCard(BaseModel):
                     defensive_rating = dWar
                 positions_and_real_life_ratings[position] = { metric: round(defensive_rating,3) }
                 in_game_defense = self._convert_to_in_game_defense(position=position,rating=defensive_rating,metric=metric,games=games_at_position)
+
+                # GOLD GLOVE WINNERS GET THE HIGHER OF OAA AND DRS AT THEIR WINNING POSITION
+                # COMPARE IN-GAME DEFENSE BECAUSE THE RAW METRICS ARE ON DIFFERENT SCALES
+                if metric == DefenseMetric.OAA and drs is not None and self._is_gold_glove_position(position_name):
+                    drs_in_game_defense = self._convert_to_in_game_defense(position=position,rating=drs,metric=DefenseMetric.DRS,games=games_at_position)
+                    if drs_in_game_defense > in_game_defense:
+                        in_game_defense = drs_in_game_defense
+                        positions_and_real_life_ratings[position] = { DefenseMetric.DRS: drs }
             except Exception as e:
                 print(e)
                 in_game_defense = 0
@@ -1239,6 +1248,43 @@ class ShowdownPlayerCard(BaseModel):
             return Position.CA
         
         return Position(position)
+
+    @property
+    def gold_glove_position(self) -> Optional[str]:
+        """Position the player won a Gold Glove at. Only applies to full, single 2026+ regular seasons."""
+        last_year = self.stats_period.last_year
+        if self.stats_period.type != StatsPeriodType.REGULAR_SEASON or self.stats_period.is_multi_year or last_year is None or last_year < 2026:
+            return None
+        return self.stats_for_card.get('gold_glove_position', None)
+
+    def _is_gold_glove_position(self, position_name:str) -> bool:
+        """True if the position is where the player won their Gold Glove. Outfield winners include the combined OF position.
+        Utility winners ('UT') never match, since the award isn't tied to one position.
+
+        Args:
+          position_name: Position name from the player's stats (ex: 'SS', 'LF', 'OF')
+
+        Returns:
+          True if the position is the Gold Glove winning position.
+        """
+        gold_glove_position = self.gold_glove_position
+        if gold_glove_position is None:
+            return False
+        return position_name == gold_glove_position or (position_name == 'OF' and gold_glove_position in ['LF', 'CF', 'RF'])
+
+    def _add_gold_glove_defense_note(self) -> None:
+        """Adds a note explaining a defense rating that uses DRS over OAA because of a Gold Glove. Skips positions that didn't make the final card."""
+        for position, metric_and_value_dict in self.positions_and_real_life_ratings.items():
+            is_on_card = position in self.positions_and_defense or (position in [Position.LF, Position.RF] and Position.LFRF in self.positions_and_defense)
+            drs = metric_and_value_dict.get(DefenseMetric.DRS, None)
+            oaa = self.stats_for_card.get('positions', {}).get(position.value, {}).get('oaa', None)
+            if not is_on_card or drs is None or oaa is None or not self._is_gold_glove_position(position.value):
+                continue
+
+            note = f"Gold Glove: {position.value} defense is based on {drs:+g} DRS instead of {oaa:+g} OAA. Winners use whichever rates higher at their winning position."
+            if note not in (self.notes or ''): # NOTES SURVIVE WHEN A STORED CARD IS REBUILT
+                self.notes = f"{self.notes} {note}" if self.notes else note
+            return
 
     @property
     def is_defense_regressed_to_median(self) -> bool:
@@ -2333,6 +2379,10 @@ class ShowdownPlayerCard(BaseModel):
                     if ( self.stats_period.is_multi_year and key != 'oaa' ) or ( not is_reg_season ):
                         continue
                     position = list(self.positions_and_defense.keys())[0].value
+                    # GOLD GLOVE CARDS RATED BY DRS SHOULD SHOW DRS, NOT THE OAA THEY REPLACED
+                    position_ratings = self.positions_and_real_life_ratings.get(list(self.positions_and_defense.keys())[0], {})
+                    if key == 'oaa' and DefenseMetric.DRS in position_ratings and self._is_gold_glove_position(position):
+                        continue
                     if position == Position.LFRF.value:
                         position = 'OF'
                     position_defense = stats.get('positions', {}).get(position, {}).get(key, None)
