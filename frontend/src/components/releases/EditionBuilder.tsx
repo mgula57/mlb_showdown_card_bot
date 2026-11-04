@@ -41,7 +41,7 @@ import { ConnectDriveButton } from '../account/ImageLibrarySettings';
 import { useCopyReleaseLink } from './useCopyReleaseLink';
 import { parseManualPicks, manualPickFor, withManualPick, type ManualPicks } from './manualPicks';
 import { relativeTime } from '../../functions/formatters';
-import { parseEditionStyle, parseEditionStyleRules, editionStyleSummary, releaseCardBaseStyle, releaseCardStyle, releaseCardOverridesFor, type EditionStyleRule } from './editionStyle';
+import { parseEditionStyle, parseEditionStyleRules, editionStyleSummary, releaseCardBaseStyle, releaseCardStyle, releaseCardOverridesFor, customCardOverrides, type EditionStyleRule } from './editionStyle';
 import type { CardStyleSettings } from '../customs/cardStyle';
 import type { CardStyleEditorConfig } from '../cards/card_detail/CardStyleEditor';
 import type { CardStyleOverrides } from '../cards/cardStyleOverrides';
@@ -950,7 +950,7 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
     }
 
     /** Adds `snapshot` as the edition's next card. `manualPicks` are saved with it when given. */
-    function addCardSnapshot(snapshot: CardDatabaseRecord, nextManualPicks?: ManualPicks) {
+    function addCardSnapshot(snapshot: CardDatabaseRecord, nextManualPicks?: ManualPicks, cardOverrides: ReleaseCard['card_overrides'] = null) {
         const currentCards = cardsRef.current;
         const nextNumber = numbering.mode === 'manual'
             ? nextManualCardNumber(currentCards)
@@ -963,7 +963,7 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
             card_snapshot: snapshot,
             tags: [],
             preview_rank: null,
-            card_overrides: null,
+            card_overrides: cardOverrides,
         };
         persist(applyNumberingIfNeeded([...currentCards, newCard]), nextManualPicks);
     }
@@ -994,10 +994,12 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
     }
 
     /** A Card Builder custom (date range, multi-year...) has no archived card, so the backend builds
-     * its snapshot from the card itself. It isn't a player-year, so it never touches manual picks. */
+     * its snapshot from the card itself. It isn't a player-year, so it never touches manual picks.
+     * Its styling comes along as card overrides, on top of the edition style. */
     async function addCustomCard(customCardId: string) {
         if (!token) return;
-        addCardSnapshot(await customEditionCard(releaseId, edition.id, customCardId, token));
+        const snapshot = await customEditionCard(releaseId, edition.id, customCardId, token);
+        addCardSnapshot(snapshot, undefined, customCardOverrides(snapshot));
     }
 
     async function handleAddCustomCard(record: CardDatabaseRecord) {

@@ -1,5 +1,7 @@
 import { FORM_DEFAULTS } from '../customs/CustomCardBuilder';
 import type { ReleaseCard, ReleaseCardOverrides } from '../../api/releases';
+import type { CardDatabaseRecord } from '../../api/card_db/cardDatabase';
+import { cardStyleFromCard } from '../cards/cardStyleOverrides';
 import { CARD_STYLE_KEYS, setStyleSummary, imageStyleSummary, type CardStyleSettings } from '../customs/cardStyle';
 import { POOL_FILTER_OPTIONS, activePoolFilters, cardMatchesPoolFilters, type PoolFilterBy, type PoolFilters } from './poolGrouping';
 
@@ -96,4 +98,11 @@ export function releaseCardOverridesFor(style: CardStyleSettings, baseStyle: Car
     const changed = CARD_STYLE_KEYS.filter(key => (style[key] ?? null) !== (baseStyle[key] ?? null));
     if (changed.length === 0) return null;
     return { style: Object.fromEntries(changed.map(key => [key, style[key]])) as Partial<CardStyleSettings> };
+}
+
+/** The overrides that keep a Card Builder custom's own styling once it joins an edition: whatever
+ * it was built with beyond the builder's defaults. Anything left at a default follows the edition. */
+export function customCardOverrides(snapshot: CardDatabaseRecord): ReleaseCardOverrides | null {
+    if (!snapshot.card_data) return null;
+    return releaseCardOverridesFor(cardStyleFromCard(snapshot.card_data, CARD_STYLE_DEFAULTS), CARD_STYLE_DEFAULTS);
 }
