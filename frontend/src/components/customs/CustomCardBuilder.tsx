@@ -93,6 +93,7 @@ export interface CustomCardFormState {
     set_number?: string | null; // e.g. "001"
     edition: string; // e.g. "Cooperstown"
     add_one_to_set_year: boolean; // Whether to show the year + 1 in the set section
+    set_year: string | null; // Year printed in the set section instead of the card's own, e.g. "2026"
     show_year_text: boolean; // Whether to show the year text as a label on the card
     disable_display_text_on_card?: boolean; // Whether to hide the stats period display text (e.g. split/date range) banner on the card. Only applicable for non-Base Set expansions or All-Star Game/Postseason editions
 
@@ -139,6 +140,7 @@ export const FORM_DEFAULTS: CustomCardFormState = {
     set_number: null, 
     edition: "NONE",
     add_one_to_set_year: false,
+    set_year: null,
     show_year_text: false,
     disable_display_text_on_card: false,
 
@@ -159,6 +161,20 @@ export const FORM_DEFAULTS: CustomCardFormState = {
     era: "DYNAMIC",
     is_variable_speed_00_01: false,
     stat_normalizer: "NONE"
+};
+
+/** Form sections in the Card Settings panel */
+type FormSectionName = 'Player' | 'Set' | 'Image' | 'Chart';
+
+/** The form fields each section's reset button restores to `FORM_DEFAULTS` */
+const FORM_SECTION_FIELDS: Record<FormSectionName, (keyof CustomCardFormState)[]> = {
+    Player: ['name', 'player_id', 'player_type_override', 'year', 'stats_period_type', 'start_date', 'end_date', 'split', 'league', 'team_selection'],
+    Set: ['expansion', 'set_number', 'edition', 'add_one_to_set_year', 'set_year', 'show_year_text', 'disable_display_text_on_card'],
+    Image: [
+        'image_source', 'image_parallel', 'image_coloring', 'image_glow_multiplier', 'image_url', 'image_upload',
+        'is_bordered', 'is_dark_mode', 'hide_team_logo', 'stat_highlights_type', 'nickname_index',
+    ],
+    Chart: ['chart_version', 'era', 'is_variable_speed_00_01', 'stat_normalizer'],
 };
 
 /** Whether a year string spans multiple seasons (CAREER, ranges like "2000-2004", or combos like "2006+2014") */
@@ -194,8 +210,9 @@ const loadFormSettings = (): CustomCardFormState => {
             const { regress_small_sample_to_replacement, ...parsedSettings } = JSON.parse(saved);
             // Legacy toggle (pre-Normalizer) carries over as the Replacement Level normalizer
             if (regress_small_sample_to_replacement && !parsedSettings.stat_normalizer) parsedSettings.stat_normalizer = 'REPLACEMENT_LEVEL';
-            // Merge with defaults to ensure all required fields exist
-            return { ...FORM_DEFAULTS, ...parsedSettings };
+            // Merge with defaults to ensure all required fields exist. Set Year stays out: this storage
+            // is shared with the standalone builder, which has no field to clear it.
+            return { ...FORM_DEFAULTS, ...parsedSettings, set_year: null };
         }
     } catch (error) {
         console.warn('Failed to load form settings:', error);
@@ -287,6 +304,12 @@ function CustomCardBuilder({ isHidden, embed }: CustomCardBuilderProps) {
     const isMultiYear = isMultiYearInput(form.year);
 
     const [imageUploadPreview, setImageUploadPreview] = useState<string | null>(null);
+    // The native file input keeps its own selection, so resets remount it to clear the filename
+    const [imageUploadInputKey, setImageUploadInputKey] = useState(0);
+    const clearImageUpload = () => {
+        setImageUploadPreview(null);
+        setImageUploadInputKey(key => key + 1);
+    };
     const getImagePreview = (): string | null => {
         switch (form.image_source) {
             case "UPLOAD":
@@ -651,6 +674,21 @@ function CustomCardBuilder({ isHidden, embed }: CustomCardBuilderProps) {
         // Reset form to initial state
         setForm(FORM_DEFAULTS);
         setShowdownSetOverride(defaultShowdownSetOverride);
+        clearImageUpload();
+    };
+
+    // Reset a single section's fields, leaving the rest of the form alone
+    const resetSection = (section: FormSectionName) => {
+        const sectionDefaults = Object.fromEntries(FORM_SECTION_FIELDS[section].map(key => [key, FORM_DEFAULTS[key]]));
+        setForm(prevForm => ({ ...prevForm, ...sectionDefaults }));
+        if (section === 'Image') clearImageUpload();
+    };
+
+    /** Reset handler for a section's header, undefined while the section is already at its defaults.
+     * Compares by `||` since cleared inputs store '' or undefined where the defaults hold null. */
+    const sectionResetHandler = (section: FormSectionName) => {
+        const hasChanges = FORM_SECTION_FIELDS[section].some(key => (form[key] || null) !== (FORM_DEFAULTS[key] || null));
+        return hasChanges ? () => resetSection(section) : undefined;
     };
 
     // Handle Enter key press
@@ -1187,6 +1225,7 @@ function CustomCardBuilder({ isHidden, embed }: CustomCardBuilderProps) {
                                             isOpenByDefault={sectionStates['Player']}
                                             onToggle={() => toggleSection('Player')}
                                             childrenWhenClosed={sectionWhenClosed('Player')}
+                                            onReset={sectionResetHandler('Player')}
                                         >
 
                                             <FormInput
@@ -1254,10 +1293,12 @@ function CustomCardBuilder({ isHidden, embed }: CustomCardBuilderProps) {
                                             isOpenByDefault={sectionStates['Set']}
                                             onToggle={() => toggleSection('Set')}
                                             childrenWhenClosed={sectionWhenClosed('Set')}
+                                            onReset={sectionResetHandler('Set')}
                                         >
                                             <SetStyleFields
                                                 values={form}
                                                 onChange={(patch) => setForm({ ...form, ...patch })}
+                                                showSetYear={!!embed}
                                                 afterEdition={
                                                     <FormInput
                                                         label="Set Number"
@@ -1279,6 +1320,7 @@ function CustomCardBuilder({ isHidden, embed }: CustomCardBuilderProps) {
                                             isOpenByDefault={sectionStates['Image']}
                                             onToggle={() => toggleSection('Image')}
                                             childrenWhenClosed={sectionWhenClosed('Image')}
+                                            onReset={sectionResetHandler('Image')}
                                         >
 
                                             <FormDropdown
@@ -1300,6 +1342,7 @@ function CustomCardBuilder({ isHidden, embed }: CustomCardBuilderProps) {
                                                 placeholder="https://example.com/image.png"
                                             />
                                             <FormInput
+                                                key={imageUploadInputKey}
                                                 label="Upload Image"
                                                 className={`col-span-full ${form.image_source === 'UPLOAD' ? '' : 'hidden'}`}
                                                 value={form.image_upload?.name || ''}
@@ -1349,6 +1392,7 @@ function CustomCardBuilder({ isHidden, embed }: CustomCardBuilderProps) {
                                             isOpenByDefault={sectionStates['Chart']}
                                             onToggle={() => toggleSection('Chart')}
                                             childrenWhenClosed={sectionWhenClosed('Chart')}
+                                            onReset={sectionResetHandler('Chart')}
                                         >
 
                                             <FormDropdown

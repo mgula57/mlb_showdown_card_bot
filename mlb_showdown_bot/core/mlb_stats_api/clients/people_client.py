@@ -19,8 +19,8 @@ _PLAYER_FIELDS = [
     'rookieSeasons',
     # Cross-reference IDs (for Fangraphs ID lookup)
     'xrefIds', 'xrefId', 'xrefType',
-    # Awards (id/name drive computed properties; season scopes them)
-    'awards', 'name', 'season',
+    # Awards (id/name drive computed properties; season scopes them; player carries the position won at)
+    'awards', 'name', 'season', 'player',
     # Stats envelope
     'stats', 'displayName', 'group', 'splits', 'stat',
     # Split context metadata

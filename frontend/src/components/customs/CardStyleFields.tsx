@@ -10,6 +10,7 @@ import type { ReactNode } from 'react';
 import { FaImage, FaLayerGroup } from 'react-icons/fa';
 import FormDropdown from './FormDropdown';
 import FormEnabler from './FormEnabler';
+import FormInput from './FormInput';
 import FormSection from './FormSection';
 import { formSectionSummary } from './FormSectionSummary';
 import { InfoTooltip } from '../shared/InfoTooltip';
@@ -39,8 +40,15 @@ type StyleFieldsProps = {
     onChange: (patch: Partial<CardStyleSettings>) => void;
 };
 
-/** Set section fields. `afterEdition` slots per-card inputs (e.g. Set Number) between Edition and the toggles. */
-export function SetStyleFields({ values, onChange, afterEdition }: StyleFieldsProps & { afterEdition?: ReactNode }) {
+type SetStyleFieldsProps = StyleFieldsProps & {
+    /** Slots per-card inputs (e.g. Set Number) between Edition and the toggles */
+    afterEdition?: ReactNode;
+    /** Offers Set Year, for cards printed as part of a release */
+    showSetYear?: boolean;
+};
+
+/** Set section fields. */
+export function SetStyleFields({ values, onChange, afterEdition, showSetYear = false }: SetStyleFieldsProps) {
     return (
         <>
             <FormDropdown
@@ -66,8 +74,30 @@ export function SetStyleFields({ values, onChange, afterEdition }: StyleFieldsPr
 
             {afterEdition}
 
+            {showSetYear && (
+                <FormInput
+                    label="Set Year"
+                    className='col-span-full'
+                    value={values.set_year ?? ''}
+                    placeholder="Card's year"
+                    inputMode="numeric"
+                    maxLength={4}
+                    isClearable={true}
+                    onChange={(value) => {
+                        const setYear = value?.replace(/\D/g, '') || null;
+                        onChange({ set_year: setYear, ...(setYear && { add_one_to_set_year: false }) });
+                    }}
+                />
+            )}
+
             <FormEnabler label='Show Year as Text' isEnabled={values.show_year_text} onChange={(isEnabled) => onChange({ show_year_text: !isEnabled })} />
-            <FormEnabler label='Add 1 to Set Year' isEnabled={values.add_one_to_set_year} onChange={(isEnabled) => onChange({ add_one_to_set_year: !isEnabled })} />
+            <FormEnabler
+                label='Add 1 to Set Year'
+                isEnabled={values.add_one_to_set_year}
+                onChange={(isEnabled) => onChange({ add_one_to_set_year: !isEnabled })}
+                isDisabled={showSetYear && !!values.set_year}
+                disabledReason='Not used when a Set Year is entered'
+            />
 
             <FormEnabler
                 label={
@@ -160,7 +190,7 @@ export function ImageStyleFields({ values, onChange, hideParallel = false }: Sty
 /** The Set and Image sections as standalone collapsible panels, for style editors outside the
  * Custom Card Builder (an edition's default style, a single card's style). Collapsed summaries
  * show what differs from `defaults`. */
-export function CardStyleSections({ values, onChange, defaults, isOpenByDefault = true }: StyleFieldsProps & { defaults: CardStyleSettings; isOpenByDefault?: boolean }) {
+export function CardStyleSections({ values, onChange, defaults, isOpenByDefault = true, showSetYear = false }: StyleFieldsProps & { defaults: CardStyleSettings; isOpenByDefault?: boolean; showSetYear?: boolean }) {
     return (
         <>
             <FormSection
@@ -169,7 +199,7 @@ export function CardStyleSections({ values, onChange, defaults, isOpenByDefault 
                 isOpenByDefault={isOpenByDefault}
                 childrenWhenClosed={formSectionSummary(setStyleSummary(values, defaults))}
             >
-                <SetStyleFields values={values} onChange={onChange} />
+                <SetStyleFields values={values} onChange={onChange} showSetYear={showSetYear} />
             </FormSection>
             <FormSection
                 title='Image'

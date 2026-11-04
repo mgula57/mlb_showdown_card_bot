@@ -9,7 +9,7 @@
 
 import React, { useState } from 'react';
 import FormElementGrid from './FormElementGrid';
-import { FaChevronDown } from 'react-icons/fa6';
+import { FaChevronDown, FaRotateLeft } from 'react-icons/fa6';
 import { NewBadge } from '../shared/NewBadge';
 
 import { headingClass } from '../shared/headingStyles';
@@ -34,6 +34,8 @@ type FormSectionProps = {
     collapsible?: boolean;
     /** Show a "New" badge next to the title, for sections with newly released options. */
     isNew?: boolean;
+    /** Resets the section's fields. Shows a reset button in the header; omit when there's nothing to reset. */
+    onReset?: () => void;
 };
 
 /**
@@ -63,9 +65,10 @@ type FormSectionProps = {
  * @param isOpenByDefault - Initial expanded state
  * @param onToggle - Toggle event handler
  * @param childrenWhenClosed - Summary content when collapsed
+ * @param onReset - Reset handler; shows a header reset button when set
  * @returns Collapsible form section container
  */
-const FormSection: React.FC<FormSectionProps> = ({ title, children, icon, isOpenByDefault=false, childrenWhenClosed=undefined, onToggle, collapsible=true, isNew=false }) => {
+const FormSection: React.FC<FormSectionProps> = ({ title, children, icon, isOpenByDefault=false, childrenWhenClosed=undefined, onToggle, collapsible=true, isNew=false, onReset }) => {
 
     /** Internal state for section expand/collapse */
     const [isOpen, setIsOpen] = useState(collapsible ? isOpenByDefault : true);
@@ -89,34 +92,54 @@ const FormSection: React.FC<FormSectionProps> = ({ title, children, icon, isOpen
         <div className="w-full px-3 py-2.5 border border-form-element rounded-card bg-secondary">
 
             {/* Section header with title, icon, and (when collapsed) inline summary — clickable toggle only when collapsible */}
-            <button
-                type='button'
-                className={`
-                    flex items-start gap-3 w-full min-w-0 -mx-1.5 px-1.5 py-1 rounded-control box-content
-                    transition-colors ${collapsible ? 'cursor-pointer hover:bg-(--background-tertiary)/60' : 'cursor-default'}
-                `}
-                onClick={toggleCollapse}
-                aria-expanded={collapsible ? isOpen : undefined}
-            >
-                <span className={`flex items-center gap-2 shrink-0 ${headingClass('panel')}`}>
-                    {icon && <span className='text-xs text-(--tertiary)'>{icon}</span>}
-                    {title}
-                    {isNew && <NewBadge />}
-                </span>
-
-                {/* Summary content - shown inline when collapsed, wrapping onto extra rows if needed */}
-                <span className='flex-1 min-w-0 pt-px'>
-                    {!isOpen && childrenWhenClosed}
-                </span>
-
-                {/* Toggle chevron indicating section state */}
-                {/* Wrapped in a title-height box so it stays level with the title when chips wrap */}
-                {collapsible && (
-                    <span className='flex items-center h-5 shrink-0'>
-                        <FaChevronDown className={`text-xs text-(--tertiary) transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} />
+            <div className='relative'>
+                <button
+                    type='button'
+                    className={`
+                        flex items-start gap-3 w-full min-w-0 -mx-1.5 px-1.5 py-1 rounded-control box-content
+                        transition-colors ${collapsible ? 'cursor-pointer hover:bg-(--background-tertiary)/60' : 'cursor-default'}
+                    `}
+                    onClick={toggleCollapse}
+                    aria-expanded={collapsible ? isOpen : undefined}
+                >
+                    <span className={`flex items-center gap-2 shrink-0 ${headingClass('panel')}`}>
+                        {icon && <span className='text-xs text-(--tertiary)'>{icon}</span>}
+                        {title}
+                        {isNew && <NewBadge />}
                     </span>
+
+                    {/* Summary content - shown inline when collapsed, wrapping onto extra rows if needed */}
+                    <span className='flex-1 min-w-0 pt-px'>
+                        {!isOpen && childrenWhenClosed}
+                    </span>
+
+                    {/* Holds the space for the reset button, which can't nest inside this button */}
+                    {onReset && <span className='w-5 shrink-0' />}
+
+                    {/* Toggle chevron indicating section state */}
+                    {/* Wrapped in a title-height box so it stays level with the title when chips wrap */}
+                    {collapsible && (
+                        <span className='flex items-center h-5 shrink-0'>
+                            <FaChevronDown className={`text-xs text-(--tertiary) transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} />
+                        </span>
+                    )}
+                </button>
+
+                {onReset && (
+                    <button
+                        type='button'
+                        className='
+                            absolute top-1 right-6 flex items-center justify-center h-5 w-5 rounded-control
+                            text-xs text-(--tertiary) hover:bg-(--background-tertiary) transition-colors cursor-pointer
+                        '
+                        title={`Reset ${title}`}
+                        aria-label={`Reset ${title}`}
+                        onClick={onReset}
+                    >
+                        <FaRotateLeft />
+                    </button>
                 )}
-            </button>
+            </div>
 
             {/* Content area - animates height via grid rows so no fixed max-height cap is needed */}
             <div

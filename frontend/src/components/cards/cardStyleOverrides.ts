@@ -25,6 +25,7 @@ const IMAGE_FIELD_CONVERTERS: { [K in Exclude<keyof CardStyleSettings, 'disable_
     expansion: ['expansion', v => v, v => (v as string | null) ?? undefined],
     edition: ['edition', v => v, v => (v as string | null) ?? undefined],
     add_one_to_set_year: ['add_one_to_set_year', v => v, v => (v as boolean | null) ?? undefined],
+    set_year: ['set_year', v => (v && /^\d{4}$/.test(v) ? parseInt(v, 10) : null), v => (v == null ? null : String(v))],
     show_year_text: ['show_year_text', v => v, v => (v as boolean | null) ?? undefined],
     image_parallel: ['parallel', v => v, v => (v as string | null) ?? undefined],
     image_coloring: ['coloring', v => v, v => (v as string | null) ?? undefined],

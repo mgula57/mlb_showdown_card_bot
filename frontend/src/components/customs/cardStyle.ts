@@ -12,13 +12,13 @@ import type { CustomCardFormState } from './CustomCardBuilder';
 // ----------------------------------
 
 export type CardStyleSettings = Pick<CustomCardFormState,
-    | 'expansion' | 'edition' | 'add_one_to_set_year' | 'show_year_text' | 'disable_display_text_on_card'
+    | 'expansion' | 'edition' | 'add_one_to_set_year' | 'set_year' | 'show_year_text' | 'disable_display_text_on_card'
     | 'image_parallel' | 'image_coloring' | 'image_glow_multiplier'
     | 'stat_highlights_type' | 'nickname_index' | 'is_bordered' | 'is_dark_mode' | 'hide_team_logo'
 >;
 
 export const CARD_STYLE_KEYS: (keyof CardStyleSettings)[] = [
-    'expansion', 'edition', 'add_one_to_set_year', 'show_year_text', 'disable_display_text_on_card',
+    'expansion', 'edition', 'add_one_to_set_year', 'set_year', 'show_year_text', 'disable_display_text_on_card',
     'image_parallel', 'image_coloring', 'image_glow_multiplier',
     'stat_highlights_type', 'nickname_index', 'is_bordered', 'is_dark_mode', 'hide_team_logo',
 ];
@@ -157,6 +157,7 @@ export function setStyleSummary(values: CardStyleSettings, defaults: CardStyleSe
     }
     if (setNumber) summaries.push({ label: 'Set Number', value: setNumber });
 
+    if (values.set_year) summaries.push({ label: 'Set Year', value: values.set_year });
     if (values.add_one_to_set_year) summaries.push({ value: "Set Year +1" });
     if (values.show_year_text) summaries.push({ value: "Show Year Text" });
     if (values.disable_display_text_on_card) summaries.push({ value: "Hide Date Text" });

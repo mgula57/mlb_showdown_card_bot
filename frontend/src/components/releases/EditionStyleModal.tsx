@@ -99,7 +99,7 @@ export function EditionStyleModal({ releaseId, edition, cards, token, onClose, o
                     fullWidth
                 />
                 {tab === 'default'
-                    ? <CardStyleSections values={style} onChange={updateStyle} defaults={CARD_STYLE_DEFAULTS} />
+                    ? <CardStyleSections values={style} onChange={updateStyle} defaults={CARD_STYLE_DEFAULTS} showSetYear />
                     : <EditionStyleRules rules={rules} onChange={setRules} cards={cards} editionStyle={style} />}
             </div>
         </Modal>

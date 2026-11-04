@@ -1085,6 +1085,7 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
             style: detailCardStyle,
             defaults: detailCardBaseStyle,
             revertTitle: 'Revert to the edition style and rules',
+            showSetYear: true,
             onSave: async (style) => {
                 const card_overrides = releaseCardOverridesFor(style, detailCardBaseStyle);
                 const saved = await persist(cards.map(c => c.source_card_id === sourceCardId ? { ...c, card_overrides } : c));

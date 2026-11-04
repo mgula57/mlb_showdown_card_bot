@@ -900,6 +900,15 @@ class ShowdownImage(BaseModel):
             secondary_color_tuple = wbc_team.secondary_color
             self.color_secondary = f"rgb({secondary_color_tuple[0]}, {secondary_color_tuple[1]}, {secondary_color_tuple[2]})"
 
+    @field_validator('set_year', mode='before')
+    def clean_set_year(cls, set_year) -> Optional[int]:
+        """A full 4 digit year, or None to use the card's own year."""
+        try:
+            as_int = int(set_year)
+        except (TypeError, ValueError):
+            return None
+        return as_int if 1000 <= as_int <= 9999 else None
+
     @field_validator('nickname_index', mode='before')
     def clean_nickname_index(cls, nickname_index:int) -> int:
         if nickname_index is None:

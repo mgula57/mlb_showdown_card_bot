@@ -40,6 +40,7 @@ class EditionCardStyle(BaseModel):
     expansion: str = 'BS'
     edition: str = 'NONE'
     add_one_to_set_year: bool = False
+    set_year: Optional[str | int] = None
     show_year_text: bool = False
     disable_display_text_on_card: bool = False
     image_parallel: str = 'NONE'
@@ -80,6 +81,7 @@ class EditionCardStyle(BaseModel):
             'expansion': self.expansion,
             'edition': self.edition,
             'add_one_to_set_year': self.add_one_to_set_year,
+            'set_year': self.set_year or None,
             'show_year_text': self.show_year_text,
             'parallel': self.image_parallel,
             'coloring': self.image_coloring,
@@ -145,10 +147,14 @@ class ReleaseCardImageSpec:
     render_hash: str = field(init=False)
 
     def __post_init__(self) -> None:
+        image = self.style.image_fields()
+        # Left out when unset, so images rendered before set years existed stay up to date
+        if image['set_year'] is None:
+            del image['set_year']
         inputs = {
             'version': RENDER_VERSION,
             'snapshot': self.card_snapshot,
-            'image': self.style.image_fields(),
+            'image': image,
             'disable_display_text_on_card': self.style.disable_display_text_on_card,
             'set_number': self.set_number,
         }

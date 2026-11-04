@@ -286,6 +286,7 @@ class ShowdownPlayerCard(BaseModel):
 
         # POSITIONS_AND_DEFENSE, HAND, IP, SPEED, SPEED_LETTER
         self.positions_and_defense, self.positions_and_real_life_ratings, self.positions_and_games_played = self._positions_and_defense(stats_dict=self.stats_for_card)
+        self._add_gold_glove_defense_note()
         self.positions_list = list(self.positions_and_defense.keys())
         self.positions_and_defense_for_visuals: dict[str, int] = self.calc_positions_and_defense_for_visuals()
         self.positions_and_defense_string: str = self.positions_and_defense_as_string(is_horizontal=True)
@@ -968,6 +969,14 @@ class ShowdownPlayerCard(BaseModel):
                     defensive_rating = dWar
                 positions_and_real_life_ratings[position] = { metric: round(defensive_rating,3) }
                 in_game_defense = self._convert_to_in_game_defense(position=position,rating=defensive_rating,metric=metric,games=games_at_position)
+
+                # GOLD GLOVE WINNERS GET THE HIGHER OF OAA AND DRS AT THEIR WINNING POSITION
+                # COMPARE IN-GAME DEFENSE BECAUSE THE RAW METRICS ARE ON DIFFERENT SCALES
+                if metric == DefenseMetric.OAA and drs is not None and self._is_gold_glove_position(position_name):
+                    drs_in_game_defense = self._convert_to_in_game_defense(position=position,rating=drs,metric=DefenseMetric.DRS,games=games_at_position)
+                    if drs_in_game_defense > in_game_defense:
+                        in_game_defense = drs_in_game_defense
+                        positions_and_real_life_ratings[position] = { DefenseMetric.DRS: drs }
             except Exception as e:
                 print(e)
                 in_game_defense = 0
@@ -1251,6 +1260,43 @@ class ShowdownPlayerCard(BaseModel):
             return Position.CA
         
         return Position(position)
+
+    @property
+    def gold_glove_position(self) -> Optional[str]:
+        """Position the player won a Gold Glove at. Only applies to full, single 2026+ regular seasons."""
+        last_year = self.stats_period.last_year
+        if self.stats_period.type != StatsPeriodType.REGULAR_SEASON or self.stats_period.is_multi_year or last_year is None or last_year < 2026:
+            return None
+        return self.stats_for_card.get('gold_glove_position', None)
+
+    def _is_gold_glove_position(self, position_name:str) -> bool:
+        """True if the position is where the player won their Gold Glove. Outfield winners include the combined OF position.
+        Utility winners ('UT') never match, since the award isn't tied to one position.
+
+        Args:
+          position_name: Position name from the player's stats (ex: 'SS', 'LF', 'OF')
+
+        Returns:
+          True if the position is the Gold Glove winning position.
+        """
+        gold_glove_position = self.gold_glove_position
+        if gold_glove_position is None:
+            return False
+        return position_name == gold_glove_position or (position_name == 'OF' and gold_glove_position in ['LF', 'CF', 'RF'])
+
+    def _add_gold_glove_defense_note(self) -> None:
+        """Adds a note explaining a defense rating that uses DRS over OAA because of a Gold Glove. Skips positions that didn't make the final card."""
+        for position, metric_and_value_dict in self.positions_and_real_life_ratings.items():
+            is_on_card = position in self.positions_and_defense or (position in [Position.LF, Position.RF] and Position.LFRF in self.positions_and_defense)
+            drs = metric_and_value_dict.get(DefenseMetric.DRS, None)
+            oaa = self.stats_for_card.get('positions', {}).get(position.value, {}).get('oaa', None)
+            if not is_on_card or drs is None or oaa is None or not self._is_gold_glove_position(position.value):
+                continue
+
+            note = f"Gold Glove: {position.value} defense is based on {drs:+g} DRS instead of {oaa:+g} OAA. Winners use whichever rates higher at their winning position."
+            if note not in (self.notes or ''): # NOTES SURVIVE WHEN A STORED CARD IS REBUILT
+                self.notes = f"{self.notes} {note}" if self.notes else note
+            return
 
     @property
     def is_defense_regressed_to_median(self) -> bool:
@@ -2345,6 +2391,10 @@ class ShowdownPlayerCard(BaseModel):
                     if ( self.stats_period.is_multi_year and key != 'oaa' ) or ( not is_reg_season ):
                         continue
                     position = list(self.positions_and_defense.keys())[0].value
+                    # GOLD GLOVE CARDS RATED BY DRS SHOULD SHOW DRS, NOT THE OAA THEY REPLACED
+                    position_ratings = self.positions_and_real_life_ratings.get(list(self.positions_and_defense.keys())[0], {})
+                    if key == 'oaa' and DefenseMetric.DRS in position_ratings and self._is_gold_glove_position(position):
+                        continue
                     if position == Position.LFRF.value:
                         position = 'OF'
                     position_defense = stats.get('positions', {}).get(position, {}).get(key, None)
@@ -4669,10 +4719,11 @@ class ShowdownPlayerCard(BaseModel):
                 year_string = 'ALL' if self.stats_period.is_full_career else 'MLT'
                 set_image_location = (set_image_location[0]-5,set_image_location[1])
             elif self.stats_period.is_multi_year and self.set.is_showdown_bot:
-                year_string = "CAREER" if self.stats_period.is_full_career else year_as_str
+                year_string = "CAREER" if self.stats_period.is_full_career and self.image.set_year is None else year_as_str
             else:
                 try:
-                    year_as_str = str(int(year_as_str) + (1 if self.image.add_one_to_set_year else 0))
+                    # A chosen set year prints exactly as given
+                    year_as_str = str(int(year_as_str) + (1 if self.image.add_one_to_set_year and self.image.set_year is None else 0))
                 except:
                     year_as_str = year_as_str
                 year_string = year_as_str if self.set.is_showdown_bot else f"'{year_as_str[2:4]}"
@@ -5840,17 +5891,15 @@ class ShowdownPlayerCard(BaseModel):
             # BOOSTER: THE BACKGROUND PHOTO SHOWS THROUGH THE MIDDLE, SO THE FOIL AND LINES GO RIGHT OVER IT
             if self.image.parallel == ImageParallel.BOOSTER and img_component == PlayerImageComponent.BACKGROUND:
                 booster_background_found = True
-                player_img_components.append((self._booster_frame_image(size=card_size, background=image), (0,0)))
+                player_img_components.append((self._booster_frame_image(size=self.set.card_size, background=image), (0,0)))
 
         # BOOSTER: NO BACKGROUND PHOTO FOUND, THE MIDDLE FALLS BACK TO A TEAM COLOR TONE
         if self.image.parallel == ImageParallel.BOOSTER and not booster_background_found:
-            card_size = self.set.card_size_bordered if self.image.is_bordered else self.set.card_size
-            player_img_components.insert(0, (self._booster_frame_image(size=card_size, background=None), (0,0)))
+            player_img_components.insert(0, (self._booster_frame_image(size=self.set.card_size, background=None), (0,0)))
 
         # BREAKOUT: FRAME GOES UNDER EVERY OTHER LAYER SO THE PLAYER BREAKS OUT OF IT
         if self.image.parallel == ImageParallel.BREAKOUT:
-            card_size = self.set.card_size_bordered if self.image.is_bordered else self.set.card_size
-            frame_image = self._breakout_frame_image(size=card_size, background=breakout_background, player=breakout_player)
+            frame_image = self._breakout_frame_image(size=self.set.card_size, background=breakout_background, player=breakout_player)
             player_img_components.insert(0, (frame_image, (0,0)))
 
         return player_img_components
@@ -6957,23 +7006,27 @@ class ShowdownPlayerCard(BaseModel):
         """Backdrop for the Breakout parallel: a textured gray card holding a white, round cornered frame
         around a team color toned background. The player is pasted over it, so anything outside the frame breaks out.
 
+        Laid out in card coordinates, so the card area is the same with or without a border: only the backdrop bleeds out.
+
         Args:
-          size: Size of the card.
+          size: Size of the card, without any border.
           background: Player background image, already cropped to the card. Falls back to a team color gradient.
           player: Player cut image, already cropped to the card. Used to drop the frame's top below the player's head.
 
         Returns:
-          PIL Image of the full card backdrop.
+          PIL Image of the full card backdrop, including the bleed.
         """
 
         width, height = size
+        bleed = self.card_bleed
         card = self._breakout_backdrop_image(size=size)
 
         # FRAME BOUNDS
         border = int(width * 0.022)
         radius = int(width * 0.06)
         frame_bounds = self.set.breakout_frame_bounds
-        frame_box = frame_bounds.box(size=size, top=self._breakout_frame_top(player=player) or frame_bounds.min_top)
+        frame_top = self._breakout_frame_top(player=self._card_area_image(player)) or frame_bounds.min_top
+        frame_box = tuple(coordinate + bleed for coordinate in frame_bounds.box(size=size, top=frame_top))
         photo_box = (frame_box[0] + border, frame_box[1] + border, frame_box[2] - border, frame_box[3] - border)
         self._has_breakout_frame = True
 
@@ -6981,11 +7034,11 @@ class ShowdownPlayerCard(BaseModel):
         if self.has_breakout_backdrop_name_and_logo:
             team_logo, team_logo_coordinates = self.team_logo_for_background(team_override=self.team_override_for_images, set_override=Set._2001)
             team_logo = self._change_image_saturation(image=team_logo, saturation=0.05)
-            team_logo_layer = Image.new('RGBA', size, (0, 0, 0, 0))
+            team_logo_layer = Image.new('RGBA', card.size, (0, 0, 0, 0))
             team_logo_layer.paste(team_logo, team_logo_coordinates) # ALPHA COMPOSITE SO THE BACKDROP STAYS OPAQUE, A MASKED PASTE BLENDS ITS ALPHA
             card.alpha_composite(team_logo_layer)
-        frame_mask = self._rounded_rectangle_mask(size=size, box=frame_box, radius=radius)
-        photo_mask = self._rounded_rectangle_mask(size=size, box=photo_box, radius=radius - border)
+        frame_mask = self._rounded_rectangle_mask(size=card.size, box=frame_box, radius=radius)
+        photo_mask = self._rounded_rectangle_mask(size=card.size, box=photo_box, radius=radius - border)
 
         # FRAME SHADOW AND WHITE BORDER
         shadow_mask = ImageChops.offset(frame_mask, border // 2, border).filter(ImageFilter.GaussianBlur(border)).point(lambda a: int(a * 0.45))
@@ -6994,10 +7047,10 @@ class ShowdownPlayerCard(BaseModel):
 
         # TEAM COLOR TONED PHOTO, BACKGROUND STAYS ALIGNED WITH THE PLAYER
         if background:
-            grayscale = ImageOps.autocontrast(background.convert('L'), cutoff=1).filter(ImageFilter.GaussianBlur(4))
+            grayscale = ImageOps.autocontrast(self._card_area_image(background).convert('L'), cutoff=1).filter(ImageFilter.GaussianBlur(4))
         else:
             grayscale = Image.linear_gradient('L').resize(size).transpose(Image.Transpose.FLIP_TOP_BOTTOM)
-        card.paste(self._team_toned_image(grayscale), mask=photo_mask)
+        card.paste(self._with_bleed(self._team_toned_image(grayscale)), mask=photo_mask)
 
         # NAME DOWN THE INSIDE LEFT OF THE FRAME, BEHIND THE PLAYER
         name_image, name_padding = self._breakout_name_image(length=frame_box[3] - frame_box[1])
@@ -7009,36 +7062,43 @@ class ShowdownPlayerCard(BaseModel):
         """Layer for the Booster parallel, recreating the 2002 booster pack art: faded halftone dots on silver on the outside
         with two gently curved lines in team color framing the middle, which is left see-through for the background photo.
 
+        Laid out in card coordinates, so the card area is the same with or without a border: the lines and dots carry on into the bleed.
+
         Args:
-          size: Size of the card.
+          size: Size of the card, without any border.
           background: Player background image, already cropped to the card. When missing, the middle is a team color gradient.
 
         Returns:
-          PIL Image ('RGBA') of the full card layer.
+          PIL Image ('RGBA') of the full card layer, including the bleed.
         """
 
         width, height = size
+        bleed = self.card_bleed
+        canvas_size = (width + bleed * 2, height + bleed * 2)
+        if background and background.size != canvas_size:
+            background = self._with_bleed(background)
 
         # SETS WHOSE TEMPLATE TAKES UP THE RIGHT SIDE: DRAW IN THE OPEN WIDTH ON THE LEFT, THEN EXTEND THE EDGE OVER THE REST
         content_width = int(width * self.set.booster_content_width)
         if content_width >= width:
             return self._booster_content_image(size=size, background=background)
-        content_background = background.crop((0, 0, content_width, height)) if background else None
+        content_background = background.crop((0, 0, content_width + bleed * 2, canvas_size[1])) if background else None
         content_layer = self._booster_content_image(size=(content_width, height), background=content_background)
-        layer = Image.new('RGBA', size)
-        layer.paste(content_layer, (0, 0))
-        layer.paste(content_layer.crop((content_width - 1, 0, content_width, height)).resize((width - content_width, height)), (content_width, 0))
+        content_right = content_width + bleed
+        layer = Image.new('RGBA', canvas_size)
+        layer.paste(content_layer.crop((0, 0, content_right, canvas_size[1])), (0, 0))
+        layer.paste(content_layer.crop((content_right - 1, 0, content_right, canvas_size[1])).resize((canvas_size[0] - content_right, canvas_size[1])), (content_right, 0))
         return layer
 
     def _booster_content_image(self, size:tuple[int,int], background:Optional[Image.Image] = None) -> Image.Image:
         """Booster parallel's dotted backdrop, lines, and photo, drawn across the full width given.
 
         Args:
-          size: Size of the area to draw.
-          background: Player background image, already cropped to the area. When missing, the middle is a team color gradient.
+          size: Size of the area to draw, without any border.
+          background: Player background image, already cropped to the area plus the bleed. When missing, the middle is a team color gradient.
 
         Returns:
-          PIL Image ('RGBA') of the layer.
+          PIL Image ('RGBA') of the layer, including the bleed.
         """
 
         width, height = size
@@ -7053,7 +7113,7 @@ class ShowdownPlayerCard(BaseModel):
         layer = self._booster_dots_image(size=size)
         if background is None:
             gradient = Image.linear_gradient('L').resize(size).transpose(Image.Transpose.FLIP_TOP_BOTTOM)
-            background = self._team_toned_image(gradient)
+            background = self._with_bleed(self._team_toned_image(gradient))
         middle_mask = band(inner=0.0, outer=0.5)
         layer.paste(background, mask=ImageChops.multiply(middle_mask, background.getchannel('A')))
 
@@ -7072,46 +7132,50 @@ class ShowdownPlayerCard(BaseModel):
 
         Each line's distance from its card edge follows a sine arch, so it pinches in toward the middle of the card.
         The two offsets set the area's boundaries relative to the line, as a fraction of card width.
+        Past the card's top and bottom the arch carries on, so the lines run on into the bleed.
 
         Args:
-          size: Size of the mask.
+          size: Size of the card area, without any border.
           edge_inset: Distance of the lines from the card edges at the top and bottom, as a fraction of card width.
           bulge: How much further in the lines are at the middle of the card, as a fraction of card width.
           inner: One boundary of the area. Positive is toward the middle of the card, negative toward the card edge.
           outer: The other boundary. inner=0.0, outer=0.5 is the whole middle (the sides meet at the center).
 
         Returns:
-          PIL Image ('L') mask.
+          PIL Image ('L') mask, including the bleed.
         """
 
         width, height = size
         supersample = 2
         steps = 120
+        bleed = self.card_bleed
+        canvas_size = (width + bleed * 2, height + bleed * 2)
 
         def edge_x(y_fraction:float, offset:float) -> float:
             return (edge_inset + bulge * math.sin(math.pi * y_fraction) + offset) * width * supersample
 
         # ONE POLYGON PER SIDE. THE LEFT SIDE ENDS ARE OFFSET TOWARD THE LEFT EDGE, THE RIGHT SIDE MIRRORS IT
-        mask = Image.new('L', (width * supersample, height * supersample), 0)
+        mask = Image.new('L', (canvas_size[0] * supersample, canvas_size[1] * supersample), 0)
         draw = ImageDraw.Draw(mask)
-        ys = [(i / steps) for i in range(steps + 1)]
+        bleed_steps = math.ceil(bleed / height * steps) # EXTRA STEPS, THE ONES ON THE CARD DON'T MOVE
+        ys = [(i / steps) for i in range(-bleed_steps, steps + bleed_steps + 1)]
         for is_right in [False, True]:
             near = [(edge_x(y, inner), y) for y in ys]
             far = [(edge_x(y, outer), y) for y in reversed(ys)]
-            points = [((width * supersample - x) if is_right else x, y * height * supersample) for x, y in near + far]
+            points = [(((width * supersample - x) if is_right else x) + bleed * supersample, (y * height + bleed) * supersample) for x, y in near + far]
             draw.polygon(points, fill=255)
 
-        return mask.resize(size, resample=Image.Resampling.LANCZOS)
+        return mask.resize(canvas_size, resample=Image.Resampling.LANCZOS)
 
     def _booster_dots_image(self, size:tuple[int,int]) -> Image.Image:
         """Outside of the Booster lines: smooth silver blending into the team color toward the bottom and darkening toward the card edges,
         covered in round, faded halftone dots that fade out toward the bottom.
 
         Args:
-          size: Size of the image.
+          size: Size of the card area, without any border.
 
         Returns:
-          PIL Image ('RGBA') of the dotted backdrop.
+          PIL Image ('RGBA') of the dotted backdrop, including the bleed.
         """
 
         width, height = size
@@ -7123,11 +7187,11 @@ class ShowdownPlayerCard(BaseModel):
         dark_color = (int(red * 0.35), int(green * 0.35), int(blue * 0.35))
         horizontal = Image.linear_gradient('L').rotate(90).resize(size) # 0 LEFT TO 255 RIGHT
         edge_strength = ImageChops.lighter(horizontal, horizontal.transpose(Image.Transpose.FLIP_LEFT_RIGHT)) # 128 MIDDLE, 255 AT EITHER EDGE
-        edge_strength = edge_strength.point(lambda v: int(max(v - 150, 0) / 105 * 255 * 0.55))
-        backdrop = Image.new('RGBA', size, (base_gray, base_gray, base_gray + 8, 255))
+        edge_strength = self._with_bleed(edge_strength.point(lambda v: int(max(v - 150, 0) / 105 * 255 * 0.55)))
+        backdrop = Image.new('RGBA', edge_strength.size, (base_gray, base_gray, base_gray + 8, 255))
 
         # VERTICAL BLEND: SILVER AT THE TOP TO THE TEAM COLOR AT THE BOTTOM
-        blend_strength = Image.linear_gradient('L').resize(size).point(lambda v: int(v * 0.8))
+        blend_strength = self._with_bleed(Image.linear_gradient('L').resize(size).point(lambda v: int(v * 0.8)))
         backdrop.paste((red, green, blue, 255), mask=blend_strength)
         backdrop.paste(dark_color + (255,), mask=edge_strength)
 
@@ -7140,29 +7204,33 @@ class ShowdownPlayerCard(BaseModel):
         """Mask of evenly sized, round halftone dots in a staggered grid that fade out from the top of the card to the bottom.
 
         Args:
-          size: Size of the mask.
+          size: Size of the card area, without any border.
 
         Returns:
-          PIL Image ('L') mask.
+          PIL Image ('L') mask, including the bleed.
         """
 
         width, height = size
         supersample = 3 # DRAW LARGER AND SCALE DOWN SO THE DOTS STAY ROUND AND SMOOTH
-        mask = Image.new('L', (width * supersample, height * supersample), 0)
+        bleed = self.card_bleed
+        canvas_size = (width + bleed * 2, height + bleed * 2)
+        mask = Image.new('L', (canvas_size[0] * supersample, canvas_size[1] * supersample), 0)
         draw = ImageDraw.Draw(mask)
         spacing = width * 0.026 * supersample
         radius = spacing * 0.24 # SMALL ENOUGH THAT NEIGHBORS NEVER TOUCH, WHICH READS AS HEXAGONS
+        bleed_supersampled = bleed * supersample
+        bleed_rows, bleed_columns = math.ceil(bleed_supersampled / (spacing * 0.5)), math.ceil(bleed_supersampled / spacing)
         row_count = int(height * supersample / (spacing * 0.5)) + 2
-        for row in range(row_count):
-            y = row * spacing * 0.5
-            x_start = -spacing + (spacing * 0.5 if row % 2 else 0) # STAGGER EVERY OTHER ROW
-            for column in range(int(width * supersample / spacing) + 3):
+        for row in range(-bleed_rows, row_count + bleed_rows):
+            y = row * spacing * 0.5 + bleed_supersampled
+            x_start = -spacing + (spacing * 0.5 if row % 2 else 0) + bleed_supersampled # STAGGER EVERY OTHER ROW
+            for column in range(-bleed_columns, int(width * supersample / spacing) + 3 + bleed_columns):
                 x = x_start + column * spacing
                 draw.ellipse((x - radius, y - radius, x + radius, y + radius), fill=255)
-        mask = mask.resize(size, resample=Image.Resampling.LANCZOS)
+        mask = mask.resize(canvas_size, resample=Image.Resampling.LANCZOS)
 
         # FADE FROM FULL STRENGTH AT THE TOP TO FAINT AT THE BOTTOM
-        fade = Image.linear_gradient('L').resize(size).point(lambda v: int(255 * (1 - 0.8 * v / 255)))
+        fade = self._with_bleed(Image.linear_gradient('L').resize(size).point(lambda v: int(255 * (1 - 0.8 * v / 255))))
         return ImageChops.multiply(mask, fade)
 
     def _breakout_name_image(self, length:int) -> tuple[Image.Image, int]:
@@ -7263,15 +7331,16 @@ class ShowdownPlayerCard(BaseModel):
         Dots match the frame and name, unless multi-color is picked, where they use the other team color.
 
         Args:
-          size: Size of the card.
+          size: Size of the card, without any border.
 
         Returns:
-          PIL Image ('RGBA') of the backdrop.
+          PIL Image ('RGBA') of the backdrop, including the bleed.
         """
 
         # SEEDED PER PLAYER SO RE-RENDERS KEEP THE SAME PITS
         rng = random.Random(f'{self.bref_id}-{self.year}')
-        backdrop = self._concrete_texture_image(size=size, base_gray=60 if self.image.is_dark_mode else 150, rng=rng).convert('RGBA')
+        concrete = self._concrete_texture_image(size=size, base_gray=60 if self.image.is_dark_mode else 150, rng=rng)
+        backdrop = self._with_bleed(concrete, mode='symmetric').convert('RGBA') # MIRRORED SO THE TEXTURE HAS NO SEAM
         is_dot_secondary_color = self.image.use_secondary_color != self.image.is_multi_colored
         dot_color = self._team_color_rgbs(is_secondary_color=is_dot_secondary_color, ignore_team_overrides=True, team_override=self.team_override_for_images)
         backdrop.paste(dot_color[:3] + (255,), mask=self._halftone_corners_mask(size=size).point(lambda a: int(a * 0.40)))
@@ -7319,24 +7388,27 @@ class ShowdownPlayerCard(BaseModel):
         """Mask of halftone dots that are largest in the top left and bottom right corners and fade out toward the middle.
 
         Args:
-          size: Size of the mask.
+          size: Size of the card area, without any border.
 
         Returns:
-          PIL Image ('L') mask.
+          PIL Image ('L') mask, including the bleed.
         """
 
         width, height = size
-        mask = Image.new('L', size, 0)
+        bleed = self.card_bleed
+        mask = Image.new('L', (width + bleed * 2, height + bleed * 2), 0)
         draw = ImageDraw.Draw(mask)
         spacing = int(width * 0.012)
-        for row, y in enumerate(range(0, height + spacing, spacing)):
-            for x in range(-spacing, width + spacing, spacing):
-                dot_x = x + (spacing // 2 if row % 2 else 0) # OFFSET ROWS
+        bleed_rows = math.ceil(bleed / spacing)
+        for y in range(-bleed_rows * spacing, height + spacing + bleed_rows * spacing, spacing):
+            for x in range(-spacing - bleed_rows * spacing, width + spacing + bleed_rows * spacing, spacing):
+                dot_x = x + (spacing // 2 if (y // spacing) % 2 else 0) # OFFSET ROWS
                 bottom_right_strength = 1 - math.hypot((width - dot_x) / width, (height - y) / height) / 1.05
                 top_left_strength = 1 - math.hypot(dot_x / width, y / height) / 0.75
                 radius = spacing * 0.5 * max(bottom_right_strength, top_left_strength, 0) ** 1.6
                 if radius > 0.6:
-                    draw.ellipse((dot_x - radius, y - radius, dot_x + radius, y + radius), fill=255)
+                    center_x, center_y = dot_x + bleed, y + bleed
+                    draw.ellipse((center_x - radius, center_y - radius, center_x + radius, center_y + radius), fill=255)
 
         return mask
 
@@ -7367,6 +7439,44 @@ class ShowdownPlayerCard(BaseModel):
                 return (row / small_alpha.height) + 0.06
 
         return None
+
+    @property
+    def card_bleed(self) -> int:
+        """Pixels a bordered card extends past the card area on every side. 0 when not bordered."""
+        return self.set.card_border_padding if self.image.is_bordered else 0
+
+    def _card_area_image(self, image:Optional[Image.Image]) -> Optional[Image.Image]:
+        """Trims a full-bleed layer down to the card area, so what's measured from it doesn't change with a border.
+
+        Args:
+          image: PIL Image the size of the card, with or without the bleed.
+
+        Returns:
+          PIL Image the size of the card.
+        """
+
+        if image is None or image.size == self.set.card_size:
+            return image
+        bleed = self.card_bleed
+        return image.crop((bleed, bleed, image.width - bleed, image.height - bleed))
+
+    def _with_bleed(self, image:Image.Image, mode:str = 'edge') -> Image.Image:
+        """Extends an image past the card area by the bleed, leaving the card area untouched.
+
+        Args:
+          image: PIL Image of the card area.
+          mode: How to fill the bleed, a numpy pad mode. 'edge' repeats the outer pixels, 'symmetric' mirrors the image.
+
+        Returns:
+          PIL Image including the bleed.
+        """
+
+        bleed = self.card_bleed
+        if bleed == 0:
+            return image
+        pixels = np.array(image)
+        padding = ((bleed, bleed), (bleed, bleed)) + (((0, 0),) if pixels.ndim == 3 else ())
+        return Image.fromarray(np.pad(pixels, padding, mode=mode))
 
     def _rounded_rectangle_mask(self, size:tuple[int,int], box:tuple[int,int,int,int], radius:int) -> Image.Image:
         """Anti-aliased mask of a round cornered rectangle.
@@ -7673,6 +7783,7 @@ class ShowdownPlayerCard(BaseModel):
             - Img Link was provided by user
             - Img Upload was provided by user
             - Set Year Plus 1 Enabled
+            - Custom set year
             - Hide Team Logo Enabled
 
         Args:
@@ -7688,7 +7799,7 @@ class ShowdownPlayerCard(BaseModel):
         has_expansion = self.image.expansion != Expansion.BS
         has_variable_spd_diff = self.is_variable_speed_00_01 and self.set.is_00_01
         set_yr_plus_one_enabled = self.image.add_one_to_set_year and self.set.is_04_05
-        return has_user_uploaded_img or has_expansion or is_not_v1 or has_special_edition or has_variable_spd_diff or self.image.set_number or set_yr_plus_one_enabled or self.image.hide_team_logo
+        return has_user_uploaded_img or has_expansion or is_not_v1 or has_special_edition or has_variable_spd_diff or self.image.set_number or self.image.set_year or set_yr_plus_one_enabled or self.image.hide_team_logo
 
 
 # ------------------------------------------------------------------------

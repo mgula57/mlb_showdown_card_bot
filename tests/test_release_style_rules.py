@@ -114,10 +114,24 @@ def image_plan_layering() -> None:
     check("rules change the render hash", plain.specs[0].render_hash != plan.specs[0].render_hash)
 
 
+def edition_set_year() -> None:
+    def plan_for(style: dict, card: dict = HITTER) -> EditionImagePlan:
+        return EditionImagePlan({'id': 'edition', 'release_id': 'release', 'attributes': {'style': style}, 'cards': [{**card, 'card_number': '1'}]})
+
+    unset, dated = plan_for({}).specs[0], plan_for({'set_year': '2026'}).specs[0]
+    check("edition set year reaches the card", dated.styled_card_json({'image': {}})['image']['set_year'] == '2026')
+    check("set year changes the render hash", unset.render_hash != dated.render_hash)
+    check("unset set year stays out of the render hash", plan_for({'set_year': ''}).specs[0].render_hash == unset.render_hash)
+    custom = {**HITTER, 'card_overrides': {'style': {'set_year': '1999'}}}
+    check("card set year beats the edition's", plan_for({'set_year': '2026'}, custom).specs[0].style.set_year == '1999')
+    check("cleared set year replaces the card's own", unset.styled_card_json({'image': {'set_year': 1999}})['image']['set_year'] is None)
+
+
 if __name__ == '__main__':
     labels_mirror_pool_grouping()
     rule_matching()
     image_plan_layering()
+    edition_set_year()
     if failures:
         print(f"\n{len(failures)} failed")
         sys.exit(1)

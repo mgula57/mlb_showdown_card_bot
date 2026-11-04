@@ -31,6 +31,8 @@ export type CardStyleEditorConfig = {
     onSave: (style: CardStyleSettings) => Promise<void> | void;
     /** Revert button tooltip, e.g. "Revert to the edition style" */
     revertTitle?: string;
+    /** Offers Set Year, for cards printed as part of a release */
+    showSetYear?: boolean;
     /** Adds a Chart section for switching the card's chart version (Bot cards only). Leave out
      * where the card itself can't change. */
     chart?: {
@@ -68,7 +70,7 @@ function chartVersionOptionsFor(card: ShowdownBotCard): SelectOption[] {
     }));
 }
 
-export function CardStyleEditor({ style: initialStyle, defaults, onSave, revertTitle = 'Revert to the default style', chart, card, onClose }: CardStyleEditorProps) {
+export function CardStyleEditor({ style: initialStyle, defaults, onSave, revertTitle = 'Revert to the default style', showSetYear = false, chart, card, onClose }: CardStyleEditorProps) {
     const [style, setStyle] = useState<CardStyleSettings>(initialStyle);
     // On phones the editor sits above the card — start collapsed so the card still peeks out below
     const isDesktop = useMediaQuery('(min-width: 768px)');
@@ -181,7 +183,7 @@ export function CardStyleEditor({ style: initialStyle, defaults, onSave, revertT
                         {error}
                     </div>
                 )}
-                <CardStyleSections values={style} onChange={updateStyle} defaults={defaults} isOpenByDefault={isDesktop} />
+                <CardStyleSections values={style} onChange={updateStyle} defaults={defaults} isOpenByDefault={isDesktop} showSetYear={showSetYear} />
                 {showChart && card && (
                     <FormSection
                         title='Chart'
