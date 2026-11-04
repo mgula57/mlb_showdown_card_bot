@@ -3890,9 +3890,9 @@ class ShowdownPlayerCard(BaseModel):
             # 04/05 HAS MORE TEMPLATE OPTIONS
             edition_extension = ''
             default_template_color = self.player_type.template_color_04_05
-            team_color_name = self.team.color_name(year=self.median_year, is_secondary=self.image.use_secondary_color, is_showdown_bot_set=self.set.is_showdown_bot)
+            team_color_name = self.team.color_name(year=self.median_year, is_secondary=self.image.parallel_uses_secondary_color, is_showdown_bot_set=self.set.is_showdown_bot)
             if self.image.special_edition == SpecialEdition.WBC and self.wbc_team:
-                team_color_name = self.wbc_team.color_name(is_secondary=self.image.use_secondary_color)
+                team_color_name = self.wbc_team.color_name(is_secondary=self.image.parallel_uses_secondary_color)
 
             if self.image.edition.template_color_0405:
                 edition_extension = f'-{self.image.edition.template_color_0405}'
@@ -4196,7 +4196,7 @@ class ShowdownPlayerCard(BaseModel):
                 overlay_image_path = self._template_img_path('2000-Name-Text-Background')
                 if self.image.parallel == ImageParallel.BOOSTER:
                     # GHOSTED ITALIC LETTERS: A SEE-THROUGH WHITE FILL WITH A THIN LIGHT OUTLINE, SO THE NAME SITS QUIETLY IN THE BACKDROP
-                    red, green, blue, _ = self._team_color_rgbs(is_secondary_color=self.image.use_secondary_color, ignore_team_overrides=True, team_override=self.team_override_for_images)
+                    red, green, blue, _ = self._parallel_team_color_rgbs(is_accent=True)
                     name_font_path = helvetica_neue_lt_path
                     name_size = 150
                     name_color = (255, 255, 255, 60)
@@ -5737,12 +5737,11 @@ class ShowdownPlayerCard(BaseModel):
                         except Exception as e:
                             print(f"Error detecting color: {e}")
                             
-                    elif self.image.is_multi_colored:
+                    elif self.image.is_parallel_multi_colored:
                         colors = [self._team_color_rgbs(is_secondary_color=is_secondary, ignore_team_overrides=True, team_override=self.team_override_for_images) for is_secondary in [False, True]]
                         image = self._gradient_img(colors=colors, size=card_size)
                     else:
-                        primary_color = self._team_color_rgbs(is_secondary_color=self.image.use_secondary_color, ignore_team_overrides=True, team_override=self.team_override_for_images)
-                        image = Image.new(mode='RGBA',size=card_size,color=primary_color)
+                        image = Image.new(mode='RGBA',size=card_size,color=self._parallel_team_color_rgbs())
                 case "CARD_ART" | "SILHOUETTE":
                     image = Image.open(img_url).convert('RGBA')
                 case "TEAM_LOGOS":
@@ -6579,6 +6578,19 @@ class ShowdownPlayerCard(BaseModel):
         padding = self.set.card_border_padding
         return (coordinates[0] + padding, coordinates[1] + padding)
 
+    def _parallel_team_color_rgbs(self, is_accent:bool = False) -> tuple[int,int,int,int]:
+        """RGB colors for a team colored parallel's art.
+
+        Args:
+          is_accent: Art that takes the other team color when the parallel is multi-colored.
+
+        Returns:
+            Tuple with RGB team colors
+        """
+
+        is_secondary_color = self.image.parallel_uses_secondary_color or (is_accent and self.image.is_parallel_multi_colored)
+        return self._team_color_rgbs(is_secondary_color=is_secondary_color, ignore_team_overrides=True, team_override=self.team_override_for_images)
+
     def _team_color_rgbs(self, is_secondary_color:bool=False, ignore_team_overrides:bool = False, team_override:Team = None) -> tuple[int,int,int,int]:
         """RGB colors for player team
 
@@ -7122,7 +7134,7 @@ class ShowdownPlayerCard(BaseModel):
         shadow_mask = ImageChops.offset(band(inner=0.0, outer=-total_width), 0, int(height * 0.004)).filter(ImageFilter.GaussianBlur(width * 0.006)).point(lambda a: int(a * 0.5))
         layer.paste((0, 0, 0, 255), mask=shadow_mask)
         layer.paste((255, 255, 255, 255), mask=band(inner=0.0, outer=-total_width))
-        line_color = self._team_color_rgbs(is_secondary_color=self.image.use_secondary_color, ignore_team_overrides=True, team_override=self.team_override_for_images)
+        line_color = self._parallel_team_color_rgbs()
         layer.paste(line_color[:3] + (255,), mask=band(inner=-trim_width, outer=-trim_width - line_width))
 
         return layer
@@ -7169,7 +7181,7 @@ class ShowdownPlayerCard(BaseModel):
 
     def _booster_dots_image(self, size:tuple[int,int]) -> Image.Image:
         """Outside of the Booster lines: smooth silver blending into the team color toward the bottom and darkening toward the card edges,
-        covered in round, faded halftone dots that fade out toward the bottom.
+        covered in round, faded halftone dots that fade out toward the bottom. Uses the other team color from the lines when multi-colored.
 
         Args:
           size: Size of the card area, without any border.
@@ -7183,7 +7195,7 @@ class ShowdownPlayerCard(BaseModel):
         base_gray = 90 if is_dark else 185
 
         # SOFT SILVER THAT BLENDS TO THE TEAM COLOR DOWN THE CARD, DARKER TOWARD EITHER SIDE
-        red, green, blue, _ = self._team_color_rgbs(is_secondary_color=self.image.use_secondary_color, ignore_team_overrides=True, team_override=self.team_override_for_images)
+        red, green, blue, _ = self._parallel_team_color_rgbs(is_accent=True)
         dark_color = (int(red * 0.35), int(green * 0.35), int(blue * 0.35))
         horizontal = Image.linear_gradient('L').rotate(90).resize(size) # 0 LEFT TO 255 RIGHT
         edge_strength = ImageChops.lighter(horizontal, horizontal.transpose(Image.Transpose.FLIP_LEFT_RIGHT)) # 128 MIDDLE, 255 AT EITHER EDGE
@@ -7317,7 +7329,7 @@ class ShowdownPlayerCard(BaseModel):
           PIL Image ('RGBA') toned in the team color.
         """
 
-        red, green, blue, _ = self._team_color_rgbs(is_secondary_color=self.image.use_secondary_color, ignore_team_overrides=True, team_override=self.team_override_for_images)
+        red, green, blue, _ = self._parallel_team_color_rgbs()
         dark_color = (int(red * 0.25), int(green * 0.25), int(blue * 0.25))
         light_color = tuple(int(c + (255 - c) * 0.7) for c in (red, green, blue))
         toned_image = ImageOps.colorize(image.convert('L'), black=dark_color, white=light_color, mid=(red, green, blue)).convert('RGBA')
@@ -7341,8 +7353,7 @@ class ShowdownPlayerCard(BaseModel):
         rng = random.Random(f'{self.bref_id}-{self.year}')
         concrete = self._concrete_texture_image(size=size, base_gray=60 if self.image.is_dark_mode else 150, rng=rng)
         backdrop = self._with_bleed(concrete, mode='symmetric').convert('RGBA') # MIRRORED SO THE TEXTURE HAS NO SEAM
-        is_dot_secondary_color = self.image.use_secondary_color != self.image.is_multi_colored
-        dot_color = self._team_color_rgbs(is_secondary_color=is_dot_secondary_color, ignore_team_overrides=True, team_override=self.team_override_for_images)
+        dot_color = self._parallel_team_color_rgbs(is_accent=True)
         backdrop.paste(dot_color[:3] + (255,), mask=self._halftone_corners_mask(size=size).point(lambda a: int(a * 0.40)))
 
         return backdrop

@@ -37,6 +37,7 @@ def card_main(
     add_one_to_set_year: bool = typer.Option(False, "--add_one_to_set_year", "-sy", help="Optionally add one to the set year on 04/05 set."),
     hide_team_logo: bool = typer.Option(False, "--hide_team_logo", "-htl", help="Optionally remove all team logos and branding."),
     coloring: str = typer.Option("PRIMARY", "--coloring", "-col", help="Optionally add coloring to the card."),
+    parallel_coloring: str = typer.Option("DEFAULT", "--parallel_coloring", "-plc", help="Coloring for team colored parallels (Team Color Blast, Breakout, Booster). DEFAULT matches --coloring. Options: DEFAULT, PRIMARY, SECONDARY, MULTI."),
     stat_highlights_type: str = typer.Option("NONE", "--stat_highlights_type", "-sh", help="Type of stat highlights to use. (CLASSIC, MODERN, ALL)"),
     glow_multiplier: float = typer.Option(1.0, "--glow_multiplier", "-gm", help="Glow/Shadow multiplier for card image"),
     

@@ -30,7 +30,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { FaChevronDown, FaCheck } from 'react-icons/fa6';
 import { createPortal } from 'react-dom';
-import { fieldClass, INLINE_FIELD_LABEL_CLASS, type FieldSize } from './fieldStyles';
+import { fieldClass, FIELD_CHANGED_CLASS, INLINE_FIELD_LABEL_CLASS, type FieldSize } from './fieldStyles';
 
 /**
  * Represents a single option in the custom select dropdown
@@ -105,6 +105,8 @@ export type CustomSelectProps = {
     /** Which button edge the dropdown anchors to. 'right' grows the menu leftward (for buttons near the
      *  right edge of the screen); 'auto' picks whichever side has more room. Defaults to 'left'. */
     align?: 'left' | 'right' | 'auto';
+    /** Highlights the field as holding a non-default value */
+    isChanged?: boolean;
 };
 
 /**
@@ -121,7 +123,7 @@ export type CustomSelectProps = {
  * @param props - Component props
  * @returns A customizable select dropdown component
  */
-const CustomSelect: React.FC<CustomSelectProps> = ({ value, onChange, options, className = "", suffix = null, prefix, size = 'md', buttonClassName = "", imageClassName = "", menuImageClassName = "", compactImageClassName = "", labelClassName = "", dropdownClassName = "", disabled = false, placeholder, showDropdownArrow = true, dropdownArrowSize = 11, align = 'left' }) => {
+const CustomSelect: React.FC<CustomSelectProps> = ({ value, onChange, options, className = "", suffix = null, prefix, size = 'md', buttonClassName = "", imageClassName = "", menuImageClassName = "", compactImageClassName = "", labelClassName = "", dropdownClassName = "", disabled = false, placeholder, showDropdownArrow = true, dropdownArrowSize = 11, align = 'left', isChanged = false }) => {
 
     // State management for dropdown behavior and positioning
     /** Controls whether the dropdown menu is visible */
@@ -326,7 +328,7 @@ const CustomSelect: React.FC<CustomSelectProps> = ({ value, onChange, options, c
             <button
                 type="button"
                 ref={buttonRef}
-                className={buttonClassName || fieldClass(size, `w-full flex items-center text-left text-nowrap overflow-clip cursor-pointer focus:outline-none focus-visible:border-(--showdown-blue) ${isOpen ? 'border-(--showdown-blue)' : selectedBorderColor}`)}
+                className={buttonClassName || fieldClass(size, `w-full flex items-center text-left text-nowrap overflow-clip cursor-pointer focus:outline-none focus-visible:border-(--showdown-blue) ${isOpen ? 'border-(--showdown-blue)' : selectedBorderColor} ${isChanged ? FIELD_CHANGED_CLASS : ''}`)}
                 onClick={handleToggle}
                 disabled={disabled}
             >

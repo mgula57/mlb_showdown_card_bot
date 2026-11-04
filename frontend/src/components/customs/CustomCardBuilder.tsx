@@ -61,7 +61,7 @@ import CardBuildIcon from './CardBuildIcon';
 import ImageLibraryOrderHint from './ImageLibraryOrderHint';
 import { SetStyleFields, ImageStyleFields } from './CardStyleFields';
 import { NewBadge } from '../shared/NewBadge';
-import { setStyleSummary, imageStyleSummary, chartVersionOptions, statNormalizerOptions } from './cardStyle';
+import { setStyleSummary, imageStyleSummary, chartVersionOptions, statNormalizerOptions, isFieldChanged } from './cardStyle';
 import { formSectionSummary, optionSummaryItem } from './FormSectionSummary';
 import { formInputsFromCard, type CustomizeCardRouteState } from './customizeCard';
 
@@ -100,6 +100,7 @@ export interface CustomCardFormState {
     // Image
     image_source: string; // e.g. "Auto"
     image_parallel: string; // e.g. "Rainbow Foil"
+    image_parallel_coloring: string; // e.g. "DEFAULT". Only used by team colored parallels
     image_coloring: string; // e.g. "Primary"
     image_glow_multiplier: string; // e.g. "Glow 1x"
     image_url?: string | null; // e.g. "https://example.com/image.png"
@@ -146,6 +147,7 @@ export const FORM_DEFAULTS: CustomCardFormState = {
 
     image_source: "AUTO", 
     image_parallel: "NONE", 
+    image_parallel_coloring: "DEFAULT",
     image_coloring: "PRIMARY", 
     image_glow_multiplier: "1",
     image_url: null, 
@@ -171,7 +173,7 @@ const FORM_SECTION_FIELDS: Record<FormSectionName, (keyof CustomCardFormState)[]
     Player: ['name', 'player_id', 'player_type_override', 'year', 'stats_period_type', 'start_date', 'end_date', 'split', 'league', 'team_selection'],
     Set: ['expansion', 'set_number', 'edition', 'add_one_to_set_year', 'set_year', 'show_year_text', 'disable_display_text_on_card'],
     Image: [
-        'image_source', 'image_parallel', 'image_coloring', 'image_glow_multiplier', 'image_url', 'image_upload',
+        'image_source', 'image_parallel', 'image_parallel_coloring', 'image_coloring', 'image_glow_multiplier', 'image_url', 'image_upload',
         'is_bordered', 'is_dark_mode', 'hide_team_logo', 'stat_highlights_type', 'nickname_index',
     ],
     Chart: ['chart_version', 'era', 'is_variable_speed_00_01', 'stat_normalizer'],
@@ -684,10 +686,13 @@ function CustomCardBuilder({ isHidden, embed }: CustomCardBuilderProps) {
         if (section === 'Image') clearImageUpload();
     };
 
-    /** Reset handler for a section's header, undefined while the section is already at its defaults.
-     * Compares by `||` since cleared inputs store '' or undefined where the defaults hold null. */
+    /** Whether a field differs from its default. Required or auto-filled inputs with no default of their
+     * own (Name, Year, dates, Split) count toward a section's reset but aren't highlighted. */
+    const isChanged = (key: keyof CustomCardFormState) => isFieldChanged(form, FORM_DEFAULTS, key);
+
+    /** Reset handler for a section's header, undefined while the section is already at its defaults. */
     const sectionResetHandler = (section: FormSectionName) => {
-        const hasChanges = FORM_SECTION_FIELDS[section].some(key => (form[key] || null) !== (FORM_DEFAULTS[key] || null));
+        const hasChanges = FORM_SECTION_FIELDS[section].some(isChanged);
         return hasChanges ? () => resetSection(section) : undefined;
     };
 
@@ -985,6 +990,7 @@ function CustomCardBuilder({ isHidden, embed }: CustomCardBuilderProps) {
                 return (
                     <FormDropdown
                         label="Round"
+                        isChanged={isChanged('split')}
                         options={postseasonRoundOptions}
                         selectedOption={form.split || ''}
                         onChange={(value) => setForm({ ...form, split: value || null })}
@@ -1248,6 +1254,7 @@ function CustomCardBuilder({ isHidden, embed }: CustomCardBuilderProps) {
                                             {isMultiYear && (
                                                 <FormDropdown
                                                     label="Team Selection"
+                                                    isChanged={isChanged('team_selection')}
                                                     options={teamSelectionOptions}
                                                     selectedOption={form.team_selection || 'GAMES_PLAYED'}
                                                     onChange={(value) => setForm({ ...form, team_selection: value })}
@@ -1257,6 +1264,7 @@ function CustomCardBuilder({ isHidden, embed }: CustomCardBuilderProps) {
 
                                             <FormDropdown
                                                 label="Period"
+                                                isChanged={isChanged('stats_period_type')}
                                                 options={statsPeriodOptions}
                                                 selectedOption={form.stats_period_type}
                                                 onChange={(value) => setForm({ ...form, stats_period_type: value, split: null })}
@@ -1265,6 +1273,7 @@ function CustomCardBuilder({ isHidden, embed }: CustomCardBuilderProps) {
 
                                             <FormDropdown
                                                 label="League"
+                                                isChanged={isChanged('league')}
                                                 options={leagueOptions}
                                                 selectedOption={form.league}
                                                 onChange={(value) => {
@@ -1297,11 +1306,13 @@ function CustomCardBuilder({ isHidden, embed }: CustomCardBuilderProps) {
                                         >
                                             <SetStyleFields
                                                 values={form}
+                                                defaults={FORM_DEFAULTS}
                                                 onChange={(patch) => setForm({ ...form, ...patch })}
                                                 showSetYear={!!embed}
                                                 afterEdition={
                                                     <FormInput
                                                         label="Set Number"
+                                                        isChanged={isChanged('set_number')}
                                                         className='col-span-full'
                                                         value={form.set_number || ''}
                                                         onChange={(value) => setForm({ ...form, set_number: value || '' })}
@@ -1325,6 +1336,7 @@ function CustomCardBuilder({ isHidden, embed }: CustomCardBuilderProps) {
 
                                             <FormDropdown
                                                 label="Player Image"
+                                                isChanged={isChanged('image_source')}
                                                 className='col-span-full'
                                                 options={imageSourceOptions}
                                                 selectedOption={form.image_source}
@@ -1335,6 +1347,7 @@ function CustomCardBuilder({ isHidden, embed }: CustomCardBuilderProps) {
                                             {/* Source Specific Options */}
                                             <FormInput
                                                 label="Image URL"
+                                                isChanged={isChanged('image_url')}
                                                 className={`col-span-full ${form.image_source === 'LINK' ? '' : 'hidden'}`}
                                                 value={form.image_url || ''}
                                                 onChange={(value) => setForm({ ...form, image_url: value || null })}
@@ -1344,6 +1357,7 @@ function CustomCardBuilder({ isHidden, embed }: CustomCardBuilderProps) {
                                             <FormInput
                                                 key={imageUploadInputKey}
                                                 label="Upload Image"
+                                                isChanged={isChanged('image_upload')}
                                                 className={`col-span-full ${form.image_source === 'UPLOAD' ? '' : 'hidden'}`}
                                                 value={form.image_upload?.name || ''}
                                                 isClearable={true}
@@ -1379,6 +1393,7 @@ function CustomCardBuilder({ isHidden, embed }: CustomCardBuilderProps) {
 
                                             <ImageStyleFields
                                                 values={form}
+                                                defaults={FORM_DEFAULTS}
                                                 onChange={(patch) => setForm({ ...form, ...patch })}
                                                 hideParallel={form.image_source !== 'AUTO'}
                                             />
@@ -1397,6 +1412,7 @@ function CustomCardBuilder({ isHidden, embed }: CustomCardBuilderProps) {
 
                                             <FormDropdown
                                                 label="Chart Version"
+                                                isChanged={isChanged('chart_version')}
                                                 options={chartVersionOptions}
                                                 selectedOption={form.chart_version || '1'}
                                                 onChange={(value) => setForm({ ...form, chart_version: value })}
@@ -1404,6 +1420,7 @@ function CustomCardBuilder({ isHidden, embed }: CustomCardBuilderProps) {
 
                                             <FormDropdown
                                                 label="Era"
+                                                isChanged={isChanged('era')}
                                                 options={eraOptions}
                                                 selectedOption={form.era || 'DYNAMIC'}
                                                 onChange={(value) => setForm({ ...form, era: value })}
@@ -1412,6 +1429,7 @@ function CustomCardBuilder({ isHidden, embed }: CustomCardBuilderProps) {
                                             {isSet00_01 && (
                                                 <FormEnabler
                                                     label="Variable Speed"
+                                                    isChanged={isChanged('is_variable_speed_00_01')}
                                                     className="col-span-2"
                                                     isEnabled={form.is_variable_speed_00_01 || false}
                                                     onChange={(isEnabled) => setForm({ ...form, is_variable_speed_00_01: !isEnabled })}
@@ -1428,6 +1446,7 @@ function CustomCardBuilder({ isHidden, embed }: CustomCardBuilderProps) {
                                                 className="col-span-2"
                                                 options={statNormalizerOptions}
                                                 selectedOption={form.stat_normalizer || 'NONE'}
+                                                isChanged={isChanged('stat_normalizer')}
                                                 onChange={(value) => setForm({ ...form, stat_normalizer: value })}
                                             />
 

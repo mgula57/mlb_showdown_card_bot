@@ -587,6 +587,9 @@ export type ShowdownBotCardImage = {
     /** Visual parallel effect (e.g., "foil", "refractor") */
     parallel: string | null;
 
+    /** Coloring for a team colored parallel's art. "DEFAULT" matches the card's coloring. */
+    parallel_coloring?: string | null;
+
     /** Generated filename for saved image */
     output_file_name?: string | null;
     

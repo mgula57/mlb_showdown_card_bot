@@ -13,15 +13,20 @@ import type { CustomCardFormState } from './CustomCardBuilder';
 
 export type CardStyleSettings = Pick<CustomCardFormState,
     | 'expansion' | 'edition' | 'add_one_to_set_year' | 'set_year' | 'show_year_text' | 'disable_display_text_on_card'
-    | 'image_parallel' | 'image_coloring' | 'image_glow_multiplier'
+    | 'image_parallel' | 'image_parallel_coloring' | 'image_coloring' | 'image_glow_multiplier'
     | 'stat_highlights_type' | 'nickname_index' | 'is_bordered' | 'is_dark_mode' | 'hide_team_logo'
 >;
 
 export const CARD_STYLE_KEYS: (keyof CardStyleSettings)[] = [
     'expansion', 'edition', 'add_one_to_set_year', 'set_year', 'show_year_text', 'disable_display_text_on_card',
-    'image_parallel', 'image_coloring', 'image_glow_multiplier',
+    'image_parallel', 'image_parallel_coloring', 'image_coloring', 'image_glow_multiplier',
     'stat_highlights_type', 'nickname_index', 'is_bordered', 'is_dark_mode', 'hide_team_logo',
 ];
+
+/** Whether a form field differs from its default. Compares by `||` since cleared inputs store '' or
+ * undefined where the defaults hold null. Without `defaults`, nothing counts as changed. */
+export const isFieldChanged = <T extends object>(values: T, defaults: T | undefined, key: keyof T): boolean =>
+    !!defaults && (values[key] || null) !== (defaults[key] || null);
 
 /** Whether two styles differ on any style field */
 export const isCardStyleDifferent = (a: CardStyleSettings, b: CardStyleSettings): boolean =>
@@ -67,8 +72,9 @@ const parallelSample = (imageName: string) => ({
 /** Set the parallel samples were rendered on, since some parallels look different per set. */
 export const PARALLEL_SAMPLE_SET = '2001';
 
-/** Every parallel but Base carries a sample and description; Base is the card without one. */
-export type ImageParallelOption = SelectOption & { fullImage?: string; description?: string };
+/** Every parallel but Base carries a sample and description; Base is the card without one.
+ * `isTeamColored` mirrors `ImageParallel.is_team_colored` in `core/card/images.py`. */
+export type ImageParallelOption = SelectOption & { fullImage?: string; description?: string; isTeamColored?: boolean };
 
 export const imageParallelOptions: ImageParallelOption[] = [
     // Ungrouped options must come first, or they render under the previous group's header
@@ -84,9 +90,9 @@ export const imageParallelOptions: ImageParallelOption[] = [
     { "label": "Galaxy", "value": "GALAXY", ...parallelSample('galaxy'), "description": "Replaces the background with a starfield.", "group": "Shine" },
     { "label": "Moonlight", "value": "MOONLIGHT", ...parallelSample('moonlight'), "description": "A dim, muted wash over the background.", "group": "Shine" },
 
-    { "label": "Team Color Blast", "value": "TCB", ...parallelSample('team-color-blast'), "description": "A white background with a burst of team color behind the player.", "group": "Backgrounds" },
-    { "label": "Breakout", "value": "BREAKOUT", ...parallelSample('breakout'), "description": "The player bursts out of a team-color photo frame on concrete with halftone dots.", "group": "Backgrounds" },
-    { "label": "Booster", "value": "BOOSTER", ...parallelSample('booster'), "description": "Faded team-color dots on silver with curved lines framing the background, like booster pack art.", "group": "Backgrounds" },
+    { "label": "Team Color Blast", "value": "TCB", ...parallelSample('team-color-blast'), "description": "A white background with a burst of team color behind the player.", "group": "Backgrounds", "isTeamColored": true },
+    { "label": "Breakout", "value": "BREAKOUT", ...parallelSample('breakout'), "description": "The player bursts out of a team-color photo frame on concrete with halftone dots.", "group": "Backgrounds", "isTeamColored": true },
+    { "label": "Booster", "value": "BOOSTER", ...parallelSample('booster'), "description": "Faded team-color dots on silver with curved lines framing the background, like booster pack art.", "group": "Backgrounds", "isTeamColored": true },
     { "label": "Radial", "value": "RAD", ...parallelSample('radial'), "description": "Team-color rays radiating from behind the player.", "group": "Backgrounds" },
     { "label": "White Smoke", "value": "WS", ...parallelSample('white-smoke'), "description": "A clean white, smoky background.", "group": "Backgrounds" },
     { "label": "Flames", "value": "FLAMES", ...parallelSample('flames'), "description": "Replaces the background with fire.", "group": "Backgrounds" },
@@ -102,6 +108,17 @@ export const imageColoringOptions: SelectOption[] = [
     { "label": "Secondary Color", "value": "SECONDARY" },
     { "label": "Multi-Color", "value": "MULTI" },
 ];
+
+export const parallelColoringOptions: SelectOption[] = [
+    { "label": "Match Default Image Coloring", "value": "DEFAULT" },
+    { "label": "Use Primary", "value": "PRIMARY" },
+    { "label": "Use Secondary", "value": "SECONDARY" },
+    { "label": "Use Multi-Color", "value": "MULTI" },
+];
+
+/** Whether a parallel's art is built from the team color, so it can have its own coloring */
+export const isTeamColoredParallel = (parallel: string): boolean =>
+    !!imageParallelOptions.find(option => option.value === parallel)?.isTeamColored;
 
 export const statHighlightsTypeOptions: SelectOption[] = [
     { "label": "None", "value": "NONE" },
@@ -171,6 +188,9 @@ export function imageStyleSummary(values: CardStyleSettings, defaults: CardStyle
         // Named rather than pictured: the sample photo is unreadable at chip size
         const parallelOption = imageParallelOptions.find(opt => opt.value === values.image_parallel);
         summaries.push({ label: 'Parallel', value: parallelOption?.label ?? values.image_parallel, borderColor: parallelOption?.borderColor });
+    }
+    if (includeParallel && isTeamColoredParallel(values.image_parallel) && values.image_parallel_coloring !== defaults.image_parallel_coloring) {
+        summaries.push(optionSummaryItem(parallelColoringOptions, values.image_parallel_coloring, 'Parallel Coloring'));
     }
     if (values.image_coloring !== defaults.image_coloring) {
         summaries.push(optionSummaryItem(imageColoringOptions, values.image_coloring, 'Coloring'));

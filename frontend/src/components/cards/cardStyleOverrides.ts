@@ -28,6 +28,7 @@ const IMAGE_FIELD_CONVERTERS: { [K in Exclude<keyof CardStyleSettings, 'disable_
     set_year: ['set_year', v => (v && /^\d{4}$/.test(v) ? parseInt(v, 10) : null), v => (v == null ? null : String(v))],
     show_year_text: ['show_year_text', v => v, v => (v as boolean | null) ?? undefined],
     image_parallel: ['parallel', v => v, v => (v as string | null) ?? undefined],
+    image_parallel_coloring: ['parallel_coloring', v => v, v => (v as string | null) ?? undefined],
     image_coloring: ['coloring', v => v, v => (v as string | null) ?? undefined],
     image_glow_multiplier: ['glow_multiplier', v => parseFloat(v) || 1, v => (v == null ? undefined : String(v))],
     stat_highlights_type: ['stat_highlights_type', v => v ?? 'NONE', v => (v as string | null) ?? 'NONE'],

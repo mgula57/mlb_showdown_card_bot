@@ -16,8 +16,8 @@ import { formSectionSummary } from './FormSectionSummary';
 import { InfoTooltip } from '../shared/InfoTooltip';
 import { ParallelPreview } from './ParallelPreview';
 import {
-    canHideDisplayText, expansionOptions, editionOptions, imageParallelOptions, imageColoringOptions,
-    outerGlowOptions, statHighlightsTypeOptions, nicknameIndexOptions, setStyleSummary, imageStyleSummary,
+    canHideDisplayText, isFieldChanged, expansionOptions, editionOptions, imageParallelOptions, imageColoringOptions, parallelColoringOptions,
+    isTeamColoredParallel, outerGlowOptions, statHighlightsTypeOptions, nicknameIndexOptions, setStyleSummary, imageStyleSummary,
     type CardStyleSettings,
 } from './cardStyle';
 
@@ -38,6 +38,8 @@ const parallelOptionsWithBadges = imageParallelOptions.map(option =>
 type StyleFieldsProps = {
     values: CardStyleSettings;
     onChange: (patch: Partial<CardStyleSettings>) => void;
+    /** Highlights the fields that differ from these */
+    defaults?: CardStyleSettings;
 };
 
 type SetStyleFieldsProps = StyleFieldsProps & {
@@ -48,13 +50,15 @@ type SetStyleFieldsProps = StyleFieldsProps & {
 };
 
 /** Set section fields. */
-export function SetStyleFields({ values, onChange, afterEdition, showSetYear = false }: SetStyleFieldsProps) {
+export function SetStyleFields({ values, onChange, defaults, afterEdition, showSetYear = false }: SetStyleFieldsProps) {
+    const isChanged = (key: keyof CardStyleSettings) => isFieldChanged(values, defaults, key);
     return (
         <>
             <FormDropdown
                 label="Expansion"
                 options={expansionOptions}
                 selectedOption={values.expansion}
+                isChanged={isChanged('expansion')}
                 onChange={(value) => onChange({
                     expansion: value,
                     // Don't carry a TRUE hide-date-text value forward if it's no longer applicable.
@@ -66,6 +70,7 @@ export function SetStyleFields({ values, onChange, afterEdition, showSetYear = f
                 label="Edition"
                 options={editionOptions}
                 selectedOption={values.edition}
+                isChanged={isChanged('edition')}
                 onChange={(value) => onChange({
                     edition: value,
                     ...(!canHideDisplayText(values.expansion, value) && { disable_display_text_on_card: false }),
@@ -79,6 +84,7 @@ export function SetStyleFields({ values, onChange, afterEdition, showSetYear = f
                     label="Set Year"
                     className='col-span-full'
                     value={values.set_year ?? ''}
+                    isChanged={isChanged('set_year')}
                     placeholder="Card's year"
                     inputMode="numeric"
                     maxLength={4}
@@ -90,10 +96,11 @@ export function SetStyleFields({ values, onChange, afterEdition, showSetYear = f
                 />
             )}
 
-            <FormEnabler label='Show Year as Text' isEnabled={values.show_year_text} onChange={(isEnabled) => onChange({ show_year_text: !isEnabled })} />
+            <FormEnabler label='Show Year as Text' isEnabled={values.show_year_text} isChanged={isChanged('show_year_text')} onChange={(isEnabled) => onChange({ show_year_text: !isEnabled })} />
             <FormEnabler
                 label='Add 1 to Set Year'
                 isEnabled={values.add_one_to_set_year}
+                isChanged={isChanged('add_one_to_set_year')}
                 onChange={(isEnabled) => onChange({ add_one_to_set_year: !isEnabled })}
                 isDisabled={showSetYear && !!values.set_year}
                 disabledReason='Not used when a Set Year is entered'
@@ -108,6 +115,7 @@ export function SetStyleFields({ values, onChange, afterEdition, showSetYear = f
                 }
                 className='col-span-full'
                 isEnabled={values.disable_display_text_on_card || false}
+                isChanged={isChanged('disable_display_text_on_card')}
                 onChange={(isEnabled) => onChange({ disable_display_text_on_card: !isEnabled })}
                 isDisabled={!canHideDisplayText(values.expansion, values.edition)}
                 disabledReason='Only available with a Trading Deadline/Pennant Run expansion or an All-Star Game/Postseason edition'
@@ -117,7 +125,7 @@ export function SetStyleFields({ values, onChange, afterEdition, showSetYear = f
 }
 
 /** The Image Parallel dropdown with sample thumbnails. Also used by the Release Builder's style rules. */
-export function ParallelDropdown({ value, onChange, className = '' }: { value: string; onChange: (value: string) => void; className?: string }) {
+export function ParallelDropdown({ value, onChange, className = '', isChanged }: { value: string; onChange: (value: string) => void; className?: string; isChanged?: boolean }) {
     return (
         <FormDropdown
             label={<span className="inline-flex items-center gap-1.5">Image Parallel <NewBadge /></span>}
@@ -125,6 +133,7 @@ export function ParallelDropdown({ value, onChange, className = '' }: { value: s
             options={parallelOptionsWithBadges}
             selectedOption={value}
             onChange={onChange}
+            isChanged={isChanged}
             imageClassName="mr-2 w-5 h-5 shrink-0 object-cover rounded-plate"
             menuImageClassName="mr-2 w-9 h-10 shrink-0 object-cover rounded-control"
         />
@@ -133,7 +142,8 @@ export function ParallelDropdown({ value, onChange, className = '' }: { value: s
 
 /** Image section fields after the image source inputs. Parallel only applies to auto images, so
  * the Custom Card Builder hides it for linked/uploaded images. */
-export function ImageStyleFields({ values, onChange, hideParallel = false }: StyleFieldsProps & { hideParallel?: boolean }) {
+export function ImageStyleFields({ values, onChange, defaults, hideParallel = false }: StyleFieldsProps & { hideParallel?: boolean }) {
+    const isChanged = (key: keyof CardStyleSettings) => isFieldChanged(values, defaults, key);
     // Base needs no preview; it's what the card looks like without a parallel
     const previewParallel = hideParallel || values.image_parallel === 'NONE'
         ? undefined
@@ -143,14 +153,30 @@ export function ImageStyleFields({ values, onChange, hideParallel = false }: Sty
             <ParallelDropdown
                 className={`col-span-full ${hideParallel ? 'hidden' : ''}`}
                 value={values.image_parallel}
-                onChange={(value) => onChange({ image_parallel: value })}
+                isChanged={isChanged('image_parallel')}
+                onChange={(value) => onChange({
+                    image_parallel: value,
+                    // Don't carry a coloring forward to a parallel that can't use it.
+                    ...(!isTeamColoredParallel(value) && { image_parallel_coloring: 'DEFAULT' }),
+                })}
             />
             {previewParallel && <ParallelPreview parallel={previewParallel} />}
+            {previewParallel?.isTeamColored && (
+                <FormDropdown
+                    label="Parallel Coloring"
+                    className='col-span-full'
+                    options={parallelColoringOptions}
+                    selectedOption={values.image_parallel_coloring}
+                    isChanged={isChanged('image_parallel_coloring')}
+                    onChange={(value) => onChange({ image_parallel_coloring: value })}
+                />
+            )}
 
             <FormDropdown
                 label="Image Coloring"
                 options={imageColoringOptions}
                 selectedOption={values.image_coloring}
+                isChanged={isChanged('image_coloring')}
                 onChange={(value) => onChange({ image_coloring: value })}
                 className='text-nowrap'
             />
@@ -159,6 +185,7 @@ export function ImageStyleFields({ values, onChange, hideParallel = false }: Sty
                 label="Outer Glow"
                 options={outerGlowOptions}
                 selectedOption={values.image_glow_multiplier}
+                isChanged={isChanged('image_glow_multiplier')}
                 onChange={(value) => onChange({ image_glow_multiplier: value })}
             />
 
@@ -168,17 +195,19 @@ export function ImageStyleFields({ values, onChange, hideParallel = false }: Sty
                 label="Show Real Stats?"
                 options={statHighlightsTypeOptions}
                 selectedOption={values.stat_highlights_type || 'NONE'}
+                isChanged={isChanged('stat_highlights_type')}
                 onChange={(value) => onChange({ stat_highlights_type: value })}
             />
             <FormDropdown
                 label="Show Nickname?"
                 options={nicknameIndexOptions}
                 selectedOption={values.nickname_index || 'NONE'}
+                isChanged={isChanged('nickname_index')}
                 onChange={(value) => onChange({ nickname_index: value })}
             />
-            <FormEnabler label='Add Border' isEnabled={values.is_bordered} onChange={(isEnabled) => onChange({ is_bordered: !isEnabled })} />
-            <FormEnabler label='Dark Mode' isEnabled={values.is_dark_mode} onChange={(isEnabled) => onChange({ is_dark_mode: !isEnabled })} />
-            <FormEnabler label='Remove Team' className='col-span-full' isEnabled={values.hide_team_logo} onChange={(isEnabled) => onChange({ hide_team_logo: !isEnabled })} />
+            <FormEnabler label='Add Border' isEnabled={values.is_bordered} isChanged={isChanged('is_bordered')} onChange={(isEnabled) => onChange({ is_bordered: !isEnabled })} />
+            <FormEnabler label='Dark Mode' isEnabled={values.is_dark_mode} isChanged={isChanged('is_dark_mode')} onChange={(isEnabled) => onChange({ is_dark_mode: !isEnabled })} />
+            <FormEnabler label='Remove Team' className='col-span-full' isEnabled={values.hide_team_logo} isChanged={isChanged('hide_team_logo')} onChange={(isEnabled) => onChange({ hide_team_logo: !isEnabled })} />
         </>
     );
 }
@@ -189,7 +218,7 @@ export function ImageStyleFields({ values, onChange, hideParallel = false }: Sty
 
 /** The Set and Image sections as standalone collapsible panels, for style editors outside the
  * Custom Card Builder (an edition's default style, a single card's style). Collapsed summaries
- * show what differs from `defaults`. */
+ * and field highlights show what differs from `defaults`. */
 export function CardStyleSections({ values, onChange, defaults, isOpenByDefault = true, showSetYear = false }: StyleFieldsProps & { defaults: CardStyleSettings; isOpenByDefault?: boolean; showSetYear?: boolean }) {
     return (
         <>
@@ -199,7 +228,7 @@ export function CardStyleSections({ values, onChange, defaults, isOpenByDefault 
                 isOpenByDefault={isOpenByDefault}
                 childrenWhenClosed={formSectionSummary(setStyleSummary(values, defaults))}
             >
-                <SetStyleFields values={values} onChange={onChange} showSetYear={showSetYear} />
+                <SetStyleFields values={values} onChange={onChange} defaults={defaults} showSetYear={showSetYear} />
             </FormSection>
             <FormSection
                 title='Image'
@@ -207,7 +236,7 @@ export function CardStyleSections({ values, onChange, defaults, isOpenByDefault 
                 isOpenByDefault={isOpenByDefault}
                 childrenWhenClosed={formSectionSummary(imageStyleSummary(values, defaults))}
             >
-                <ImageStyleFields values={values} onChange={onChange} />
+                <ImageStyleFields values={values} onChange={onChange} defaults={defaults} />
             </FormSection>
         </>
     );

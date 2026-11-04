@@ -8,7 +8,7 @@
 
 import React from 'react';
 import { FaCheck } from 'react-icons/fa6';
-import { FIELD_FRAME_CLASS, checkBoxClass } from '../shared/fieldStyles';
+import { FIELD_CHANGED_CLASS, FIELD_FRAME_CLASS, checkBoxClass } from '../shared/fieldStyles';
 
 /**
  * Props for the FormEnabler component
@@ -32,6 +32,8 @@ type FormEnablerProps = {
     disabledReason?: string;
     /** Tooltip shown when the toggle is usable */
     title?: string;
+    /** Highlights the toggle as holding a non-default value */
+    isChanged?: boolean;
 };
 
 const SIZE_CLASSES = {
@@ -54,7 +56,7 @@ const BOX_SIZE_CLASSES = {
  * />
  * ```
  */
-const FormEnabler: React.FC<FormEnablerProps> = ({ label, description, isEnabled, onChange, size = 'md', className = "", isDisabled = false, disabledReason, title }) => {
+const FormEnabler: React.FC<FormEnablerProps> = ({ label, description, isEnabled, onChange, size = 'md', className = "", isDisabled = false, disabledReason, title, isChanged = false }) => {
     return (
         <button
             type="button"
@@ -67,6 +69,7 @@ const FormEnabler: React.FC<FormEnablerProps> = ({ label, description, isEnabled
                 ${FIELD_FRAME_CLASS} ${SIZE_CLASSES[size]}
                 ${isEnabled ? 'border-(--showdown-blue)! text-(--text-primary)' : 'text-(--text-secondary)'}
                 ${isDisabled ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'}
+                ${isChanged ? FIELD_CHANGED_CLASS : ''}
                 ${className}
             `}
             onClick={() => { if (!isDisabled) onChange(isEnabled); }}

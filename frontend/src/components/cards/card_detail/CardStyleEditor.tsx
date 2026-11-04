@@ -198,6 +198,7 @@ export function CardStyleEditor({ style: initialStyle, defaults, onSave, revertT
                             className='col-span-full'
                             options={chartVersionOptionsFor(card)}
                             selectedOption={String(chartVersion)}
+                            isChanged={chartVersion !== 1}
                             onChange={handleChartVersionChange}
                             disabled={isRebuilding}
                         />

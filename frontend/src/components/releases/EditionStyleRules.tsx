@@ -4,7 +4,7 @@ import type { ReleaseCard } from '../../api/releases';
 import FormDropdown from '../customs/FormDropdown';
 import FormEnabler from '../customs/FormEnabler';
 import { ParallelDropdown } from '../customs/CardStyleFields';
-import { editionOptions, imageColoringOptions, type CardStyleSettings } from '../customs/cardStyle';
+import { editionOptions, imageColoringOptions, parallelColoringOptions, type CardStyleSettings } from '../customs/cardStyle';
 import CustomSelect from '../shared/CustomSelect';
 import MultiSelect from '../shared/MultiSelect';
 import IconButton from '../shared/IconButton';
@@ -19,6 +19,7 @@ import {
 
 const RULE_STYLE_LABELS: Record<RuleStyleKey, string> = {
     image_parallel: 'Image Parallel',
+    image_parallel_coloring: 'Parallel Coloring',
     edition: 'Edition',
     image_coloring: 'Image Coloring',
     show_year_text: 'Show Year as Text',
@@ -172,6 +173,8 @@ function RuleStyleField({ styleKey, value, onChange }: { styleKey: RuleStyleKey;
     switch (styleKey) {
         case 'image_parallel':
             return <ParallelDropdown value={String(value ?? 'NONE')} onChange={onChange} />;
+        case 'image_parallel_coloring':
+            return <FormDropdown label={RULE_STYLE_LABELS.image_parallel_coloring} options={parallelColoringOptions} selectedOption={String(value ?? 'DEFAULT')} onChange={onChange} />;
         case 'edition':
             return <FormDropdown label={RULE_STYLE_LABELS.edition} options={editionOptions} selectedOption={String(value ?? 'NONE')} onChange={onChange} />;
         case 'image_coloring':

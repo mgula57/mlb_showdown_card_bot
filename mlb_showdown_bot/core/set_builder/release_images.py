@@ -45,6 +45,7 @@ class EditionCardStyle(BaseModel):
     disable_display_text_on_card: bool = False
     image_parallel: str = 'NONE'
     image_coloring: str = 'PRIMARY'
+    image_parallel_coloring: str = 'DEFAULT'
     image_glow_multiplier: Optional[str | float] = '1'
     stat_highlights_type: Optional[str] = 'NONE'
     nickname_index: Optional[str | int] = 'NONE'
@@ -85,6 +86,7 @@ class EditionCardStyle(BaseModel):
             'show_year_text': self.show_year_text,
             'parallel': self.image_parallel,
             'coloring': self.image_coloring,
+            'parallel_coloring': self.image_parallel_coloring,
             'glow_multiplier': glow_multiplier,
             'stat_highlights_type': self.stat_highlights_type or 'NONE',
             'nickname_index': nickname_index,
@@ -151,6 +153,9 @@ class ReleaseCardImageSpec:
         # Left out when unset, so images rendered before set years existed stay up to date
         if image['set_year'] is None:
             del image['set_year']
+        # Same for parallel coloring: images rendered before it existed match its default
+        if image['parallel_coloring'] == 'DEFAULT':
+            del image['parallel_coloring']
         inputs = {
             'version': RENDER_VERSION,
             'snapshot': self.card_snapshot,

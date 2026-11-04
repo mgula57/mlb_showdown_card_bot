@@ -14,7 +14,7 @@ from typing import Callable, Optional
 from pydantic import BaseModel, ConfigDict, ValidationError, field_validator
 
 # Style fields a rule can set. Mirrors `RULE_STYLE_KEYS` in `frontend/src/components/releases/editionStyle.ts`.
-RULE_STYLE_KEYS = frozenset({'image_parallel', 'edition', 'image_coloring', 'show_year_text', 'is_dark_mode', 'hide_team_logo'})
+RULE_STYLE_KEYS = frozenset({'image_parallel', 'image_parallel_coloring', 'edition', 'image_coloring', 'show_year_text', 'is_dark_mode', 'hide_team_logo'})
 
 # Relocated clubs grouped under their current franchise. Mirrors `FRANCHISE_CODE` in `SummaryCharts.tsx`.
 FRANCHISE_CODE = {

@@ -30,6 +30,10 @@ export const FIELD_FRAME_CLASS =
     'rounded-control border border-(--divider) bg-(--background-secondary) text-(--text-primary) ' +
     'hover:border-(--rule-strong) focus-within:border-(--showdown-blue) transition-colors';
 
+/** A field holding a non-default value: a faint navy tint on the frame (see frontend/DESIGN.md). A tint
+ *  rather than a border, since selects color their border by option and toggles turn it navy when on. */
+export const FIELD_CHANGED_CLASS = 'bg-(--showdown-blue)/10!';
+
 /** The square checklist box (`FormEnabler`, `MultiSelect` options): empty with a strong rule when
  *  off, navy with a white check when on. The caller adds the size (`w-4 h-4 text-[9px]`). */
 export function checkBoxClass(checked: boolean): string {

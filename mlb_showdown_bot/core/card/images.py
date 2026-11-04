@@ -757,6 +757,18 @@ class ImageColoring(str, Enum):
     SECONDARY = "SECONDARY"
     MULTI = "MULTI"
 
+class ParallelColoring(str, Enum):
+    """Coloring for a team colored parallel's art, which can differ from the rest of the card's."""
+
+    DEFAULT = "DEFAULT" # MATCH THE CARD'S IMAGE COLORING
+    PRIMARY = "PRIMARY"
+    SECONDARY = "SECONDARY"
+    MULTI = "MULTI"
+
+    @classmethod
+    def _missing_(cls, value):
+        return cls.DEFAULT
+
 # ---------------------------------------
 # MARK: IMAGE FILE FORMAT
 # ---------------------------------------
@@ -825,6 +837,7 @@ class ShowdownImage(BaseModel):
     color_primary: str = "#000000"
     color_secondary: str = "#ffffff"
     coloring: ImageColoring = ImageColoring.PRIMARY
+    parallel_coloring: ParallelColoring = ParallelColoring.DEFAULT
 
     # STATS
     stat_highlights_type: StatHighlightsType = StatHighlightsType.NONE
@@ -933,3 +946,20 @@ class ShowdownImage(BaseModel):
     def is_multi_colored(self) -> bool:
         """Check if the image is multi-colored."""
         return self.coloring == ImageColoring.MULTI
+
+    @property
+    def parallel_art_coloring(self) -> ImageColoring:
+        """Coloring for the parallel's own art. Only team colored parallels can differ from the card's coloring."""
+        if self.parallel.is_team_colored and self.parallel_coloring != ParallelColoring.DEFAULT:
+            return ImageColoring(self.parallel_coloring.value)
+        return self.coloring
+
+    @property
+    def parallel_uses_secondary_color(self) -> bool:
+        """Check if the parallel's art is secondary-colored."""
+        return self.parallel_art_coloring == ImageColoring.SECONDARY
+
+    @property
+    def is_parallel_multi_colored(self) -> bool:
+        """Check if the parallel's art is multi-colored."""
+        return self.parallel_art_coloring == ImageColoring.MULTI

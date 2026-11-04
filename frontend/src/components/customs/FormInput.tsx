@@ -11,7 +11,7 @@ import { FaXmark } from "react-icons/fa6";
 import { FaSearch } from "react-icons/fa";
 import { searchFrameClass } from "../shared/searchFrameStyles";
 
-import { FIELD_FRAME_CLASS, FIELD_LABEL_CLASS } from '../shared/fieldStyles';
+import { FIELD_CHANGED_CLASS, FIELD_FRAME_CLASS, FIELD_LABEL_CLASS } from '../shared/fieldStyles';
 /**
  * Props for the FormInput component
  */
@@ -46,6 +46,8 @@ type FormInputProps = {
     step?: number | string;
     /** Maximum character length for text input */
     maxLength?: number;
+    /** Highlights the field as holding a non-default value */
+    isChanged?: boolean;
 };
 
 /**
@@ -88,7 +90,7 @@ type FormInputProps = {
  * @param isTitleCase - Auto-format text in title case
  * @returns Versatile input component with label
  */
-const FormInput: React.FC<FormInputProps> = ({ label, value, onChange, onBlur, className = "", type="text", inputMode="text", isClearable=false, placeholder, onChangeFile, isTitleCase, disabled = false, showSearchIcon = false, step, maxLength }) => {
+const FormInput: React.FC<FormInputProps> = ({ label, value, onChange, onBlur, className = "", type="text", inputMode="text", isClearable=false, placeholder, onChangeFile, isTitleCase, disabled = false, showSearchIcon = false, step, maxLength, isChanged = false }) => {
 
     /** Check if this is a file upload input */
     const isFileInput = type === "file";
@@ -116,7 +118,7 @@ const FormInput: React.FC<FormInputProps> = ({ label, value, onChange, onBlur, c
                 className={
                     useSearchFrame
                         ? `flex items-stretch focus:outline-none mt-1 ${searchFrameClass()}`
-                        : `flex items-stretch focus:outline-none mt-1 ${FIELD_FRAME_CLASS}`
+                        : `flex items-stretch focus:outline-none mt-1 ${FIELD_FRAME_CLASS} ${isChanged ? FIELD_CHANGED_CLASS : ''}`
                 }
             >
               <div className={useSearchFrame ? "flex items-stretch w-full bg-primary rounded-[3px]" : "contents"}>
