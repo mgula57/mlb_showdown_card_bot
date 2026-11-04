@@ -136,7 +136,7 @@ export function SimStatsTable({ rows, columns, emptyLabel, cardsEnabled = false,
                                             isPitcher={record?.is_pitcher}
                                             primaryColor={teamIdentity?.primary_color ?? record?.color_primary}
                                             secondaryColor={teamIdentity?.secondary_color ?? record?.color_secondary}
-                                            command={record?.command} team={row.team} points={record?.points}
+                                            command={record?.command} team={row.team} set={record?.showdown_set} points={record?.points}
                                         />
                                     ) : (
                                         <span className="font-medium text-(--text-primary)">{row.name}</span>

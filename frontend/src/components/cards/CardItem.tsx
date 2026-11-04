@@ -3,7 +3,7 @@ import AdvantageBadge from "./card_elements/AdvantageBadge";
 import type { CardDatabaseRecord } from "../../api/card_db/cardDatabase";
 import { CardChart } from "./card_elements/CardChart";
 import CardCommand from "./card_elements/CardCommand";
-import { getContrastTextColor } from "../../functions/colors";
+import { cardSecondaryStyle, getContrastTextColor } from "../../functions/colors";
 import { showdownSets } from "../shared/SiteSettingsContext";
 import { SetBadge } from "../shared/SetBadge";
 import { CardSource } from "../../types/cardSource";
@@ -161,10 +161,7 @@ export const CardItem = ({
     const secondaryColor = (['NYM', 'SDP', 'JPN'].includes(cardTeam || 'N/A') 
         ? cardPrimaryColor
         : cardSecondaryColor) || 'rgb(0, 0, 0)';
-    const colorStylingSecondary = { 
-        backgroundColor: secondaryColor, 
-        color: getContrastTextColor(secondaryColor) 
-    };
+    const colorStylingSecondary = cardSecondaryStyle(secondaryColor, cardTeam, cardSet);
 
     // Determine whether the stats have been estimated
     const isStatsEstimate = cardIsStatsEstimate || (cardLeague && cardEdition === 'WBC' && !['AL', 'NL', 'MLB'].includes(cardLeague)); // WBC cards for MLB players are often estimates
@@ -289,7 +286,8 @@ export const CardItem = ({
                             {cardIcons?.map((icon, index) => (
                                 <CardIcon
                                     key={`${cardId}-icon-${index}`} 
-                                    color={secondaryColor} 
+                                    color={colorStylingSecondary.backgroundColor} 
+                                    textColor={colorStylingSecondary.color} 
                                     value={icon} 
                                     circleSize="4" 
                                     textSize={9} 

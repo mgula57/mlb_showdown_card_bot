@@ -6,6 +6,8 @@ import { getContrastTextColor } from "../../../functions/colors";
 type CardIconProps = {
     /** Complete card data containing chart ranges and styling information */
     color: string;
+    /** Defaults to whichever of black or white contrasts with `color` */
+    textColor?: string;
     value: string;
     circleSize: CircleSize;
     textSize: number;
@@ -22,8 +24,8 @@ const CIRCLE_SIZE_CLASSES: Record<CircleSize, string> = {
 /**
  * CardIcon component displays an icon with a specified color and value.
  */
-const CardIcon = ({ color, value, circleSize, textSize }: CardIconProps) => {
-    const contrastColor = getContrastTextColor(color);
+const CardIcon = ({ color, textColor, value, circleSize, textSize }: CardIconProps) => {
+    const contrastColor = textColor ?? getContrastTextColor(color);
     const twoDigitTextSize = value.length === 2 ? (textSize - 1) : textSize;
 
     return (

@@ -99,6 +99,22 @@ export const getContrastTextColor = (bg: string): string => {
     return contrastRatioWithWhite(bgRgb) >= MIN_WHITE_TEXT_CONTRAST ? '#ffffff' : '#000000';
 };
 
+/** Team secondary colors that read better as text on a dark fill. Matched on the card's color so
+ *  older seasons and special editions, which carry a different one, are left alone. Keep in sync
+ *  with `Team.chart_secondary_color_override` on the backend. */
+const CARD_SECONDARY_OVERRIDES = [
+    { team: 'ARI', set: 'EXPANDED', rgb: [48, 206, 216], fill: 'rgb(39, 37, 31)' },
+];
+
+/** Fill and text for a card's secondary-colored elements (points plate, icons). */
+export const cardSecondaryStyle = (secondaryColor: string, team?: string | null, set?: string | null) => {
+    const rgb = parseToRgb(secondaryColor)?.join();
+    const override = CARD_SECONDARY_OVERRIDES.find(o => o.team === team && o.set === set && o.rgb.join() === rgb);
+    return override
+        ? { backgroundColor: override.fill, color: secondaryColor }
+        : { backgroundColor: secondaryColor, color: getContrastTextColor(secondaryColor) };
+};
+
 /** Contrast-aware translucent tokens for content sitting on a solid identity color — the mode
  *  banners in the team builder and on the game page. `getContrastTextColor` returns '#000000'
  *  (black text) for light backgrounds, which is the signal for which set to use. */

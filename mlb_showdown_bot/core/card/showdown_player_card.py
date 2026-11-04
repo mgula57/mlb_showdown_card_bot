@@ -3959,6 +3959,9 @@ class ShowdownPlayerCard(BaseModel):
             # DEFINE COLOR(S) FOR CHART CONTAINER
             team_override = self.team_override_for_images
             fill_color = self._team_color_rgbs(is_secondary_color=self.image.use_secondary_color, team_override=team_override)
+            chart_color_override = self._chart_color_override(is_secondary=self.image.use_secondary_color)
+            if chart_color_override:
+                fill_color = chart_color_override[0]
             is_multi_colored = self.image.is_multi_colored \
                 or ( self.image.special_edition == SpecialEdition.NATIONALITY and len(self.nationality.colors) > 1 ) \
                 or ( self.image.special_edition == SpecialEdition.WBC and len(self.wbc_team.nationality.colors) > 1 )
@@ -3979,11 +3982,16 @@ class ShowdownPlayerCard(BaseModel):
             use_dark_text = self._use_dark_text(is_secondary=self.image.use_secondary_color) and not is_multi_colored
             dark_mode_suffix = '-DARK' if use_dark_text else ''
             text_img = Image.open(self._template_img_path(f'{year}-ChartOutsText-{type}{dark_mode_suffix}'))
+            if chart_color_override:
+                text_img = self._add_color_overlay_to_img(img=text_img, color=chart_color_override[1])
             template_image.paste(container_img, (0,0), container_img)
             template_image.paste(text_img, (0,0), text_img)
 
             # ADD PTS BOX
             secondary_color = self._team_color_rgbs(is_secondary_color=not self.image.use_secondary_color, team_override=team_override)
+            pts_box_color_override = self._chart_color_override(is_secondary=not self.image.use_secondary_color)
+            if pts_box_color_override:
+                secondary_color = pts_box_color_override[0]
             pts_box_img_black = Image.open(self._template_img_path(f'{year}-PTS-Box'))
             pts_box_img_team_color = self._add_color_overlay_to_img(img=pts_box_img_black, color=secondary_color)
             template_image.paste(pts_box_img_team_color, (0,0), pts_box_img_team_color)
@@ -4554,6 +4562,9 @@ class ShowdownPlayerCard(BaseModel):
                             current_x_position += 15
                         use_dark_text = self.set.is_showdown_bot and self._use_dark_text(is_secondary=not self.image.use_secondary_color)
                         text_color = colors.BLACK if use_dark_text else colors.WHITE
+                        pts_box_color_override = self._chart_color_override(is_secondary=not self.image.use_secondary_color)
+                        if pts_box_color_override:
+                            text_color = pts_box_color_override[1]
 
                     category_length = len(metadata_text_list)
                     is_last = (index + 1) == category_length
@@ -4644,6 +4655,9 @@ class ShowdownPlayerCard(BaseModel):
                 )
                 use_dark_text = self.set.is_showdown_bot and is_out_category and not self.image.is_multi_colored and self._use_dark_text(is_secondary=self.image.use_secondary_color)
                 color_range = range_text if (is_wotc or is_out_category or self.image.is_dark_mode) and not use_dark_text else colors.BLACK
+                chart_color_override = self._chart_color_override(is_secondary=self.image.use_secondary_color)
+                if is_out_category and chart_color_override:
+                    color_range = chart_color_override[1]
                 chart_text.paste(color_range, (chart_text_x, 0), range_text)
                 pitcher_spacing = 531 if is_wotc else 510
                 hitter_spacing = 468 if is_wotc else 445
@@ -5164,6 +5178,9 @@ class ShowdownPlayerCard(BaseModel):
         # CIRCLE
         bg_color = self._team_color_rgbs(is_secondary_color=not self.image.use_secondary_color, team_override=self.team_override_for_images)
         text_color = colors.BLACK if self._use_dark_text(is_secondary=not self.image.use_secondary_color) else colors.WHITE
+        icon_color_override = self._chart_color_override(is_secondary=not self.image.use_secondary_color)
+        if icon_color_override:
+            bg_color, text_color = icon_color_override
         icon_img = Image.new('RGBA',(220,220))
         draw = ImageDraw.Draw(icon_img)
         x1 = 20
@@ -6619,6 +6636,26 @@ class ShowdownPlayerCard(BaseModel):
         
         # GRAB FROM CURRENT TEAM COLORS
         return team.color(year=self.median_year, is_secondary=is_secondary_color, is_showdown_bot_set=self.set.is_showdown_bot)
+
+    def _chart_color_override(self, is_secondary:bool) -> Optional[tuple[tuple[int,int,int,int], tuple[int,int,int,int]]]:
+        """Fill and text colors for chart elements and icons, if the team overrides them on this set.
+
+        Args:
+          is_secondary: True if the chart element is using the team's secondary color.
+
+        Returns:
+            Tuple of fill color and text color. None if the element uses the standard team colors.
+        """
+
+        if self.set != Set.EXPANDED or not is_secondary or self.image.is_multi_colored:
+            return None
+
+        # SPECIAL EDITIONS AND TEAM OVERRIDES REPLACE THE TEAM'S COLORS, SO THERE'S NOTHING TO OVERRIDE
+        team_color = self.team.color(year=self.median_year, is_secondary=True)
+        if self._team_color_rgbs(is_secondary_color=True, team_override=self.team_override_for_images) != team_color:
+            return None
+
+        return self.team.chart_secondary_color_override(year=self.median_year)
 
     def _team_color_rgb_str(self, is_secondary_color:bool=False, ignore_team_overrides:bool=False) -> str:
         """RGB color string for player team

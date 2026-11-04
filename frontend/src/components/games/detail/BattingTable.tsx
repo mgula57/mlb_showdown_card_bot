@@ -153,7 +153,7 @@ function BatterRow({ batter, cardResponse, onCardSelect, isShowingModal, isLoadi
                     <CardIdentityCell
                         name={batter.name} position={batter.position} hasCard={!!card}
                         isPitcher={card?.chart.is_pitcher} primaryColor={card?.image.color_primary} secondaryColor={card?.image.color_secondary}
-                        command={card?.chart.command} team={card?.team} points={card?.points} positionsAndDefense={card?.positions_and_defense}
+                        command={card?.chart.command} team={card?.team} set={card?.set} points={card?.points} positionsAndDefense={card?.positions_and_defense}
                         ptsChange={cardResponse?.in_season_trends?.pts_change.day} isLoadingCard={isLoadingCards && !cardResponse}
                     />
             </td>

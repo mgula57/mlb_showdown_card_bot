@@ -1,7 +1,7 @@
 import type { ShowdownBotCard, ShowdownBotCardCompact } from "../../api/showdownBotCard";
 import type { CardDatabaseRecord } from "../../api/card_db/cardDatabase";
 import CardCommand from "./card_elements/CardCommand";
-import { getContrastTextColor } from "../../functions/colors";
+import { cardSecondaryStyle, getContrastTextColor } from "../../functions/colors";
 import { formatYear } from "../../functions/formatters";
 import { FaHatWizard, FaWandMagicSparkles } from "react-icons/fa6";
 import { SetBadge } from '../shared/SetBadge';
@@ -124,13 +124,14 @@ function getDefenseDisplay(card: ShowdownBotCardCompact | null | undefined, fiel
     return defenseAtPosition(card.positions_and_defense, fieldPosition || '') || card.positions_and_defense_string || 'N/A';
 }
 
-const CardItemCompactIcons = ({ className, iconsList, color, cardId, ref }: { className?: string; iconsList: string[]; color: string; cardId: string; ref?: Ref<HTMLDivElement> }) => {
+const CardItemCompactIcons = ({ className, iconsList, color, textColor, cardId, ref }: { className?: string; iconsList: string[]; color: string; textColor: string; cardId: string; ref?: Ref<HTMLDivElement> }) => {
     return (
         <div ref={ref} className={`flex gap-0.5 ${className || ''}`}>
             {iconsList.map((icon, index) => (
                 <CardIcon 
                     key={`${cardId}-icon-${index}`} 
                     color={color} 
+                    textColor={textColor} 
                     value={icon} 
                     circleSize={((iconsList?.length ?? 0) > 2 ? "3" : "4")}
                     textSize={(iconsList?.length ?? 0) > 2 ? 8 : 9} 
@@ -168,10 +169,7 @@ export const CardItemCompact = ({
         ? card?.color_primary
         : card?.color_secondary) || 'rgb(0, 0, 0)';
 
-    const pointsBadgeStyle = {
-        backgroundColor: secondaryColor,
-        color: getContrastTextColor(secondaryColor),
-    };
+    const pointsBadgeStyle = cardSecondaryStyle(secondaryColor, card?.team, card?.set);
 
     const teamStyle = {
         backgroundColor: primaryColor,
@@ -272,7 +270,8 @@ export const CardItemCompact = ({
                         className="absolute -top-2 -right-0.5 shrink-0 data-[inline=true]:static data-[inline=true]:ml-0.5"
                         cardId={card?.id || 'card'}
                         iconsList={card?.icons_list || []}
-                        color={secondaryColor}
+                        color={pointsBadgeStyle.backgroundColor}
+                        textColor={pointsBadgeStyle.color}
                     />
                 </div>
                 {!hideTeamPoints && (
