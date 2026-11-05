@@ -35,7 +35,18 @@ def build_mlb_api(kwargs: dict) -> MLBStatsAPI_V2:
     """MLB Stats API client, backed by the on-disk HTTP cache when `cache_mlb_api` is set (CLI flag)."""
     return MLBStatsAPI_V2(use_persistent_cache=bool(kwargs.get('cache_mlb_api', False)))
 
-def check_for_preprocessed_card(**kwargs) -> ShowdownPlayerCard:
+def has_newer_mlb_season_than_card(card: ShowdownPlayerCard, stats_period: StatsPeriod) -> bool:
+    """True if the player recorded MLB stats in the requested year and the stored card was built from an earlier one (ex: a prospect who debuted after their WBC card was generated)."""
+    year = stats_period.year_int
+    if not stats_period.is_mlb or not year or not card.mlb_id or not card.player_type or not str(card.year).isdigit() or int(card.year) >= year:
+        return False
+    try:
+        return year in MLBStatsAPI_V2().people.get_player_seasons(player_id=card.mlb_id, player_type=card.player_type)
+    except Exception as e:
+        print(f"Failed to check MLB API seasons for stored card: {e}")
+        return False
+
+def check_for_preprocessed_card(stats_period: StatsPeriod, **kwargs) -> ShowdownPlayerCard:
     """Check if a card with the given parameters has already been generated and stored in the database. If so, return that card instead of generating a new one."""
     
     showdown_set = kwargs.get('set', None)
@@ -49,7 +60,8 @@ def check_for_preprocessed_card(**kwargs) -> ShowdownPlayerCard:
 
     if is_wbc and str(year) in ['2025', '2026']:
         with PostgresDB() as db:
-            return db.wbc_card_search(name, showdown_set, wbc_season=2026, exclude_mlb_players=True) # HARD CODE 2026 FOR NOW SINCE 2025 WBC NON-MLB CARDS ARE NOT AVAILABLE
+            card = db.wbc_card_search(name, showdown_set, wbc_season=2026, exclude_mlb_players=True) # HARD CODE 2026 FOR NOW SINCE 2025 WBC NON-MLB CARDS ARE NOT AVAILABLE
+        return None if card and has_newer_mlb_season_than_card(card, stats_period) else card
 
     return None
 
@@ -223,7 +235,7 @@ def generate_card(image_libraries: list[ImageLibrary] = None, **kwargs) -> dict[
             stats_period = StatsPeriod(type=stats_period_type, **kwargs)
 
         # CHECK FOR PRE-PROCESSED CARD IN DB
-        preprocessed_card = check_for_preprocessed_card(**kwargs)
+        preprocessed_card = check_for_preprocessed_card(stats_period=stats_period, **kwargs)
         if preprocessed_card:
             
             # RESET IMAGE SETTINGS TO WHAT USER INPUTTED
@@ -247,6 +259,8 @@ def generate_card(image_libraries: list[ImageLibrary] = None, **kwargs) -> dict[
 
         
         scraper_load_time = None
+        wbc_lookup_mlb_id: int | None = None # SET BY THE DATASOURCE THAT FOUND THE PLAYER
+        wbc_lookup_bref_id: str | None = None
 
         match expected_source:
             case Datasource.MLB_API:
@@ -266,6 +280,7 @@ def generate_card(image_libraries: list[ImageLibrary] = None, **kwargs) -> dict[
                 player_data = mlb_stats_api.build_full_player_from_search(search_name=search_name, stats_period=stats_period, league=league)
                 if player_data is None:
                     raise Exception(f"Player not found in MLB API with name: {search_name} and year: {kwargs.get('year', '')} in the {league}. Check spelling or try using the player's MLB ID from the URL on MLB.com as the name instead. Ex: https://www.mlb.com/player/aaron-judge-592450 would have a player ID of 592450.")
+                wbc_lookup_mlb_id = player_data.id
                 normalized_player_stats = PlayerStatsNormalizer.from_mlb_api(player=player_data, stats_period=stats_period)
 
                 if normalized_player_stats is None or normalized_player_stats.PA is None or normalized_player_stats.PA == 0:
@@ -348,6 +363,7 @@ def generate_card(image_libraries: list[ImageLibrary] = None, **kwargs) -> dict[
 
                 # SETUP BASEBALL REFERENCE SCRAPER
                 baseball_reference_stats = BaseballReferenceScraper(stats_period=stats_period, **kwargs)
+                wbc_lookup_bref_id = baseball_reference_stats.baseball_ref_id
 
                 # FOR MULTI-YEAR CARDS, FIRST CHECK ARCHIVE DB
                 if baseball_reference_stats.stats_period.is_multi_year and not baseball_reference_stats.ignore_archive:
@@ -423,7 +439,7 @@ def generate_card(image_libraries: list[ImageLibrary] = None, **kwargs) -> dict[
         edition = Edition(edition_str) if edition_str else None
         if edition and edition == Edition.WBC:
             with PostgresDB() as db:
-                wbc_team_info = db.fetch_wbc_team_for_player(bref_id=baseball_reference_stats.baseball_ref_id, year=stats_period.year_int)
+                wbc_team_info = db.fetch_wbc_team_for_player(year=stats_period.year_int, mlb_id=wbc_lookup_mlb_id, bref_id=wbc_lookup_bref_id)
             if wbc_team_info:
                 wbc_team_abbreviation, wbc_team_year = wbc_team_info
                 kwargs['wbc_team'] = wbc_team_abbreviation

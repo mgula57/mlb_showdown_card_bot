@@ -10281,13 +10281,16 @@ class PostgresDB:
         finally:
             cursor.close()
 
-    def fetch_wbc_team_for_player(self, bref_id:str, year:int) -> Optional[tuple[str, int]]:
+    def fetch_wbc_team_for_player(self, year:int, mlb_id:Optional[int] = None, bref_id:Optional[str] = None) -> Optional[tuple[str, int]]:
         """Look for the season in the wbc_player_history table, and return the team they were on that season. 
         This is used for WBC card generation to determine what team to show on the card.
         
+        Rosters are keyed by MLB ID, so bref_id is only needed for callers without one (it requires a row in dim_player_id_map).
+
         Args:
-            bref_id: The player's Baseball Reference ID to look up.
             year: The season (year) to look up.
+            mlb_id: The player's MLB ID to look up.
+            bref_id: The player's Baseball Reference ID to look up.
 
         Returns:
             A tuple containing the team abbreviation and season year if found, or None if not found or if there's an error.
@@ -10301,22 +10304,22 @@ class PostgresDB:
         query_sql = '''
             SELECT team, season
             FROM internal.dim_wbc_roster_history as wbc
-            JOIN internal.dim_player_id_map as bref_lookup
+            LEFT JOIN internal.dim_player_id_map as bref_lookup
                 ON wbc.player_id::text = bref_lookup.mlb_id::text
-            WHERE bref_lookup.bref_id = %s AND 
+            WHERE (wbc.player_id::text = %s OR bref_lookup.bref_id = %s) AND 
             (wbc.season = %s OR (wbc.season - 1) = %s)
             ORDER BY wbc.modified_date DESC, wbc.season
             LIMIT 1;
         '''
         try:
-            cursor.execute(query_sql, (bref_id, year, year))
+            cursor.execute(query_sql, (str(mlb_id) if mlb_id else None, bref_id, year, year))
             result = cursor.fetchone()
             if result:
                 return result
             else:
                 return None
         except Exception as e:
-            print(f"ERROR fetching WBC team for player {bref_id} in season {year}: {e}")
+            print(f"ERROR fetching WBC team for player {mlb_id or bref_id} in season {year}: {e}")
             return None
         finally:
             cursor.close()
@@ -10396,7 +10399,7 @@ class PostgresDB:
         """Search for WBC cards based on various input parameters. Used for WBC card generation and reference.
 
         Args:
-            name: The player's name to search for (can be full name or partial).
+            name: The player's name to search for (can be full name or partial), or their bref or MLB ID.
             set: The showdown set to filter the cards by (e.g. '2000', '2001', 'CLASSIC').
             wbc_season: The WBC season (year) to filter the cards by.
 
@@ -10409,10 +10412,11 @@ class PostgresDB:
         
         query_sql = '''
             SELECT 
-                card_data
+                card_data,
+                mlb_id
             FROM public.card_wbc
             WHERE true
-                AND name ILIKE %s
+                AND (name ILIKE %s OR bref_id = %s OR mlb_id::text = %s)
                 AND showdown_set = %s
                 AND wbc_season = %s
         '''
@@ -10422,6 +10426,8 @@ class PostgresDB:
         try:
             filter_values = (
                 f"%{unidecode(name)}%",
+                name,
+                name,
                 set,
                 wbc_season
             )
@@ -10431,6 +10437,7 @@ class PostgresDB:
                 if card_data_json is not None:
                     try:
                         card_data = ShowdownPlayerCard(**card_data_json)
+                        card_data.mlb_id = card_data.mlb_id or results[0]['mlb_id']
                         return card_data
                     except Exception as e:
                         print(f"ERROR parsing WBC card data: {e}")
