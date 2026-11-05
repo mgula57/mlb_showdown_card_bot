@@ -1,0 +1,67 @@
+{% extends "_social_base.html.j2" %}
+{% block title %}{{ year }} Gold Glove Winners{% endblock %}
+{% block styles %}
+  :root { --sheet-background: var(--background-primary); --gold: #c8962b; }
+  .inner { padding-left: 44px; padding-right: 44px; }
+  .hero { grid-template-columns: 1fr auto; align-items: end; }
+  .eyebrow { font-family: 'ShowdownSetItalic', "Helvetica Neue", sans-serif; font-style: italic; font-weight: 400; font-size: 16px; letter-spacing: .42em; color: var(--gold); }
+  h1 { margin-top: 12px; font-size: 76px; }
+  .sub { color: var(--text-secondary); font-size: 18px; margin-top: 10px; }
+  .count { text-align: right; }
+  .count .n { font-family: 'ShowdownTitle', "Helvetica Neue", sans-serif; font-weight: 900; font-size: 88px; line-height: .9; color: var(--gold); }
+
+  .grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 84px 14px; margin-top: 64px; }
+  .slot { position: relative; }
+  .slot img { display: block; width: 100%; aspect-ratio: 5 / 7; object-fit: cover; border-radius: 6px; box-shadow: var(--shadow-overlay); }
+  .slot .missing { width: 100%; aspect-ratio: 5 / 7; border-radius: 6px; border: 1.5px dashed var(--rule-strong); display: flex; align-items: center; justify-content: center; text-align: center; padding: 10px; color: var(--text-tertiary); font-size: 14px; }
+  /* A RAISED TAG UNDER EACH CARD: GOLD POSITION RULE, PLAYER IN THE CARD-NAME FACE. */
+  .tag { margin-top: 10px; background: var(--background-secondary); border: 1px solid var(--divider); border-top: 3px solid var(--gold); border-radius: 2px; padding: 6px 8px 7px; box-shadow: var(--shadow-raised); text-align: center; }
+  .tag .pos { color: var(--gold); font-size: 11px; font-weight: 700; }
+  .tag .who { font-size: 16px; letter-spacing: -.01em; line-height: 1.05; color: var(--text-primary); margin-top: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .tag .team { font-size: 11px; margin-top: 3px; }
+
+  footer { border-top-color: var(--divider); color: var(--text-tertiary); }
+  footer .url { color: var(--showdown-red); font-size: 24px; }
+  footer strong { font-weight: 700; }
+{% endblock %}
+{% block sheets %}
+{% for league in leagues %}
+<div class="sheet">
+<div class="pinstripes" aria-hidden="true"></div>
+<div class="inner">
+<div class="sheet-content">
+  <div class="hero">
+    <div>
+      <img class="logo" src="{{ logo_src }}" alt="Showdown Bot">
+      <div class="eyebrow">{{ year }} Gold Glove Winners</div>
+      <h1>{{ league.name }}</h1>
+      <div class="sub">Every winner, run through the Showdown Bot &middot; {{ showdown_set }} set</div>
+    </div>
+    <div class="count">
+      <div class="n">{{ league.winners|length }}</div>
+      <div class="caps-label">Winners</div>
+    </div>
+  </div>
+
+  <section class="grid">
+    {% for w in league.winners %}
+    <div class="slot">
+      {% if w.image_src %}<img src="{{ w.image_src }}" alt="{{ w.name }} {{ year }} card">{% else %}<div class="missing">{{ w.name }}<br>card unavailable</div>{% endif %}
+      <div class="tag">
+        <div class="pos caps-label">{{ w.position_label }}</div>
+        <div class="who upright">{{ w.name }}</div>
+        <div class="team caps-label">{{ w.team }}{% if w.points %} &middot; {{ w.points }} PT.{% endif %}</div>
+      </div>
+    </div>
+    {% endfor %}
+  </section>
+</div>
+
+  <footer>
+    <div class="url display">Build any player. Any season.</div>
+    <div><strong>showdownbot.com</strong></div>
+  </footer>
+</div>
+</div>
+{% endfor %}
+{% endblock %}
