@@ -12603,7 +12603,8 @@ class PostgresDB:
 
     def list_user_leagues(self, user_id: str) -> list[dict]:
         """Leagues `user_id` belongs to, newest first, with member count and the latest season's
-        number/status (NULL before the first draft starts)."""
+        number/status, teams in draft-slot order, standings, champion and draft progress (NULL or
+        empty before the first draft starts). `LeagueListItem` shapes these rows for the list."""
         if not self.connection:
             return []
         rows = self.execute_query(
@@ -12611,11 +12612,26 @@ class PostgresDB:
             SELECT l.league_id, l.name, l.commissioner_user_id, l.showdown_set, l.edition_ids::text[] AS edition_ids, l.settings, l.status,
                    l.created_at, l.updated_at,
                    (SELECT COUNT(*) FROM internal.league_member mm WHERE mm.league_id = l.league_id) AS member_count,
-                   s.season_number AS current_season_number, s.status AS current_season_status
+                   s.season_number AS current_season_number, s.status AS current_season_status,
+                   s.champion_team_id, s.config->>'games_per_team' AS games_per_team,
+                   s.summary->'standings'->'divisions' AS standing_divisions,
+                   (SELECT COUNT(*) FROM internal.league_draft_pick p WHERE p.season_id = s.season_id) AS picks_made,
+                   COALESCE((
+                       SELECT json_agg(
+                                  json_build_object(
+                                      'team_id', t.team_id, 'user_id', tm.user_id, 'name', t.name, 'abbreviation', t.abbreviation,
+                                      'primary_color', t.primary_color, 'secondary_color', t.secondary_color
+                                  ) ORDER BY tm.draft_slot NULLS LAST
+                              )
+                         FROM internal.league_team lt
+                         JOIN internal.user_teams t ON t.team_id = lt.team_id
+                         JOIN internal.league_member tm ON tm.member_id = lt.member_id
+                        WHERE lt.season_id = s.season_id
+                   ), '[]'::json) AS teams
               FROM internal.league l
               JOIN internal.league_member m ON m.league_id = l.league_id AND m.user_id = %s
               LEFT JOIN LATERAL (
-                  SELECT season_number, status FROM internal.league_season
+                  SELECT season_id, season_number, status, config, summary, champion_team_id FROM internal.league_season
                    WHERE league_id = l.league_id ORDER BY season_number DESC LIMIT 1
               ) s ON TRUE
              WHERE l.status <> 'archived'
@@ -12623,7 +12639,7 @@ class PostgresDB:
             """,
             (user_id,),
         )
-        return [self._stringify_uuid_fields(dict(row), self._LEAGUE_UUID_FIELDS) for row in rows]
+        return [self._stringify_uuid_fields(dict(row), (*self._LEAGUE_UUID_FIELDS, 'champion_team_id')) for row in rows]
 
     def update_league(self, league_id: str, name: str | None = None, settings: dict | None = None,
                       status: str | None = None) -> None:

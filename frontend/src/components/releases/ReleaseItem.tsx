@@ -6,7 +6,7 @@ import { SetBadgeRow } from '../shared/SetBadge';
 import { FaHeart, FaLayerGroup, FaPlus } from 'react-icons/fa6';
 import { SLANT_ROOM_CLASS } from '../shared/headingStyles';
 import { Plate } from '../shared/Plate';
-import { FrameCorners } from '../shared/FrameCorners';
+import { FramedTile } from '../shared/FramedTile';
 import { CAPS_LABEL_CLASS } from '../shared/fieldStyles';
 
 /** Tile frame shared by ReleaseItem and its skeleton — sized like TeamPreviewCard's 'md' tile on
@@ -57,88 +57,72 @@ export function ReleaseItem({ release, onClick, showPublishStatus = false }: Rel
     // Sets actually in the release's cards; before any cards are added, the default set it was created with
     const sets = release.showdown_sets?.length ? release.showdown_sets : [release.default_showdown_set];
 
-    const Frame = onClick ? 'button' : 'div';
     return (
-        <Frame
-            {...(onClick ? { type: 'button' as const, onClick } : {})}
-            className={`
-                ${TILE_FRAME} group relative p-0.75 text-left
-                border-2 border-(--rule-strong) bg-(--background-secondary)
-                ${onClick ? `
-                    [@media(hover:hover)]:hover:scale-[1.025] [@media(hover:hover)]:active:scale-[0.975]
-                    [@media(hover:hover)]:transition-transform [@media(hover:hover)]:duration-150
-                    cursor-pointer
-                ` : ''}
-            `}
-        >
-            {/* Double-rule frame from the 2001 card back: outer rule on the button, hairline here, bases on the corners */}
-            <FrameCorners />
-            <div className="relative h-full flex flex-col overflow-hidden rounded-card border border-(--divider)">
-                {/* Official plate + every included set, wrapping onto a second row when there are many */}
-                <div className="absolute top-0.5 inset-x-0.5 z-1 flex items-start justify-between gap-1 pointer-events-none">
-                    <div className="flex flex-wrap items-start gap-1">
-                        {release.is_official && <Plate variant="navy" size="sm">Official</Plate>}
-                        {release.is_wip && <Plate variant="outline" size="sm" className="bg-(--background-secondary)">WIP</Plate>}
-                    </div>
-                    <SetBadgeRow
-                        sets={sets}
-                        className="flex flex-wrap items-center justify-end gap-1 p-0.5"
-                    />
+        <FramedTile onClick={onClick} className={TILE_FRAME}>
+            {/* Official plate + every included set, wrapping onto a second row when there are many */}
+            <div className="absolute top-0.5 inset-x-0.5 z-1 flex items-start justify-between gap-1 pointer-events-none">
+                <div className="flex flex-wrap items-start gap-1">
+                    {release.is_official && <Plate variant="navy" size="sm">Official</Plate>}
+                    {release.is_wip && <Plate variant="outline" size="sm" className="bg-(--background-secondary)">WIP</Plate>}
                 </div>
-
-                {/* Card fan on the silver card-back field */}
-                <div className="relative flex-1 min-h-0 bg-(--release-tile-field) bg-pinstripe">
-                    {images.length > 0 ? (
-                        <ReleaseCardFan images={images} />
-                    ) : !isPublished ? (
-                        <BuildingFan />
-                    ) : (
-                        <div className="absolute inset-0 flex items-center justify-center text-(--text-tertiary)">
-                            <FaLayerGroup className="text-5xl opacity-30" />
-                        </div>
-                    )}
-                </div>
-
-                {/* Details */}
-                <div className="relative z-20 flex flex-col gap-1 px-2 pt-2 pb-2 border-t border-(--divider) bg-(--background-secondary)">
-                    <div className={`font-display text-[21px] leading-[0.95] uppercase text-(--text-primary) line-clamp-2 ${SLANT_ROOM_CLASS}`}>
-                        {release.name}
-                    </div>
-                    {release.description && (
-                        <div className="text-[10px] font-semibold text-(--text-secondary) line-clamp-1">
-                            {release.description}
-                        </div>
-                    )}
-                    {/* Counts drop to their own line when the creator name is too long to sit beside them */}
-                    <div className="flex flex-wrap items-center justify-between gap-x-1.5 gap-y-0.5 min-w-0">
-                        <span className="flex items-center gap-1 min-w-0 max-w-full text-[11px] font-medium text-(--text-tertiary)">
-                            <span className="truncate">{release.creator_username ? `by ${release.creator_username}` : ''}</span>
-                            {release.like_count > 0 && (
-                                <span
-                                    className="flex items-center gap-0.5 shrink-0 tabular-nums"
-                                    title={`${release.like_count} like${release.like_count === 1 ? '' : 's'}`}
-                                    aria-label={`${release.like_count} like${release.like_count === 1 ? '' : 's'}`}
-                                >
-                                    <FaHeart className="text-[9px]" />{release.like_count}
-                                </span>
-                            )}
-                        </span>
-                        <span className="shrink-0 whitespace-nowrap text-[11px] font-semibold tabular-nums text-(--text-tertiary)">
-                            {editionCount} ed. · {totalCards} card{totalCards === 1 ? '' : 's'}
-                        </span>
-                    </div>
-                    {showPublishStatus && (
-                        <div className="flex flex-wrap gap-1">
-                            <Plate variant={isPublished ? 'success' : 'outline'} size="sm">
-                                {isPublished ? 'Published' : 'Draft'}
-                            </Plate>
-                            {isPublished && !release.is_listed && <Plate variant="outline" size="sm">Link only</Plate>}
-                            {release.has_pending_changes && <Plate variant="outline" size="sm">Unpublished changes</Plate>}
-                        </div>
-                    )}
-                </div>
+                <SetBadgeRow
+                    sets={sets}
+                    className="flex flex-wrap items-center justify-end gap-1 p-0.5"
+                />
             </div>
-        </Frame>
+
+            {/* Card fan on the silver card-back field */}
+            <div className="relative flex-1 min-h-0 bg-(--release-tile-field) bg-pinstripe">
+                {images.length > 0 ? (
+                    <ReleaseCardFan images={images} />
+                ) : !isPublished ? (
+                    <BuildingFan />
+                ) : (
+                    <div className="absolute inset-0 flex items-center justify-center text-(--text-tertiary)">
+                        <FaLayerGroup className="text-5xl opacity-30" />
+                    </div>
+                )}
+            </div>
+
+            {/* Details */}
+            <div className="relative z-20 flex flex-col gap-1 px-2 pt-2 pb-2 border-t border-(--divider) bg-(--background-secondary)">
+                <div className={`font-display text-[21px] leading-[0.95] uppercase text-(--text-primary) line-clamp-2 ${SLANT_ROOM_CLASS}`}>
+                    {release.name}
+                </div>
+                {release.description && (
+                    <div className="text-[10px] font-semibold text-(--text-secondary) line-clamp-1">
+                        {release.description}
+                    </div>
+                )}
+                {/* Counts drop to their own line when the creator name is too long to sit beside them */}
+                <div className="flex flex-wrap items-center justify-between gap-x-1.5 gap-y-0.5 min-w-0">
+                    <span className="flex items-center gap-1 min-w-0 max-w-full text-[11px] font-medium text-(--text-tertiary)">
+                        <span className="truncate">{release.creator_username ? `by ${release.creator_username}` : ''}</span>
+                        {release.like_count > 0 && (
+                            <span
+                                className="flex items-center gap-0.5 shrink-0 tabular-nums"
+                                title={`${release.like_count} like${release.like_count === 1 ? '' : 's'}`}
+                                aria-label={`${release.like_count} like${release.like_count === 1 ? '' : 's'}`}
+                            >
+                                <FaHeart className="text-[9px]" />{release.like_count}
+                            </span>
+                        )}
+                    </span>
+                    <span className="shrink-0 whitespace-nowrap text-[11px] font-semibold tabular-nums text-(--text-tertiary)">
+                        {editionCount} ed. · {totalCards} card{totalCards === 1 ? '' : 's'}
+                    </span>
+                </div>
+                {showPublishStatus && (
+                    <div className="flex flex-wrap gap-1">
+                        <Plate variant={isPublished ? 'success' : 'outline'} size="sm">
+                            {isPublished ? 'Published' : 'Draft'}
+                        </Plate>
+                        {isPublished && !release.is_listed && <Plate variant="outline" size="sm">Link only</Plate>}
+                        {release.has_pending_changes && <Plate variant="outline" size="sm">Unpublished changes</Plate>}
+                    </div>
+                )}
+            </div>
+        </FramedTile>
     );
 }
 

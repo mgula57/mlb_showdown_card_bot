@@ -20,7 +20,7 @@ from pydantic import ValidationError
 
 from ..core.database.postgres_db import PostgresDB
 from ..core.league import (
-    DraftConflict, DraftError, LeagueDraft, LeagueRosterMove, LeagueSeasonError, LeagueSeasonRunner, LeagueSettings, SeasonConfig,
+    DraftConflict, DraftError, LeagueDraft, LeagueListItem, LeagueRosterMove, LeagueSeasonError, LeagueSeasonRunner, LeagueSettings, SeasonConfig,
     SimTarget,
 )
 from ..core.supabase.realtime_broadcast import RealtimeBroadcaster
@@ -211,7 +211,7 @@ def create_league():
 @_json_errors
 def list_my_leagues():
     with PostgresDB() as db:
-        return jsonify(_jsonable(db.list_user_leagues(g.user_id))), 200
+        return jsonify(_jsonable([LeagueListItem(row).payload() for row in db.list_user_leagues(g.user_id)])), 200
 
 
 @leagues_bp.route('/leagues/code/<code>', methods=['GET'])

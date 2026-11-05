@@ -16,13 +16,13 @@ import { useAuth } from '../auth/AuthContext';
 import { SignInPrompt } from '../shared/SignInPrompt';
 import { fetchMyLeagues, type LeagueListItem, type LeagueState } from '../../api/leagues';
 import { usePolling } from '../../hooks/usePolling';
-import { SEASON_STATUS_LABEL } from './leagueUi';
 import { Heading } from '../shared/Heading';
 import { InlineError } from '../shared/InlineError';
 import { EmptyState } from '../shared/EmptyState';
 import { PinstripeBackdrop } from '../shared/PinstripeBackdrop';
 import { buttonClass } from '../shared/buttonStyles';
 import { LeagueDetail, type LeagueTab } from './LeagueDetail';
+import { LeagueItem, LeagueItemSkeleton } from './LeagueItem';
 import { NewLeagueModal } from './NewLeagueModal';
 import { JoinLeagueModal } from './JoinLeagueModal';
 import { DraftBigBoard } from './draft/DraftBigBoard';
@@ -125,7 +125,7 @@ export default function Leagues() {
                     <Heading level="section" as="h2" className="mb-3">My Leagues</Heading>
                     {!leagues ? (
                         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                            {Array.from({ length: 3 }, (_, i) => <LeagueTileSkeleton key={i} />)}
+                            {Array.from({ length: 3 }, (_, i) => <LeagueItemSkeleton key={i} />)}
                         </div>
                     ) : leagues.length === 0 ? (
                         <EmptyState
@@ -142,23 +142,7 @@ export default function Leagues() {
                     ) : (
                         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                             {leagues.map(league => (
-                                <button
-                                    key={league.league_id}
-                                    type="button"
-                                    onClick={() => navigate(`/leagues/${league.league_id}`)}
-                                    className="flex flex-col gap-1 min-w-0 rounded-card border border-(--divider) bg-(--background-secondary) hover:border-(--rule-strong) transition-colors px-4 py-3 text-left cursor-pointer"
-                                >
-                                    <Heading level="panel" as="div" fit>{league.name}</Heading>
-                                    <div className="text-[12px] text-(--text-secondary)">
-                                        {league.current_season_number
-                                            ? `Season ${league.current_season_number} · ${SEASON_STATUS_LABEL[league.current_season_status!]}`
-                                            : 'Waiting for the draft'}
-                                    </div>
-                                    <div className="text-[11px] text-(--text-tertiary)">
-                                        Set {league.showdown_set} · {league.member_count}/{league.settings.team_count} teams
-                                        {league.commissioner_user_id === userId ? ' · Commissioner' : ''}
-                                    </div>
-                                </button>
+                                <LeagueItem key={league.league_id} league={league} userId={userId} onClick={() => navigate(`/leagues/${league.league_id}`)} />
                             ))}
                         </div>
                     )}
@@ -174,17 +158,6 @@ export default function Leagues() {
                     onClose={() => { setShowJoin(false); if (joinCode) navigate('/leagues', { replace: true }); }}
                 />
             )}
-        </div>
-    );
-}
-
-/** Placeholder shaped like a league tile: name, status line, meta line. */
-function LeagueTileSkeleton() {
-    return (
-        <div aria-hidden className="flex flex-col gap-2 rounded-card border border-(--divider) px-4 py-3 animate-pulse">
-            <div className="h-4 w-40 rounded-plate bg-(--background-tertiary)" />
-            <div className="h-3 w-32 rounded-plate bg-(--background-tertiary)" />
-            <div className="h-2.5 w-44 rounded-plate bg-(--background-tertiary)" />
         </div>
     );
 }

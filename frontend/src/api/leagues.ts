@@ -63,10 +63,34 @@ export type League = {
     updated_at: string;
 };
 
+/** A team on a league's list tile. Teams come in standings order once games are played, with
+ *  the champion first; before that, in draft order. */
+export type LeagueListTeam = {
+    team_id: string;
+    /** Null for a bot seat. */
+    user_id: string | null;
+    name: string;
+    abbreviation: string;
+    primary_color: string | null;
+    secondary_color: string | null;
+    wins: number;
+    losses: number;
+    win_pct: number;
+    is_champion: boolean;
+    is_on_the_clock: boolean;
+};
+
 export type LeagueListItem = Omit<League, 'join_code'> & {
     member_count: number;
     current_season_number: number | null;
     current_season_status: LeagueSeasonStatus | null;
+    /** The latest season's teams. Empty before the first draft starts. */
+    teams: LeagueListTeam[];
+    /** The next overall pick and the draft's length, null unless a draft is running. */
+    draft_pick: number | null;
+    draft_total_picks: number | null;
+    games_played: number;
+    games_per_team: number | null;
 };
 
 export type LeagueMember = {

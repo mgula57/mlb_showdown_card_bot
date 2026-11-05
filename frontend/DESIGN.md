@@ -21,7 +21,7 @@ All colors come from tokens in [`src/index.css`](src/index.css). Components neve
 | Page background | `--background-primary` | Silver in light, near-black in dark |
 | Panels, inputs, chart boxes | `--background-secondary` | White in light |
 | Quiet fills, skeletons, table headers | `--background-tertiary`, `--background-quaternary` | Silver steps |
-| Release tile field | `--release-tile-field` | A deeper silver in light mode, returning to the existing tertiary surface in dark mode |
+| Release and league tile field | `--release-tile-field` | A deeper silver in light mode, returning to the existing tertiary surface in dark mode |
 | Hairline borders | `--divider` | Default border for everything |
 | Strong rule | `--rule-strong` | Frames, hover borders, `shadow-raised` edge |
 | Text | `--text-primary`, `--text-secondary`, `--text-tertiary` | Tertiary is captions and meta |
@@ -72,7 +72,7 @@ Charts keep their compact footprint: don't increase cell padding, minimum widths
 
 ## Shape and depth
 
-- **Corners:** `rounded-card` (5px) for panels and tiles, `rounded-control` (4px) for buttons and inputs. `rounded-plate` (2px) for plates, badges and skeleton bars, just enough to soften them at small sizes. `rounded-trading-card` (10px) echoes the printed cards' rounded corners, and only on tiles that stand in for a physical card: `CardItem`, `CardItemCompact`, `TeamPreviewCard`, `ReleaseItem` and their skeletons. Never on panels, modals or table wrappers, which keep the one small corner. Anything pinned flush in a trading-card corner follows the curve (`rounded-br-trading-card`) or sits far enough in to clear it. Circles only for avatars, the command art and small status dots. No `rounded-xl` or larger, and no pills for counts or status (use a `Plate`).
+- **Corners:** `rounded-card` (5px) for panels and tiles, `rounded-control` (4px) for buttons and inputs. `rounded-plate` (2px) for plates, badges and skeleton bars, just enough to soften them at small sizes. `rounded-trading-card` (10px) echoes the printed cards' rounded corners, and only on tiles that stand in for a physical card: `CardItem`, `CardItemCompact`, `TeamPreviewCard`, `ReleaseItem`, `LeagueItem` and their skeletons. Never on panels, modals or table wrappers, which keep the one small corner. Anything pinned flush in a trading-card corner follows the curve (`rounded-br-trading-card`) or sits far enough in to clear it. Circles only for avatars, the command art and small status dots. No `rounded-xl` or larger, and no pills for counts or status (use a `Plate`).
 - **Depth has three steps:**
   - **Flat:** 1px `--divider` border. Most things.
   - **Raised:** `shadow-raised`, a hard 2px bottom edge, for primary buttons and pressable tiles. `shadow-feature` is the same hard edge in Showdown red, 3px, only on `feature` buttons. A floating feature button (the circular Build Card and Run Algorithm buttons on mobile) uses `shadow-feature-float`, the red edge plus the overlay shadow.
@@ -120,7 +120,7 @@ Use these before writing new styles. All live in `src/components/shared/` unless
 | `SettingsGroup` (`releases/`) | Collapsible titled group for the Release Builder's narrow build panel, with a one-line summary while collapsed. Used by the Edition Scope panel and every Algorithm section. Edition-wide settings don't live in the build panel: they get their own step (`EditionSetup`, a centered `max-w-3xl` form with a primary Continue button), and the pool shows them back as a one-line read-only `ScopeSummary` with an Edit button, editable only for set size |
 | Soft-scope notice (`OutsideScopeNotice`) | A neutral bordered note with a `--warning` triangle, for something allowed but worth knowing (saved cards outside the edition scope). Use `InlineError` only when something is wrong or blocked |
 
-Reference implementations: `CardItem`, `CardItemCompact`, `TeamPreviewCard`, `ReleaseItem`.
+Reference implementations: `CardItem`, `CardItemCompact`, `TeamPreviewCard`, `ReleaseItem`, `LeagueItem`.
 
 ### Team-color fields
 
@@ -128,7 +128,11 @@ The team preview tile gets the full card-front look, because the team is the sub
 
 ### Frames
 
-The 2001 card-back double rule (outer `--rule-strong` border, a gap, inner `--divider` hairline) with a diamond "base" on each corner (`<FrameCorners />` inside the framed element) marks feature tiles like a release tile or a finished card. A framed tile takes the `rounded-trading-card` corner with `rounded-card` on the inner hairline, and the bases sit on the curve of the outer rule. Use it for about one kind of thing per screen, never ordinary panels, and leave at least a 12px gap between framed tiles so neighboring bases don't touch.
+The 2001 card-back double rule (outer `--rule-strong` border, a gap, inner `--divider` hairline) with a diamond "base" on each corner (`<FrameCorners />` inside the framed element) marks feature tiles like a release tile, a league tile or a finished card. `FramedTile` (`shared/`) is the whole frame for a tile, pressable with an `onClick`. A framed tile takes the `rounded-trading-card` corner with `rounded-card` on the inner hairline, and the bases sit on the curve of the outer rule. Use it for about one kind of thing per screen, never ordinary panels, and leave at least a 12px gap between framed tiles so neighboring bases don't touch.
+
+### League tiles
+
+A league's tile (`LeagueItem`) is the pennant race: one pennant per seat hanging from a rail on the silver field, in that team's colors with its abbreviation, longest for the best record. A league has several teams, so team colors stay on the pennants and the field stays neutral. The team on the clock hangs at full length and pulses, the viewer's team carries a white base, the champion a gold star, and open seats hang as faint empty pennants. The tile fills its grid cell rather than taking a card's portrait shape, because twelve pennants need the width.
 
 ### Carousels
 
