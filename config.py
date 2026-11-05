@@ -23,5 +23,8 @@ class Config:
         v.strip().lower() for v in os.environ.get("ADMIN_EMAILS", "").split(",") if v.strip()
     }
 
+    # Releases this account publishes are official: listed under Official instead of Community.
+    OFFICIAL_RELEASE_EMAIL = "mlbshowdownbot@gmail.com"
+
 # Create upload directory
 os.makedirs(Config.UPLOAD_FOLDER, exist_ok=True)

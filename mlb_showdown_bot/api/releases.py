@@ -4,6 +4,7 @@ import traceback
 from datetime import datetime
 from flask import Blueprint, g, jsonify, request
 from pydantic import ValidationError
+from config import Config
 from ..core.card.images import ImageLibrary
 from ..core.database.postgres_db import PostgresDB, StaleEditionError
 from ..core.set_builder.foil_selection import FoilSetType, FoilSuggester
@@ -223,6 +224,7 @@ def publish_release(release_id: str):
                 release_id, g.user_id,
                 bump_version=changes is None or changes.has_changes, note=note,
                 changes=[edition.summary() for edition in changes.editions if edition.has_changes] if changes else None,
+                is_official=(g.user_email or '').lower() == Config.OFFICIAL_RELEASE_EMAIL,
             )
             try:
                 # The link preview should show what was just published
@@ -432,7 +434,7 @@ def get_public_releases():
         releases = db.get_public_releases(
             limit=limit, offset=offset,
             section=request.args.get('section'), sort=request.args.get('sort', 'updated'),
-            search=request.args.get('q'),
+            search=request.args.get('q'), viewer_id=optional_user_id(),
         )
         db.close_connection()
         return jsonify(releases), 200

@@ -91,8 +91,8 @@ export default function Releases() {
     const [, , releaseIdFromUrl = null, editionSlugFromUrl = null, cardRefFromUrl = null] = isOnReleaseBuilder
         ? location.pathname.split('/')
         : [];
-    // Only fetched while the list is on screen
-    const community = useCommunityReleases(communitySort, communitySearch, isOnReleaseBuilder && !releaseIdFromUrl);
+    // Only fetched while the list is on screen, once the session restores (the list depends on the viewer)
+    const community = useCommunityReleases(communitySort, communitySearch, isOnReleaseBuilder && !releaseIdFromUrl && !authLoading, token, userId);
 
     // Signing in, out, or as someone else invalidates the cached list. Keyed on the user id (not the
     // token) so routine token refreshes don't reload it.

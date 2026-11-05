@@ -7158,9 +7158,10 @@ class PostgresDB:
     }
 
     def get_public_releases(self, limit: int = 50, offset: int = 0, section: Optional[str] = None, sort: str = 'updated',
-                            search: Optional[str] = None) -> list[dict]:
+                            search: Optional[str] = None, viewer_id: Optional[str] = None) -> list[dict]:
         """Listed releases with at least one published edition. `section` 'official' / 'community' splits on
-        `is_official`; `search` matches the name or creator's username."""
+        `is_official`, except that 'community' keeps `viewer_id`'s own official releases; `search` matches
+        the name or creator's username."""
         if not self.connection:
             return []
         # Escape LIKE wildcards so a search for "100%" means the text
@@ -7172,7 +7173,8 @@ class PostgresDB:
                 WHERE pe.release_id = r.id AND pe.is_published = TRUE
             )
               AND r.is_listed AND r.retired_at IS NULL
-              AND (%(section)s::text IS NULL OR r.is_official = (%(section)s = 'official'))
+              AND (%(section)s::text IS NULL OR r.is_official = (%(section)s = 'official')
+                   OR (%(section)s = 'community' AND r.created_by = %(viewer_id)s::text))
               AND (%(pattern)s::text IS NULL
                    OR r.name ILIKE %(pattern)s
                    OR EXISTS (SELECT 1 FROM public.profiles p WHERE p.id::text = r.created_by AND p.username ILIKE %(pattern)s))
@@ -7183,7 +7185,7 @@ class PostgresDB:
         with self.connection.cursor(cursor_factory=RealDictCursor) as cur:
             cur.execute(query, {
                 'section': section if section in ('official', 'community') else None,
-                'pattern': pattern, 'limit': limit, 'offset': offset,
+                'pattern': pattern, 'limit': limit, 'offset': offset, 'viewer_id': viewer_id,
             })
             return [self._serialize_release_row(self._visitor_release_row(dict(r))) for r in cur.fetchall()]
 
@@ -7563,11 +7565,13 @@ class PostgresDB:
         """, ([str(edition_id) for edition_id in edition_ids],))
         return cur.fetchone()[0]
 
-    def publish_release(self, release_id: str, user_id: str, bump_version: bool, note: Optional[str] = None, changes: Optional[list] = None) -> Optional[list[str]]:
+    def publish_release(self, release_id: str, user_id: str, bump_version: bool, note: Optional[str] = None, changes: Optional[list] = None,
+                        is_official: bool = False) -> Optional[list[str]]:
         """Publish the release in one transaction: fold each working copy into its edition (name,
         settings, cards with removed ones retired, image rows), publish every edition, and when
-        `bump_version`, record a new version with the owner's note and `changes`. Returns image paths
-        nothing points to any more, or None if the release isn't the user's."""
+        `bump_version`, record a new version with the owner's note and `changes`. `is_official` marks
+        it official (never unmarks it). Returns image paths nothing points to any more, or None if the
+        release isn't the user's."""
         with self.transaction() as cur:
             version = self._lock_owned_release(cur, release_id, user_id)
             if version is None:
@@ -7612,9 +7616,10 @@ class PostgresDB:
             next_version = version + 1 if bump_version or version == 0 else version
             cur.execute("""
                 UPDATE internal.releases
-                   SET published_version = %s, published_at = COALESCE(published_at, NOW()), updated_at = NOW()
+                   SET published_version = %s, published_at = COALESCE(published_at, NOW()), updated_at = NOW(),
+                       is_official = is_official OR %s
                  WHERE id = %s
-            """, (next_version, release_id))
+            """, (next_version, is_official, release_id))
             if next_version != version:
                 cur.execute("""
                     INSERT INTO internal.release_versions (release_id, version, note, changes, published_by)
