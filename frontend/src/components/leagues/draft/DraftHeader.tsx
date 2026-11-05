@@ -2,14 +2,19 @@ import { Fragment, useCallback, useLayoutEffect, useRef, useState, type ReactNod
 import { FaAnglesLeft, FaAnglesRight, FaDisplay, FaRobot, FaSpinner, FaTrophy } from 'react-icons/fa6';
 import { TeamChip } from '../../shared/TeamChip';
 import type { DraftState, LeagueTeam } from '../../../api/leagues';
-import { SECONDARY_BUTTON_CLASS, leagueTeamIdentity } from '../leagueUi';
+import { leagueTeamIdentity } from '../leagueUi';
+import { Heading } from '../../shared/Heading';
+import { buttonClass } from '../../shared/buttonStyles';
+import { CAPS_LABEL_CLASS } from '../../shared/fieldStyles';
+
+const SECONDARY_SM = buttonClass('secondary', 'sm');
 import { shortName, type DraftView } from './draftView';
 
 /** The draft page's sticky bar: back / league title on the left, then the live draft status. Fixed
  *  at h-14 so the team panel can pin flush beneath it (`top-14` in LeagueDraftRoom). */
 export function DraftTopBar({ leading, children }: { leading: ReactNode; children?: ReactNode }) {
     return (
-        <div className="sticky top-0 z-30 h-14 shrink-0 flex items-center gap-3 px-4 sm:px-6 border-b border-(--divider) bg-(--background-primary)/90 backdrop-blur">
+        <div className="sticky top-0 z-30 h-14 shrink-0 flex items-center gap-3 px-4 sm:px-6 border-b border-(--divider) bg-(--background-primary)">
             <div className="flex items-center gap-3 min-w-0 shrink">{leading}</div>
             {children && (
                 <>
@@ -27,14 +32,14 @@ const PICK_STRIP_CLASS = 'flex items-center gap-1.5 shrink-0 h-11 px-4 sm:px-6 b
 export function DraftPickStripSkeleton() {
     return (
         <div className={PICK_STRIP_CLASS}>
-            <div className="h-6 w-full rounded-lg bg-(--background-secondary) animate-pulse" />
+            <div aria-hidden className="h-6 w-full rounded-plate bg-(--background-tertiary) animate-pulse" />
         </div>
     );
 }
 
 /** Top-bar placeholder while the draft loads, sized like `DraftClock`. */
 export function DraftClockSkeleton() {
-    return <div className="flex-1 h-9 max-w-64 rounded-lg bg-(--background-secondary) animate-pulse" />;
+    return <div aria-hidden className="flex-1 h-9 max-w-64 rounded-plate bg-(--background-tertiary) animate-pulse" />;
 }
 
 type ClockProps = {
@@ -56,19 +61,19 @@ export function DraftClock({ draft, view, myMemberId, isCommissioner, autoPickin
     return (
         <div className="flex flex-1 items-center justify-between gap-3 min-w-0">
             {isComplete ? (
-                <div className="flex items-center gap-2 text-[16px] font-black text-(--text-primary)">
-                    <FaTrophy className="text-(--secondary)" /> Draft complete
-                </div>
+                <Heading level="panel" as="div" className="flex items-center gap-2">
+                    <FaTrophy className="text-(--gold)" /> Draft complete
+                </Heading>
             ) : (
                 <div className="flex flex-col min-w-0">
-                    <div className="text-[10px] font-bold uppercase tracking-wide text-(--text-tertiary) truncate">
+                    <div className={`${CAPS_LABEL_CLASS} text-(--text-tertiary) truncate`}>
                         On the clock · Pick {draft.next_pick} · Rd {draft.current_round}
-                        {!isMyTurn && picksUntilMine > 0 && <span className="text-(--secondary)"> · You're up in {picksUntilMine}</span>}
+                        {!isMyTurn && picksUntilMine > 0 && <span className="text-(--showdown-red)"> · You're up in {picksUntilMine}</span>}
                     </div>
                     <div className="flex items-center gap-2 min-w-0">
                         {onTheClock && <TeamChip team={leagueTeamIdentity(onTheClock)} size="sm" />}
-                        <span className="text-[15px] font-black text-(--text-primary) truncate">
-                            {isMyTurn ? 'Your pick!' : onTheClock?.display_name}
+                        <span className={`font-display-upright text-[17px] leading-none truncate ${isMyTurn ? 'text-(--showdown-red)' : 'text-(--text-primary)'}`}>
+                            {isMyTurn ? 'Your pick' : onTheClock?.display_name}
                         </span>
                     </div>
                 </div>
@@ -76,11 +81,11 @@ export function DraftClock({ draft, view, myMemberId, isCommissioner, autoPickin
 
             <div className="flex items-center gap-2 shrink-0">
                 {/* The Big Board is for a TV or monitor - not offered on phones */}
-                <button type="button" onClick={onOpenBigBoard} className={`${SECONDARY_BUTTON_CLASS} hidden md:flex`}>
+                <button type="button" onClick={onOpenBigBoard} className={`${SECONDARY_SM} max-md:hidden`}>
                     <FaDisplay /> Big Board
                 </button>
                 {canAutoPick && (
-                    <button type="button" onClick={onAutoPick} disabled={autoPicking} className={SECONDARY_BUTTON_CLASS} title={isMyTurn ? 'Let the bot pick for you' : `Auto-pick for ${onTheClock?.display_name}`}>
+                    <button type="button" onClick={onAutoPick} disabled={autoPicking} className={SECONDARY_SM} title={isMyTurn ? 'Let the bot pick for you' : `Auto-pick for ${onTheClock?.display_name}`}>
                         {autoPicking ? <FaSpinner className="animate-spin" /> : <FaRobot />}
                         <span className="hidden sm:inline">Auto-pick</span>
                     </button>
@@ -151,7 +156,7 @@ export function DraftPickStrip({ draft, view, myMemberId }: StripProps) {
                     return (
                         <Fragment key={pick.overall_pick}>
                             {newRound && (
-                                <span className="shrink-0 px-1 text-[10px] font-bold uppercase tracking-wide text-(--text-tertiary)">Rd {pick.round}</span>
+                                <span className={`shrink-0 px-1 ${CAPS_LABEL_CLASS} text-(--text-tertiary)`}>Rd {pick.round}</span>
                             )}
                             <PickChip
                                 ref={kind === 'current' ? currentRef : undefined}
@@ -168,7 +173,7 @@ export function DraftPickStrip({ draft, view, myMemberId }: StripProps) {
                 <button
                     type="button"
                     onClick={() => scrollToCurrent('smooth')}
-                    className={`absolute top-1/2 -translate-y-1/2 ${currentOffscreen === 'left' ? 'left-2' : 'right-2'} flex items-center gap-1 rounded-full px-2.5 py-1 text-[10px] font-black uppercase tracking-wide shadow-md bg-(--showdown-blue-fill) text-white cursor-pointer hover:brightness-110`}
+                    className={buttonClass('primary', 'sm', `absolute top-1/2 -translate-y-1/2 ${currentOffscreen === 'left' ? 'left-2' : 'right-2'} gap-1`)}
                 >
                     {currentOffscreen === 'left' && <FaAnglesLeft />}
                     Now
@@ -182,8 +187,9 @@ export function DraftPickStrip({ draft, view, myMemberId }: StripProps) {
 const PICK_CHIP_TONE: Record<PickKind, string> = {
     // Done - flat and faded, so the live end of the strip stands out
     past: 'border-transparent bg-(--background-secondary) opacity-60',
-    current: 'border-transparent bg-(--showdown-blue-fill) text-white shadow-md font-black',
-    mine: 'border-(--secondary) bg-(--secondary)/15',
+    current: 'border-transparent bg-(--showdown-blue-fill) text-white font-bold',
+    // My upcoming picks - the red emphasis, so they read apart from the navy pick on the clock
+    mine: 'border-(--showdown-red) bg-(--showdown-red)/10',
     // Not made yet - an outline only
     future: 'border-dashed border-(--divider)',
 };
@@ -199,14 +205,14 @@ function PickChip({ ref, pick, team, kind, isMine }: {
         <div
             ref={ref}
             title={pick.name ? `#${pick.overall_pick} ${pick.name} · ${pick.points} pts` : undefined}
-            className={`flex items-center gap-1.5 shrink-0 rounded-lg px-2 py-1 border text-[11px] ${PICK_CHIP_TONE[kind]}`}
+            className={`flex items-center gap-1.5 shrink-0 rounded-control px-2 py-1 border text-[11px] ${PICK_CHIP_TONE[kind]}`}
         >
             {kind === 'current' && <span className="size-1.5 rounded-full bg-white animate-pulse" />}
             <span className={`tabular-nums ${kind === 'current' ? '' : 'text-(--text-tertiary)'}`}>#{pick.overall_pick}</span>
             {team && <TeamChip team={leagueTeamIdentity(team)} size="sm" />}
             {pick.name && <span className="font-bold text-(--text-primary) whitespace-nowrap">{shortName(pick.name)}</span>}
-            {kind === 'current' && <span className="uppercase tracking-wide text-[10px]">{isMine ? 'Your pick' : 'On the clock'}</span>}
-            {kind === 'mine' && <span className="font-black uppercase tracking-wide text-[10px] text-(--secondary)">You</span>}
+            {kind === 'current' && <span className={CAPS_LABEL_CLASS}>{isMine ? 'Your pick' : 'On the clock'}</span>}
+            {kind === 'mine' && <span className={`${CAPS_LABEL_CLASS} text-(--showdown-red)`}>You</span>}
         </div>
     );
 }

@@ -3,9 +3,14 @@ import { FaCheck, FaCopy, FaLink, FaPlay, FaRobot, FaSpinner, FaUserMinus } from
 import {
     addLeagueBots, removeLeagueMember, startDraft, type LeagueMember, type LeagueState,
 } from '../../api/leagues';
-import {
-    ERROR_BOX_CLASS, PRIMARY_BUTTON_CLASS, SECONDARY_BUTTON_CLASS, SECTION_LABEL_CLASS, errorMessage,
-} from './leagueUi';
+import { errorMessage } from './leagueUi';
+import { Heading } from '../shared/Heading';
+import { InlineError } from '../shared/InlineError';
+import { StatTile } from '../shared/StatTile';
+import { UserAvatar } from '../shared/UserAvatar';
+import { buttonClass } from '../shared/buttonStyles';
+
+const SECONDARY_SM = buttonClass('secondary', 'sm');
 
 type Props = {
     state: LeagueState;
@@ -58,15 +63,15 @@ export function LeagueMembersTab({ state, token, userId, onStateChange, onDraftS
         <div className="flex flex-col gap-5">
             {isOpen && (
                 <section className="flex flex-col gap-2">
-                    <div className={SECTION_LABEL_CLASS}>Invite</div>
+                    <Heading level="panel" as="h2">Invite</Heading>
                     <div className="flex flex-wrap items-center gap-2">
-                        <div className="flex items-center gap-2 rounded-xl border border-(--divider) bg-(--background-secondary) pl-3 pr-1 py-1">
-                            <span className="text-[18px] font-black tracking-[0.2em] text-(--text-primary) tabular-nums">{league.join_code}</span>
-                            <button type="button" onClick={() => copy(league.join_code, 'code')} className={SECONDARY_BUTTON_CLASS} title="Copy code">
+                        <div className="flex items-center gap-2 rounded-card border border-(--divider) bg-(--background-secondary) pl-3 pr-1 py-1">
+                            <span className="font-display-upright text-[22px] leading-none tracking-[0.2em] text-(--text-primary) tabular-nums">{league.join_code}</span>
+                            <button type="button" onClick={() => copy(league.join_code, 'code')} className={SECONDARY_SM} title="Copy code" aria-label="Copy code">
                                 {copied === 'code' ? <FaCheck /> : <FaCopy />}
                             </button>
                         </div>
-                        <button type="button" onClick={() => copy(inviteLink, 'link')} className={SECONDARY_BUTTON_CLASS}>
+                        <button type="button" onClick={() => copy(inviteLink, 'link')} className={SECONDARY_SM}>
                             {copied === 'link' ? <FaCheck /> : <FaLink />}
                             {copied === 'link' ? 'Link copied' : 'Copy invite link'}
                         </button>
@@ -76,26 +81,28 @@ export function LeagueMembersTab({ state, token, userId, onStateChange, onDraftS
 
             <section className="flex flex-col gap-2">
                 <div className="flex items-center justify-between">
-                    <div className={SECTION_LABEL_CLASS}>Members · {members.length}/{league.settings.team_count}</div>
+                    <Heading level="panel" as="h2">Members <span className="tabular-nums text-(--text-tertiary)">{members.length}/{league.settings.team_count}</span></Heading>
                     {isCommissioner && isOpen && openSeats > 0 && (
-                        <button type="button" onClick={() => run('bots', async () => onStateChange(await addLeagueBots(token, league.league_id)))} disabled={busy !== null} className={SECONDARY_BUTTON_CLASS}>
+                        <button type="button" onClick={() => run('bots', async () => onStateChange(await addLeagueBots(token, league.league_id)))} disabled={busy !== null} className={SECONDARY_SM}>
                             {busy === 'bots' ? <FaSpinner className="animate-spin" /> : <FaRobot />}
                             Fill {openSeats} seat{openSeats === 1 ? '' : 's'} with bots
                         </button>
                     )}
                 </div>
-                <div className="flex flex-col rounded-xl border border-(--divider) divide-y divide-(--divider) overflow-hidden">
+                <div className="flex flex-col rounded-card border border-(--divider) divide-y divide-(--divider) overflow-hidden">
                     {members.map(member => {
                         const isMe = member.user_id === userId;
                         const isMemberCommissioner = member.user_id === league.commissioner_user_id;
                         const canRemove = isOpen && !isMemberCommissioner && (isCommissioner || isMe);
                         return (
                             <div key={member.member_id} className="flex items-center gap-3 px-3 py-2 bg-(--background-secondary)">
-                                <div className="size-8 shrink-0 rounded-full bg-(--background-tertiary) flex items-center justify-center text-[12px] font-black text-(--text-secondary) overflow-hidden">
-                                    {member.avatar_url
-                                        ? <img src={member.avatar_url} alt="" className="size-full object-cover" />
-                                        : member.user_id ? member.display_name.slice(0, 1).toUpperCase() : <FaRobot />}
-                                </div>
+                                {member.user_id ? (
+                                    <UserAvatar name={member.display_name} avatarUrl={member.avatar_url} size={32} />
+                                ) : (
+                                    <div className="size-8 shrink-0 rounded-full bg-(--background-tertiary) flex items-center justify-center text-[12px] text-(--text-secondary)">
+                                        <FaRobot />
+                                    </div>
+                                )}
                                 <div className="flex-1 min-w-0">
                                     <div className="text-[13px] font-bold text-(--text-primary) truncate">{member.display_name}</div>
                                     <div className="text-[11px] text-(--text-tertiary)">
@@ -103,7 +110,7 @@ export function LeagueMembersTab({ state, token, userId, onStateChange, onDraftS
                                     </div>
                                 </div>
                                 {canRemove && (
-                                    <button type="button" onClick={() => handleRemove(member)} disabled={busy !== null} className={SECONDARY_BUTTON_CLASS} title={isMe ? 'Leave league' : 'Remove'}>
+                                    <button type="button" onClick={() => handleRemove(member)} disabled={busy !== null} className={SECONDARY_SM} title={isMe ? 'Leave league' : 'Remove'}>
                                         {busy === `remove-${member.member_id}` ? <FaSpinner className="animate-spin" /> : <FaUserMinus />}
                                         <span className="hidden sm:inline">{isMe ? 'Leave' : 'Remove'}</span>
                                     </button>
@@ -121,8 +128,8 @@ export function LeagueMembersTab({ state, token, userId, onStateChange, onDraftS
             </section>
 
             <section className="flex flex-col gap-2">
-                <div className={SECTION_LABEL_CLASS}>Rules</div>
-                <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 text-[12px]">
+                <Heading level="panel" as="h2">Rules</Heading>
+                <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
                     {[
                         ['Roster', `${league.settings.roster_size} cards`],
                         ['Rotation', `${league.settings.num_starters} starters`],
@@ -132,15 +139,12 @@ export function LeagueMembersTab({ state, token, userId, onStateChange, onDraftS
                             ? `$${league.settings.luxury_tax.buy_in} + ${league.settings.luxury_tax.type}`
                             : 'None'],
                     ].map(([label, value]) => (
-                        <div key={label} className="rounded-lg border border-(--divider) bg-(--background-secondary) px-3 py-2">
-                            <div className="text-[10px] font-bold uppercase tracking-wide text-(--text-tertiary)">{label}</div>
-                            <div className="font-bold text-(--text-primary)">{value}</div>
-                        </div>
+                        <StatTile key={label} label={label} value={value} />
                     ))}
                 </div>
             </section>
 
-            {error && <div className={ERROR_BOX_CLASS}>{error}</div>}
+            {error && <InlineError size="md">{error}</InlineError>}
 
             {isCommissioner && isOpen && (
                 <section className="flex flex-col items-start gap-1">
@@ -148,10 +152,10 @@ export function LeagueMembersTab({ state, token, userId, onStateChange, onDraftS
                         type="button"
                         onClick={() => run('draft', async () => { await startDraft(token, league.league_id, 1); onDraftStarted(); })}
                         disabled={busy !== null || members.length < 2}
-                        className={PRIMARY_BUTTON_CLASS}
+                        className={buttonClass('feature', 'md')}
                     >
-                        {busy === 'draft' ? <FaSpinner className="animate-spin" /> : <FaPlay className="text-[10px]" />}
-                        Start Draft
+                        {busy === 'draft' ? <FaSpinner className="animate-spin" /> : <FaPlay className="text-[12px]" />}
+                        Start draft
                     </button>
                     <span className="text-[11px] text-(--text-tertiary)">
                         {members.length < 2

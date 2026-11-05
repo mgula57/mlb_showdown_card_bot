@@ -3,7 +3,10 @@ import { FaRightToBracket, FaSpinner } from 'react-icons/fa6';
 import { Modal } from '../shared/Modal';
 import FormInput from '../customs/FormInput';
 import { joinLeague, previewLeague, type LeaguePreview, type LeagueState } from '../../api/leagues';
-import { ERROR_BOX_CLASS, PRIMARY_BUTTON_CLASS, SECONDARY_BUTTON_CLASS, errorMessage } from './leagueUi';
+import { errorMessage } from './leagueUi';
+import { Heading } from '../shared/Heading';
+import { InlineError } from '../shared/InlineError';
+import { buttonClass } from '../shared/buttonStyles';
 
 const JOIN_CODE_LENGTH = 6;
 
@@ -56,19 +59,19 @@ export function JoinLeagueModal({ token, initialCode = '', onJoined, onClose }: 
 
     const footer = (
         <div className="flex flex-col gap-2 w-full">
-            {error && <div className={ERROR_BOX_CLASS}>{error}</div>}
+            {error && <InlineError size="md">{error}</InlineError>}
             <div className="flex justify-end gap-2">
-                <button type="button" onClick={onClose} className={SECONDARY_BUTTON_CLASS}>Cancel</button>
-                <button type="button" onClick={handleJoin} disabled={!canJoin} className={PRIMARY_BUTTON_CLASS}>
+                <button type="button" onClick={onClose} className={buttonClass('secondary', 'sm')}>Cancel</button>
+                <button type="button" onClick={handleJoin} disabled={!canJoin} className={buttonClass('primary', 'sm')}>
                     {joining ? <FaSpinner className="animate-spin" /> : <FaRightToBracket className="text-[11px]" />}
-                    {preview?.is_member ? 'Open League' : 'Join League'}
+                    {preview?.is_member ? 'Open league' : 'Join league'}
                 </button>
             </div>
         </div>
     );
 
     return (
-        <Modal title="Join a League" subtitle="Enter the code the commissioner shared" onClose={onClose} footer={footer} size="sm">
+        <Modal title="Join a league" subtitle="Enter the code the commissioner shared" onClose={onClose} footer={footer} size="sm">
             <div className="flex flex-col gap-4 p-4">
                 <FormInput
                     label="Join code"
@@ -77,10 +80,10 @@ export function JoinLeagueModal({ token, initialCode = '', onJoined, onClose }: 
                     placeholder="ABC123"
                 />
 
-                {previewing && <div className="h-16 rounded-xl bg-(--background-secondary) animate-pulse" />}
+                {previewing && <div aria-hidden className="h-16 rounded-card bg-(--background-tertiary) animate-pulse" />}
                 {preview && (
-                    <div className="rounded-xl border border-(--divider) bg-(--background-secondary) px-3 py-2.5">
-                        <div className="text-[14px] font-black text-(--text-primary)">{preview.name}</div>
+                    <div className="rounded-card border border-(--divider) bg-(--background-secondary) px-3 py-2.5">
+                        <Heading level="panel" as="div" fit>{preview.name}</Heading>
                         <div className="text-[11px] text-(--text-secondary)">
                             {preview.commissioner_name ? `Run by ${preview.commissioner_name} · ` : ''}
                             Set {preview.showdown_set} · {preview.member_count}/{preview.team_count} teams

@@ -3,6 +3,7 @@ import type { DraftState, LeagueSettings } from '../../../api/leagues';
 import { FloatingActionButton } from '../../shared/FloatingActionButton';
 import { ProgressRing } from '../../team_builder/ProgressRing';
 import { teamRoster } from './draftView';
+import { CAPS_LABEL_CLASS } from '../../shared/fieldStyles';
 
 type Props = {
     draft: DraftState;
@@ -14,7 +15,7 @@ type Props = {
 
 const BUTTON_CLASS = `
     pointer-events-auto w-12 h-12 rounded-full flex flex-col items-center justify-center
-    bg-(--background-secondary) text-(--text-primary) shadow-lg
+    bg-(--background-secondary) text-(--text-primary) shadow-overlay
     cursor-pointer hover:opacity-90 transition-opacity
 `;
 
@@ -43,8 +44,8 @@ export function DraftTeamFab({ draft, settings, myMemberId, isMyTurn, onClick }:
     return (
         <>
             {/* Quick info, centered on the button just right of its ring */}
-            <div className="lg:hidden fixed z-50 left-21 bottom-9 h-6 px-2.5 rounded-full flex items-center gap-1 pointer-events-none border border-(--divider) bg-(--background-primary)/80 backdrop-blur-md shadow-md text-[11px] font-bold tabular-nums whitespace-nowrap">
-                {isMyTurn && <span className="font-black uppercase text-(--secondary)">Your pick ·</span>}
+            <div className="lg:hidden fixed z-50 left-21 bottom-9 h-6 px-2 rounded-control flex items-center gap-1 pointer-events-none border border-(--divider) bg-(--background-secondary) shadow-overlay text-[11px] font-bold tabular-nums whitespace-nowrap">
+                {isMyTurn && <span className={`${CAPS_LABEL_CLASS} text-(--showdown-red)`}>Your pick ·</span>}
                 {left !== null ? (
                     <span className={isOverCap ? 'text-(--red)' : 'text-(--green)'}>{left} <span className="text-(--text-tertiary)">left</span></span>
                 ) : (
@@ -52,7 +53,7 @@ export function DraftTeamFab({ draft, settings, myMemberId, isMyTurn, onClick }:
                 )}
             </div>
             <FloatingActionButton side="left">
-                <span className={isMyTurn ? 'text-(--secondary)' : 'text-(--green)'}>
+                <span className={isMyTurn ? 'text-(--showdown-red)' : 'text-(--green)'}>
                     <ProgressRing
                         filled={roster.picksMade}
                         target={settings.roster_size}
@@ -66,7 +67,7 @@ export function DraftTeamFab({ draft, settings, myMemberId, isMyTurn, onClick }:
                                 className={BUTTON_CLASS}
                             >
                                 <FaUsers className="text-[11px] text-(--text-secondary)" />
-                                <span className="text-[14px] leading-none font-black">{roster.picksMade}</span>
+                                <span className="font-display-upright text-[15px] leading-none tabular-nums">{roster.picksMade}</span>
                             </button>
                         }
                     />

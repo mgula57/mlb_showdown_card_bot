@@ -4,7 +4,10 @@ import BackButton from '../shared/BackButton';
 import { Tabs, type TabItem } from '../shared/Tabs';
 import { fetchLeague, type LeagueState } from '../../api/leagues';
 import { usePolling } from '../../hooks/usePolling';
-import { ERROR_BOX_CLASS, PRIMARY_BUTTON_CLASS, SECONDARY_BUTTON_CLASS, SEASON_STATUS_LABEL } from './leagueUi';
+import { SEASON_STATUS_LABEL } from './leagueUi';
+import { Heading } from '../shared/Heading';
+import { InlineError } from '../shared/InlineError';
+import { buttonClass } from '../shared/buttonStyles';
 import { LeagueMembersTab } from './LeagueMembersTab';
 import { LeagueHistoryTab } from './LeagueHistoryTab';
 import { LeagueDraftScreen } from './draft/LeagueDraftScreen';
@@ -46,7 +49,7 @@ export function LeagueDetail({ leagueId, tab, pastSeasonNumber, isDraftOpen, tok
         return (
             <div className="flex flex-col gap-4 py-4 px-4 sm:px-8 max-w-4xl lg:max-w-7xl mx-auto w-full">
                 <BackButton onBack={onBack} label="Leagues" className="self-start" />
-                {error ? <div className={ERROR_BOX_CLASS}>{error}</div> : <LeagueDetailSkeleton />}
+                {error ? <InlineError size="md">{error}</InlineError> : <LeagueDetailSkeleton />}
             </div>
         );
     }
@@ -81,7 +84,7 @@ export function LeagueDetail({ leagueId, tab, pastSeasonNumber, isDraftOpen, tok
             <div className="flex items-start gap-3">
                 <BackButton onBack={onBack} label="" />
                 <div className="flex-1 min-w-0">
-                    <h1 className="text-[20px] font-black text-(--text-primary) truncate">{league.name}</h1>
+                    <Heading level="page" fit>{league.name}</Heading>
                     <p className="text-[12px] text-(--text-secondary)">
                         Set {league.showdown_set}
                         {season ? ` · Season ${season.season_number} · ${SEASON_STATUS_LABEL[season.status]}` : ' · Waiting for the draft'}
@@ -90,12 +93,12 @@ export function LeagueDetail({ leagueId, tab, pastSeasonNumber, isDraftOpen, tok
                 </div>
                 {/* Joinable once the commissioner starts the draft; the finished board stays viewable */}
                 {isDrafting ? (
-                    <button type="button" onClick={() => onNavigate(`${base}/draft`)} className={`${PRIMARY_BUTTON_CLASS} shrink-0`}>
-                        <FaArrowRightToBracket className="text-[11px]" /> Join Draft
+                    <button type="button" onClick={() => onNavigate(`${base}/draft`)} className={buttonClass('primary', 'sm')}>
+                        <FaArrowRightToBracket className="text-[11px]" /> Join draft
                     </button>
                 ) : season && (
-                    <button type="button" onClick={() => onNavigate(`${base}/draft`)} className={`${SECONDARY_BUTTON_CLASS} shrink-0`}>
-                        <FaListOl className="text-[11px]" /> <span className="hidden sm:inline">Draft</span> Results
+                    <button type="button" onClick={() => onNavigate(`${base}/draft`)} className={buttonClass('secondary', 'sm')}>
+                        <FaListOl className="text-[11px]" /> <span><span className="hidden sm:inline">Draft </span>results</span>
                     </button>
                 )}
             </div>
@@ -150,11 +153,11 @@ export function LeagueDetail({ leagueId, tab, pastSeasonNumber, isDraftOpen, tok
 
 function LeagueDetailSkeleton() {
     return (
-        <div className="flex flex-col gap-4 animate-pulse">
-            <div className="h-7 w-64 rounded bg-(--background-secondary)" />
-            <div className="h-4 w-48 rounded bg-(--background-secondary)" />
-            <div className="h-10 w-full rounded-lg bg-(--background-secondary)" />
-            <div className="h-64 w-full rounded-xl bg-(--background-secondary)" />
+        <div aria-hidden className="flex flex-col gap-4 animate-pulse">
+            <div className="h-7 w-64 rounded-plate bg-(--background-tertiary)" />
+            <div className="h-4 w-48 rounded-plate bg-(--background-tertiary)" />
+            <div className="h-10 w-full rounded-plate bg-(--background-tertiary)" />
+            <div className="h-64 w-full rounded-card bg-(--background-tertiary)" />
         </div>
     );
 }

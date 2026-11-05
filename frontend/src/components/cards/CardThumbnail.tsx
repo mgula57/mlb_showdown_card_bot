@@ -2,7 +2,7 @@ import { useState } from "react";
 import type { CardDatabaseRecord } from "../../api/card_db/cardDatabase";
 import { cardImagePublicUrl } from "../../api/supabase";
 import { getLastName } from "../../functions/names";
-import { getContrastTextColor } from "../../functions/colors";
+import { getContrastTextColor, NEUTRAL_TEAM_COLOR } from "../../functions/colors";
 import { SetBadge } from "../shared/SetBadge";
 import { CardActionButton } from "./CardItem";
 import type { CardItemActionButton } from "./CardItemCompact";
@@ -38,7 +38,7 @@ export const CardThumbnail = ({
     const [failedUrl, setFailedUrl] = useState<string | null>(null);
     const showImage = !!imageUrl && failedUrl !== imageUrl;
 
-    const bannerColor = primaryColor || 'rgb(0, 0, 0)';
+    const bannerColor = primaryColor || NEUTRAL_TEAM_COLOR;
     const isClickable = onClick !== undefined;
     // Same frame as CardItem: neutral hairline; selection is a navy outline (see frontend/DESIGN.md)
     const borderSettings = isSelected

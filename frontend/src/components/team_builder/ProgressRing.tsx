@@ -28,7 +28,7 @@ export function ProgressRing({ filled, target, size = 12, stroke = 2, label }: {
     return (
         <span className="relative inline-flex shrink-0 items-center justify-center" style={{ width: size, height: size }}>
             {ring}
-            <span className="absolute inset-0 flex items-center justify-center font-black tabular-nums">{label}</span>
+            <span className="absolute inset-0 flex items-center justify-center font-display-upright tabular-nums">{label}</span>
         </span>
     );
 }

@@ -627,21 +627,29 @@ export function CardItemSkeleton({ className, animated = true }: { className?: s
     );
 }
 
-/** A card's corner action. `icon` is a small square in the corner; `prominent` is a filled pill
- *  that adds its label beside the icon once the card is 400px+ wide (the pool grid's cards are
- *  never under 300px, so a lower bar would always show it). */
+/** A `prominent` corner action's look per `tone` (see `CardItemActionButton`). */
+const PROMINENT_TONE_CLASSES = {
+    feature: buttonVariantClass('feature'),
+    secondary: `${buttonVariantClass('secondary')} font-display uppercase leading-none`,
+    // design-ok: gold is the on state of a toggle (Queued), like a starred team
+    gold: 'bg-(--gold) text-(--field-ink) shadow-raised hover:brightness-110 cursor-pointer font-display uppercase leading-none',
+} as const;
+
+/** A card's corner action. `icon` is a small square in the corner; `prominent` is a filled
+ *  button that adds its label beside the icon once the card is 400px+ wide (the pool grid's cards
+ *  are never under 300px, so a lower bar would always show it). */
 export function CardActionButton({ action }: { action: CardItemActionButton }) {
     const isProminent = action.variant === 'prominent';
     const isPrimary = action.emphasis === 'primary';
     const disabledLabel = action.disabledLabel ?? 'Saving your last pick…';
     const corner = action.placement === 'left' ? '-left-2' : isProminent ? '-right-1' : '-right-1.5';
     const shape = isProminent
-        ? 'gap-1.5 px-2.5 py-1 @[400px]:px-3 @[400px]:py-1.5 rounded-full text-[11px] font-black uppercase tracking-wide shadow-raised'
+        ? 'gap-1.5 px-2.5 py-1.5 @[400px]:px-3 rounded-control text-[13px]'
         : `${isPrimary ? 'p-2 md:p-1' : 'p-1'} ${action.label ? 'rounded-control' : 'rounded-full'}`;
     const colors = action.disabled
         ? 'bg-(--background-tertiary) border border-(--divider) text-(--text-tertiary) opacity-60 grayscale cursor-not-allowed'
         : isProminent
-            ? `${action.bgColorClass ?? 'bg-(--showdown-blue-fill)'} text-white hover:brightness-110 hover:scale-105 active:scale-95 cursor-pointer`
+            ? PROMINENT_TONE_CLASSES[action.tone ?? 'feature']
             : isPrimary
                 ? buttonVariantClass('primary')
                 : 'bg-tertiary border text-(--text-tertiary) hover:bg-(--background-quaternary) hover:text-(--text-primary) cursor-pointer';

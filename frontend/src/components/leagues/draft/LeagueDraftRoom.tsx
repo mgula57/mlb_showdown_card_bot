@@ -14,7 +14,9 @@ import { useLeagueDraft } from '../../../hooks/useLeagueDraft';
 import { useCardMap } from '../../../hooks/useCardMap';
 import { useDraftQueue } from '../../../hooks/useDraftQueue';
 import { useMediaQuery } from '../../../hooks/useMediaQuery';
-import { ERROR_BOX_CLASS, PRIMARY_BUTTON_CLASS, errorMessage } from '../leagueUi';
+import { errorMessage } from '../leagueUi';
+import { InlineError } from '../../shared/InlineError';
+import { buttonClass } from '../../shared/buttonStyles';
 import { DraftBoard, DraftBoardSkeleton } from './DraftBoard';
 import { DraftClock, DraftClockSkeleton, DraftPickStrip, DraftPickStripSkeleton, DraftTopBar } from './DraftHeader';
 import { DraftHistory } from './DraftHistory';
@@ -136,7 +138,7 @@ export function LeagueDraftRoom({ league, seasonNumber, token, myMemberId, isCom
                 {!error && <DraftPickStripSkeleton />}
                 <div className={CONTENT_CLASS}>
                     <div className={`${GUTTER_CLASS} ${DESKTOP_PY_CLASS}`}>
-                        {error ? <div className={ERROR_BOX_CLASS}>{error}</div> : <DraftBoardSkeleton />}
+                        {error ? <InlineError size="md">{error}</InlineError> : <DraftBoardSkeleton />}
                     </div>
                 </div>
             </>
@@ -211,7 +213,7 @@ export function LeagueDraftRoom({ league, seasonNumber, token, myMemberId, isCom
                         icon: isQueued ? <FaBookmark /> : <FaRegBookmark />,
                         label: isQueued ? 'Queued' : 'Queue',
                         variant: 'prominent',
-                        bgColorClass: isQueued ? 'bg-(--gold)' : 'bg-(--showdown-gray)',
+                        tone: isQueued ? 'gold' : 'secondary',
                         onClick: () => queue.toggle(card),
                     };
                 } : undefined}
@@ -256,7 +258,7 @@ export function LeagueDraftRoom({ league, seasonNumber, token, myMemberId, isCom
             </DraftTopBar>
             <DraftPickStrip draft={draft} view={view} myMemberId={myMemberId} />
             <div className={CONTENT_CLASS}>
-                {pickError && !confirmCard && <div className={`${GUTTER_CLASS} md:pt-3`}><div className={ERROR_BOX_CLASS}>{pickError}</div></div>}
+                {pickError && !confirmCard && <div className={`${GUTTER_CLASS} md:pt-3`}><InlineError size="md">{pickError}</InlineError></div>}
 
                 {isDesktop ? (
                     <div className="grid grid-cols-3 items-start">
@@ -333,13 +335,13 @@ export function LeagueDraftRoom({ league, seasonNumber, token, myMemberId, isCom
                             // Nothing fits - the server only allows this when no card left in the pool fits either
                             <div className="flex flex-col items-start gap-2">
                                 <p className="text-[12px] text-(--text-secondary)">No open spot on your roster fits this card. If nothing left in the pool fits either, it can be drafted out of position.</p>
-                                <button type="button" onClick={() => pick(confirmCard.id)} disabled={picking !== null} className={PRIMARY_BUTTON_CLASS}>
+                                <button type="button" onClick={() => pick(confirmCard.id)} disabled={picking !== null} className={buttonClass('primary', 'sm')}>
                                     {picking === 'any' ? <FaSpinner className="animate-spin" /> : <FaHandPointer />}
                                     Draft anyway
                                 </button>
                             </div>
                         )}
-                        {pickError && <div className={ERROR_BOX_CLASS}>{pickError}</div>}
+                        {pickError && <InlineError size="md">{pickError}</InlineError>}
                     </DraftPositionModal>
                 )}
             </div>

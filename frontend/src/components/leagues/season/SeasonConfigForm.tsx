@@ -3,7 +3,10 @@ import { FaFloppyDisk, FaSpinner } from 'react-icons/fa6';
 import FormDropdown from '../../customs/FormDropdown';
 import NumberInput from '../../customs/NumberInput';
 import { DEFAULT_SEASON_CONFIG, updateSeasonConfig, type SeasonConfig } from '../../../api/leagues';
-import { ERROR_BOX_CLASS, PRIMARY_BUTTON_CLASS, SECTION_LABEL_CLASS, errorMessage } from '../leagueUi';
+import { errorMessage } from '../leagueUi';
+import { Heading } from '../../shared/Heading';
+import { InlineError } from '../../shared/InlineError';
+import { buttonClass } from '../../shared/buttonStyles';
 
 /** Rounds each bracket size plays - mirrors `BracketConfig.round_count` on the server. */
 const ROUNDS_FOR_TEAMS: Record<number, number> = { 0: 0, 2: 1, 4: 2, 6: 3, 8: 3 };
@@ -72,7 +75,7 @@ export function SeasonConfigForm({ token, leagueId, seasonNumber, initial, teamC
 
     return (
         <section className="flex flex-col gap-3">
-            <div className={SECTION_LABEL_CLASS}>Schedule & postseason</div>
+            <Heading level="panel" as="h2">Schedule & postseason</Heading>
             <fieldset disabled={!canEdit} className="grid grid-cols-1 sm:grid-cols-2 gap-3 disabled:opacity-80">
                 <NumberInput
                     label="Games per team"
@@ -100,10 +103,10 @@ export function SeasonConfigForm({ token, leagueId, seasonNumber, initial, teamC
             <p className="text-[11px] text-(--text-tertiary)">
                 Every team plays a balanced round robin of 3-game series. The best records make the postseason; ties go to run differential.
             </p>
-            {error && <div className={ERROR_BOX_CLASS}>{error}</div>}
+            {error && <InlineError size="md">{error}</InlineError>}
             {canEdit && (
                 <div>
-                    <button type="button" onClick={save} disabled={saving} className={PRIMARY_BUTTON_CLASS}>
+                    <button type="button" onClick={save} disabled={saving} className={buttonClass('primary', 'sm')}>
                         {saving ? <FaSpinner className="animate-spin" /> : <FaFloppyDisk />}
                         {saved ? 'Saved' : 'Save settings'}
                     </button>

@@ -1,6 +1,7 @@
 import { FaArrowsUpDownLeftRight, FaSpinner, FaXmark } from 'react-icons/fa6';
 import type { CardDatabaseRecord } from '../../api/card_db/cardDatabase';
 import type { RosterMoveControls } from '../../hooks/useRosterMove';
+import { InlineError } from '../shared/InlineError';
 
 type Props = {
     move: RosterMoveControls;
@@ -12,15 +13,15 @@ type Props = {
  *  error once it's put down. Renders nothing otherwise. */
 export function RosterMoveBanner({ move, cardMap, className = '' }: Props) {
     if (!move.movingCardId) {
-        return move.error ? <div className={`text-[12px] text-red-400 ${className}`}>{move.error}</div> : null;
+        return move.error ? <InlineError size="md" className={className}>{move.error}</InlineError> : null;
     }
     const name = cardMap[move.movingCardId]?.name ?? 'player';
     return (
         <div className={`flex flex-col gap-1 ${className}`}>
-            <div className="flex items-center gap-2 rounded-lg border border-(--secondary)/50 bg-(--secondary)/10 px-3 py-2 text-[12px]">
+            <div className="flex items-center gap-2 rounded-control border border-(--showdown-blue)/50 bg-(--showdown-blue)/10 px-3 py-2 text-[12px]">
                 {move.isSaving
-                    ? <FaSpinner className="shrink-0 animate-spin text-(--secondary)" />
-                    : <FaArrowsUpDownLeftRight className="shrink-0 text-(--secondary)" />}
+                    ? <FaSpinner className="shrink-0 animate-spin text-(--showdown-blue)" />
+                    : <FaArrowsUpDownLeftRight className="shrink-0 text-(--showdown-blue)" />}
                 <span className="flex-1 min-w-0">
                     <span className="font-bold">Moving {name}</span>
                     <span className="text-(--text-secondary)"> · tap an open spot, or a player to swap</span>
@@ -35,7 +36,7 @@ export function RosterMoveBanner({ move, cardMap, className = '' }: Props) {
                     <FaXmark />
                 </button>
             </div>
-            {move.error && <span className="text-[12px] text-red-400">{move.error}</span>}
+            {move.error && <InlineError size="md">{move.error}</InlineError>}
         </div>
     );
 }

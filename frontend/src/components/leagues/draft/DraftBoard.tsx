@@ -21,8 +21,8 @@ type Props = {
 };
 
 const SIZES = {
-    normal: { column: 'minmax(150px, 1fr)', roundColumn: '32px', cell: 'min-h-14 p-1.5 text-[11px]', name: 'text-[12px]', header: 'py-1.5' },
-    big: { column: 'minmax(120px, 1fr)', roundColumn: '56px', cell: 'min-h-[9vh] p-2.5 text-[1.1vw]', name: 'text-[1.35vw]', header: 'py-3' },
+    normal: { column: 'minmax(150px, 1fr)', roundColumn: '32px', cell: 'min-h-14 p-1.5 text-[11px]', name: 'text-[13px]', header: 'py-1.5', live: 'text-[13px]' },
+    big: { column: 'minmax(120px, 1fr)', roundColumn: '56px', cell: 'min-h-[9vh] p-2.5 text-[1.1vw]', name: 'text-[1.45vw]', header: 'py-3', live: 'text-[1.4vw]' },
 };
 
 /** Rounds x teams grid of picks: done picks filled in, the live pick marked, the rest empty.
@@ -35,14 +35,14 @@ export function DraftBoard({ draft, view, myMemberId, size = 'normal', rounds, c
 
     return (
         // A normal board scrolls inside a bounded box so the team row stays pinned while scrolling rounds
-        <div className={`overflow-auto rounded-xl border border-(--divider) bg-(--background-primary) ${size === 'normal' ? 'max-h-[75vh]' : ''}`}>
+        <div className={`overflow-auto rounded-card border border-(--divider) bg-(--background-primary) ${size === 'normal' ? 'max-h-[75vh]' : ''}`}>
             <div className="grid min-w-max" style={{ gridTemplateColumns }}>
                 {/* Team row */}
-                <div className="sticky top-0 left-0 z-20 bg-(--background-secondary) border-b border-(--divider)" />
+                <div className="sticky top-0 left-0 z-20 bg-(--table-header) border-b border-(--divider)" />
                 {view.teams.map(team => (
                     <div
                         key={team.member_id}
-                        className={`sticky top-0 z-10 flex flex-col items-center gap-0.5 px-1 ${sizing.header} border-b border-l border-(--divider) ${team.member_id === myMemberId ? 'bg-(--secondary)/15' : 'bg-(--background-secondary)'}`}
+                        className={`sticky top-0 z-10 flex flex-col items-center gap-0.5 px-1 ${sizing.header} border-b border-l border-(--divider) ${team.member_id === myMemberId ? 'bg-(--showdown-red)/10' : 'bg-(--table-header)'}`}
                     >
                         <TeamChip team={leagueTeamIdentity(team)} size={size === 'big' ? 'md' : 'sm'} />
                         <span className={`truncate max-w-full text-(--text-secondary) ${size === 'big' ? 'text-[1vw]' : 'text-[10px]'}`}>{team.display_name}</span>
@@ -51,7 +51,7 @@ export function DraftBoard({ draft, view, myMemberId, size = 'normal', rounds, c
 
                 {roundNumbers.map(round => (
                     <div key={round} className="contents">
-                        <div className={`sticky left-0 z-10 flex items-center justify-center bg-(--background-secondary) border-b border-(--divider) font-black text-(--text-tertiary) ${size === 'big' ? 'text-[1.2vw]' : 'text-[11px]'}`}>
+                        <div className={`sticky left-0 z-10 flex items-center justify-center bg-(--table-header) border-b border-(--divider) font-display-upright tabular-nums text-(--text-tertiary) ${size === 'big' ? 'text-[1.4vw]' : 'text-[13px]'}`}>
                             {round}
                         </div>
                         {view.teams.map(team => {
@@ -60,12 +60,12 @@ export function DraftBoard({ draft, view, myMemberId, size = 'normal', rounds, c
                             return (
                                 <div
                                     key={team.member_id}
-                                    className={`border-b border-l border-(--divider) ${sizing.cell} ${isLive ? 'bg-(--secondary)/20 ring-2 ring-inset ring-(--secondary)' : pick ? 'bg-(--background-secondary)' : ''}`}
+                                    className={`border-b border-l border-(--divider) ${sizing.cell} ${isLive ? 'bg-(--showdown-blue)/10 ring-2 ring-inset ring-(--showdown-blue)' : pick ? 'bg-(--background-secondary)' : ''}`}
                                 >
                                     {pick ? (
                                         cards ? <PickCard pick={pick} card={cards[pick.release_card_id]} /> : <PickSummary pick={pick} nameClass={sizing.name} />
                                     ) : isLive ? (
-                                        <div className="h-full flex items-center justify-center font-black italic text-(--secondary) animate-pulse">
+                                        <div className={`h-full flex items-center justify-center text-center font-display uppercase leading-none text-(--showdown-blue) animate-pulse ${sizing.live}`}>
                                             On the clock
                                         </div>
                                     ) : null}
@@ -86,7 +86,7 @@ function PickHeader({ pick }: { pick: DraftPick }) {
                 #{pick.overall_pick}
                 {pick.is_auto && <FaRobot title="Auto-pick" />}
             </span>
-            <span className="font-bold">{pickPositionLabel(pick)}</span>
+            <span className="font-semibold">{pickPositionLabel(pick)}</span>
         </div>
     );
 }
@@ -96,7 +96,7 @@ function PickSummary({ pick, nameClass }: { pick: DraftPick; nameClass: string }
     return (
         <div className="flex flex-col gap-0.5 min-w-0">
             <PickHeader pick={pick} />
-            <div className={`font-black text-(--text-primary) truncate ${nameClass}`} title={pick.name}>
+            <div className={`font-display-upright leading-tight text-(--text-primary) truncate ${nameClass}`} title={pick.name}>
                 {shortName(pick.name)}
             </div>
             <div className="text-(--text-secondary) tabular-nums truncate">
@@ -114,7 +114,7 @@ function PickCard({ pick, card }: { pick: DraftPick; card: CardDatabaseRecord | 
             <PickHeader pick={pick} />
             {card
                 ? <CardItemCompactFromCardDatabaseRecord card={card} fieldPosition={pick.roster_position} backgroundSettings="bg-(--background-primary)" />
-                : <div className="h-11 rounded-lg bg-(--background-tertiary) animate-pulse" />}
+                : <div aria-hidden className="h-11 rounded-trading-card bg-(--background-tertiary) animate-pulse" />}
         </div>
     );
 }
@@ -122,8 +122,8 @@ function PickCard({ pick, card }: { pick: DraftPick; card: CardDatabaseRecord | 
 /** Same shape as the board while the first poll is in flight. */
 export function DraftBoardSkeleton() {
     return (
-        <div className="rounded-xl border border-(--divider) overflow-hidden animate-pulse">
-            <div className="h-12 bg-(--background-secondary)" />
+        <div aria-hidden className="rounded-card border border-(--divider) overflow-hidden animate-pulse">
+            <div className="h-12 bg-(--background-tertiary)" />
             {Array.from({ length: 6 }, (_, i) => (
                 <div key={i} className="h-14 border-t border-(--divider) bg-(--background-primary)" />
             ))}

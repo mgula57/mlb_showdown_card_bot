@@ -2,7 +2,9 @@ import { FaChevronRight, FaTrophy } from 'react-icons/fa6';
 import { TeamChip } from '../shared/TeamChip';
 import { fetchLeagueHistory, type LeagueHistoryEntry } from '../../api/leagues';
 import { usePolling } from '../../hooks/usePolling';
-import { ERROR_BOX_CLASS, SEASON_STATUS_LABEL } from './leagueUi';
+import { SEASON_STATUS_LABEL } from './leagueUi';
+import { InlineError } from '../shared/InlineError';
+import { CAPS_LABEL_CLASS } from '../shared/fieldStyles';
 
 type Props = {
     leagueId: string;
@@ -14,17 +16,17 @@ type Props = {
 export function LeagueHistoryTab({ leagueId, token, onOpenSeason }: Props) {
     const { data: seasons, error } = usePolling<LeagueHistoryEntry[]>(() => fetchLeagueHistory(token, leagueId), null, [leagueId]);
 
-    if (error) return <div className={ERROR_BOX_CLASS}>{error}</div>;
+    if (error) return <InlineError size="md">{error}</InlineError>;
     if (!seasons) {
         return (
-            <div className="flex flex-col gap-2 animate-pulse">
-                {Array.from({ length: 3 }, (_, i) => <div key={i} className="h-16 rounded-xl bg-(--background-secondary)" />)}
+            <div aria-hidden className="flex flex-col gap-2 animate-pulse">
+                {Array.from({ length: 3 }, (_, i) => <div key={i} className="h-16 rounded-card bg-(--background-tertiary)" />)}
             </div>
         );
     }
 
     return (
-        <div className="flex flex-col rounded-xl border border-(--divider) divide-y divide-(--divider) overflow-hidden">
+        <div className="flex flex-col rounded-card border border-(--divider) divide-y divide-(--divider) overflow-hidden">
             {seasons.map(season => {
                 const mvp = season.awards?.mvp?.[0]?.player.name;
                 const cyYoung = season.awards?.cy_young?.[0]?.player.name;
@@ -36,14 +38,14 @@ export function LeagueHistoryTab({ leagueId, token, onOpenSeason }: Props) {
                         className="flex items-center gap-3 px-3 py-2.5 bg-(--background-secondary) text-left hover:bg-(--background-tertiary) transition-colors cursor-pointer"
                     >
                         <div className="w-16 shrink-0">
-                            <div className="text-[10px] font-bold uppercase tracking-wide text-(--text-tertiary)">Season</div>
-                            <div className="text-[20px] font-black text-(--text-primary) leading-none">{season.season_number}</div>
+                            <div className={`${CAPS_LABEL_CLASS} text-(--text-tertiary)`}>Season</div>
+                            <div className="font-display-upright text-[22px] leading-none tabular-nums text-(--text-primary)">{season.season_number}</div>
                         </div>
                         <div className="flex-1 min-w-0">
                             {season.champion_name ? (
                                 <>
                                     <div className="flex items-center gap-2 min-w-0">
-                                        <FaTrophy className="shrink-0 text-(--secondary)" />
+                                        <FaTrophy className="shrink-0 text-(--gold)" />
                                         <TeamChip
                                             team={{
                                                 key: season.season_id,

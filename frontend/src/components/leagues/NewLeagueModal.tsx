@@ -8,7 +8,10 @@ import NumberInput from '../customs/NumberInput';
 import SetMultiSelect from '../cards/SetMultiSelect';
 import { useReleaseEditionOptions } from '../../hooks/useReleaseEditionOptions';
 import { createLeague, DEFAULT_LEAGUE_SETTINGS, DEFAULT_LUXURY_TAX, type LeagueSettings, type LeagueState, type LuxuryTax, type LuxuryTaxType } from '../../api/leagues';
-import { ERROR_BOX_CLASS, PRIMARY_BUTTON_CLASS, SECONDARY_BUTTON_CLASS, errorMessage } from './leagueUi';
+import { errorMessage } from './leagueUi';
+import { FIELD_LABEL_CLASS } from '../shared/fieldStyles';
+import { InlineError } from '../shared/InlineError';
+import { buttonClass } from '../shared/buttonStyles';
 
 const TEAM_COUNT_OPTIONS = Array.from({ length: 11 }, (_, i) => ({ value: String(i + 2), label: `${i + 2} teams` }));
 const LINEUP_SPOTS = 9;
@@ -59,27 +62,27 @@ export function NewLeagueModal({ token, onCreated, onClose }: Props) {
 
     const footer = (
         <div className="flex flex-col gap-2 w-full">
-            {error && <div className={ERROR_BOX_CLASS}>{error}</div>}
+            {error && <InlineError size="md">{error}</InlineError>}
             <div className="flex justify-end gap-2">
-                <button type="button" onClick={onClose} className={SECONDARY_BUTTON_CLASS}>Cancel</button>
-                <button type="button" onClick={handleCreate} disabled={!canCreate} className={PRIMARY_BUTTON_CLASS}>
+                <button type="button" onClick={onClose} className={buttonClass('secondary', 'sm')}>Cancel</button>
+                <button type="button" onClick={handleCreate} disabled={!canCreate} className={buttonClass('primary', 'sm')}>
                     {creating ? <FaSpinner className="animate-spin" /> : <FaPlus className="text-[10px]" />}
-                    Create League
+                    Create league
                 </button>
             </div>
         </div>
     );
 
     return (
-        <Modal title="New League" subtitle="Pick a card pool and roster rules - you'll invite people next" onClose={onClose} footer={footer} size="md">
+        <Modal title="New league" subtitle="Pick a card pool and roster rules - you'll invite people next" onClose={onClose} footer={footer} size="md">
             <div className="flex flex-col gap-4 p-4">
                 <FormInput label="League name" value={name} onChange={v => setName(v ?? '')} placeholder="Friday Night Showdown" />
                 <FormInput label="Your name in the league" value={displayName} onChange={v => setDisplayName(v ?? '')} placeholder="Defaults to your username" />
 
                 <div className="flex flex-col gap-1">
-                    <label className="text-sm font-medium text-secondary">Card pool</label>
+                    <label className={FIELD_LABEL_CLASS}>Card pool</label>
                     {editionOptions === null ? (
-                        <div className="h-11 w-full rounded-xl bg-(--background-secondary) animate-pulse" />
+                        <div aria-hidden className="h-10 w-full rounded-control bg-(--background-tertiary) animate-pulse" />
                     ) : (
                         <SetMultiSelect
                             variant="form"
@@ -109,9 +112,9 @@ export function NewLeagueModal({ token, onCreated, onClose }: Props) {
                     <NumberInput label="Min bullpen" value={settings.min_bullpen} onChange={v => update({ min_bullpen: v })} />
                 </div>
                 {rosterTooSmall && (
-                    <div className={ERROR_BOX_CLASS}>
+                    <InlineError icon>
                         A roster needs at least {requiredSlots} cards: 9 lineup spots, {settings.num_starters} starters, {settings.min_bench} bench, {settings.min_bullpen} bullpen.
-                    </div>
+                    </InlineError>
                 )}
 
                 <FormEnabler

@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { FaClipboardList, FaRing } from 'react-icons/fa6';
 import CustomSelect from '../../shared/CustomSelect';
 import { Tabs } from '../../shared/Tabs';
+import { Plate } from '../../shared/Plate';
 import { DepthChartPanel } from '../../team_builder/DepthChartPanel';
 import { FieldView } from '../../team_builder/FieldView';
 import { type PendingSlot, pendingSlotHighlight } from '../../team_builder/draftSlot';
@@ -73,14 +74,12 @@ export function DraftTeamPanel({ draft, settings, myMemberId, cards, isLoadingCa
                     value={team.member_id}
                     onChange={id => { move.cancel(); setMemberId(id); }}
                     options={draft.teams.map(t => ({ value: t.member_id, label: t.member_id === myMemberId ? `${t.name} (you)` : t.name }))}
-                    buttonClassName="text-[12px] py-1 px-2 rounded-md bg-(--background-tertiary) text-(--text-primary) cursor-pointer"
+                    size="sm"
                 />
                 {roster.required > 0 ? (
-                    <span className="shrink-0 rounded-full bg-(--secondary)/15 text-(--secondary) px-2 py-0.5 text-[10px] font-black uppercase tracking-wide">
-                        {roster.required} more needed
-                    </span>
+                    <Plate variant="outline" size="sm" className="shrink-0">{roster.required} more needed</Plate>
                 ) : (
-                    <span className="shrink-0 text-[10px] font-bold text-(--success) uppercase tracking-wide">Required spots filled</span>
+                    <Plate variant="success" size="sm" className="shrink-0">Required spots filled</Plate>
                 )}
             </div>
             <div className={`flex items-center justify-between gap-2 ${headerClassName}`}>

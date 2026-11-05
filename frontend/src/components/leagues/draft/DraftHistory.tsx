@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { FaRobot } from 'react-icons/fa6';
 import CustomSelect from '../../shared/CustomSelect';
 import { TeamChip } from '../../shared/TeamChip';
+import { EmptyState } from '../../shared/EmptyState';
 import type { DraftState } from '../../../api/leagues';
 import { leagueTeamIdentity } from '../leagueUi';
 import { pickPositionLabel, type DraftView } from './draftView';
@@ -21,12 +22,12 @@ export function DraftHistory({ draft, view }: { draft: DraftState; view: DraftVi
                 value={memberId}
                 onChange={setMemberId}
                 options={[{ value: ALL_TEAMS, label: 'All teams' }, ...view.teams.map(t => ({ value: t.member_id, label: t.name }))]}
-                buttonClassName="text-[12px] py-1 px-2 rounded-md bg-(--background-tertiary) text-(--text-primary) cursor-pointer"
+                size="sm"
             />
             {picks.length === 0 ? (
-                <p className="text-[12px] text-(--text-tertiary) py-4 text-center">No picks yet.</p>
+                <EmptyState size="inline">No picks yet.</EmptyState>
             ) : (
-                <div className="flex flex-col rounded-xl border border-(--divider) divide-y divide-(--divider) overflow-hidden">
+                <div className="flex flex-col rounded-card border border-(--divider) divide-y divide-(--divider) overflow-hidden">
                     {picks.map(pick => {
                         const team = view.teamsByMember.get(pick.member_id);
                         return (
@@ -35,7 +36,7 @@ export function DraftHistory({ draft, view }: { draft: DraftState; view: DraftVi
                                 {team && <TeamChip team={leagueTeamIdentity(team)} size="sm" />}
                                 <span className="flex-1 min-w-0 font-bold text-(--text-primary) truncate">{pick.name}</span>
                                 {pick.is_auto && <FaRobot className="shrink-0 text-(--text-tertiary)" title="Auto-pick" />}
-                                <span className="shrink-0 font-bold text-(--text-tertiary)">{pickPositionLabel(pick)}</span>
+                                <span className="shrink-0 font-semibold text-(--text-tertiary)">{pickPositionLabel(pick)}</span>
                                 <span className="shrink-0 w-12 text-right tabular-nums text-(--text-secondary)">{pick.points}</span>
                             </div>
                         );

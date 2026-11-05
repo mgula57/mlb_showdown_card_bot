@@ -8,9 +8,15 @@ import {
     type League, type SeasonPayload, type SimTarget,
 } from '../../../api/leagues';
 import { usePolling } from '../../../hooks/usePolling';
-import {
-    ERROR_BOX_CLASS, PRIMARY_BUTTON_CLASS, SECONDARY_BUTTON_CLASS, SECTION_LABEL_CLASS, errorMessage, leagueTeamIdentity,
-} from '../leagueUi';
+import { errorMessage, leagueTeamIdentity } from '../leagueUi';
+import { Heading } from '../../shared/Heading';
+import { InlineError } from '../../shared/InlineError';
+import { EmptyState } from '../../shared/EmptyState';
+import { buttonClass } from '../../shared/buttonStyles';
+import { CAPS_LABEL_CLASS } from '../../shared/fieldStyles';
+
+const PRIMARY_SM = buttonClass('primary', 'sm');
+const SECONDARY_SM = buttonClass('secondary', 'sm');
 import { SeasonConfigForm } from './SeasonConfigForm';
 
 const RUNNING_POLL_MS = 1500;
@@ -97,7 +103,7 @@ export function LeagueSeasonTab({ league, seasonNumber, token, myMemberId, isCom
     });
 
     if (!season) {
-        return error ? <div className={ERROR_BOX_CLASS}>{error}</div> : <SeasonSkeleton />;
+        return error ? <InlineError size="md">{error}</InlineError> : <SeasonSkeleton />;
     }
 
     const champion = season.champion_team_id ? teams.find(t => t.team_id === season.champion_team_id) : null;
@@ -122,11 +128,11 @@ export function LeagueSeasonTab({ league, seasonNumber, token, myMemberId, isCom
                     />
                     {season.status === 'setup' && (
                         <section className="flex flex-col gap-2">
-                            <div className={SECTION_LABEL_CLASS}>Teams</div>
+                            <Heading level="panel" as="h2">Teams</Heading>
                             <p className="text-[12px] text-(--text-secondary)">
                                 Set your lineup, rotation and team name before the season starts. Your abbreviation is locked once it does.
                             </p>
-                            <div className="flex flex-col rounded-xl border border-(--divider) divide-y divide-(--divider) overflow-hidden">
+                            <div className="flex flex-col rounded-card border border-(--divider) divide-y divide-(--divider) overflow-hidden">
                                 {teams.map(team => (
                                     <div key={team.team_id} className="flex items-center gap-3 px-3 py-2 bg-(--background-secondary)">
                                         <TeamChip team={leagueTeamIdentity(team)} />
@@ -135,7 +141,7 @@ export function LeagueSeasonTab({ league, seasonNumber, token, myMemberId, isCom
                                             <div className="text-[11px] text-(--text-tertiary)">{team.display_name}</div>
                                         </div>
                                         {team.member_id === myMemberId && (
-                                            <button type="button" onClick={() => navigate(`/teams/${team.team_id}`)} className={SECONDARY_BUTTON_CLASS}>
+                                            <button type="button" onClick={() => navigate(`/teams/${team.team_id}`)} className={SECONDARY_SM}>
                                                 <FaPenToSquare /> Edit lineup
                                             </button>
                                         )}
@@ -144,9 +150,9 @@ export function LeagueSeasonTab({ league, seasonNumber, token, myMemberId, isCom
                             </div>
                             {canManage && (
                                 <div className="flex flex-col items-start gap-1 pt-1">
-                                    <button type="button" onClick={() => act('start', async () => { await startSeason(token, league.league_id, seasonNumber); await refresh(); onLeagueChange(); })} disabled={busy !== null} className={PRIMARY_BUTTON_CLASS}>
-                                        {busy === 'start' ? <FaSpinner className="animate-spin" /> : <FaPlay className="text-[10px]" />}
-                                        Start Season
+                                    <button type="button" onClick={() => act('start', async () => { await startSeason(token, league.league_id, seasonNumber); await refresh(); onLeagueChange(); })} disabled={busy !== null} className={buttonClass('feature', 'md')}>
+                                        {busy === 'start' ? <FaSpinner className="animate-spin" /> : <FaPlay className="text-[12px]" />}
+                                        Start season
                                     </button>
                                     <span className="text-[11px] text-(--text-tertiary)">Writes the schedule. Settings above lock once the season starts.</span>
                                 </div>
@@ -158,13 +164,13 @@ export function LeagueSeasonTab({ league, seasonNumber, token, myMemberId, isCom
 
             {/* CHAMPION */}
             {season.status === 'complete' && champion && (
-                <div className="flex items-center gap-3 rounded-2xl border border-(--success)/30 bg-linear-to-b from-(--success)/20 to-(--success)/5 px-4 py-3">
-                    <FaTrophy className="text-[28px] text-(--secondary) shrink-0" />
+                <div className="flex items-center gap-3 rounded-card border border-(--gold)/40 bg-(--gold)/10 px-4 py-3">
+                    <FaTrophy className="text-[28px] text-(--gold) shrink-0" />
                     <div className="flex-1 min-w-0">
-                        <div className="text-[10px] font-bold uppercase tracking-wide text-(--text-tertiary)">Season {season.season_number} champion</div>
-                        <div className="flex items-center gap-2">
+                        <div className={`${CAPS_LABEL_CLASS} text-(--text-tertiary)`}>Season {season.season_number} champion</div>
+                        <div className="flex items-center gap-2 min-w-0">
                             <TeamChip team={leagueTeamIdentity(champion)} />
-                            <span className="text-[18px] font-black text-(--text-primary) truncate">{champion.name}</span>
+                            <Heading level="section" as="div" fit>{champion.name}</Heading>
                         </div>
                         <div className="text-[11px] text-(--text-secondary)">{champion.display_name}{mvp ? ` · MVP ${mvp}` : ''}</div>
                     </div>
@@ -174,13 +180,13 @@ export function LeagueSeasonTab({ league, seasonNumber, token, myMemberId, isCom
             {/* NEXT SEASON */}
             {season.status === 'complete' && canManage && (
                 <section className="flex flex-col gap-2">
-                    <div className={SECTION_LABEL_CLASS}>Next season</div>
+                    <Heading level="panel" as="h2">Next season</Heading>
                     <div className="flex flex-wrap gap-2">
-                        <button type="button" onClick={() => act('again', async () => { await runItBack(token, league.league_id); onLeagueChange(); })} disabled={busy !== null} className={PRIMARY_BUTTON_CLASS}>
+                        <button type="button" onClick={() => act('again', async () => { await runItBack(token, league.league_id); onLeagueChange(); })} disabled={busy !== null} className={PRIMARY_SM}>
                             {busy === 'again' ? <FaSpinner className="animate-spin" /> : <FaArrowRotateRight />}
                             Run it back
                         </button>
-                        <button type="button" onClick={() => act('redraft', async () => { await startDraft(token, league.league_id, seasonNumber + 1); onLeagueChange(); })} disabled={busy !== null} className={SECONDARY_BUTTON_CLASS}>
+                        <button type="button" onClick={() => act('redraft', async () => { await startDraft(token, league.league_id, seasonNumber + 1); onLeagueChange(); })} disabled={busy !== null} className={SECONDARY_SM}>
                             {busy === 'redraft' ? <FaSpinner className="animate-spin" /> : <FaShuffle />}
                             Redraft
                         </button>
@@ -195,7 +201,7 @@ export function LeagueSeasonTab({ league, seasonNumber, token, myMemberId, isCom
                     {canManage && (
                         <div className="flex flex-wrap gap-2">
                             {SIM_BUTTONS[season.status].map(({ target, label }, i) => (
-                                <button key={target} type="button" onClick={() => sim(target)} disabled={running || busy !== null} className={i === 0 ? PRIMARY_BUTTON_CLASS : SECONDARY_BUTTON_CLASS}>
+                                <button key={target} type="button" onClick={() => sim(target)} disabled={running || busy !== null} className={i === 0 ? PRIMARY_SM : SECONDARY_SM}>
                                     {busy === `sim-${target}` ? <FaSpinner className="animate-spin" /> : <FaForward className="text-[10px]" />}
                                     {label}
                                 </button>
@@ -204,20 +210,20 @@ export function LeagueSeasonTab({ league, seasonNumber, token, myMemberId, isCom
                     )}
                     {running && (
                         <div className="flex flex-col gap-1">
-                            <div className="h-2 rounded-full bg-(--background-tertiary) overflow-hidden">
+                            <div className="h-2 rounded-plate bg-(--background-tertiary) overflow-hidden">
                                 <div
-                                    className="h-full bg-(--secondary) transition-[width] duration-500"
+                                    className="h-full bg-(--showdown-blue-fill) transition-[width] duration-500"
                                     style={{ width: `${season.job_total ? Math.min(100, (season.job_progress / season.job_total) * 100) : 5}%` }}
                                 />
                             </div>
                             <span className="text-[11px] text-(--text-tertiary)">Simulating games…</span>
                         </div>
                     )}
-                    {season.job_status === 'failed' && season.job_error && <div className={ERROR_BOX_CLASS}>{season.job_error}</div>}
+                    {season.job_status === 'failed' && season.job_error && <InlineError size="md">{season.job_error}</InlineError>}
                     {!canManage && !running && <p className="text-[11px] text-(--text-tertiary)">The commissioner sims the games. You can change your lineup between sims.</p>}
                     {myTeam && !running && (
                         <div>
-                            <button type="button" onClick={() => navigate(`/teams/${myTeam.team_id}`)} className={SECONDARY_BUTTON_CLASS}>
+                            <button type="button" onClick={() => navigate(`/teams/${myTeam.team_id}`)} className={SECONDARY_SM}>
                                 <FaPenToSquare /> Edit my lineup
                             </button>
                         </div>
@@ -225,7 +231,7 @@ export function LeagueSeasonTab({ league, seasonNumber, token, myMemberId, isCom
                 </section>
             )}
 
-            {actionError && <div className={ERROR_BOX_CLASS}>{actionError}</div>}
+            {actionError && <InlineError size="md">{actionError}</InlineError>}
 
             {/* RESULTS SO FAR */}
             {season.summary ? (
@@ -238,7 +244,7 @@ export function LeagueSeasonTab({ league, seasonNumber, token, myMemberId, isCom
                     />
                 </div>
             ) : (season.status === 'regular' && (
-                <p className="text-[13px] text-(--text-tertiary) py-6 text-center">No games played yet.</p>
+                <EmptyState size="inline">No games played yet.</EmptyState>
             ))}
         </div>
     );
@@ -246,10 +252,10 @@ export function LeagueSeasonTab({ league, seasonNumber, token, myMemberId, isCom
 
 function SeasonSkeleton() {
     return (
-        <div className="flex flex-col gap-3 animate-pulse">
-            <div className="h-10 w-72 rounded-lg bg-(--background-secondary)" />
-            <div className="h-24 rounded-xl bg-(--background-secondary)" />
-            <div className="h-64 rounded-xl bg-(--background-secondary)" />
+        <div aria-hidden className="flex flex-col gap-3 animate-pulse">
+            <div className="h-10 w-72 rounded-plate bg-(--background-tertiary)" />
+            <div className="h-24 rounded-card bg-(--background-tertiary)" />
+            <div className="h-64 rounded-card bg-(--background-tertiary)" />
         </div>
     );
 }

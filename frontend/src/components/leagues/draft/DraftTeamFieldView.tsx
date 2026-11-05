@@ -23,7 +23,7 @@ export function DraftTeamFieldView({ team, picks, settings, cards, isLoadingCard
     const { depthChart } = roster;
 
     return (
-        <div className={`flex flex-col rounded-xl border overflow-hidden bg-(--background-secondary) ${isOnTheClock ? 'border-(--secondary) ring-2 ring-(--secondary)' : 'border-(--divider)'}`}>
+        <div className={`flex flex-col rounded-card border overflow-hidden bg-(--background-secondary) ${isOnTheClock ? 'border-(--showdown-blue) ring-1 ring-(--showdown-blue)' : 'border-(--divider)'}`}>
             <div className="px-3 py-2 border-b border-(--divider) bg-(--background-tertiary)">
                 <DraftTeamSummary
                     team={team}
@@ -50,11 +50,11 @@ export function DraftTeamFieldView({ team, picks, settings, cards, isLoadingCard
 /** Same shape as a team tile while the draft loads. */
 export function DraftTeamFieldViewSkeleton() {
     return (
-        <div className="flex flex-col rounded-xl border border-(--divider) overflow-hidden animate-pulse">
+        <div aria-hidden className="flex flex-col rounded-card border border-(--divider) overflow-hidden animate-pulse">
             <div className="h-16 bg-(--background-tertiary)" />
-            <div className="flex">
-                <div className="flex-1 aspect-square bg-(--background-secondary)" />
-                <div className="w-[28%] bg-(--background-primary)" />
+            <div className="flex gap-px">
+                <div className="flex-1 aspect-square bg-(--background-tertiary)" />
+                <div className="w-[28%] bg-(--background-tertiary)/60" />
             </div>
         </div>
     );

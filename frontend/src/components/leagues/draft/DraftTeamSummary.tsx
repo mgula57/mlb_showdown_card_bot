@@ -47,10 +47,10 @@ export function DraftTeamSummary({ team, points, picksMade, settings, size = 'md
             <div className="flex flex-col min-w-0 flex-1">
                 <div className="flex items-center gap-1.5 min-w-0">
                     <TeamChip team={leagueTeamIdentity(team)} size="sm" />
-                    <span className={`${sizing.name} font-black uppercase truncate`} title={team.name}>{team.name}</span>
+                    <span className={`${sizing.name} font-display-upright uppercase leading-none truncate`} title={team.name}>{team.name}</span>
                 </div>
                 <span className={`${sizing.meta} font-semibold tabular-nums text-(--text-secondary) truncate`}>
-                    {isOnTheClock ? <span className="font-black text-(--secondary)">On the clock · </span> : null}
+                    {isOnTheClock ? <span className="font-bold text-(--showdown-blue)">On the clock · </span> : null}
                     {points} pts · {picksMade}/{settings.roster_size} picks
                 </span>
             </div>

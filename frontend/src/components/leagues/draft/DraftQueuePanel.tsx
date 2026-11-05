@@ -5,7 +5,8 @@ import { CardDetail } from '../../cards/CardDetail';
 import { Modal } from '../../shared/Modal';
 import type { CardDatabaseRecord } from '../../../api/card_db/cardDatabase';
 import type { ShowdownBotCardAPIResponse } from '../../../api/showdownBotCard';
-import { SECTION_LABEL_CLASS } from '../leagueUi';
+import { Heading } from '../../shared/Heading';
+import { buttonClass } from '../../shared/buttonStyles';
 
 type Props = {
     queue: CardDatabaseRecord[];
@@ -31,9 +32,9 @@ export function DraftQueuePanel({ queue, onMove, onRemove, onDraft, canDraft, fi
 
     return (
         <section className="flex flex-col gap-2">
-            <div className={SECTION_LABEL_CLASS}>Queue{queue.length ? ` · ${queue.length}` : ''}</div>
+            <Heading level="panel" as="h2">Queue{queue.length > 0 && <span className="tabular-nums text-(--text-tertiary)"> {queue.length}</span>}</Heading>
             {queue.length === 0 ? (
-                <p className="flex items-center gap-1.5 rounded-xl border border-dashed border-(--divider) px-3 py-3 text-[12px] text-(--text-tertiary)">
+                <p className="flex items-center gap-1.5 rounded-card border border-dashed border-(--divider) px-3 py-3 text-[12px] text-(--text-tertiary)">
                     <FaRegBookmark className="shrink-0" />
                     Bookmark players in the pool to line up your next picks.
                 </p>
@@ -43,7 +44,7 @@ export function DraftQueuePanel({ queue, onMove, onRemove, onDraft, canDraft, fi
                         const fits = fitsRoster(card);
                         return (
                             <li key={card.id} className="flex items-center gap-1.5">
-                                <span className="w-5 shrink-0 text-right text-[11px] font-black tabular-nums text-(--text-tertiary)">{index + 1}</span>
+                                <span className="w-5 shrink-0 text-right font-display-upright text-[13px] tabular-nums text-(--text-tertiary)">{index + 1}</span>
                                 <div className={`flex-1 min-w-0 ${fits ? '' : 'opacity-50'}`} title={fits ? undefined : 'No open spot on your roster fits this card'}>
                                     <CardItemCompactFromCardDatabaseRecord card={card} onClick={() => setDetailCard(card)} />
                                 </div>
@@ -60,10 +61,7 @@ export function DraftQueuePanel({ queue, onMove, onRemove, onDraft, canDraft, fi
                                     onClick={() => onDraft(card)}
                                     disabled={!canDraft}
                                     title={canDraft ? `Draft ${card.name}` : 'Not your pick'}
-                                    // The gradient is unlayered CSS, so it's swapped out rather than overridden with `disabled:`
-                                    className={`shrink-0 flex items-center gap-1 rounded-full px-2.5 py-1.5 text-[10px] font-black uppercase tracking-wide ${canDraft
-                                        ? 'bg-(--showdown-blue-fill) text-white shadow-md hover:brightness-110 cursor-pointer'
-                                        : 'bg-(--background-tertiary) text-(--text-tertiary) cursor-not-allowed'}`}
+                                    className={buttonClass('primary', 'sm', 'gap-1 px-2.5')}
                                 >
                                     <FaHandPointer /> <span className="hidden sm:inline">Draft</span>
                                 </button>

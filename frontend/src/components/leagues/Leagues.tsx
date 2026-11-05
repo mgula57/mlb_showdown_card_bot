@@ -16,7 +16,12 @@ import { useAuth } from '../auth/AuthContext';
 import { SignInPrompt } from '../shared/SignInPrompt';
 import { fetchMyLeagues, type LeagueListItem, type LeagueState } from '../../api/leagues';
 import { usePolling } from '../../hooks/usePolling';
-import { ERROR_BOX_CLASS, PRIMARY_BUTTON_CLASS, SECONDARY_BUTTON_CLASS, SECTION_LABEL_CLASS, SEASON_STATUS_LABEL } from './leagueUi';
+import { SEASON_STATUS_LABEL } from './leagueUi';
+import { Heading } from '../shared/Heading';
+import { InlineError } from '../shared/InlineError';
+import { EmptyState } from '../shared/EmptyState';
+import { PinstripeBackdrop } from '../shared/PinstripeBackdrop';
+import { buttonClass } from '../shared/buttonStyles';
 import { LeagueDetail, type LeagueTab } from './LeagueDetail';
 import { NewLeagueModal } from './NewLeagueModal';
 import { JoinLeagueModal } from './JoinLeagueModal';
@@ -24,6 +29,7 @@ import { DraftBigBoard } from './draft/DraftBigBoard';
 
 const LEAGUE_TABS: LeagueTab[] = ['members', 'season', 'history'];
 const px = 'px-4 sm:px-8';
+const TOUCH_TARGET = 'max-sm:min-h-11';
 
 type Route =
     | { kind: 'list'; joinCode: string | null }
@@ -68,7 +74,7 @@ export default function Leagues() {
     if (!token) {
         return (
             <div className={`py-10 ${px}`}>
-                <SignInPrompt icon={<FaTrophy />} title="Sign in to play in leagues" message="Draft a team with friends from a Release Builder card pool, then play out seasons together." />
+                <SignInPrompt icon={<FaTrophy />} title="Start a league with friends." message="Draft teams from a Release Builder card pool, then play out seasons together." />
             </div>
         );
     }
@@ -95,35 +101,44 @@ export default function Leagues() {
 
     const joinCode = route.joinCode;
     return (
-        <div className="@container w-full">
+        <div className="@container w-full relative isolate">
+            <PinstripeBackdrop heightClass="h-72" />
             <div className="flex flex-col gap-6 py-4 max-w-4xl lg:max-w-7xl mx-auto w-full">
                 <div className={`flex items-center justify-between gap-3 ${px}`}>
-                    <div>
-                        <h1 className="text-[20px] font-black text-(--text-primary)">Leagues</h1>
+                    <div className="min-w-0">
+                        <Heading level="page">Leagues</Heading>
                         <p className="text-[13px] text-(--text-secondary)">Draft a team with friends, then play out seasons together</p>
                     </div>
                     <div className="flex gap-2 shrink-0">
-                        <button type="button" onClick={() => setShowJoin(true)} className={SECONDARY_BUTTON_CLASS}>
+                        <button type="button" onClick={() => setShowJoin(true)} className={buttonClass('secondary', 'sm', TOUCH_TARGET)}>
                             <FaRightToBracket className="text-[11px]" /> Join
                         </button>
-                        <button type="button" onClick={() => setShowCreate(true)} className={PRIMARY_BUTTON_CLASS}>
-                            <FaPlus className="text-[10px]" /> New <span className="hidden sm:inline">League</span>
+                        <button type="button" onClick={() => setShowCreate(true)} className={buttonClass('primary', 'sm', TOUCH_TARGET)}>
+                            <FaPlus className="text-[10px]" /> <span>New<span className="hidden sm:inline"> league</span></span>
                         </button>
                     </div>
                 </div>
 
-                {error && <div className={px}><div className={ERROR_BOX_CLASS}>{error}</div></div>}
+                {error && <div className={px}><InlineError size="md">{error}</InlineError></div>}
 
                 <section className={px}>
-                    <div className={`${SECTION_LABEL_CLASS} mb-2`}>My Leagues</div>
+                    <Heading level="section" as="h2" className="mb-3">My Leagues</Heading>
                     {!leagues ? (
                         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                            {Array.from({ length: 3 }, (_, i) => <div key={i} className="h-24 rounded-xl bg-(--background-secondary) animate-pulse" />)}
+                            {Array.from({ length: 3 }, (_, i) => <LeagueTileSkeleton key={i} />)}
                         </div>
                     ) : leagues.length === 0 ? (
-                        <p className="text-[13px] text-(--text-tertiary) py-4">
-                            You're not in any leagues yet. Start one, or join with a code from a friend.
-                        </p>
+                        <EmptyState
+                            size="panel"
+                            title="No leagues yet."
+                            action={
+                                <button type="button" onClick={() => setShowCreate(true)} className={buttonClass('primary', 'md')}>
+                                    <FaPlus className="text-[10px]" /> New league
+                                </button>
+                            }
+                        >
+                            Start one, or join with a code from a friend.
+                        </EmptyState>
                     ) : (
                         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                             {leagues.map(league => (
@@ -131,9 +146,9 @@ export default function Leagues() {
                                     key={league.league_id}
                                     type="button"
                                     onClick={() => navigate(`/leagues/${league.league_id}`)}
-                                    className="flex flex-col gap-1 rounded-xl border border-(--divider) bg-(--background-secondary) hover:bg-(--background-tertiary) transition-colors px-4 py-3 text-left cursor-pointer"
+                                    className="flex flex-col gap-1 min-w-0 rounded-card border border-(--divider) bg-(--background-secondary) hover:border-(--rule-strong) transition-colors px-4 py-3 text-left cursor-pointer"
                                 >
-                                    <div className="text-[15px] font-black text-(--text-primary) truncate">{league.name}</div>
+                                    <Heading level="panel" as="div" fit>{league.name}</Heading>
                                     <div className="text-[12px] text-(--text-secondary)">
                                         {league.current_season_number
                                             ? `Season ${league.current_season_number} · ${SEASON_STATUS_LABEL[league.current_season_status!]}`
@@ -159,6 +174,17 @@ export default function Leagues() {
                     onClose={() => { setShowJoin(false); if (joinCode) navigate('/leagues', { replace: true }); }}
                 />
             )}
+        </div>
+    );
+}
+
+/** Placeholder shaped like a league tile: name, status line, meta line. */
+function LeagueTileSkeleton() {
+    return (
+        <div aria-hidden className="flex flex-col gap-2 rounded-card border border-(--divider) px-4 py-3 animate-pulse">
+            <div className="h-4 w-40 rounded-plate bg-(--background-tertiary)" />
+            <div className="h-3 w-32 rounded-plate bg-(--background-tertiary)" />
+            <div className="h-2.5 w-44 rounded-plate bg-(--background-tertiary)" />
         </div>
     );
 }

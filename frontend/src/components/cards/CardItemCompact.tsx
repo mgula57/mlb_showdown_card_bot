@@ -76,8 +76,9 @@ export type CardItemActionButton = {
     /** `prominent` (full-size cards only): a filled pill that shows `label` beside the icon when
      *  the card is wide enough - for the page's main action, e.g. Draft. Defaults to `icon`. */
     variant?: 'icon' | 'prominent';
-    /** Fill class for a `prominent` button (e.g. a toggled-on state); defaults to the primary navy. */
-    bgColorClass?: string;
+    /** Look of a `prominent` button: `feature` (the default, the screen's headline action like
+     *  Draft), `secondary` (a bordered toggle that's off) or `gold` (a toggle that's on, e.g. Queued). */
+    tone?: 'feature' | 'secondary' | 'gold';
 };
 
 type CardItemCompactProps = {
