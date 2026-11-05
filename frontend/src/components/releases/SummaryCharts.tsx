@@ -3,8 +3,12 @@ import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Toolti
 import { fetchWotcBaseSet, WOTC_BASE_SETS, type ReleaseCard, type WotcBaseSet } from '../../api/releases';
 import type { CardDatabaseRecord } from '../../api/card_db/cardDatabase';
 import { defenseAtPosition } from '../shared/DefenseUtils';
-import CompactSelect from '../shared/CompactSelect';
+import CustomSelect from '../shared/CustomSelect';
 import FormEnabler from '../customs/FormEnabler';
+import { headingClass } from '../shared/headingStyles';
+import { CAPS_LABEL_CLASS } from '../shared/fieldStyles';
+import { choiceClass } from '../shared/choiceStyles';
+import { EmptyState } from '../shared/EmptyState';
 
 type SummaryChartsProps = {
     cards: ReleaseCard[];
@@ -14,8 +18,8 @@ type SummaryChartsProps = {
 
 const POINTS_BUCKET_SIZE = 50;
 const CHART_ACCENT = 'var(--secondary)';
-// WOTC reference series: a distinct hue from the user's near-monochrome bars, defined in both themes.
-const COMPARE_ACCENT = 'var(--showdown-blue)';
+// WOTC reference series: red separates it from the dark bars in light mode; blue remains clearer in dark.
+const COMPARE_ACCENT = 'var(--chart-compare)';
 
 // =============================================================================
 // MARK: - AGGREGATION
@@ -307,9 +311,9 @@ function combineChecks(distribution: FitCheck | null, ...averages: (FitCheck | n
 // =============================================================================
 
 const FIT_DOT_CLASS: Record<Fit, string> = {
-    ok: 'bg-emerald-500',
-    warn: 'bg-amber-500',
-    off: 'bg-red-500',
+    ok: 'bg-(--green)',
+    warn: 'bg-(--gold)',
+    off: 'bg-(--red)',
 };
 
 const FIT_LABEL: Record<Fit, string> = { ok: 'Close to WOTC', warn: 'Drifting from WOTC', off: 'Far from WOTC' };
@@ -324,7 +328,7 @@ function Section({ title, action, fit, className, children }: { title: string; a
     return (
         <div className={className}>
             <div className="flex items-center justify-between gap-2 mb-2">
-                <div className="flex items-center gap-1.5 text-[12px] font-semibold text-(--text-secondary) uppercase tracking-wide">
+                <div className={`flex items-center gap-1.5 ${headingClass('panel')}`}>
                     {title}
                     {fit && <FitDot check={fit} />}
                 </div>
@@ -335,12 +339,15 @@ function Section({ title, action, fit, className, children }: { title: string; a
     );
 }
 
-function StatTile({ label, value, compareValue }: { label: string; value: string | number; compareValue?: string | number }) {
+/** `compareLoading` holds the WOTC line's space with a skeleton while a comparison set loads. */
+function StatTile({ label, value, compareValue, compareLoading = false }: { label: string; value: string | number; compareValue?: string | number; compareLoading?: boolean }) {
     return (
-        <div className="flex flex-col items-center justify-center rounded-lg border border-(--divider) px-3 py-2 min-w-22">
-            <span className="text-[18px] font-black text-(--text-primary)">{value}</span>
-            <span className="text-[10px] text-(--text-tertiary) uppercase tracking-wide">{label}</span>
-            {compareValue !== undefined && (
+        <div className="flex flex-col items-center justify-center rounded-card border border-(--divider) px-3 py-2 min-w-22">
+            <span className="font-display-upright text-[22px] leading-none tabular-nums text-(--text-primary)">{value}</span>
+            <span className={`${CAPS_LABEL_CLASS} text-(--text-tertiary) mt-1`}>{label}</span>
+            {compareLoading ? (
+                <span className="h-3.5 w-14 rounded-plate bg-(--background-tertiary) animate-pulse" />
+            ) : compareValue !== undefined && (
                 <span className="text-[10px] text-(--text-secondary)">WOTC {compareValue}</span>
             )}
         </div>
@@ -360,15 +367,20 @@ function pluralizeCards(count: number): string {
 }
 
 /** Tooltip for both single-series and comparison charts; `compareLabel` names the WOTC series. */
-function makeChartTooltip(compareLabel: string | null) {
+function makeChartTooltip(compareLabel: string | null, compareLoading: boolean) {
     return ({ active, payload, label }: TooltipContentProps) => {
         if (!active || !payload?.length) return null;
         const row: BreakdownRow = payload[0].payload as BreakdownRow;
         if (row.isDivider) return null;
         return (
-            <div className="bg-(--background-primary) border border-(--divider) px-2 py-1.5 rounded-lg text-[11px]">
+            <div className="bg-(--background-primary) border border-(--divider) px-2 py-1.5 rounded-card text-[11px]">
                 <div className="font-bold text-(--text-primary)">{label}</div>
-                {compareLabel === null ? (
+                {compareLoading ? (
+                    <>
+                        <LegendEntry color={CHART_ACCENT} label={`This set: ${pluralizeCards(row.count)}`} />
+                        <LegendEntry color={PLACEHOLDER_FILL} label="WOTC: loading…" />
+                    </>
+                ) : compareLabel === null ? (
                     <div className="text-(--text-secondary)">{pluralizeCards(row.count)}</div>
                 ) : (
                     <>
@@ -387,13 +399,38 @@ function makeChartTooltip(compareLabel: string | null) {
 function LegendEntry({ color, label }: { color: string; label: string }) {
     return (
         <div className="flex items-center gap-1.5 text-(--text-secondary)">
-            <span className="inline-block size-2.5 rounded-sm shrink-0" style={{ backgroundColor: color }} />
+            <span className="inline-block size-2.5 rounded-control shrink-0" style={{ backgroundColor: color }} />
             {label}
         </div>
     );
 }
 
-type ChartProps = { data: BreakdownRow[]; emptyMessage: string; compareLabel: string | null };
+/** Stand-in for the WOTC legend entry while its set loads. */
+function LegendEntrySkeleton({ label }: { label: string }) {
+    return (
+        <div aria-label={label} className="flex items-center gap-1.5 animate-pulse">
+            <span className="inline-block size-2.5 rounded-control shrink-0" style={{ backgroundColor: COMPARE_ACCENT }} />
+            <span className="h-3 w-36 rounded-plate bg-(--background-tertiary)" />
+        </div>
+    );
+}
+
+/** `compareLoading` swaps the WOTC series for pulsing placeholder bars while a comparison set loads. */
+type ChartProps = { data: BreakdownRow[]; emptyMessage: string; compareLabel: string | null; compareLoading: boolean };
+
+const PLACEHOLDER_FILL = 'var(--background-quaternary)';
+
+/** Placeholder height for a loading WOTC bar: the last set's value if one is shown, else this set's count. */
+function placeholderCompare(row: BreakdownRow): number {
+    return row.isDivider ? 0 : (row.compare ?? row.count);
+}
+
+/** Props for the WOTC `<Bar>`, or null when there's no comparison to draw. Recharts needs `<Bar>` as a
+ * direct chart child, so this returns props rather than wrapping it in a component. */
+function compareBarProps(compareLabel: string | null, compareLoading: boolean, radius: [number, number, number, number]) {
+    if (compareLoading) return { dataKey: placeholderCompare, fill: PLACEHOLDER_FILL, radius, className: 'animate-pulse' };
+    return compareLabel === null ? null : { dataKey: (row: BreakdownRow) => row.compare ?? 0, fill: COMPARE_ACCENT, radius };
+}
 
 // barGap/barCategoryGap keep a small surface gap between the paired bars.
 const BAR_GAP = 2;
@@ -421,10 +458,11 @@ function hideDividerTick(label: string): string {
 /** Default height of a VerticalBarChart; charts sitting beside one can match it. */
 const VERTICAL_CHART_HEIGHT = 200;
 
-function VerticalBarChart({ data, emptyMessage, compareLabel, scrollable = false, height = VERTICAL_CHART_HEIGHT }: ChartProps & { scrollable?: boolean; height?: number }) {
+function VerticalBarChart({ data, emptyMessage, compareLabel, compareLoading, scrollable = false, height = VERTICAL_CHART_HEIGHT }: ChartProps & { scrollable?: boolean; height?: number }) {
     if (data.length === 0) return <EmptyChartState message={emptyMessage} />;
     const rows = withSectionDividers(data);
-    const columnWidth = compareLabel === null ? 36 : 48;
+    const compareBar = compareBarProps(compareLabel, compareLoading, [4, 4, 0, 0]);
+    const columnWidth = compareBar === null ? 36 : 48;
     return (
         <div className={scrollable ? 'overflow-x-auto' : undefined}>
             <div style={scrollable ? { minWidth: rows.length * columnWidth } : undefined}>
@@ -433,12 +471,12 @@ function VerticalBarChart({ data, emptyMessage, compareLabel, scrollable = false
                         <CartesianGrid strokeDasharray="3 3" stroke="var(--table-header)" vertical={false} />
                         <XAxis dataKey="label" fontSize={11} tickLine={false} interval={0} tickFormatter={hideDividerTick} />
                         <YAxis fontSize={11} width={28} allowDecimals={false} tickLine={false} />
-                        <Tooltip content={makeChartTooltip(compareLabel)} cursor={{ fill: 'var(--table-header)', opacity: 0.3 }} />
+                        <Tooltip content={makeChartTooltip(compareLabel, compareLoading)} cursor={{ fill: 'var(--table-header)', opacity: 0.3 }} />
                         {rows.filter(row => row.isDivider).map(row => (
                             <ReferenceLine key={row.label} x={row.label} stroke={DIVIDER_STROKE} strokeWidth={1} />
                         ))}
                         <Bar dataKey="count" fill={CHART_ACCENT} radius={[4, 4, 0, 0]} />
-                        {compareLabel !== null && <Bar dataKey="compare" fill={COMPARE_ACCENT} radius={[4, 4, 0, 0]} />}
+                        {compareBar && <Bar {...compareBar} />}
                     </BarChart>
                 </ResponsiveContainer>
             </div>
@@ -478,9 +516,9 @@ function rowGroups(rows: BreakdownRow[]): string[] {
 /** Bordered card holding one titled chart, with its average vs WOTC's in the header. */
 function ChartPanel({ title, average, fit, className, children }: { title: string; average: ReactNode; fit?: FitCheck | null; className?: string; children: ReactNode }) {
     return (
-        <div className={`rounded-lg border border-(--divider) p-2 min-w-0 ${className ?? ''}`}>
+        <div className={`rounded-card border border-(--divider) p-2 min-w-0 ${className ?? ''}`}>
             <div className="flex items-baseline justify-between gap-2 px-1">
-                <span className="flex items-center gap-1.5 text-[13px] font-black text-(--text-primary)">
+                <span className={`flex items-center gap-1.5 ${headingClass('panel')}`}>
                     {title}
                     {fit && <FitDot check={fit} />}
                 </span>
@@ -493,7 +531,7 @@ function ChartPanel({ title, average, fit, className, children }: { title: strin
 
 /** One small column chart per group of "GROUP N" rows (defensive position, pitcher role), each with
  * the release's average value vs WOTC's. `formatValue` renders both the averages and the column labels. */
-function GroupedColumnCharts({ data, emptyMessage, compareLabel, formatValue = String, averageTolerance, distributionTolerance }: ChartProps & {
+function GroupedColumnCharts({ data, emptyMessage, compareLabel, compareLoading, formatValue = String, averageTolerance, distributionTolerance }: ChartProps & {
     formatValue?: (value: number) => string;
     /** When set, each panel's WOTC fit also checks its average against this tolerance. */
     averageTolerance?: Tolerance;
@@ -526,6 +564,7 @@ function GroupedColumnCharts({ data, emptyMessage, compareLabel, formatValue = S
                             data={rows.map(row => ({ ...row, label: formatValue(groupedKeyValue(row.label)) }))}
                             emptyMessage={emptyMessage}
                             compareLabel={compareLabel}
+                            compareLoading={compareLoading}
                             height={140}
                         />
                     </ChartPanel>
@@ -542,7 +581,7 @@ const COMMAND_PANELS: Record<string, { title: string; averageKey: keyof SummaryA
 
 /** Separate Control and On-Base charts: side by side, or stacked on their own lines when
  * `includesOuts` widens them into scrollable command/outs columns. */
-function CommandCharts({ data, emptyMessage, compareLabel, includesOuts, averages, compareAverages, fits }: ChartProps & {
+function CommandCharts({ data, emptyMessage, compareLabel, compareLoading, includesOuts, averages, compareAverages, fits }: ChartProps & {
     includesOuts: boolean;
     /** WOTC fit per panel group, judged on On-Base/Control alone so "Include Outs" doesn't change it. */
     fits: Record<string, FitCheck | null> | null;
@@ -566,6 +605,7 @@ function CommandCharts({ data, emptyMessage, compareLabel, includesOuts, average
                             data={data.filter(row => row.group === group)}
                             emptyMessage={emptyMessage}
                             compareLabel={compareLabel}
+                            compareLoading={compareLoading}
                             scrollable={includesOuts}
                         />
                     </ChartPanel>
@@ -596,10 +636,7 @@ function SubsetFilterBar({ value, onChange }: { value: SubsetFilter; onChange: (
                     key={opt.value}
                     type="button"
                     onClick={() => onChange(opt.value)}
-                    className={`px-2.5 py-1 rounded-lg text-[11px] font-bold border transition-colors
-                        ${value === opt.value
-                            ? 'bg-(--secondary) text-(--background-primary) border-(--secondary)'
-                            : 'border-(--divider) text-(--text-secondary) hover:border-(--text-tertiary)'}`}
+                    className={choiceClass(value === opt.value, 'sm')}
                 >
                     {opt.label}
                 </button>
@@ -609,10 +646,11 @@ function SubsetFilterBar({ value, onChange }: { value: SubsetFilter; onChange: (
 }
 
 /** `minHeight` lets a short chart (few rows) stretch its bars to match a neighbouring chart's height. */
-function HorizontalBarChart({ data, emptyMessage, compareLabel, minHeight = 120 }: ChartProps & { minHeight?: number }) {
+function HorizontalBarChart({ data, emptyMessage, compareLabel, compareLoading, minHeight = 120 }: ChartProps & { minHeight?: number }) {
     if (data.length === 0) return <EmptyChartState message={emptyMessage} />;
     const rows = withSectionDividers(data);
-    const rowHeight = compareLabel === null ? 32 : 44;
+    const compareBar = compareBarProps(compareLabel, compareLoading, [0, 4, 4, 0]);
+    const rowHeight = compareBar === null ? 32 : 44;
     return (
         <ResponsiveContainer width="100%" height={Math.max(minHeight, rows.length * rowHeight)}>
             <BarChart data={rows} layout="vertical" margin={{ top: 4, right: 16, left: 8, bottom: 4 }} barGap={BAR_GAP}>
@@ -627,12 +665,12 @@ function HorizontalBarChart({ data, emptyMessage, compareLabel, minHeight = 120 
                     interval={0}
                     tickFormatter={hideDividerTick}
                 />
-                <Tooltip content={makeChartTooltip(compareLabel)} cursor={{ fill: 'var(--table-header)', opacity: 0.3 }} />
+                <Tooltip content={makeChartTooltip(compareLabel, compareLoading)} cursor={{ fill: 'var(--table-header)', opacity: 0.3 }} />
                 {rows.filter(row => row.isDivider).map(row => (
                     <ReferenceLine key={row.label} y={row.label} stroke={DIVIDER_STROKE} strokeWidth={1} />
                 ))}
                 <Bar dataKey="count" fill={CHART_ACCENT} radius={[0, 4, 4, 0]} />
-                {compareLabel !== null && <Bar dataKey="compare" fill={COMPARE_ACCENT} radius={[0, 4, 4, 0]} />}
+                {compareBar && <Bar {...compareBar} />}
             </BarChart>
         </ResponsiveContainer>
     );
@@ -662,7 +700,8 @@ function saveComparisonSet(editionId: string, set: WotcBaseSet | null) {
     } catch { /* storage unavailable */ }
 }
 
-/** Loads the selected WOTC base set; `snapshots` is null while nothing is selected or loading. */
+/** Loads the selected WOTC base set. While a new set loads, the last loaded one stays in `snapshots`
+ * (`set` names it) so the charts don't collapse and re-expand; `snapshots` is null with no selection. */
 function useWotcComparison(selectedSet: WotcBaseSet | null) {
     // Tagged with the set it belongs to, so a stale result is ignored (and "loading" derived) after the selection changes.
     const [result, setResult] = useState<{ set: WotcBaseSet; snapshots: CardDatabaseRecord[] | null; error: string | null } | null>(null);
@@ -677,9 +716,12 @@ function useWotcComparison(selectedSet: WotcBaseSet | null) {
     }, [selectedSet]);
 
     const current = selectedSet && result?.set === selectedSet ? result : null;
+    const loading = selectedSet !== null && current === null;
+    const shown = loading && result?.snapshots ? result : current;
     return {
-        snapshots: current?.snapshots ?? null,
-        loading: selectedSet !== null && current === null,
+        set: shown?.set ?? null,
+        snapshots: shown?.snapshots ?? null,
+        loading,
         error: current?.error ?? null,
     };
 }
@@ -706,7 +748,7 @@ export function SummaryCharts({ cards, editionId }: SummaryChartsProps) {
         () => wotc.snapshots ? { snapshots: filterToSubset(wotc.snapshots, subsetFilter) } : null,
         [wotc.snapshots, subsetFilter]
     );
-    const compareLabel = comparison && comparisonSet ? `WOTC ${comparisonSet}` : null;
+    const compareLabel = comparison && wotc.set ? `WOTC ${wotc.set}` : null;
 
     const breakdowns = useMemo(() => {
         const build = (spec: BreakdownSpec) => buildBreakdown(filteredSnapshots, spec, comparison);
@@ -746,39 +788,41 @@ export function SummaryCharts({ cards, editionId }: SummaryChartsProps) {
 
     if (cards.length === 0) {
         return (
-            <div className="flex items-center justify-center py-16 text-[13px] text-(--text-tertiary)">
+            <EmptyState size="panel" title="No cards yet.">
                 Add cards to see distribution charts.
-            </div>
+            </EmptyState>
         );
     }
 
-    const chartProps = { compareLabel };
+    const chartProps = { compareLabel, compareLoading: wotc.loading };
 
     return (
         <div className="flex flex-col gap-6 p-4">
             <div className="flex flex-wrap items-end justify-between gap-3">
                 <SubsetFilterBar value={subsetFilter} onChange={setSubsetFilter} />
-                <CompactSelect
-                    label="Compare to WOTC"
+                <CustomSelect
+                    size="sm"
+                    prefix="Compare to WOTC"
                     options={COMPARISON_OPTIONS}
                     value={comparisonSet ?? NO_COMPARISON}
                     onChange={value => setComparisonSet(value === NO_COMPARISON ? null : value as WotcBaseSet)}
                 />
             </div>
 
-            {wotc.loading && (
-                <div className="h-4 w-64 rounded bg-(--divider) animate-pulse" />
-            )}
             {wotc.error && (
-                <div className="text-[12px] text-red-400">{wotc.error}</div>
+                <div className="text-[12px] text-(--red)">{wotc.error}</div>
             )}
-            {compareLabel && comparison && (
+            {(wotc.loading || (compareLabel && comparison)) && (
                 <div className="flex flex-col gap-1 text-[11px]">
                     <div className="flex flex-wrap gap-4">
                         <LegendEntry color={CHART_ACCENT} label={`This set (${pluralizeCards(filteredSnapshots.length)})`} />
-                        <LegendEntry color={COMPARE_ACCENT} label={`${compareLabel} (${pluralizeCards(comparison.snapshots.length)})`} />
+                        {wotc.loading || !comparison ? (
+                            <LegendEntrySkeleton label={`Loading WOTC ${comparisonSet}`} />
+                        ) : (
+                            <LegendEntry color={COMPARE_ACCENT} label={`${compareLabel} (${pluralizeCards(comparison.snapshots.length)})`} />
+                        )}
                     </div>
-                    {comparison.snapshots.length !== filteredSnapshots.length && (
+                    {comparison && comparison.snapshots.length !== filteredSnapshots.length && (
                         <span className="text-(--text-tertiary)">
                             {compareLabel} counts are scaled to this set's size.
                         </span>
@@ -788,15 +832,15 @@ export function SummaryCharts({ cards, editionId }: SummaryChartsProps) {
 
             <div className="flex flex-wrap gap-3">
                 <StatTile label={subsetFilter === 'all' ? 'Cards' : 'Cards in Subset'} value={filteredSnapshots.length} />
-                <StatTile label="Avg PTS" value={averages.points} compareValue={compareAverages?.points} />
-                <StatTile label="Avg OnBase" value={averages.onBase} compareValue={compareAverages?.onBase} />
-                <StatTile label="Avg Control" value={averages.control} compareValue={compareAverages?.control} />
-                <StatTile label="Avg Speed" value={averages.speed} compareValue={compareAverages?.speed} />
-                <StatTile label="Avg IP" value={averages.ip} compareValue={compareAverages?.ip} />
+                <StatTile label="Avg PTS" value={averages.points} compareValue={compareAverages?.points} compareLoading={wotc.loading} />
+                <StatTile label="Avg OnBase" value={averages.onBase} compareValue={compareAverages?.onBase} compareLoading={wotc.loading} />
+                <StatTile label="Avg Control" value={averages.control} compareValue={compareAverages?.control} compareLoading={wotc.loading} />
+                <StatTile label="Avg Speed" value={averages.speed} compareValue={compareAverages?.speed} compareLoading={wotc.loading} />
+                <StatTile label="Avg IP" value={averages.ip} compareValue={compareAverages?.ip} compareLoading={wotc.loading} />
             </div>
 
             {filteredSnapshots.length === 0 ? (
-                <p className="text-[13px] text-(--text-tertiary) py-8 text-center">No cards match this subset.</p>
+                <EmptyState size="inline">No cards match this subset.</EmptyState>
             ) : (
                 <>
                     {/* Side by side (1/3 – 2/3) when there's room, stacked otherwise. */}

@@ -1,5 +1,6 @@
 import { type PointsBreakdown, type PointsCategoryBreakdown } from '../../../api/showdownBotCard';
 import { formatStatValue } from '../../../functions/formatters';
+import { gradeColor } from '../../../functions/colors';
 
 const METRIC_ALIAS: Record<string, string> = {
     "AVERAGE": "BA*",
@@ -28,14 +29,6 @@ const PLACEHOLDER_BREAKDOWN: PointsBreakdown = {
         OUT_DISTRIBUTION: { metric: 'OUT_DISTRIBUTION', value: 0.62,  points: 8,  percentile: 0.55 },
     },
 };
-
-function percentileColor(pct: number | null | undefined): string {
-    if (pct == null) return 'rgb(156,163,175)';
-    if (pct >= 0.75) return '#22c55e';
-    if (pct >= 0.50) return '#84cc16';
-    if (pct >= 0.25) return '#eab308';
-    return '#ef4444';
-}
 
 type PointsContributionBarsProps = {
     pointsBreakdownData?: PointsBreakdown | null;
@@ -74,7 +67,7 @@ export default function PointsContributionBars({ pointsBreakdownData, ip }: Poin
                     ? bd.metric.replace('DEFENSE', 'DEF')
                     : (METRIC_ALIAS[bd.metric] || bd.metric);
                 const barPct = (Math.abs(bd.points) / maxPoints) * 100;
-                const color = percentileColor(bd.percentile);
+                const color = gradeColor(bd.percentile);
 
                 return (
                     <div key={bd.metric} className="flex items-center gap-2.5">
@@ -103,9 +96,9 @@ export default function PointsContributionBars({ pointsBreakdownData, ip }: Poin
             ))}
 
             <div className="flex items-center gap-2.5 pt-1 mt-1 border-t border-(--form-element) opacity-80">
-                <span className="text-sm font-black w-20 shrink-0">TOTAL</span>
+                <span className="text-sm font-bold w-20 shrink-0">TOTAL</span>
                 <div className="flex-1" />
-                <span className={`text-sm font-black w-20 shrink-0 text-right tabular-nums ${isEmpty ? 'blur-xs' : ''}`}>
+                <span className={`text-sm font-bold w-20 shrink-0 text-right tabular-nums ${isEmpty ? 'blur-xs' : ''}`}>
                     {Math.round(totalPoints)} pts
                 </span>
             </div>

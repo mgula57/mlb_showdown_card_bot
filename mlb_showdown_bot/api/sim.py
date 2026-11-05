@@ -275,6 +275,18 @@ def start_season_sim():
                         'error': f"This team doesn't meet the challenge's player requirements: {violation}.",
                     }), 422
 
+                missing = filter_set.missing_required_players(row.get('roster') or [])
+                if missing:
+                    return jsonify({
+                        'error': f"This challenge requires {', '.join(missing)} on your roster.",
+                    }), 422
+
+                shortfalls = filter_set.team_defense_shortfalls(row.get('roster') or [])
+                if shortfalls:
+                    return jsonify({
+                        'error': f"This team doesn't meet the challenge's defense requirements: {'; '.join(shortfalls)}.",
+                    }), 422
+
             active = db.get_active_sim_job(g.user_id)
             if active:
                 # THE BLOCKING JOB CAN BELONG TO A DIFFERENT TEAM - THE CAP IS PER-USER, NOT
@@ -1249,8 +1261,10 @@ def _run_sim_job(
         challenge_result = None
         won_pennant = None
         if challenge is not None:
+            # A PENNANT IS A WORLD SERIES APPEARANCE, NOT AN LCS WIN - PRE-1969 FORMATS HAVE NO
+            # CHAMPIONSHIP ROUND (THE LEAGUE WINNER GOES STRAIGHT TO THE WS).
             won_pennant = any(
-                series.round == PostseasonRound.CHAMPIONSHIP.value and series.winner == team_abbr
+                series.round == PostseasonRound.WORLD_SERIES.value and team_abbr in (series.home_team, series.away_team)
                 for series in summary.postseason
             )
             passed = _challenge_passed(
@@ -1407,7 +1421,11 @@ def get_eligible_teams(instance_id):
                 row = db.get_team(candidate['team_id'], g.user_id)
                 if row is None or _has_wotc_cards(row):
                     continue
-                if filter_set is None or all(filter_set.matches(slot) for slot in _fielded_roster(row)):
+                if filter_set is None or (
+                    all(filter_set.matches(slot) for slot in _fielded_roster(row))
+                    and not filter_set.missing_required_players(row.get('roster') or [])
+                    and not filter_set.team_defense_shortfalls(row.get('roster') or [])
+                ):
                     eligible_ids.append(candidate['team_id'])
         return jsonify({'team_ids': eligible_ids}), 200
     except Exception as exc:

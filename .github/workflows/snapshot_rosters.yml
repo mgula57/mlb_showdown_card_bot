@@ -48,7 +48,7 @@ jobs:
             --seasons 2026 \
             --publish_to_database \
             --all-players \
-            --generate-cards \
+            --generate-cards
 
       - name: Refresh Season Stat Range Table
         run: |

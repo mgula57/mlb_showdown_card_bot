@@ -1,14 +1,25 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, memo } from 'react';
 import type { ReleaseEdition, ReleaseCardImage, ReleaseCardImageStatus, EditionImages as EditionImagesData } from '../../api/releases';
 import { fetchEditionImages, renderEditionImages, cancelEditionImageRender, isImageJobActive } from '../../api/releases';
 import type { CardDatabaseRecord } from '../../api/card_db/cardDatabase';
 import { cardImagePublicUrl } from '../../api/supabase';
+import { BorderCroppedImage } from '../cards/BorderCroppedImage';
 import { Modal } from '../shared/Modal';
 import { CardItemFromCardDatabaseRecord } from '../cards/CardItem';
 import { ReleaseCardPreviewRankPicker } from './ReleaseCardPreviewRank';
-import { buildZipEntries, editionZipFileName, useEditionZipDownload, type ZipDownloadState } from './editionZipDownload';
-import { FaArrowUpRightFromSquare, FaCheck, FaDownload, FaImage, FaSpinner, FaTriangleExclamation, FaWandMagicSparkles, FaXmark } from 'react-icons/fa6';
+import { ReleaseTip } from './ReleaseOnboarding';
+import {
+    buildZipEntries, editionZipFileName, entriesRenderedAfter, loadLastZipRenderedAt, saveLastZipRenderedAt,
+    useEditionZipDownload, zipSizeWarning, type ZipDownloadState, type ZipEntry,
+} from './editionZipDownload';
+import { FaArrowUpRightFromSquare, FaCheck, FaDownload, FaImage, FaMagnifyingGlass, FaSpinner, FaTriangleExclamation, FaWandMagicSparkles, FaXmark } from 'react-icons/fa6';
 
+import { InlineError } from '../shared/InlineError';
+import { buttonClass } from '../shared/buttonStyles';
+import { fieldClass } from '../shared/fieldStyles';
+import { Plate } from '../shared/Plate';
+import { EmptyState } from '../shared/EmptyState';
+import { useStableCallback } from '../../hooks/useStableCallback';
 /** How often to refresh statuses while a render job runs (each card takes a few seconds). */
 const POLL_INTERVAL_MS = 2500;
 /** Skeleton tiles shown while statuses load. */
@@ -16,9 +27,9 @@ const MAX_SKELETON_TILES = 24;
 const TILE_GRID_CLASS = 'grid grid-cols-[repeat(auto-fill,minmax(140px,1fr))] gap-4';
 
 const STATUS_META: Record<ReleaseCardImageStatus, { label: string; badgeClass: string }> = {
-    rendered: { label: 'Rendered', badgeClass: 'bg-green-600 text-white' },
-    stale: { label: 'Out of date', badgeClass: 'bg-amber-500 text-black' },
-    failed: { label: 'Failed', badgeClass: 'bg-red-600 text-white' },
+    rendered: { label: 'Rendered', badgeClass: 'bg-(--green) text-white' },
+    stale: { label: 'Out of date', badgeClass: 'bg-(--gold) text-(--field-ink)' },
+    failed: { label: 'Failed', badgeClass: 'bg-(--red) text-white' },
     missing: { label: 'Not rendered', badgeClass: 'bg-(--background-quaternary) text-(--text-secondary)' },
 };
 const STATUS_ORDER: ReleaseCardImageStatus[] = ['rendered', 'stale', 'missing', 'failed'];
@@ -33,16 +44,23 @@ type EditionImagesProps = {
     /** Release-tile slot (1-3) by source card id, for cards that have one. */
     previewRanks: Map<string, number>;
     onPreviewRankChange: (sourceCardId: string, rank: number | null) => void;
+    /** Applies a status filter from outside (a Review fix link). A new object re-applies the same status. */
+    statusFilterRequest?: { status: ReleaseCardImageStatus } | null;
 };
 
-/** Step 2 of the Edition Builder: renders every card in the edition (with its edition style and set
+/** Step 3 of the Edition Builder: renders every card in the edition (with its edition style and set
  * number) to Supabase in a background job, and shows each card's image as it lands. */
-export function EditionImages({ releaseId, releaseName, edition, readOnly, token, previewRanks, onPreviewRankChange }: EditionImagesProps) {
+export function EditionImages({ releaseId, releaseName, edition, readOnly, token, previewRanks, onPreviewRankChange, statusFilterRequest }: EditionImagesProps) {
     const [data, setData] = useState<EditionImagesData | null>(null);
     const [error, setError] = useState<string | null>(null);
     const [requesting, setRequesting] = useState(false);
-    const [statusFilter, setStatusFilter] = useState<ReleaseCardImageStatus | null>(null);
+    const [statusFilter, setStatusFilter] = useState<ReleaseCardImageStatus | null>(statusFilterRequest?.status ?? null);
+    useEffect(() => {
+        if (statusFilterRequest) setStatusFilter(statusFilterRequest.status);
+    }, [statusFilterRequest]);
+    const [nameQuery, setNameQuery] = useState('');
     const [detailImage, setDetailImage] = useState<ReleaseCardImage | null>(null);
+    const [renderButton, setRenderButton] = useState<HTMLButtonElement | null>(null);
 
     const load = useCallback(() => {
         return fetchEditionImages(releaseId, edition.id, token)
@@ -75,9 +93,33 @@ export function EditionImages({ releaseId, releaseName, edition, readOnly, token
     const zipDownload = useEditionZipDownload();
     const zipEntries = useMemo(() => buildZipEntries(images, snapshotsById), [images, snapshotsById]);
     const isZipping = zipDownload.state.status === 'downloading';
-    const visibleImages = statusFilter ? images.filter(image => image.status === statusFilter) : images;
+    const [lastZipRenderedAt, setLastZipRenderedAt] = useState<Date | null>(() => loadLastZipRenderedAt(edition.id));
+    useEffect(() => { setLastZipRenderedAt(loadLastZipRenderedAt(edition.id)); }, [edition.id]);
+    const updatedZipEntries = useMemo(
+        () => lastZipRenderedAt ? entriesRenderedAfter(zipEntries, lastZipRenderedAt) : [],
+        [zipEntries, lastZipRenderedAt]
+    );
+    const normalizedQuery = nameQuery.trim().toLowerCase();
+    const visibleImages = images.filter(image =>
+        (!statusFilter || image.status === statusFilter)
+        && (!normalizedQuery || (snapshotsById.get(image.source_card_id)?.name ?? '').toLowerCase().includes(normalizedQuery))
+    );
     // The detail modal follows its card's latest status (e.g. while a render of it runs)
     const detail = detailImage ? images.find(image => image.source_card_id === detailImage.source_card_id) ?? detailImage : null;
+    const openDetail = useStableCallback((sourceCardId: string) => setDetailImage(images.find(image => image.source_card_id === sourceCardId) ?? null));
+
+    const [pendingZip, setPendingZip] = useState<{ entries: ZipEntry[]; suffix?: string; warning: string } | null>(null);
+
+    function handleZipDownload(entries: ZipEntry[], fileNameSuffix?: string) {
+        const warning = zipSizeWarning(entries.length);
+        if (warning) setPendingZip({ entries, suffix: fileNameSuffix, warning });
+        else runZipDownload(entries, fileNameSuffix);
+    }
+
+    async function runZipDownload(entries: ZipEntry[], fileNameSuffix?: string) {
+        const savedAll = await zipDownload.start(entries, editionZipFileName(releaseName, edition.name, fileNameSuffix));
+        if (savedAll) setLastZipRenderedAt(saveLastZipRenderedAt(edition.id, entries));
+    }
 
     async function handleRender(sourceCardIds?: string[]) {
         if (!token) return;
@@ -109,15 +151,15 @@ export function EditionImages({ releaseId, releaseName, edition, readOnly, token
 
     if (edition.cards.length === 0) {
         return (
-            <p className="text-[13px] text-(--text-tertiary) py-8 text-center">
-                {readOnly ? 'No cards in this edition yet.' : 'Add cards to the player pool to render their images.'}
-            </p>
+            <EmptyState size="panel" title="No cards yet.">
+                {readOnly ? 'This edition has no cards yet.' : 'Add cards to the player pool to render their images.'}
+            </EmptyState>
         );
     }
 
     return (
         <div className="flex flex-col flex-1 min-h-0">
-            <div className="flex flex-col gap-2 px-4 py-3 border-b border-(--divider) shrink-0">
+            <div className="flex flex-col gap-2 px-3 py-2 border-b border-(--divider) shrink-0">
                 <div className="flex flex-wrap items-center gap-2">
                     {data ? (
                         STATUS_ORDER.filter(status => counts[status] > 0).map(status => (
@@ -130,21 +172,47 @@ export function EditionImages({ releaseId, releaseName, edition, readOnly, token
                             />
                         ))
                     ) : (
-                        <div className="h-8 w-64 rounded-lg bg-(--background-quaternary) animate-pulse" />
+                        <div className="h-8 w-64 rounded-control bg-(--background-quaternary) animate-pulse" />
                     )}
 
                     {data && (
-                        <div className="flex items-center gap-2 ml-auto">
+                        <label className="relative flex items-center grow basis-48 min-w-0">
+                            <FaMagnifyingGlass className="absolute left-2.5 text-[11px] text-(--text-tertiary) pointer-events-none" />
+                            <input
+                                type="search"
+                                value={nameQuery}
+                                onChange={e => setNameQuery(e.target.value)}
+                                placeholder="Search by name"
+                                aria-label="Search cards by name"
+                                className={fieldClass('sm', 'w-full pl-7 focus:outline-none')}
+                            />
+                        </label>
+                    )}
+
+                    {data && (
+                        <div className="flex flex-wrap items-center gap-2">
+                            {updatedZipEntries.length > 0 && !isZipping && (
+                                <button
+                                    type="button"
+                                    onClick={() => handleZipDownload(updatedZipEntries, '(updated)')}
+                                    disabled={jobActive}
+                                    title={jobActive ? 'Wait for rendering to finish' : 'Download only the images rendered since your last ZIP from this browser'}
+                                    className={buttonClass('secondary', 'sm')}
+                                >
+                                    <FaDownload className="text-[12px]" /> Download Updated
+                                    <Plate size="sm">{updatedZipEntries.length}</Plate>
+                                </button>
+                            )}
                             {zipEntries.length > 0 && !isZipping && (
                                 <button
                                     type="button"
-                                    onClick={() => zipDownload.start(zipEntries, editionZipFileName(releaseName, edition.name))}
+                                    onClick={() => handleZipDownload(zipEntries)}
                                     disabled={jobActive}
                                     title={jobActive ? 'Wait for rendering to finish' : 'Download every current full-size image as a ZIP'}
-                                    className="flex items-center gap-1.5 min-h-9 px-3.5 py-2 rounded-lg text-[13px] font-bold border border-(--divider) text-(--text-secondary) hover:border-(--text-tertiary) transition-colors disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                                    className={buttonClass('secondary', 'sm')}
                                 >
                                     <FaDownload className="text-[12px]" /> Download ZIP
-                                    <span className="text-[10px] font-normal text-(--text-tertiary) bg-(--background-secondary) py-0.5 px-1 rounded-md">{zipEntries.length}</span>
+                                    <Plate size="sm">{zipEntries.length}</Plate>
                                 </button>
                             )}
                             {readOnly ? null : jobActive ? (
@@ -152,23 +220,24 @@ export function EditionImages({ releaseId, releaseName, edition, readOnly, token
                                     type="button"
                                     onClick={handleCancel}
                                     disabled={requesting}
-                                    className="flex items-center gap-1.5 min-h-9 px-3.5 py-2 rounded-lg text-[13px] font-bold border border-(--divider) text-(--text-secondary) hover:border-(--text-tertiary) transition-colors disabled:opacity-50 cursor-pointer"
+                                    className={buttonClass('secondary', 'sm')}
                                 >
                                     <FaXmark className="text-[12px]" /> Cancel
                                 </button>
                             ) : needsRenderCount > 0 ? (
                                 <button
+                                    ref={setRenderButton}
                                     type="button"
                                     onClick={() => handleRender()}
                                     disabled={requesting || !token}
-                                    className="flex items-center gap-1.5 min-h-9 px-3.5 py-2 rounded-lg text-[13px] font-bold bg-(--secondary) text-(--background-primary) disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                                    className={buttonClass('primary', 'sm', 'min-h-9')}
                                 >
                                     {requesting ? <FaSpinner className="animate-spin text-[12px]" /> : <FaWandMagicSparkles className="text-[12px]" />}
                                     Render {needsRenderCount} Card{needsRenderCount === 1 ? '' : 's'}
                                 </button>
                             ) : (
                                 <span className="flex items-center gap-1.5 text-[12px] font-semibold text-(--text-secondary)">
-                                    <FaCheck className="text-green-500" /> All images up to date
+                                    <FaCheck className="text-(--green)" /> All images up to date
                                 </span>
                             )}
                         </div>
@@ -176,15 +245,16 @@ export function EditionImages({ releaseId, releaseName, edition, readOnly, token
                 </div>
 
                 {job && <RenderJobStatus job={job} />}
+                <ReleaseTip id="render" show={!!data && !jobActive && needsRenderCount > 0} anchor={renderButton} placement="bottom-end" />
 
                 {zipDownload.state.status !== 'idle' && (
                     <ZipDownloadStatus state={zipDownload.state} onCancel={zipDownload.cancel} onDismiss={zipDownload.reset} />
                 )}
 
                 {error && (
-                    <div className="text-[12px] text-red-400 px-3 py-2 rounded-lg border border-red-400/30 bg-red-400/5">
+                    <InlineError size="md">
                         {error}
-                    </div>
+                    </InlineError>
                 )}
             </div>
 
@@ -196,22 +266,47 @@ export function EditionImages({ releaseId, releaseName, edition, readOnly, token
                         ))}
                     </div>
                 ) : visibleImages.length === 0 ? (
-                    <p className="text-[13px] text-(--text-tertiary) py-8 text-center">No cards with this status.</p>
+                    <EmptyState size="inline">{normalizedQuery ? `No cards match “${nameQuery.trim()}”.` : 'No cards with this status.'}</EmptyState>
                 ) : (
                     <div className={TILE_GRID_CLASS}>
                         {visibleImages.map(image => (
                             <ReleaseImageTile
                                 // Keyed by path so a re-rendered image starts from its skeleton again
                                 key={`${image.source_card_id}:${image.thumbnail_path}`}
-                                image={image}
-                                snapshot={snapshotsById.get(image.source_card_id)}
+                                sourceCardId={image.source_card_id}
+                                setNumber={image.set_number}
+                                status={image.status}
+                                thumbnailPath={image.thumbnail_path}
+                                name={snapshotsById.get(image.source_card_id)?.name}
                                 isQueued={jobActive && image.status !== 'rendered'}
-                                onClick={() => setDetailImage(image)}
+                                onOpen={openDetail}
                             />
                         ))}
                     </div>
                 )}
             </div>
+
+            {pendingZip && (
+                <Modal
+                    title="Large download"
+                    size="sm"
+                    onClose={() => setPendingZip(null)}
+                    footer={
+                        <div className="flex justify-end gap-2">
+                            <button type="button" onClick={() => setPendingZip(null)} className={buttonClass('secondary', 'sm')}>Cancel</button>
+                            <button
+                                type="button"
+                                onClick={() => { const { entries, suffix } = pendingZip; setPendingZip(null); runZipDownload(entries, suffix); }}
+                                className={buttonClass('primary', 'sm')}
+                            >
+                                Download anyway
+                            </button>
+                        </div>
+                    }
+                >
+                    <p className="text-sm text-(--text-secondary) p-2">{pendingZip.warning}</p>
+                </Modal>
+            )}
 
             {detail && (
                 <ReleaseImageDetailModal
@@ -239,12 +334,12 @@ function StatusFilterChip({ status, count, isActive, onClick }: { status: Releas
         <button
             type="button"
             onClick={onClick}
-            className={`flex items-center gap-1.5 min-h-8 px-2.5 py-1 rounded-lg text-[12px] font-bold border transition-colors cursor-pointer
+            className={`flex items-center gap-1.5 min-h-8 px-2.5 py-1 rounded-control text-[12px] font-bold border transition-colors cursor-pointer
                 ${isActive ? 'border-(--secondary) text-(--text-primary)' : 'border-(--divider) text-(--text-secondary) hover:border-(--text-tertiary)'}`}
         >
             <span className={`w-2 h-2 rounded-full ${STATUS_META[status].badgeClass}`} />
             {STATUS_META[status].label}
-            <span className="text-[10px] font-normal text-(--text-tertiary) bg-(--background-secondary) py-0.5 px-1 rounded-md">{count}</span>
+            <span className="text-[10px] font-normal text-(--text-tertiary) bg-(--background-secondary) py-0.5 px-1 rounded-control">{count}</span>
         </button>
     );
 }
@@ -281,7 +376,7 @@ function RenderJobStatus({ job }: { job: NonNullable<EditionImagesData['job']> }
                 <div className="flex items-center gap-1.5 text-[12px] font-semibold text-(--text-secondary)">
                     <FaSpinner className="animate-spin text-[11px]" />
                     {job.total > 0 ? `Rendering ${processed} of ${job.total}` : 'Starting render…'}
-                    {job.failed > 0 && <span className="text-red-400">· {job.failed} failed</span>}
+                    {job.failed > 0 && <span className="text-(--red)">· {job.failed} failed</span>}
                     {etaSeconds !== null && processed < job.total && (
                         <span className="font-normal text-(--text-tertiary)">· {formatEta(etaSeconds)}</span>
                     )}
@@ -292,7 +387,7 @@ function RenderJobStatus({ job }: { job: NonNullable<EditionImagesData['job']> }
     }
     if (job.status === 'failed') {
         return (
-            <div className="flex items-center gap-1.5 text-[12px] text-red-400">
+            <div className="flex items-center gap-1.5 text-[12px] text-(--red)">
                 <FaTriangleExclamation className="shrink-0" /> Rendering stopped: {job.error ?? 'unknown error'}
             </div>
         );
@@ -302,7 +397,7 @@ function RenderJobStatus({ job }: { job: NonNullable<EditionImagesData['job']> }
     }
     if (job.failed > 0) {
         return (
-            <div className="flex items-center gap-1.5 text-[12px] text-amber-500">
+            <div className="flex items-center gap-1.5 text-[12px] text-(--gold)">
                 <FaTriangleExclamation className="shrink-0" /> Last render finished with {job.failed} failed card{job.failed === 1 ? '' : 's'}.
             </div>
         );
@@ -327,7 +422,7 @@ function ZipDownloadStatus({ state, onCancel, onDismiss }: { state: ZipDownloadS
                 <div className="flex items-center gap-1.5 text-[12px] font-semibold text-(--text-secondary)">
                     <FaSpinner className="animate-spin text-[11px]" />
                     Zipping {state.completed} of {state.total}
-                    {failedCount > 0 && <span className="text-red-400">· {failedCount} failed</span>}
+                    {failedCount > 0 && <span className="text-(--red)">· {failedCount} failed</span>}
                     <button
                         type="button"
                         onClick={onCancel}
@@ -348,11 +443,11 @@ function ZipDownloadStatus({ state, onCancel, onDismiss }: { state: ZipDownloadS
         : state.status === 'cancelled'
             ? 'ZIP download cancelled.'
             : `ZIP download failed: ${state.error ?? 'unknown error'}`;
-    const tone = state.status === 'error' || failedCount > 0 ? 'text-amber-500' : 'text-(--text-secondary)';
+    const tone = state.status === 'error' || failedCount > 0 ? 'text-(--gold)' : 'text-(--text-secondary)';
     return (
         <div className={`flex items-start gap-1.5 text-[12px] ${tone}`}>
             {state.status === 'done' && failedCount === 0
-                ? <FaCheck className="shrink-0 mt-0.5 text-green-500" />
+                ? <FaCheck className="shrink-0 mt-0.5 text-(--green)" />
                 : <FaTriangleExclamation className="shrink-0 mt-0.5" />}
             <span className="flex-1 min-w-0 wrap-anywhere">{message}</span>
             <button type="button" onClick={onDismiss} title="Dismiss" className="shrink-0 text-(--text-tertiary) hover:text-(--text-primary) transition-colors cursor-pointer">
@@ -364,9 +459,9 @@ function ZipDownloadStatus({ state, onCancel, onDismiss }: { state: ZipDownloadS
 
 function StatusBadge({ status }: { status: ReleaseCardImageStatus }) {
     return (
-        <span className={`text-[9px] font-black uppercase rounded px-1.5 py-0.5 leading-none ${STATUS_META[status].badgeClass}`}>
+        <Plate variant="custom" size="sm" className={STATUS_META[status].badgeClass}>
             {STATUS_META[status].label}
-        </span>
+        </Plate>
     );
 }
 
@@ -376,7 +471,7 @@ function CardImageWithSkeleton({ src, alt, dimmed = false, className = '' }: { s
     return (
         <>
             {!loaded && <div className="absolute inset-0 bg-(--background-quaternary) animate-pulse" />}
-            <img
+            <BorderCroppedImage
                 src={src}
                 alt={alt}
                 loading="lazy"
@@ -390,30 +485,37 @@ function CardImageWithSkeleton({ src, alt, dimmed = false, className = '' }: { s
 function ReleaseImageTileSkeleton() {
     return (
         <div className="flex flex-col gap-1.5 animate-pulse">
-            <div className="aspect-5/7 rounded-lg bg-(--background-quaternary)" />
-            <div className="h-3 w-3/4 rounded bg-(--background-quaternary)" />
+            <div className="aspect-5/7 rounded-card bg-(--background-tertiary)" />
+            <div className="h-3 w-3/4 rounded-plate bg-(--background-tertiary)" />
         </div>
     );
 }
 
 type ReleaseImageTileProps = {
-    image: ReleaseCardImage;
-    snapshot?: CardDatabaseRecord;
+    sourceCardId: string;
+    setNumber: string | null;
+    status: ReleaseCardImageStatus;
+    thumbnailPath: string | null;
+    name?: string;
     /** Will be rendered by the running job. */
     isQueued: boolean;
-    onClick: () => void;
+    onOpen: (sourceCardId: string) => void;
 };
 
-function ReleaseImageTile({ image, snapshot, isQueued, onClick }: ReleaseImageTileProps) {
-    const thumbnailSrc = image.thumbnail_path ? cardImagePublicUrl(image.thumbnail_path) : null;
+/** Takes the image's fields rather than the image object: each status poll returns fresh objects,
+ * and memo then skips every tile whose status didn't change. Offscreen tiles skip layout and paint
+ * (content-visibility, desktop only: on phones the page itself scrolls and mobile browsers fail to
+ * paint or hit-test tiles scrolled into view, leaving a handful visible), sized to a typical tile until first rendered. */
+const ReleaseImageTile = memo(function ReleaseImageTile({ sourceCardId, setNumber, status, thumbnailPath, name, isQueued, onOpen }: ReleaseImageTileProps) {
+    const thumbnailSrc = thumbnailPath ? cardImagePublicUrl(thumbnailPath) : null;
     return (
-        <button type="button" onClick={onClick} className="group flex flex-col gap-1.5 text-left min-w-0 cursor-pointer">
-            <div className="relative aspect-5/7 rounded-lg overflow-hidden border border-(--divider) bg-(--background-secondary) group-hover:border-(--text-tertiary) transition-colors">
+        <button type="button" onClick={() => onOpen(sourceCardId)} className="group flex flex-col gap-1.5 text-left min-w-0 cursor-pointer md:[content-visibility:auto] md:[contain-intrinsic-size:auto_140px_auto_236px]">
+            <div className="relative aspect-5/7 rounded-control overflow-hidden border border-(--divider) bg-(--background-secondary) group-hover:border-(--text-tertiary) transition-colors">
                 {thumbnailSrc ? (
                     <CardImageWithSkeleton
                         src={thumbnailSrc}
-                        alt={snapshot?.name ?? image.source_card_id}
-                        dimmed={image.status === 'stale'}
+                        alt={name ?? sourceCardId}
+                        dimmed={status === 'stale'}
                         className="w-full h-full object-contain"
                     />
                 ) : (
@@ -421,8 +523,8 @@ function ReleaseImageTile({ image, snapshot, isQueued, onClick }: ReleaseImageTi
                         <FaImage className="text-2xl opacity-40" />
                     </div>
                 )}
-                {image.status !== 'rendered' && (
-                    <div className="absolute top-1.5 left-1.5"><StatusBadge status={image.status} /></div>
+                {status !== 'rendered' && (
+                    <div className="absolute top-1.5 left-1.5"><StatusBadge status={status} /></div>
                 )}
                 {isQueued && thumbnailSrc && (
                     <div className="absolute bottom-1.5 right-1.5 flex items-center justify-center w-5 h-5 rounded-full bg-(--background-primary)/80">
@@ -431,12 +533,12 @@ function ReleaseImageTile({ image, snapshot, isQueued, onClick }: ReleaseImageTi
                 )}
             </div>
             <div className="flex items-baseline gap-1.5 min-w-0 text-[12px]">
-                {image.set_number && <span className="font-mono text-(--text-tertiary) shrink-0">{image.set_number}</span>}
-                <span className="font-semibold text-(--text-primary) truncate">{snapshot?.name ?? image.source_card_id}</span>
+                {setNumber && <span className="font-mono text-(--text-tertiary) shrink-0">{setNumber}</span>}
+                <span className="font-semibold text-(--text-primary) truncate">{name ?? sourceCardId}</span>
             </div>
         </button>
     );
-}
+});
 
 type ReleaseImageDetailModalProps = {
     image: ReleaseCardImage;
@@ -469,18 +571,18 @@ function ReleaseImageDetailModal({ image, snapshot, canRender, isRendering, onRe
                             href={fullSrc}
                             target="_blank"
                             rel="noreferrer"
-                            className="flex items-center gap-1.5 min-h-9 px-3.5 py-2 rounded-lg text-[13px] font-semibold text-(--text-tertiary) hover:text-(--text-primary) transition-colors cursor-pointer"
+                            className={buttonClass('ghost', 'sm')}
                         >
-                            <FaArrowUpRightFromSquare className="text-[11px]" /> Open Full Size
+                            <FaArrowUpRightFromSquare className="text-[11px]" /> Open full size
                         </a>
                     )}
                     {canRender && (
                         <button
                             type="button"
                             onClick={onRender}
-                            className="flex items-center gap-1.5 min-h-9 px-3.5 py-2 rounded-lg text-[13px] font-bold bg-(--secondary) text-(--background-primary) cursor-pointer"
+                            className={buttonClass('primary', 'sm', 'min-h-9')}
                         >
-                            <FaWandMagicSparkles className="text-[12px]" /> Render This Card
+                            <FaWandMagicSparkles className="text-[12px]" /> Render this card
                         </button>
                     )}
                 </div>
@@ -503,14 +605,14 @@ function ReleaseImageDetailModal({ image, snapshot, canRender, isRendering, onRe
                     </p>
                 )}
                 {image.status === 'failed' && image.error && (
-                    <p className="text-[12px] text-red-400 text-center wrap-anywhere">{image.error}</p>
+                    <p className="text-[12px] text-(--red) text-center wrap-anywhere">{image.error}</p>
                 )}
                 {fullSrc ? (
-                    <div className="relative w-full max-w-sm aspect-5/7 rounded-xl overflow-hidden">
+                    <div className="relative w-full max-w-sm aspect-5/7 rounded-card overflow-hidden">
                         <CardImageWithSkeleton key={fullSrc} src={fullSrc} alt={title} className="w-full h-full object-contain" />
                     </div>
                 ) : (
-                    <div className="flex flex-col items-center justify-center gap-2 w-full max-w-sm aspect-5/7 rounded-xl border border-dashed border-(--divider) text-(--text-tertiary)">
+                    <div className="flex flex-col items-center justify-center gap-2 w-full max-w-sm aspect-5/7 rounded-card border border-dashed border-(--divider) text-(--text-tertiary)">
                         <FaImage className="text-3xl opacity-40" />
                         <span className="text-[12px]">Not rendered yet</span>
                     </div>

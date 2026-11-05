@@ -220,6 +220,29 @@ class Points(BaseModel):
             self.breakdowns[id] = breakdown
             
 
+    def remove_decay(self) -> None:
+        """Undo every `apply_decay` pass, restoring the slashline categories to their pre-decay points.
+        Decay is the only thing that sets `adjustment` on those categories, so it holds the total
+        reduction. Used to re-run decay after swapping a breakdown (ex: speed) without rebuilding the rest.
+
+        Returns:
+            None
+        """
+
+        # IP MULTIPLIER IS APPLIED AFTER DECAY, SO THE ADJUSTMENT NO LONGER MAPS BACK TO THE POINTS
+        if self.ip_multiplier != 1.0:
+            raise ValueError("Decay can't be removed after an IP multiplier is applied")
+
+        for id, breakdown in self.breakdowns.items():
+            if not breakdown.metric.is_effected_by_decay or breakdown.adjustment == 0:
+                continue
+            breakdown.points = round(breakdown.points - breakdown.adjustment, 3)
+            breakdown.adjustment = 0.0
+            self.breakdowns[id] = breakdown
+
+        self.decay_rate = 1.0
+        self.decay_start = 0
+
     def apply_decay(self, decay_rate_and_start: Optional[tuple[float, int]] = None) -> None:
         """Apply decay rate to points categories. Used to keep points in check for high point totals.
         

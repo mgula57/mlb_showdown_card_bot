@@ -226,6 +226,7 @@ class SetBuildReview(BaseModel):
             showdown_sets=[self.showdown_set],
             point_buckets=self.point_buckets,
             position_targets=profile.position_targets,
+            team_weighting=profile.team_weighting,
         )
         showdown_set = request.to_showdown_bot_set()
         # The set builder prints a full set summary - keep the report readable

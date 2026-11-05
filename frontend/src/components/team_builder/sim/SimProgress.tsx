@@ -7,6 +7,7 @@ import { SimEngineExplainer } from './SimEngineExplainer';
 import { SimWinPctChart } from './SimWinPctChart';
 import { SimulationGuideModal, SimulationGuidePanel } from '../../simulate/SimulationGuideModal';
 import { FaBookOpen, FaRotate } from 'react-icons/fa6';
+import { Heading } from '../../shared/Heading';
 
 type Props = {
     job: SimJob | null;
@@ -94,20 +95,15 @@ export function SimProgress({ job, teamName, onCancel }: Props) {
             <div className="flex w-full max-w-lg flex-col items-center gap-4">
                 {/* Hero panel: the dice, what's running, and how far along it is. Clipped, so the
                     panel's top padding has to clear the top of the dice' toss arc (~29px). */}
-                <div className="relative w-full max-w-lg overflow-hidden rounded-2xl border border-(--divider) bg-linear-to-br from-(--background-tertiary) to-(--background-secondary) px-5 pt-8 pb-5 shadow-sm">
-                    <div
-                        aria-hidden
-                        className="pointer-events-none absolute inset-x-0 top-0 h-44"
-                        style={{ background: 'radial-gradient(70% 100% at 50% 0%, color-mix(in srgb, var(--showdown-blue) 16%, transparent), transparent 72%)' }}
-                    />
+                <div className="relative w-full max-w-lg overflow-hidden rounded-card border border-(--divider) bg-(--background-secondary) px-5 pt-8 pb-5">
 
                     {onCancel && (
                         <button
                             type="button"
                             onClick={onCancel}
-                            className="absolute top-1 right-1 z-10 flex cursor-pointer flex-col items-center rounded-lg border border-(--divider) bg-(--background-primary) px-2.5 py-1.5 text-[11px] font-semibold leading-tight text-tertiary transition-colors hover:border-(--showdown-blue) hover:text-primary"
+                            className="absolute top-1 right-1 z-10 flex cursor-pointer flex-col items-center rounded-control border border-(--divider) bg-(--background-primary) px-2.5 py-1.5 text-[11px] font-semibold leading-tight text-tertiary transition-colors hover:border-(--showdown-blue) hover:text-(--text-primary)"
                         >
-                            <span>Sim Stuck?</span>
+                            <span>Sim stuck?</span>
                             <span className="inline-flex items-center gap-1">
                                 <FaRotate className="text-[11px]" />
                                 Retry
@@ -121,10 +117,10 @@ export function SimProgress({ job, teamName, onCancel }: Props) {
                         <SimDiceRoll />
 
                         <div className="text-center">
-                            <p className="flex items-center justify-center gap-2 text-[15px] font-bold text-primary">
+                            <Heading level="section" className="flex items-center justify-center gap-2">
                                 Playing the season
                                 <BetaBadge />
-                            </p>
+                            </Heading>
                             <p className="text-[13px] text-secondary">{teamName}</p>
                         </div>
 
@@ -132,7 +128,7 @@ export function SimProgress({ job, teamName, onCancel }: Props) {
                             <div className="flex items-baseline justify-between gap-3">
                                 {/* Keyed so each new phase crossfades in rather than swapping text in place. */}
                                 <span key={phase} className="fade-in flex min-w-0 items-center gap-1.5 text-[12px] font-semibold text-secondary">
-                                    <span className="live-pulse h-1.5 w-1.5 shrink-0 rounded-full bg-(--showdown-blue)" />
+                                    <span className="live-pulse h-1.5 w-1.5 shrink-0 rounded-full bg-(--showdown-blue-fill)" />
                                     <span className="truncate">{phase}</span>
                                 </span>
                                 <span className="shrink-0 text-[12px] font-bold tabular-nums text-primary">{Math.round(pct)}%</span>
@@ -140,7 +136,7 @@ export function SimProgress({ job, teamName, onCancel }: Props) {
 
                             <div className="h-2.5 overflow-hidden rounded-full bg-(--background-quaternary)">
                                 <div
-                                    className="sim-progress-sheen relative h-full overflow-hidden rounded-full bg-(--showdown-blue) transition-[width] duration-700 ease-out"
+                                    className="sim-progress-sheen relative h-full overflow-hidden rounded-full bg-(--showdown-blue-fill) transition-[width] duration-700 ease-out"
                                     style={{
                                         width: `${pct}%`,
                                         boxShadow: '0 0 10px color-mix(in srgb, var(--showdown-blue) 55%, transparent)',

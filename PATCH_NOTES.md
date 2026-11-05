@@ -2,6 +2,44 @@
 
 What's new in each Showdown Bot release, newest first.
 
+## 4.43 Release — 2026 Card Balancing, Phase 4
+_Released 2026-10-21 · [GitHub release](https://github.com/mgula57/mlb_showdown_card_bot/releases/tag/v4.43)_
+
+This release focuses on more accurate 2026 hitter charts in the 2003–2005 sets, more variety in unusual chart shapes, and a new batch of curated charts.
+
+### 2026 Hitter Charts (2003–2005 Sets)
+When the bot picks a hitter's OnBase and Outs, it scores every possible combination on how closely it matches the player's real stats. In the 2003–2005 sets, matching the player's estimated OnBase from using the WOTC linear scaling method was used to count for half of that score, so a chart could win even if its OPS was well above or below the player's real OPS.
+- Matching estimated OnBase now counts for 30% of the score instead of 50%, and matching OPS counts for 30% instead of 10%
+- Applies only to 2026+ cards. Cards from earlier seasons are unchanged
+- About 1 in 10 hitters gets a new chart in each set (66 in 2003, 75 in 2004, and 71 in 2005, out of 659)
+- On the cards that changed, the average gap to real OPS shrank from about .025 to under .010
+- Fewer hitters are far off on OPS: cards missing by more than .030 dropped by 15–20% in each set
+- Most changed cards lose a few points, because their old charts tended to overshoot the player's real OPS
+- The trade-off: a hitter's OnBase can land slightly further from their estimate
+
+| Player | Set | Real OPS | Old Chart | New Chart |
+|---|---|---|---|---|
+| Bryce Harper | 2004, 2005 | .865 | 12 OnBase / 6 Outs (.908 OPS) | 13 OnBase / 7 Outs (.872 OPS) |
+| Randy Arozarena | 2004, 2005 | .865 | 12 OnBase / 6 Outs (.916 OPS) | 13 OnBase / 7 Outs (.869 OPS) |
+| Junior Caminero | 2003 | .884 | 11 OnBase / 6 Outs (.907 OPS) | 11 OnBase / 7 Outs (.869 OPS) |
+| Luke Keaschall | 2005 | .781 | 12 OnBase / 7 Outs (.737 OPS) | 11 OnBase / 4 Outs (.795 OPS) |
+| Trevor Larnach | 2005 | .788 | 11 OnBase / 7 Outs (.747 OPS) | 10 OnBase / 5 Outs (.787 OPS) |
+
+### Unusual Chart Shapes
+Some charts use an unusual OnBase/Outs or Control/Outs combination, like a high OnBase with lots of outs. In the 2003 and later sets, the bot gives these charts a small accuracy penalty so they don't take over the set. For 2026 cards, that penalty is now lighter when the chart is otherwise very accurate.
+- Hitters with an unusual but accurate chart are a bit more likely to get it as their default
+- Pitchers get unusual Control/Outs charts more often when the rest of the chart matches well, adding more variety to the top of the pitching ranks
+
+### Curated Charts
+Added 13 new hand-picked 2026 charts. Each one shows a `Curated` badge and an explanation in the chart breakdown, and the other options are still available under `Chart Version`.
+- **2000:** Colson Montgomery (also 2001), Max Muncy (ATH), Albert Suárez, Griffin Jax
+- **2001:** Andrés Giménez (a rare 6 OnBase / 0 Outs chart), Foster Griffin
+- **2002:** Michael Busch, Eugenio Suárez, Cam Schlittler
+- **2003:** Fernando Tatis Jr., Vladimir Guerrero Jr.
+- **2004, 2005, and Expanded:** Alex Vesia, Brent Headrick
+
+---
+
 ## 4.42 Release — Google Drive Image Libraries
 _Released 2026-10-08 · [GitHub release](https://github.com/mgula57/mlb_showdown_card_bot/releases/tag/v4.42)_
 

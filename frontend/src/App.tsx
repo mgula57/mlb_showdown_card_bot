@@ -36,7 +36,7 @@ import AppLayout from "./components/AppLayout";
 import CustomCardBuilder from "./components/customs/CustomCardBuilder";
 import { SiteSettingsProvider } from "./components/shared/SiteSettingsContext";
 import { AuthProvider } from "./components/auth/AuthContext";
-import Cards from "./components/cards/Cards";
+import CardExplorer from "./components/cards/CardExplorer";
 import Home from "./components/Home";
 import AccountPage from "./components/account/AccountPage";
 import Seasons from "./components/seasons/Seasons";
@@ -60,6 +60,7 @@ const mlbSeasons = [
 ];
 import Releases from "./components/releases/Releases";
 import Leagues from "./components/leagues/Leagues";
+import ReleaseShortLink from "./components/releases/ReleaseShortLink";
 
 /**
  * Inner application content component that handles route-based visibility
@@ -100,6 +101,8 @@ const AppContent = () => {
         if (path.startsWith('/simulate/')) return '/simulate';
         if (path.startsWith('/release-builder/')) return '/release-builder';
         if (path.startsWith('/leagues/')) return '/leagues';
+        // Short links redirect into the Release Builder, so mount it while the slug resolves
+        if (path.startsWith('/r/')) return '/release-builder';
         return path;
     };
     
@@ -147,10 +150,10 @@ const AppContent = () => {
                 </div>
             )}
 
-            {/* Cards - Mount when first visited */}
+            {/* Card Explorer - Mount when first visited */}
             {mountedRoutes.has('/cards') && (
                 <div className={isActive('/cards') ? 'block' : 'hidden'}>
-                    <Cards />
+                    <CardExplorer />
                 </div>
             )}
 
@@ -181,6 +184,9 @@ const AppContent = () => {
                     <TeamBuilder />
                 </div>
             )}
+
+            {/* Release short links (/r/<slug>) redirect to the release */}
+            {location.pathname.startsWith('/r/') && <ReleaseShortLink />}
 
             {/* Releases - Mount when first visited */}
             {mountedRoutes.has('/release-builder') && (

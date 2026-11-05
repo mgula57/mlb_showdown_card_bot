@@ -7,6 +7,11 @@ import {
 import { OutcomeDivider, SimSeasonRow, SimSeasonRowSkeleton } from './SimSeasonRow';
 import { Tabs, type TabItem } from '../../shared/Tabs';
 
+import { InlineError } from '../../shared/InlineError';
+import { Eyebrow } from '../../shared/Eyebrow';
+import { Heading } from '../../shared/Heading';
+import { Plate } from '../../shared/Plate';
+import { EmptyState } from '../../shared/EmptyState';
 type Props = {
     token?: string;
     onOpenSeason: (teamId: string, jobId: string) => void;
@@ -77,16 +82,16 @@ function ChallengeLeaderboardCard({ card, onOpenSeason, onOpenChallenge }: {
     );
 
     return (
-        <div className="flex flex-col gap-2.5 rounded-xl border border-(--divider) border-l-4 border-l-(--showdown-blue) bg-(--background-secondary) p-4">
+        <div className="flex flex-col gap-2.5 rounded-card border border-(--divider) border-l-4 border-l-(--showdown-blue) bg-(--background-secondary) p-4">
             <div className="flex items-start justify-between gap-2 flex-wrap">
                 <div className="min-w-0 flex flex-col gap-1">
-                    <h4 className="flex items-center gap-1.5 text-[13px] font-black text-(--text-primary)">
+                    <Heading level="panel" as="h4" className="flex items-center gap-1.5">
                         <FaTrophy className="text-[11px] text-(--showdown-blue) shrink-0" />
                         {group.challenge_title}
                         {hasOwnEntry && (
-                            <span className="text-[10px] font-bold text-(--showdown-blue) uppercase tracking-wide">You</span>
+                            <Plate variant="navy" size="sm">You</Plate>
                         )}
-                    </h4>
+                    </Heading>
                     {group.challenge_description && (
                         <p className="text-[11px] text-(--text-secondary) leading-snug line-clamp-2">
                             {group.challenge_description}
@@ -236,9 +241,9 @@ export function SimLeaderboard({ token, onOpenSeason, onOpenChallenge, sort }: P
         return (
             <div className="flex flex-col gap-3">
                 {header}
-                <div className="text-[12px] text-red-400 px-3 py-2 rounded-lg border border-red-400/30 bg-red-400/5">
+                <InlineError size="md">
                     {error}
-                </div>
+                </InlineError>
             </div>
         );
     }
@@ -253,7 +258,7 @@ export function SimLeaderboard({ token, onOpenSeason, onOpenChallenge, sort }: P
                             <div
                                 key={i}
                                 aria-hidden
-                                className="flex flex-col gap-2.5 rounded-xl border border-(--divider) border-l-4 border-l-(--divider) bg-(--background-secondary) p-4 animate-pulse"
+                                className="flex flex-col gap-2.5 rounded-card border border-(--divider) border-l-4 border-l-(--divider) bg-(--background-secondary) p-4 animate-pulse"
                             >
                                 <div className="flex items-start justify-between gap-2">
                                     <div className="flex flex-col gap-1.5 flex-1">
@@ -289,18 +294,18 @@ export function SimLeaderboard({ token, onOpenSeason, onOpenChallenge, sort }: P
 
             {view === 'challenges' && (
                 challengeCards.length === 0 ? (
-                    <p className="text-[13px] text-(--text-tertiary) py-8 text-center px-4">
+                    <EmptyState size="panel" title="No results yet.">
                         {allChallengeCards.length === 0
-                            ? 'No challenge attempts yet. Take on one of the Active Challenges above.'
-                            : 'No results yet for the active challenges.'}
-                    </p>
+                            ? 'Take on one of the active challenges above to get on the board.'
+                            : 'Nobody has finished the active challenges yet.'}
+                    </EmptyState>
                 ) : sectioned ? (
                     <div className="flex flex-col gap-5 px-4">
                         {activeCards.length > 0 && (
                             <section className="flex flex-col gap-3">
-                                <h4 className="text-[11px] font-bold text-(--text-tertiary) uppercase tracking-wide">
+                                <Eyebrow>
                                     Active · {activeCards.length}
-                                </h4>
+                                </Eyebrow>
                                 {activeCards.map(card => (
                                     <ChallengeLeaderboardCard
                                         key={card.group.challenge_instance_id}
@@ -313,9 +318,9 @@ export function SimLeaderboard({ token, onOpenSeason, onOpenChallenge, sort }: P
                         )}
                         {historicalCards.length > 0 && (
                             <section className="flex flex-col gap-3">
-                                <h4 className="text-[11px] font-bold text-(--text-tertiary) uppercase tracking-wide">
+                                <Eyebrow>
                                     Historical · {historicalCards.length}
-                                </h4>
+                                </Eyebrow>
                                 {historicalCards.map(card => (
                                     <ChallengeLeaderboardCard
                                         key={card.group.challenge_instance_id}
@@ -343,9 +348,9 @@ export function SimLeaderboard({ token, onOpenSeason, onOpenChallenge, sort }: P
 
             {view === 'open' && (
                 openSeasons.length === 0 ? (
-                    <p className="text-[13px] text-(--text-tertiary) py-8 text-center px-4">
-                        No open-play seasons yet. Open one of your teams and hit Play Season.
-                    </p>
+                    <EmptyState size="panel" title="No seasons yet.">
+                        Open one of your teams and hit Play season to get on the board.
+                    </EmptyState>
                 ) : (
                     <div className="flex flex-col gap-6 px-4">
                         {openSeasons.map(season => {
@@ -353,12 +358,12 @@ export function SimLeaderboard({ token, onOpenSeason, onOpenChallenge, sort }: P
                             return (
                                 <section key={season.year} className="flex flex-col gap-2">
                                     <div className="flex items-baseline gap-2">
-                                        <h2 className="text-[13px] font-bold text-(--text-secondary)">{season.year}</h2>
+                                        <Heading level="panel" as="h2">{season.year}</Heading>
                                         <span className="text-[11px] text-(--text-tertiary)">
                                             {teamCount} {teamCount === 1 ? 'team' : 'teams'} played
                                         </span>
                                         {season.has_own_entry && (
-                                            <span className="text-[10px] font-bold text-(--showdown-blue) uppercase tracking-wide">You</span>
+                                            <Plate variant="navy" size="sm">You</Plate>
                                         )}
                                     </div>
                                     <div className="flex flex-col gap-1.5">

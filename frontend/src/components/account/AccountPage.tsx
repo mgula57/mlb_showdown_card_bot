@@ -21,7 +21,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../auth/AuthContext';
 import { useNavigate } from 'react-router-dom';
-import { useSiteSettings, useTheme, showdownSets } from '../shared/SiteSettingsContext';
+import { useSiteSettings, useTheme } from '../shared/SiteSettingsContext';
+import { SET_SELECT_OPTIONS_LG } from '../shared/SetBadge';
 import { FaEnvelope, FaClock, FaPalette, FaSignOutAlt, FaTrash, FaCog, FaUser, FaCamera, FaSpinner } from 'react-icons/fa';
 import { SignInPrompt } from '../shared/SignInPrompt';
 import CustomSelect from '../shared/CustomSelect';
@@ -33,6 +34,11 @@ import { DEFAULT_PRIMARY_COLOR, DEFAULT_SECONDARY_COLOR } from '../../api/userSe
 import AccountSection from './AccountSection';
 import ImageLibrarySettings from './ImageLibrarySettings';
 
+import { buttonClass } from '../shared/buttonStyles';
+import { Heading } from '../shared/Heading';
+import { PinstripeBackdrop } from '../shared/PinstripeBackdrop';
+import { FIELD_LABEL_CLASS, fieldClass } from '../shared/fieldStyles';
+import { choiceClass } from '../shared/choiceStyles';
 /**
  * Account Page Component
  * 
@@ -70,8 +76,16 @@ const AccountPage: React.FC = () => {
     // Loading state
     if (loading) {
         return (
-            <div className="flex items-center justify-center min-h-screen">
-                <div className="text-secondary text-xl">Loading...</div>
+            <div className="min-h-screen bg-primary p-4 md:p-8">
+                <div className="max-w-4xl mx-auto space-y-6 animate-pulse" aria-label="Loading account">
+                    <div className="mb-8 space-y-2">
+                        <div className="h-7 w-64 rounded-plate bg-(--background-tertiary)" />
+                        <div className="h-4 w-80 rounded-plate bg-(--background-tertiary)" />
+                    </div>
+                    {[160, 280, 200].map(height => (
+                        <div key={height} className="rounded-card border border-(--divider) bg-(--background-secondary)" style={{ height }} />
+                    ))}
+                </div>
             </div>
         );
     }
@@ -149,7 +163,7 @@ const AccountPage: React.FC = () => {
         setIsSavingUsername(false);
 
         if (error) {
-            setUsernameError('Failed to update username. Please try again.');
+            setUsernameError("Couldn't update your username. Try again.");
             return;
         }
 
@@ -180,7 +194,7 @@ const AccountPage: React.FC = () => {
         if (url) {
             syncSetting({ avatar_url: url });
         } else {
-            setAvatarError('Upload failed. Please try again.');
+            setAvatarError("Upload failed. Try again.");
         }
         setCropSrc(null);
     };
@@ -199,13 +213,15 @@ const AccountPage: React.FC = () => {
     };
 
     return (
-        <div className="min-h-screen bg-primary p-4 md:p-8">
+        <div className="min-h-screen relative isolate bg-primary p-4 md:p-8">
+            {/* Card-back pinstripes behind the page header */}
+            <PinstripeBackdrop heightClass="h-72" />
             <div className="max-w-4xl mx-auto space-y-6">
                 
                 {/* Page Header */}
                 <div className="mb-8">
-                    <h1 className="text-3xl font-bold text-secondary mb-2">Account Settings</h1>
-                    <p className="text-gray-500">Manage your account information and preferences</p>
+                    <Heading level="page" className="mb-2">Account Settings</Heading>
+                    <p className="text-(--text-tertiary)">Manage your account information and preferences</p>
                 </div>
 
                 {/* User Profile Card */}
@@ -215,7 +231,7 @@ const AccountPage: React.FC = () => {
                         <div className="shrink-0">
                             <label
                                 htmlFor="avatar-upload"
-                                className={`relative group block w-20 h-20 rounded-full focus-within:ring-2 focus-within:ring-accent ${isUploadingAvatar ? 'cursor-not-allowed' : 'cursor-pointer'}`}
+                                className={`relative group block w-20 h-20 rounded-full focus-within:ring-2 focus-within:ring-(--showdown-blue) ${isUploadingAvatar ? 'cursor-not-allowed' : 'cursor-pointer'}`}
                                 title="Change profile photo"
                             >
                                 <AccountAvatar
@@ -242,11 +258,11 @@ const AccountPage: React.FC = () => {
                                     <span className="
                                         absolute bottom-0 right-0
                                         w-6 h-6 rounded-full
-                                        bg-accent border-2 border-background-secondary
+                                        bg-(--showdown-blue-fill) border-2 border-(--background-secondary)
                                         flex items-center justify-center
                                         group-hover:opacity-0 transition-opacity duration-200
                                     ">
-                                        <FaCamera className="w-2.5 h-2.5 text-primary" />
+                                        <FaCamera className="w-2.5 h-2.5 text-white" />
                                     </span>
                                 )}
                             </label>
@@ -263,13 +279,13 @@ const AccountPage: React.FC = () => {
                                     <button
                                         type="button"
                                         onClick={handleRemoveAvatar}
-                                        className="text-xs text-tertiary hover:underline block w-full"
+                                        className="text-xs text-tertiary hover:underline block w-full cursor-pointer"
                                     >
                                         Remove
                                     </button>
                                 )}
                                 {avatarError && (
-                                    <p className="text-xs text-red-500">{avatarError}</p>
+                                    <p className="text-xs text-(--red)">{avatarError}</p>
                                 )}
                             </div>
 
@@ -290,11 +306,11 @@ const AccountPage: React.FC = () => {
 
                                 {/* Username */}
                                 <div className="flex items-start space-x-3">
-                                    <FaUser className="text-gray-500 shrink-0 mt-1" />
+                                    <FaUser className="text-(--text-tertiary) shrink-0 mt-1" />
                                     <div className="flex-1">
                                         <div className="flex items-end gap-5">
                                             <div>
-                                                <p className="text-sm text-gray-500">Username</p>
+                                                <p className={FIELD_LABEL_CLASS}>Username</p>
                                                 <p className="text-secondary font-medium">{username ?? 'Not set'}</p>
                                             </div>
                                             <button
@@ -303,7 +319,7 @@ const AccountPage: React.FC = () => {
                                                     setIsEditingUsername(true);
                                                     setUsernameError(null);
                                                 }}
-                                                className="text-xs mb-1 text-tertiary hover:underline"
+                                                className="text-xs mb-1 text-tertiary hover:underline cursor-pointer"
                                             >
                                                 {username ? 'Change' : 'Set'}
                                             </button>
@@ -320,35 +336,28 @@ const AccountPage: React.FC = () => {
                                                     }}
                                                     minLength={3}
                                                     pattern="[a-zA-Z0-9_]+"
-                                                    className={`
-                                                        w-full px-3 py-2
-                                                        bg-background-primary
-                                                        border rounded-lg
-                                                        text-secondary
-                                                        focus:outline-none focus:ring-2 focus:ring-accent
-                                                        ${usernameError ? 'border-red-500' : 'border-form-element'}
-                                                    `}
+                                                    className={fieldClass('md', `w-full focus:outline-none ${usernameError ? 'border-(--red)!' : ''}`)}
                                                     placeholder="e.g. brianjordangoat"
                                                 />
                                                 {isCheckingUsername && (
-                                                    <p className="text-xs text-gray-500">Checking availability...</p>
+                                                    <p className="text-xs text-(--text-tertiary)">Checking availability…</p>
                                                 )}
                                                 {usernameError && !isCheckingUsername ? (
-                                                    <p className="text-xs text-red-500">{usernameError}</p>
-                                                ) : (!usernameError && !isCheckingUsername ? (<p className="text-xs text-green-500">Username is available!</p>) : null)}
+                                                    <p className="text-xs text-(--red)">{usernameError}</p>
+                                                ) : (!usernameError && !isCheckingUsername ? (<p className="text-xs text-(--green)">Username available</p>) : null)}
                                                 <div className="flex items-center gap-2">
                                                     <button
                                                         type="button"
                                                         onClick={handleSaveUsername}
                                                         disabled={isSavingUsername || isCheckingUsername}
-                                                        className="px-3 py-1.5 rounded-md bg-accent text-primary text-xs font-semibold disabled:opacity-50"
+                                                        className={buttonClass('primary', 'sm')}
                                                     >
-                                                        {isSavingUsername ? 'Saving...' : 'Save'}
+                                                        {isSavingUsername ? 'Saving…' : 'Save'}
                                                     </button>
                                                     <button
                                                         type="button"
                                                         onClick={() => setIsEditingUsername(false)}
-                                                        className="px-3 py-1.5 rounded-md border border-form-element text-xs text-secondary"
+                                                        className={buttonClass('secondary', 'sm')}
                                                     >
                                                         Cancel
                                                     </button>
@@ -360,18 +369,18 @@ const AccountPage: React.FC = () => {
 
                                 {/* Email */}
                                 <div className="flex items-center space-x-3">
-                                    <FaEnvelope className="text-gray-500 shrink-0" />
+                                    <FaEnvelope className="text-(--text-tertiary) shrink-0" />
                                     <div>
-                                        <p className="text-sm text-gray-500">Email</p>
+                                        <p className={FIELD_LABEL_CLASS}>Email</p>
                                         <p className="text-secondary font-medium">{user.email}</p>
                                     </div>
                                 </div>
 
                                 {/* Account Created */}
                                 <div className="flex items-center space-x-3">
-                                    <FaClock className="text-gray-500 shrink-0" />
+                                    <FaClock className="text-(--text-tertiary) shrink-0" />
                                     <div>
-                                        <p className="text-sm text-gray-500">Member Since</p>
+                                        <p className={FIELD_LABEL_CLASS}>Member Since</p>
                                         <p className="text-secondary font-medium">
                                             {user.created_at ? formatDate(user.created_at) : 'Unknown'}
                                         </p>
@@ -388,75 +397,46 @@ const AccountPage: React.FC = () => {
                         {/* Theme Setting */}
                         <div>
                             <div className="flex items-center space-x-2 mb-2">
-                                <FaPalette className="text-gray-500" />
-                                <label className="text-sm font-medium text-secondary">Theme</label>
+                                <FaPalette className="text-(--text-tertiary)" />
+                                <label className={FIELD_LABEL_CLASS}>Theme</label>
                             </div>
-                            <div className="flex space-x-3">
-                                <button
-                                    onClick={() => setTheme('light')}
-                                    className={`
-                                        px-4 py-2 rounded-lg border
-                                        transition-colors duration-150
-                                        ${theme === 'light'
-                                            ? 'bg-accent text-primary border-accent-dark font-semibold'
-                                            : 'bg-background-primary text-secondary border-form-element hover:bg-background-tertiary'
-                                        }
-                                    `}
-                                >
-                                    Light
-                                </button>
-                                <button
-                                    onClick={() => setTheme('dark')}
-                                    className={`
-                                        px-4 py-2 rounded-lg border
-                                        transition-colors duration-150
-                                        ${theme === 'dark'
-                                            ? 'bg-accent text-primary border-accent-dark font-semibold'
-                                            : 'bg-background-primary text-secondary border-form-element hover:bg-background-tertiary'
-                                        }
-                                    `}
-                                >
-                                    Dark
-                                </button>
-                                <button
-                                    onClick={() => setTheme('system')}
-                                    className={`
-                                        px-4 py-2 rounded-lg border
-                                        transition-colors duration-150
-                                        ${theme === 'system'
-                                            ? 'bg-accent text-primary border-accent-dark font-semibold'
-                                            : 'bg-background-primary text-secondary border-form-element hover:bg-background-tertiary'
-                                        }
-                                    `}
-                                >
-                                    System
-                                </button>
+                            <div className="flex gap-2">
+                                {(['light', 'dark', 'system'] as const).map(option => (
+                                    <button
+                                        key={option}
+                                        type="button"
+                                        onClick={() => setTheme(option)}
+                                        className={choiceClass(theme === option, 'md', 'capitalize')}
+                                    >
+                                        {option}
+                                    </button>
+                                ))}
                             </div>
-                            <p className="text-xs text-gray-500 mt-2">
+                            <p className="text-xs text-(--text-tertiary) mt-2">
                                 Choose how the application appears to you
                             </p>
                         </div>
 
                         {/* Default Showdown Set */}
                         <div>
+                            <label className={`${FIELD_LABEL_CLASS} mb-2`}>Default Set</label>
                             <CustomSelect
-                                className="font-showdown-set-italic w-26 text-xl"
-                                buttonClassName="flex justify-center cursor-pointer select-none p-2 rounded-lg border"
-                                imageClassName="object-contain object-center w-18"
+                                className="w-44"
+                                size="lg"
                                 value={userShowdownSet}
                                 onChange={setUserShowdownSet}
-                                options={showdownSets}
+                                options={SET_SELECT_OPTIONS_LG}
                                 showDropdownArrow={true}
                             />
                             
-                            <p className="text-xs text-gray-500 mt-2">
+                            <p className="text-xs text-(--text-tertiary) mt-2">
                                 Your preferred Showdown set for card generation
                             </p>
                         </div>
 
                         {/* Default Team Colors */}
                         <div>
-                            <label className="text-sm font-medium text-secondary block mb-2">Default Team Colors</label>
+                            <label className={`${FIELD_LABEL_CLASS} mb-2`}>Default Team Colors</label>
                             <div className="flex items-center gap-6">
                                 <ColorPicker
                                     label="Primary Color"
@@ -469,7 +449,7 @@ const AccountPage: React.FC = () => {
                                     onChange={v => syncSetting({ default_secondary_color: v })}
                                 />
                             </div>
-                            <p className="text-xs text-gray-500 mt-2">
+                            <p className="text-xs text-(--text-tertiary) mt-2">
                                 Used as the starting colors when creating a new team
                             </p>
                         </div>
@@ -486,49 +466,30 @@ const AccountPage: React.FC = () => {
                         <button
                             onClick={handleSignOut}
                             disabled={isSigningOut}
-                            className="
-                                w-full md:w-auto
-                                flex items-center justify-center space-x-2
-                                px-6 py-3
-                                bg-gray-600 text-white
-                                rounded-lg
-                                hover:bg-gray-700
-                                disabled:opacity-50 disabled:cursor-not-allowed
-                                transition-colors duration-150
-                                font-medium
-                            "
+                            className={buttonClass('secondary', 'md', 'w-full md:w-auto px-6! py-3!')}
                         >
                             <FaSignOutAlt />
-                            <span>{isSigningOut ? 'Signing Out...' : 'Sign Out'}</span>
+                            <span>{isSigningOut ? 'Signing out…' : 'Sign out'}</span>
                         </button>
 
                         {/* Delete Account Button (placeholder for future implementation) */}
                         <button
                             disabled
-                            className="
-                                w-full md:w-auto
-                                flex items-center justify-center space-x-2
-                                px-6 py-3
-                                bg-red-600/50 text-white
-                                rounded-lg
-                                cursor-not-allowed
-                                opacity-50
-                                font-medium
-                            "
+                            className={buttonClass('danger', 'md', 'w-full md:w-auto px-6! py-3!')}
                             title="Account deletion coming soon"
                         >
                             <FaTrash />
-                            <span>Delete Account</span>
+                            <span>Delete account</span>
                         </button>
-                        <p className="text-xs text-gray-500">
+                        <p className="text-xs text-(--text-tertiary)">
                             Account deletion will be available in a future update. 
-                            If you need account assistance please email <a href="mailto:mlbshowdownbot@gmail.com" className="text-tertiary hover:underline">mlbshowdownbot@gmail.com</a>.
+                            For help with your account, email <a href="mailto:mlbshowdownbot@gmail.com" className="text-tertiary hover:underline">mlbshowdownbot@gmail.com</a>.
                         </p>
                     </div>
                 </AccountSection>
 
                 {/* Footer Info */}
-                <div className="text-center text-sm text-gray-500 py-4">
+                <div className="text-center text-sm text-(--text-tertiary) py-4">
                     <p>Your data is securely stored and managed through Supabase</p>
                 </div>
             </div>

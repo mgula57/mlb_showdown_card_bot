@@ -26,8 +26,8 @@ type TeamChipProps = {
 };
 
 const SIZE_CLASSES: Record<TeamChipSize, { badge: string; flag: string; record: string }> = {
-    sm: { badge: "font-black text-[11px]", flag: "1em", record: "text-[10px]" },
-    md: { badge: "font-black", flag: "1.25em", record: "text-[11px]" },
+    sm: { badge: "font-display-upright uppercase text-[12px]", flag: "1em", record: "text-[10px]" },
+    md: { badge: "font-display-upright uppercase", flag: "1.25em", record: "text-[11px]" },
 };
 
 export function TeamChip({ team, record, size = "md", isStarred, onToggleStar, className = "" }: TeamChipProps) {
@@ -41,7 +41,7 @@ export function TeamChip({ team, record, size = "md", isStarred, onToggleStar, c
                 <ReactCountryFlag countryCode={team.countryCode} svg style={{ width: sizing.flag, height: sizing.flag }} />
             )}
             <span
-                className={`${sizing.badge} ${badgeBg ? "px-1.5 py-0.5 rounded" : "text-(--text-primary)"}`}
+                className={`${sizing.badge} ${badgeBg ? "px-1.5 py-0.5 rounded-plate" : "text-(--text-primary)"}`}
                 style={badgeBg ? { backgroundColor: badgeBg, color: badgeText } : undefined}
             >
                 {team.abbreviation}
@@ -68,12 +68,12 @@ export function TeamChip({ team, record, size = "md", isStarred, onToggleStar, c
                             onToggleStar();
                         }
                     }}
-                    className={`text-sm leading-none cursor-pointer ${isStarred ? "text-yellow-300" : "text-(--quaternary) hover:text-yellow-300"}`}
+                    className={`text-sm leading-none cursor-pointer ${isStarred ? "text-(--gold)" : "text-(--quaternary) hover:text-(--gold)"}`}
                 >
                     {isStarred ? <FaStar className="h-3.5 w-3.5" /> : <FaRegStar className="h-3.5 w-3.5" />}
                 </span>
             ) : isStarred ? (
-                <FaStar className="h-3 w-3 shrink-0 text-yellow-400" aria-label={`${team.abbreviation} is starred`} />
+                <FaStar className="h-3 w-3 shrink-0 text-(--gold)" aria-label={`${team.abbreviation} is starred`} />
             ) : null}
         </div>
     );

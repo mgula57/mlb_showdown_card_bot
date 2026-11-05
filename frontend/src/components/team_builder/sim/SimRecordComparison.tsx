@@ -3,6 +3,7 @@ import { DiffBadge } from './DiffIndicator';
 import { SectionCard } from './SectionCard';
 import { useRecordComparison, type RecordComparisonEntry } from './simStandings';
 import { computeDiff } from './simStatColumns';
+import { CAPS_LABEL_CLASS } from '../../shared/fieldStyles';
 
 /** Batting-average-style formatting for a win% delta's magnitude, e.g. `.087`. */
 function formatWinPctDiff(abs: number): string {
@@ -11,7 +12,7 @@ function formatWinPctDiff(abs: number): string {
 
 function RecordTable({ entries, focusAbbr }: { entries: RecordComparisonEntry[]; focusAbbr: string }) {
     return (
-        <div className="overflow-x-auto scrollbar-hide rounded-xl border border-(--divider)">
+        <div className="overflow-x-auto scrollbar-hide rounded-card border border-(--divider)">
             <table className="w-full text-[12px] whitespace-nowrap">
                 <thead>
                     <tr className="text-(--text-tertiary) border-b border-(--divider)">
@@ -57,13 +58,13 @@ export function SimRecordComparison({ summary, focusAbbr }: Props) {
             <div className="flex flex-col lg:flex-row gap-4">
                 {overperformers.length > 0 && (
                     <div className='lg:w-1/2'>
-                        <p className="text-[11px] font-bold text-(--success) uppercase tracking-wide mb-1.5">Overperformed Real Life</p>
+                        <p className={`text-(--success) mb-1.5 ${CAPS_LABEL_CLASS}`}>Overperformed Real Life</p>
                         <RecordTable entries={overperformers} focusAbbr={focusAbbr} />
                     </div>
                 )}
                 {underperformers.length > 0 && (
                     <div className='lg:w-1/2'>
-                        <p className="text-[11px] font-bold text-(--error) uppercase tracking-wide mb-1.5">Underperformed Real Life</p>
+                        <p className={`text-(--error) mb-1.5 ${CAPS_LABEL_CLASS}`}>Underperformed Real Life</p>
                         <RecordTable entries={underperformers} focusAbbr={focusAbbr} />
                     </div>
                 )}

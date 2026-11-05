@@ -13,7 +13,7 @@ import {
     type TeamSummary,
     type TeamUpdatePayload,
 } from '../../api/userTeams';
-import { buildDefaultTeamPayload, numberedName } from '../../domain/newTeam';
+import { buildDefaultTeamPayload, numberedName, requiredPlayerSlots, splitRequiredPlayers } from '../../domain/newTeam';
 import {
     fetchShowdownTeam, fetchAsgShowdownTeam, fetchEraShowdownTeam,
     type Season,
@@ -23,8 +23,8 @@ import { TeamCard } from './TeamCard';
 import { TeamSearchInput } from './TeamSearchInput';
 import { matchesTeamQuery } from './teamSearch';
 import { TeamPreviewCard } from './TeamPreviewCard';
-import { TeamShelf } from './TeamShelf';
-import { TeamDetail } from './TeamDetail';
+import { TeamShelf, TeamShelfSkeleton } from './TeamShelf';
+import { TeamDetail, TeamDetailSkeleton } from './TeamDetail';
 import { TeamBuilderWelcome } from './TeamBuilderWelcome';
 import { BrowseTeams } from './BrowseTeams';
 import { CollectionDetail } from './CollectionDetail';
@@ -36,11 +36,15 @@ import { RecentSimsShelf } from './sim/RecentSimsShelf';
 import { ChallengeDetail } from './sim/ChallengeDetail';
 import { AdminChallengesView } from './sim/admin/AdminChallengesView';
 import { Tabs, type TabItem } from '../shared/Tabs';
-import { BetaBadge } from '../shared/BetaBadge';
 import BackButton from '../shared/BackButton';
 import { FaPlus, FaSpinner, FaUsers, FaGlobe, FaRankingStar } from 'react-icons/fa6';
 import { fetchChallengeInstance, type ChallengeInstance } from '../../api/sim';
 
+import { InlineError } from '../shared/InlineError';
+import { Heading } from '../shared/Heading';
+import { buttonClass } from '../shared/buttonStyles';
+import { EmptyState } from '../shared/EmptyState';
+import { PinstripeBackdrop } from '../shared/PinstripeBackdrop';
 // A team can be addressed by URL four ways: a saved UUID, a historical MLB team, an All-Star
 // team, or an Era Roster (all-time or all-decade).
 type TeamRef =
@@ -355,7 +359,8 @@ export default function TeamBuilder() {
         setError(null);
         try {
             const myTeams = token ? await fetchUserTeams(token) : [];
-            setUserTeams(myTeams);
+            // League teams are managed from their league, not the Team Builder.
+            setUserTeams(myTeams.filter(t => t.source !== 'league'));
             setListLoaded(true);
         } catch (err: any) {
             setError(err.message ?? 'Failed to load teams.');
@@ -444,6 +449,9 @@ export default function TeamBuilder() {
                     `${displayName} Team`,
                     existingTeams.filter(t => t.creation_source !== 'challenge').length,
                 );
+            // A challenge can require specific players (e.g. Mantle in CF); the new team starts with them
+            // already on the roster, and the key stays out of the team's own picker filters.
+            const { filters: challengeFilters, required } = splitRequiredPlayers(challenge?.player_filters);
             const payload = buildDefaultTeamPayload({
                 displayName,
                 showdownSet: userShowdownSet,
@@ -463,7 +471,8 @@ export default function TeamBuilder() {
                     min_bench: 3,
                     min_bullpen: 5,
                     origin_template_id: challenge.template_id,
-                    player_filters: challenge.player_filters,
+                    player_filters: challengeFilters,
+                    ...(required.length ? { roster: requiredPlayerSlots(required, challenge.year, userShowdownSet) } : {}),
                     creation_source: 'challenge',
                 } : { name, creation_source: 'new_team' },
             });
@@ -614,7 +623,7 @@ export default function TeamBuilder() {
                 <div className={`flex items-center gap-3 ${px}`}>
                     <BackButton onBack={() => { setTeamSearch(''); navigate('/teams'); }} />
                     <div>
-                        <h1 className="text-[20px] font-black text-(--text-primary)">My Teams</h1>
+                        <Heading level="page">My Teams</Heading>
                         <p className="text-[12px] text-(--text-secondary)">
                             {sortedUserTeams.length} team{sortedUserTeams.length === 1 ? '' : 's'}
                             {archivedCount > 0 && ` · ${archivedCount} archived`}
@@ -643,23 +652,30 @@ export default function TeamBuilder() {
                 </div>
 
                 {error && (
-                    <div className="mx-4 text-[12px] text-red-400 px-3 py-2 rounded-lg border border-red-400/30 bg-red-400/5">
+                    <InlineError size="md" className="mx-4">
                         {error}
-                    </div>
+                    </InlineError>
                 )}
 
                 {loading ? (
-                    <div className="flex justify-center py-12">
-                        <FaSpinner className="animate-spin text-(--text-tertiary) text-xl" />
+                    <div className={`grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-2 animate-pulse ${px}`} aria-label="Loading teams">
+                        {Array.from({ length: 6 }, (_, i) => <div key={i} className="h-16 rounded-control bg-(--background-tertiary)" />)}
                     </div>
                 ) : !token ? (
                     <p className="text-[13px] text-(--text-tertiary) py-8 text-center">
                         Sign in to view your teams.
                     </p>
                 ) : filteredUserTeams.length === 0 ? (
-                    <p className="text-[13px] text-(--text-tertiary) py-8 text-center">
-                        {q ? `No teams match “${q}”.` : 'You haven’t created any teams yet.'}
-                    </p>
+                    q ? (
+                        <EmptyState size="inline">No teams match “{q}”.</EmptyState>
+                    ) : (
+                        <EmptyState
+                            title="No teams yet."
+                            action={<button type="button" onClick={handleNewTeam} className={buttonClass('primary')}><FaPlus className="text-[11px]" /> New team</button>}
+                        >
+                            Draft a roster of Showdown cards, then take it into a 162-game season.
+                        </EmptyState>
+                    )
                 ) : (
                     <div className={`grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-2 ${px}`}>
                         {filteredUserTeams.map(team => (
@@ -675,9 +691,7 @@ export default function TeamBuilder() {
 
     if (view.mode === 'loading') {
         return (
-            <div className="flex flex-col h-full items-center justify-center py-12">
-                <FaSpinner className="animate-spin text-(--text-tertiary) text-xl" />
-            </div>
+            <TeamDetailSkeleton />
         );
     }
 
@@ -749,15 +763,14 @@ export default function TeamBuilder() {
     return (
         // `@container` here spans the full content region, so shelves flagged `bleed` can
         // run to the screen edge past the centered max-width below.
-        <div className="@container w-full">
+        <div className="@container w-full relative isolate">
+        {/* Card-back pinstripes behind the page header, like the Release Builder list */}
+        <PinstripeBackdrop heightClass="h-72" />
         <div className="flex flex-col gap-4 py-4 max-w-4xl lg:max-w-7xl mx-auto w-full">
             {/* Header */}
             <div className={`flex items-center ${px} justify-between`}>
                 <div>
-                    <h1 className="flex items-center gap-2 text-[20px] font-black text-(--text-primary)">
-                        Team Builder
-                        <BetaBadge />
-                    </h1>
+                    <Heading level="page">Team Builder</Heading>
                     <p className="text-[12px] text-(--text-secondary)">
                         Build your team, compete in challenges, and explore community creations.
                     </p>
@@ -767,11 +780,10 @@ export default function TeamBuilder() {
                         type="button"
                         onClick={handleNewTeam}
                         disabled={creatingTeam}
-                        className={`flex items-center gap-1 ${px} py-3 text-sm rounded-xl bg-(--secondary) font-bold text-(--background-primary) hover:opacity-90 transition-opacity cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed`}
+                        className={buttonClass('primary', 'md', `${px} py-3!`)}
                     >
                         {creatingTeam ? <FaSpinner className="animate-spin" /> : <FaPlus />}
-                        New
-                        <span className="hidden md:inline">Team</span>
+                        <span>New<span className="hidden md:inline"> Team</span></span>
                     </button>
                 )}
             </div>
@@ -780,9 +792,9 @@ export default function TeamBuilder() {
             <Tabs tabs={TABS} value={activeTab} onChange={setActiveTab} className={px} fullWidth />
 
             {error && (
-                <div className="mx-4 text-[12px] text-red-400 px-3 py-2 rounded-lg border border-red-400/30 bg-red-400/5">
+                <InlineError size="md" className="mx-4">
                     {error}
-                </div>
+                </InlineError>
             )}
 
             {/* My Teams tab */}
@@ -801,9 +813,7 @@ export default function TeamBuilder() {
                         </div>
                     )}
                     {loading ? (
-                        <div className="flex justify-center py-12">
-                            <FaSpinner className="animate-spin text-(--text-tertiary) text-xl" />
-                        </div>
+                        <TeamShelfSkeleton shelves={2} className={px} />
                     ) : (
                         <section className={`${px}`}>
                             {!token || userTeams.length === 0 ? (
@@ -896,7 +906,7 @@ function TeamListSection({ title, teams, previewCount, onOpen, showAll, emptyNot
     return (
         <div className="space-y-3">
             <div className="flex items-center justify-between gap-3">
-                <h3 className="text-[15px] font-black text-(--text-primary) truncate">{title}</h3>
+                <Heading level="panel" className="truncate">{title}</Heading>
                 {showAll && (
                     <button
                         type="button"

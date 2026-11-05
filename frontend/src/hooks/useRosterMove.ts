@@ -39,9 +39,16 @@ type Options = {
     onMove: (move: RosterMove) => Promise<void>;
 };
 
-/** Ring / fade for a slot while a player is being moved. */
-export function moveSlotClass(state: RosterMoveSlotState): string {
-    if (state.isTarget) return 'rounded-lg ring-2 ring-(--secondary) cursor-pointer';
+/** Ring color per surface: the white card edge over the field image, navy on page surfaces. */
+const MOVE_RING_CLASSES = {
+    field: 'rounded-control ring-2 ring-(--card-edge)',
+    page: 'rounded-control ring-2 ring-(--showdown-blue)',
+} as const;
+
+/** Ring / fade for a slot while a player is being moved. The player being moved pulses. */
+export function moveSlotClass(state: RosterMoveSlotState, surface: keyof typeof MOVE_RING_CLASSES = 'page'): string {
+    if (state.isMoving) return `${MOVE_RING_CLASSES[surface]} animate-pulse`;
+    if (state.isTarget) return `${MOVE_RING_CLASSES[surface]} cursor-pointer`;
     if (state.isDimmed) return 'opacity-40';
     return '';
 }

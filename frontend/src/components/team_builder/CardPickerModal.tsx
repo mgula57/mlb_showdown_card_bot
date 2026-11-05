@@ -5,7 +5,8 @@ import { CardItemCompactFromCardDatabaseRecord } from '../cards/CardItemCompact'
 import { CardSource } from '../../types/cardSource';
 import type { CardSource as CardSourceType } from '../../types/cardSource';
 import FormInput from '../customs/FormInput';
-import { FaSpinner } from 'react-icons/fa6';
+import { Tabs } from '../shared/Tabs';
+import { EmptyState } from '../shared/EmptyState';
 
 type CardPickerModalProps = {
     title?: string;
@@ -69,22 +70,12 @@ export function CardPickerModal({
         <Modal title={title} onClose={onClose} size="md">
             <div className="flex flex-col gap-3 p-4 min-h-0">
                 {/* Source tabs */}
-                <div className="flex gap-1">
-                    {SOURCES.map(s => (
-                        <button
-                            key={s.key}
-                            type="button"
-                            onClick={() => { setSource(s.key); setResults([]); }}
-                            className={`text-[11px] font-semibold px-2.5 py-1 rounded border transition-colors
-                                ${source === s.key
-                                    ? 'border-(--secondary) text-(--secondary)'
-                                    : 'border-(--divider) text-(--text-secondary) hover:border-(--secondary)/50'
-                                }`}
-                        >
-                            {s.label}
-                        </button>
-                    ))}
-                </div>
+                <Tabs
+                    size="sm"
+                    tabs={SOURCES.map(src => ({ id: src.key, label: src.label }))}
+                    value={source}
+                    onChange={key => { setSource(key); setResults([]); }}
+                />
 
                 {/* Search */}
                 <FormInput
@@ -93,18 +84,16 @@ export function CardPickerModal({
                     onChange={v => setQuery(v ?? '')}
                     isClearable
                     showSearchIcon
-                    placeholder="Search..."
+                    placeholder="Search…"
                 />
 
                 {/* Results */}
                 <div className="flex flex-col gap-1 overflow-y-auto max-h-96">
-                    {loading && (
-                        <div className="flex justify-center py-6">
-                            <FaSpinner className="animate-spin text-(--text-tertiary)" />
-                        </div>
-                    )}
+                    {loading && Array.from({ length: 4 }, (_, i) => (
+                        <div key={i} className="h-14 shrink-0 rounded-card bg-(--background-tertiary) animate-pulse" />
+                    ))}
                     {!loading && results.length === 0 && query.trim().length >= 2 && (
-                        <p className="text-center text-[12px] text-(--text-tertiary) py-4">No cards found.</p>
+                        <EmptyState size="inline">No cards found.</EmptyState>
                     )}
                     {!loading && query.trim().length < 2 && (
                         <p className="text-center text-[12px] text-(--text-tertiary) py-4">Type at least 2 characters to search.</p>

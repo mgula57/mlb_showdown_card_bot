@@ -56,6 +56,9 @@ export type CardDatabaseRecord = {
     // Only exists in WOTC records
     card_data?: ShowdownBotCard | null;
 
+    // Set on rows returned with variable speed (2000/2001 hitters from a `variable_speed` search)
+    is_variable_speed_00_01?: boolean;
+
     // Identifiers
     card_id: string;
     card_year: string;
@@ -68,9 +71,11 @@ export type CardDatabaseRecord = {
     set_number?: string | null;
 
     // Release Builder edition (RELEASE source only)
-    card_number?: number | null;
+    card_number?: string | null;
     release_edition_id?: string;
     release_edition_name?: string;
+    release_edition_slug?: string;
+    release_id?: string;
     release_name?: string;
     /** `card_images` storage path of the card's rendered edition image, if one exists */
     release_image_path?: string | null;
@@ -112,6 +117,14 @@ export type CardDatabaseRecord = {
     real_onbase_plus_slugging_plus?: number | null;
     real_earned_run_avg?: number | null;
     real_whip?: number | null;
+    real_bwar?: number | null;
+    real_h?: number | null;
+    real_hr?: number | null;
+    real_sb?: number | null;
+    real_so?: number | null;
+    real_bb?: number | null;
+    real_w?: number | null;
+    real_sv?: number | null;
 
     // Stats
     awards_list: string[];
@@ -318,13 +331,13 @@ export async function fetchPopularCards(showdownSet: string): Promise<PopularCar
     return data?.popular_cards ?? [];
 }
 
-export async function fetchSpotlightCards(showdownSet: string): Promise<SpotlightCardRecord[]> {
+export async function fetchSpotlightCards(showdownSet: string, limit?: number): Promise<SpotlightCardRecord[]> {
     const res = await fetch(`${API_BASE}/cards/spotlight`, {
         method: "POST",
         headers: {
             'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ set: showdownSet }),
+        body: JSON.stringify({ set: showdownSet, limit }),
     });
     
     // Handle errors

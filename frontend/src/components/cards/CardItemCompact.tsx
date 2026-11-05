@@ -1,26 +1,73 @@
 import type { ShowdownBotCard, ShowdownBotCardCompact } from "../../api/showdownBotCard";
 import type { CardDatabaseRecord } from "../../api/card_db/cardDatabase";
 import CardCommand from "./card_elements/CardCommand";
-import { getContrastTextColor } from "../../functions/colors";
-import { useTheme } from "../shared/SiteSettingsContext";
+import { cardSecondaryStyle, getContrastTextColor } from "../../functions/colors";
 import { formatYear } from "../../functions/formatters";
 import { FaHatWizard, FaWandMagicSparkles } from "react-icons/fa6";
-import { imageForSet } from '../shared/SiteSettingsContext';
+import { SetBadge } from '../shared/SetBadge';
 import { defenseAtPosition } from "../shared/DefenseUtils";
 import CardIcon from "./card_elements/CardIcon";
 import AdvantageBadge from "./card_elements/AdvantageBadge";
+import ChartVersionBadge from "./card_elements/ChartVersionBadge";
 import { getFirstName, getLastName, getFirstInitial } from "../../functions/names"
+import { useLayoutEffect, useRef, type Ref } from "react";
 
 // =============================================================================
 // TYPES
 // =============================================================================
+
+// Icons sit inline after the name when the full name and icons fit on the row, otherwise in the
+// top-right corner. One observer fits every compact card, so a list mounting a page of cards does
+// all its style writes, then all its reads, then all its writes (one forced layout per batch
+// instead of two per card).
+type NameIconsFit = { name: HTMLElement; icons: HTMLElement };
+const nameIconsFits = new Map<Element, NameIconsFit>();
+let nameIconsObserver: ResizeObserver | null = null;
+let fontsRefitPending = false;
+
+function fitNameIcons(rows: Iterable<Element>) {
+    const items = [...rows].flatMap(row => {
+        const fit = nameIconsFits.get(row);
+        return fit ? [{ row, ...fit }] : [];
+    });
+    // Measure each name at its natural width with the icons out of the flow
+    items.forEach(({ name, icons }) => { icons.dataset.inline = 'false'; name.style.flexShrink = '0'; });
+    const inline = items.map(({ row, name, icons }) => {
+        const iconsWidth = icons.getBoundingClientRect().width;
+        return iconsWidth > 0 && name.getBoundingClientRect().width + iconsWidth + 4 <= row.clientWidth;
+    });
+    items.forEach(({ name, icons }, i) => { name.style.flexShrink = ''; icons.dataset.inline = String(inline[i]); });
+}
+
+/** Fits the row now (the observer's first callback runs before paint) and whenever it resizes. */
+function observeNameIcons(row: HTMLElement, fit: NameIconsFit): () => void {
+    nameIconsObserver ??= new ResizeObserver(entries => fitNameIcons(entries.map(entry => entry.target)));
+    nameIconsFits.set(row, fit);
+    nameIconsObserver.observe(row);
+    // Names measured before the display font loads are too narrow, so refit everything once it does
+    if (document.fonts?.status === 'loading' && !fontsRefitPending) {
+        fontsRefitPending = true;
+        document.fonts.ready
+            .then(() => fitNameIcons(nameIconsFits.keys()))
+            .catch(() => { /* fonts API unavailable */ })
+            .finally(() => { fontsRefitPending = false; });
+    }
+    return () => {
+        nameIconsObserver?.unobserve(row);
+        nameIconsFits.delete(row);
+    };
+}
+
+/** The team/year and points badges under a compact card's name: the card's condensed bold face, like the plates beside the name on a full card. */
+const STAT_BADGE_CLASS = 'font-display-upright uppercase text-[10px] leading-none shrink-0 rounded-plate px-0.75 py-0.5';
 
 export type CardItemActionButton = {
     icon: React.ReactNode;
     onClick: () => void;
     /** aria-label for the action button */
     label?: string;
-    bgColorClass?: string; // Optional additional background color class for the action button (e.g. "bg-red-500")
+    /** `primary` makes it the navy raised action (e.g. "Add" from a search); default is a quiet icon button. Full-size cards only. */
+    emphasis?: 'quiet' | 'primary';
     placement?: 'left' | 'right'; // Optionally change which side the button appears on
     /** Greys out the button and blocks clicks — e.g. while a previous pick is still saving. */
     disabled?: boolean;
@@ -29,6 +76,8 @@ export type CardItemActionButton = {
     /** `prominent` (full-size cards only): a filled pill that shows `label` beside the icon when
      *  the card is wide enough - for the page's main action, e.g. Draft. Defaults to `icon`. */
     variant?: 'icon' | 'prominent';
+    /** Fill class for a `prominent` button (e.g. a toggled-on state); defaults to the primary navy. */
+    bgColorClass?: string;
 };
 
 type CardItemCompactProps = {
@@ -82,13 +131,14 @@ function getDefenseDisplay(card: ShowdownBotCardCompact | null | undefined, fiel
     return defenseAtPosition(card.positions_and_defense, fieldPosition || '') || card.positions_and_defense_string || 'N/A';
 }
 
-const CardItemCompactIcons = ({ className, iconsList, color, cardId }: { className?: string; iconsList: string[]; color: string; cardId: string }) => {
+const CardItemCompactIcons = ({ className, iconsList, color, textColor, cardId, ref }: { className?: string; iconsList: string[]; color: string; textColor: string; cardId: string; ref?: Ref<HTMLDivElement> }) => {
     return (
-        <div className={`flex gap-0.5 ${className || ''}`}>
+        <div ref={ref} className={`flex gap-0.5 ${className || ''}`}>
             {iconsList.map((icon, index) => (
                 <CardIcon 
                     key={`${cardId}-icon-${index}`} 
                     color={color} 
+                    textColor={textColor} 
                     value={icon} 
                     circleSize={((iconsList?.length ?? 0) > 2 ? "3" : "4")}
                     textSize={(iconsList?.length ?? 0) > 2 ? 8 : 9} 
@@ -118,8 +168,6 @@ export const CardItemCompact = ({
     statBadge,
 }: CardItemCompactProps) => {
 
-    const { isDark } = useTheme();
-
     const primaryColor = (['NYM', 'SDP', 'JPN'].includes(card?.team || 'N/A')
         ? card?.color_secondary
         : card?.color_primary) || 'rgb(0, 0, 0)';
@@ -128,10 +176,7 @@ export const CardItemCompact = ({
         ? card?.color_primary
         : card?.color_secondary) || 'rgb(0, 0, 0)';
 
-    const pointsBadgeStyle = {
-        backgroundColor: secondaryColor,
-        color: getContrastTextColor(secondaryColor),
-    };
+    const pointsBadgeStyle = cardSecondaryStyle(secondaryColor, card?.team, card?.set);
 
     const teamStyle = {
         backgroundColor: primaryColor,
@@ -140,11 +185,11 @@ export const CardItemCompact = ({
 
     const isClickable = onClick !== undefined;
 
+    // Neutral hairline; selection is a navy outline (see frontend/DESIGN.md). `accentColor`
+    // still overrides the border color inline.
     const borderSettings = isSelected
-        ? `border-3 shadow-xl${isClickable ? ' hover:shadow-2xl' : ''}`
-        : (isDark
-            ? `border-2 border-white/10 shadow-xl${isClickable ? ' hover:border-white/50 hover:shadow-2xl' : ''}`
-            : `border-2 border-black/10 shadow-xl${isClickable ? ' hover:shadow-2xl hover:border-black/40' : ''}`);
+        ? 'border border-(--showdown-blue) ring-1 ring-(--showdown-blue)'
+        : `border border-(--divider)${isClickable ? ' hover:border-(--rule-strong)' : ''}`;
 
     const isRedacted = card?.isEmpty || false;
 
@@ -155,6 +200,20 @@ export const CardItemCompact = ({
     const firstInitial = getFirstInitial(card?.name);
     const firstName = getFirstName(card?.name);
     const lastName = getLastName(card?.name);
+
+    const nameRowRef = useRef<HTMLDivElement>(null);
+    const nameRef = useRef<HTMLSpanElement>(null);
+    const iconsRef = useRef<HTMLDivElement>(null);
+    const iconsKey = card?.icons_list?.join(',') ?? '';
+
+    useLayoutEffect(() => {
+        const row = nameRowRef.current;
+        const name = nameRef.current;
+        const icons = iconsRef.current;
+        if (!row || !name || !icons) return;
+        // Re-observing on a name/icons change refits it, since observe() always reports once
+        return observeNameIcons(row, { name, icons });
+    }, [card?.name, iconsKey, isRedacted]);
 
     return (
         <div
@@ -168,7 +227,7 @@ export const CardItemCompact = ({
                 relative @container
                 w-full min-w-0
                 flex items-top gap-2
-                rounded-lg pl-1 py-1
+                rounded-trading-card pl-1 py-1
                 ${backgroundSettings || 'bg-secondary'}
                 ${borderSettings}
                 ${hasAdvantage ? 'card-advantage' : ''}
@@ -178,9 +237,9 @@ export const CardItemCompact = ({
             {hasAdvantage && <AdvantageBadge />}
             {/* A stat badge takes the command's slot — e.g. the runner's tested speed on a sim steal. */}
             {statBadge ? (
-                <div className="self-center shrink-0 flex flex-col items-center gap-0.5 rounded-md bg-(--background-primary)/60 px-1.5 py-1">
+                <div className="self-center shrink-0 flex flex-col items-center gap-0.5 rounded-plate bg-(--background-primary)/60 px-1.5 py-1">
                     <span className="text-[7px] font-bold uppercase leading-none tracking-wider text-(--tertiary)">{statBadge.label}</span>
-                    <span className="text-xs font-black leading-none text-(--text-primary)">{statBadge.value}</span>
+                    <span className="font-display-upright text-[13px] leading-none tabular-nums text-(--text-primary)">{statBadge.value}</span>
                 </div>
             ) : !hideCommand && (
                 <CardCommand
@@ -189,12 +248,13 @@ export const CardItemCompact = ({
                     secondaryColor={secondaryColor}
                     command={card?.command}
                     team={card?.team || 'N/A'}
-                    className={`w-5 h-5 @[75px]:w-6 @[75px]:h-6 shrink-0 mt-1 ${hideDetails ? '' : '@[70px]:mt-1.5'}`}
+                    className={`w-5 h-5 @[75px]:w-6 @[75px]:h-6 shrink-0 ${hideDetails ? '' : '@[70px]:mt-0.5'}`}
                 />
             )}
 
-            <div className="min-w-0 items-center flex-1 space-y-0.5 text-left">
-                <div className={`flex gap-x-0.5 text-[12px] font-black text-(--text-primary) overflow-x-scroll scrollbar-hide truncate ${isRedacted ? 'redacted' : ''}`}>
+            <div className="min-w-0 flex-1 flex flex-col justify-center gap-0.5 text-left">
+                <div ref={nameRowRef} className={`flex gap-x-0.5 font-display-upright uppercase text-[13px] leading-none text-(--text-primary) overflow-x-scroll scrollbar-hide truncate ${isRedacted ? 'redacted' : ''}`}>
+                    <span ref={nameRef} className="flex gap-x-0.5 min-w-0">
                     {isRedacted 
                         ? 'REDACTED NAME' 
                         : 
@@ -211,18 +271,20 @@ export const CardItemCompact = ({
                                 <span className={`max-w-15 truncate @[95px]:max-w-full`}>{lastName} </span>
                             </>
                     }
+                    </span>
                     <CardItemCompactIcons
-                        className="ml-0.5 hidden @[200px]:flex"
+                        ref={iconsRef}
+                        className="absolute -top-2 -right-0.5 shrink-0 data-[inline=true]:static data-[inline=true]:ml-0.5"
                         cardId={card?.id || 'card'}
                         iconsList={card?.icons_list || []}
-                        color={secondaryColor}
+                        color={pointsBadgeStyle.backgroundColor}
+                        textColor={pointsBadgeStyle.color}
                     />
-                    
                 </div>
                 {!hideTeamPoints && (
                     <div className="hidden @[75px]:flex items-center gap-1 min-w-0 overflow-x-scroll scrollbar-hide">
                         <div
-                            className={`flex text-[9px] leading-none shrink-0 font-semibold tracking-tight rounded px-0.5 py-0.5 ${isRedacted ? 'redacted' : ''}`}
+                            className={`flex ${STAT_BADGE_CLASS} ${isRedacted ? 'redacted' : ''}`}
                             style={isRedacted ? undefined : teamStyle}
                         >
                             {card?.team || 'N/A'}
@@ -230,7 +292,7 @@ export const CardItemCompact = ({
                             <span className="hidden @[130px]:block ml-0.5"> {formatYear(card?.year || '-')}</span>
                         </div>
                         <div
-                            className={`hidden @[80px]:flex text-[9px] leading-none font-semibold tracking-tight text-nowrap rounded px-0.5 py-0.5 ${isRedacted ? 'redacted' : ''}`}
+                            className={`hidden @[80px]:flex ${STAT_BADGE_CLASS} tabular-nums text-nowrap ${isRedacted ? 'redacted' : ''}`}
                             style={isRedacted ? undefined : pointsBadgeStyle}
                         >
                             {hasPtsMultiplier ? (
@@ -243,6 +305,7 @@ export const CardItemCompact = ({
                             )}
                             <span className="hidden @[120px]:block">S</span>
                         </div>
+                        <ChartVersionBadge chartVersion={card?.chart_version} className="hidden @[110px]:flex text-[8px] px-0.5 rounded-plate" />
                     </div>
                 )}
                 {!hideDetails && (
@@ -252,7 +315,7 @@ export const CardItemCompact = ({
                                 {(detailStat1Category === undefined || detailStat1Category === 'defense') && getDefenseDisplay(card, fieldPosition, liveIp)}
                             </div>
                         )}
-                        <div className={`hidden @[95px]:flex ${hideTeamPoints ? 'py-0': 'py-0.5'} text-[9px] tracking-tight w-full font-bold text-(--text-tertiary) truncate text-nowrap overflow-x-scroll scrollbar-hide ${isRedacted ? 'redacted' : ''}`}>
+                        <div className={`hidden @[95px]:flex text-[9px] tracking-tight w-full font-bold text-(--text-tertiary) truncate text-nowrap overflow-x-scroll scrollbar-hide ${isRedacted ? 'redacted' : ''}`}>
                             {isRedacted ? '--- • ---' : (
                                 <>
                                     {/* STAT 1 */}
@@ -281,27 +344,17 @@ export const CardItemCompact = ({
 
             {/* Absolute positioned elements */}
             {!hideDetails && !isRedacted && !hideCommand && !statBadge && (
-                <div className="hidden @[95px]:block absolute bottom-1.5 left-0.5 bg-(--background-secondary)/70 backdrop-blur-[1px] rounded">
-                    <img src={imageForSet(card?.set || '', true)} alt={card?.set ?? 'N/A'} loading="lazy" className="h-3.5 object-contain object-center" />
+                <div className="hidden @[95px]:block absolute bottom-0 left-0.5 rounded-plate">
+                    <SetBadge set={card?.set || ''} abbreviated size="sm" />
                 </div>
             )}
 
             {card?.source === 'WOTC' && (
-                <FaHatWizard className="absolute bottom-0.5 right-0.5 w-3 h-3 text-(--secondary) bg-(--background-primary)/50" title="WOTC Card" />
+                <FaHatWizard className="absolute bottom-1 right-1 w-3 h-3 text-(--secondary) bg-(--background-primary)/50" title="WOTC Card" />
             )}
             {card?.source === 'CUSTOM' && (
-                <FaWandMagicSparkles className="absolute bottom-0.5 right-0.5 w-3 h-3 text-(--secondary)" title="Custom Card" />
+                <FaWandMagicSparkles className="absolute bottom-1 right-1 w-3 h-3 text-(--secondary)" title="Custom Card" />
             )}
-
-            {/* Icons - top-right corner */}
-            <div className="absolute -top-2 -right-0.5">
-                <CardItemCompactIcons
-                    className="ml-0.5 @[200px]:hidden"
-                    cardId={card?.id || 'card'}
-                    iconsList={card?.icons_list || []}
-                    color={secondaryColor}
-                />
-            </div>
 
             {/* Optional action button — top corner */}
             {actionButton && (
@@ -314,12 +367,12 @@ export const CardItemCompact = ({
                     className={`
                         absolute -top-2 ${actionButton.placement === 'left' ? '-left-2' : '-right-2'}
                         flex items-center justify-center
-                        w-5 h-5 rounded
+                        w-5 h-5 rounded-control
                         text-(--text-tertiary)
                         transition-colors
                         ${actionButton.disabled
                             ? 'opacity-40 cursor-not-allowed'
-                            : 'hover:bg-(--background-quaternary) hover:text-(--text-primary)'}
+                            : 'cursor-pointer hover:bg-(--background-quaternary) hover:text-(--text-primary)'}
                     `}
                 >
                     {actionButton.icon}
@@ -327,7 +380,7 @@ export const CardItemCompact = ({
             )}
 
             {isLoading && (
-                <div className="absolute inset-0 flex items-center justify-center gap-1 rounded-lg bg-(--background-secondary)/70 backdrop-blur-[1px]">
+                <div className="absolute inset-0 flex items-center justify-center gap-1 rounded-[inherit] bg-(--background-secondary)/80">
                     <span className="w-1.5 h-1.5 rounded-full bg-(--secondary) animate-bounce" style={{ animationDelay: '0ms' }} />
                     <span className="w-1.5 h-1.5 rounded-full bg-(--secondary) animate-bounce" style={{ animationDelay: '150ms' }} />
                     <span className="w-1.5 h-1.5 rounded-full bg-(--secondary) animate-bounce" style={{ animationDelay: '300ms' }} />
@@ -336,6 +389,20 @@ export const CardItemCompact = ({
         </div>
     );
 };
+
+/** Placeholder shaped like `CardItemCompact`. `animated={false}` gives a still placeholder, e.g. behind an empty state. */
+export function CardItemCompactSkeleton({ className, animated = true }: { className?: string; animated?: boolean }) {
+    return (
+        <div aria-hidden className={`${className ?? ''} w-full min-w-0 flex items-start gap-2 rounded-trading-card pl-1 pr-2 py-1 border border-(--divider) ${animated ? 'animate-pulse' : ''}`}>
+            <div className="w-6 h-6 mt-0.5 rounded-full bg-(--background-tertiary) shrink-0" />
+            <div className="flex-1 min-w-0 flex flex-col gap-1">
+                <div className="h-3 w-3/4 rounded-plate bg-(--background-tertiary)" />
+                <div className="h-3 w-1/2 rounded-plate bg-(--background-tertiary)" />
+                <div className="h-2 w-2/3 rounded-plate bg-(--background-tertiary)" />
+            </div>
+        </div>
+    );
+}
 
 // =============================================================================
 // WRAPPER VARIANTS
@@ -391,6 +458,7 @@ export const CardItemCompactFromCard = ({ card, className, fieldPosition,  hideD
                 hr_range: card?.chart.ranges.HR || null,
                 source: card?.is_wotc ? 'WOTC' : 'BOT',
                 isEmpty: card == null || card === undefined,
+                chart_version: card?.chart_version,
             }}
             className={className}
             isSelected={isSelected}
@@ -438,7 +506,8 @@ export const CardItemCompactFromCardDatabaseRecord = ({ card, className, isSelec
             card={{
                 id: card?.id || '',
                 name: card?.name || 'Unknown Player',
-                year: card?.year || '----',
+                // A custom card's `year` is its first year; `card_year` keeps the range (e.g. "1999-2000")
+                year: (card?.source === 'CUSTOM' && card?.card_year) || card?.year || '----',
                 set: card?.showdown_set || '---',
                 team: card?.wbc_team || card?.team || 'N/A',
                 points: card?.points ?? 0,
@@ -456,6 +525,7 @@ export const CardItemCompactFromCardDatabaseRecord = ({ card, className, isSelec
                 icons_list: card?.icons_list || [],
                 source: card?.source || 'BOT',
                 isEmpty: card == null || card === undefined,
+                chart_version: card?.card_data?.chart_version,
             }}
             className={className}
             isSelected={isSelected}

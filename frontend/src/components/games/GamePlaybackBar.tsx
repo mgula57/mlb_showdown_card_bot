@@ -7,6 +7,7 @@ import { FaBackwardFast, FaBackwardStep, FaForwardFast, FaForwardStep, FaPause, 
 
 import type { GamePlaybackControls, GamePlaybackState, PlaybackSpeed } from "../../hooks/useGamePlayback";
 import IconButton from "../shared/IconButton";
+import { buttonClass } from "../shared/buttonStyles";
 
 const SPEEDS: PlaybackSpeed[] = [0.5, 1, 2, 4];
 
@@ -40,7 +41,7 @@ export default function GamePlaybackBar({
     const pct = frameCount > 1 ? (state.cursor / (frameCount - 1)) * 100 : 0;
 
     return (
-        <div className={`rounded-xl border border-(--divider) bg-(--background-secondary)/90 px-3 py-2.5 ${className}`}>
+        <div className={`rounded-card border border-(--divider) bg-(--background-secondary)/90 px-3 py-2.5 ${className}`}>
             <div className="flex items-center gap-2">
                 <IconButton
                     icon={<FaBackwardFast size={11} />}
@@ -75,7 +76,7 @@ export default function GamePlaybackBar({
 
                 <div className="relative flex-1 h-2 rounded-full bg-(--background-tertiary) overflow-hidden">
                     <div
-                        className="h-full bg-(--showdown-blue) transition-[width] duration-300 ease-out pointer-events-none"
+                        className="h-full bg-(--showdown-blue-fill) transition-[width] duration-300 ease-out pointer-events-none"
                         style={{ width: `${pct}%` }}
                     />
                     <input
@@ -93,7 +94,7 @@ export default function GamePlaybackBar({
                 <button
                     type="button"
                     onClick={cycleSpeed}
-                    className="cursor-pointer rounded-full border border-(--divider) px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-(--secondary) hover:text-(--primary) transition-colors shrink-0"
+                    className={buttonClass('secondary', 'sm', 'tabular-nums')}
                     aria-label={`Playback speed: ${state.speed}x`}
                 >
                     {state.speed}×
@@ -108,7 +109,7 @@ export default function GamePlaybackBar({
                 <span className="flex items-center gap-2 shrink-0">
                     <span className="tabular-nums">{state.cursor + 1} / {frameCount}</span>
                     {!!bufferedCount && bufferedCount > 0 && (
-                        <span className="inline-flex items-center gap-1 rounded-full bg-(--background-tertiary) px-2 py-0.5 font-bold text-(--primary)">
+                        <span className="inline-flex items-center gap-1 rounded-plate bg-(--background-tertiary) px-2 py-0.5 font-bold text-(--primary)">
                             <span className="live-pulse h-1.5 w-1.5 rounded-full bg-(--live)" />
                             +{bufferedCount} new
                         </span>

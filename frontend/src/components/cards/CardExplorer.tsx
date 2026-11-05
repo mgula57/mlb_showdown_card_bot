@@ -1,0 +1,97 @@
+/**
+ * @fileoverview CardExplorer - Advanced card database browser and filter system
+ * 
+ * This component provides a comprehensive interface for exploring the MLB Showdown card database
+ * with advanced filtering, sorting, and team hierarchy navigation capabilities.
+ */
+
+import { useState } from "react";
+import * as Tabs from '@radix-ui/react-tabs';
+import ShowdownBotSearch from "./ShowdownCardSearch";
+import ReleaseCardSearch from "./ReleaseCardSearch";
+import { CardSource, isValidCardSource } from '../../types/cardSource';
+import { FaRobot, FaHatWizard } from "react-icons/fa6";
+import { FaLayerGroup } from "react-icons/fa";
+import { radixTabTriggerClass } from "../shared/tabStyles";
+
+const TAB_TRIGGER_CLASS = radixTabTriggerClass();
+
+export default function CardExplorer() {
+
+    // State - Initialize from localStorage or default to BOT
+    const [tab, setTab] = useState<CardSource>(() => {
+        if (typeof window !== 'undefined') {
+            const savedTab = localStorage.getItem('explore-tab');
+            if (savedTab && isValidCardSource(savedTab)) {
+                return savedTab as CardSource;
+            }
+        }
+        return CardSource.BOT;
+    });
+
+    // Track which tabs have ever been shown, so each is only mounted (and its
+    // queries fired) the first time a user visits it. Once mounted, a tab stays
+    // mounted (via forceMount) so switching back and forth preserves its state.
+    const [visitedTabs, setVisitedTabs] = useState<Set<CardSource>>(() => new Set([tab]));
+
+    // Persist tab selection to localStorage whenever it changes
+    const handleTabChange = (value: string) => {
+        const newTab = value as CardSource;
+        setTab(newTab);
+        setVisitedTabs(prev => prev.has(newTab) ? prev : new Set(prev).add(newTab));
+        if (typeof window !== 'undefined') {
+            localStorage.setItem('explore-tab', newTab);
+        }
+    };
+
+    // CardExplorer Component Layout
+    return (
+        <Tabs.Root value={tab} onValueChange={handleTabChange}>
+            {/* Tab Selection */}
+            <Tabs.List className="flex px-3 border-b border-(--divider) gap-x-1 py-1 overflow-x-auto scrollbar-hide">
+                <Tabs.Trigger value={CardSource.BOT} className={TAB_TRIGGER_CLASS}>
+                    <FaRobot />
+                    BOT
+                </Tabs.Trigger>
+                <Tabs.Trigger value={CardSource.WOTC} className={TAB_TRIGGER_CLASS}>
+                    <FaHatWizard />
+                    WOTC
+                </Tabs.Trigger>
+                <Tabs.Trigger value={CardSource.RELEASE} className={TAB_TRIGGER_CLASS}>
+                    <FaLayerGroup />
+                    Releases
+                </Tabs.Trigger>
+                {/* "My Customs" tab hidden for now — coming soon */}
+            </Tabs.List>
+
+            {/* Tab Content - only mounted once a tab has been visited, then kept alive */}
+            {visitedTabs.has(CardSource.BOT) && (
+                <Tabs.Content
+                    value={CardSource.BOT}
+                    className="focus:outline-none data-[state=inactive]:hidden"
+                    forceMount
+                >
+                    <ShowdownBotSearch source={CardSource.BOT} enableSetSwitcher enableSetOverride enableVariableSpeedToggle enableStyleEditor />
+                </Tabs.Content>
+            )}
+            {visitedTabs.has(CardSource.WOTC) && (
+                <Tabs.Content
+                    value={CardSource.WOTC}
+                    className="focus:outline-none data-[state=inactive]:hidden"
+                    forceMount
+                >
+                    <ShowdownBotSearch source={CardSource.WOTC} enableSetSwitcher enableStyleEditor />
+                </Tabs.Content>
+            )}
+            {visitedTabs.has(CardSource.RELEASE) && (
+                <Tabs.Content
+                    value={CardSource.RELEASE}
+                    className="focus:outline-none data-[state=inactive]:hidden"
+                    forceMount
+                >
+                    <ReleaseCardSearch />
+                </Tabs.Content>
+            )}
+        </Tabs.Root>
+    );
+}

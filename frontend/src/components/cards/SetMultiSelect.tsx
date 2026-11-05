@@ -1,9 +1,9 @@
 /**
  * @fileoverview SetMultiSelect - compact multi-select dropdown for the search bar (Showdown sets,
  * release editions). Mirrors the look of the single-select set override dropdown, but lets several
- * options be picked. Options show their logo when they have one, otherwise their label; `group`
+ * options be picked. Options show their icon (a set badge) when they have one, otherwise their label; `group`
  * adds a header above each run of options sharing it. An empty selection falls back to the default
- * set (shown via `defaultImage`), or `placeholder` text when there's no default image.
+ * set (shown via `defaultIcon`), or `placeholder` text when there's no default icon.
  * The `pill` variant renders a compact rounded trigger for the chip row (next to the sort button);
  * the `form` variant matches `MultiSelect`'s trigger (removable tags) for use inside forms/modals.
  */
@@ -12,16 +12,18 @@ import { Fragment, useEffect, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { FaCaretDown, FaCheck, FaChevronDown, FaTimes } from 'react-icons/fa';
 
-export type SetMultiSelectOption = { value: string; image?: string; label?: string; group?: string };
+import { fieldClass, FIELD_FRAME_CLASS, CAPS_LABEL_CLASS, INLINE_FIELD_LABEL_CLASS, checkBoxClass } from '../shared/fieldStyles';
+import { Plate } from '../shared/Plate';
+export type SetMultiSelectOption = { value: string; icon?: ReactNode; label?: string; group?: string };
 
 type SetMultiSelectProps = {
     options: SetMultiSelectOption[];
     /** Selected set values; empty = the default set */
     selections: string[];
     onChange: (values: string[]) => void;
-    /** Image shown when nothing is selected (the set the search falls back to) */
-    defaultImage?: string;
-    /** Text shown when nothing is selected and there's no `defaultImage` */
+    /** Icon shown when nothing is selected (the set the search falls back to) */
+    defaultIcon?: ReactNode;
+    /** Text shown when nothing is selected and there's no `defaultIcon` */
     placeholder?: string;
     className?: string;
     disabled?: boolean;
@@ -32,7 +34,7 @@ type SetMultiSelectProps = {
     prefix?: ReactNode;
 };
 
-export default function SetMultiSelect({ options, selections, onChange, defaultImage, placeholder, className = '', disabled = false, variant = 'toolbar', prefix }: SetMultiSelectProps) {
+export default function SetMultiSelect({ options, selections, onChange, defaultIcon, placeholder, className = '', disabled = false, variant = 'toolbar', prefix }: SetMultiSelectProps) {
     const isPill = variant === 'pill';
     const isForm = variant === 'form';
     const [isOpen, setIsOpen] = useState(false);
@@ -80,19 +82,17 @@ export default function SetMultiSelect({ options, selections, onChange, defaultI
                     disabled={disabled}
                     onClick={() => setIsOpen(open => !open)}
                     className={`
-                        w-full flex items-center justify-between px-3 py-2 min-h-10
-                        border border-form-element rounded-lg
-                        bg-(--background-primary) text-(--text-primary)
-                        hover:border-(--tertiary) focus:outline-none focus:ring-2 focus:ring-primary/20
-                        ${isOpen ? 'border-primary' : ''}
-                        ${disabled ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'}
+                        w-full flex items-center justify-between px-3 py-1.5 min-h-10 text-sm text-left
+                        ${FIELD_FRAME_CLASS}
+                        ${isOpen ? 'border-(--showdown-blue)' : ''}
+                        ${disabled ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'}
                     `}
                 >
                     <div className="flex flex-wrap gap-1 flex-1 mr-2">
                         {selectedOptions.length === 0 ? (
-                            <span className="text-(--tertiary)">{placeholder}</span>
+                            <span className="text-(--text-tertiary)">{placeholder}</span>
                         ) : selectedOptions.map(option => (
-                            <span key={option.value} className="inline-flex items-center px-2 py-1 bg-primary/20 text-primary text-xs rounded-md">
+                            <Plate key={option.value} size="sm">
                                 {option.label ?? option.value}
                                 {!disabled && (
                                     <span
@@ -100,15 +100,16 @@ export default function SetMultiSelect({ options, selections, onChange, defaultI
                                         tabIndex={0}
                                         onClick={(e) => { e.stopPropagation(); toggle(option.value); }}
                                         onKeyDown={(e) => { if (e.key === 'Enter') { e.stopPropagation(); toggle(option.value); } }}
-                                        className="ml-1 hover:text-primary-dark"
+                                        aria-label={`Remove ${option.label ?? option.value}`}
+                                        className="cursor-pointer opacity-60 hover:opacity-100"
                                     >
-                                        <FaTimes className="h-3 w-3" />
+                                        <FaTimes className="h-2.5 w-2.5" />
                                     </span>
                                 )}
-                            </span>
+                            </Plate>
                         ))}
                     </div>
-                    <FaChevronDown className={`h-4 w-4 shrink-0 transition-transform text-(--text-secondary) ${isOpen ? 'rotate-180' : ''}`} />
+                    <FaChevronDown className={`h-3 w-3 shrink-0 transition-transform text-(--text-tertiary) ${isOpen ? 'rotate-180' : ''}`} />
                 </button>
             ) : (
                 <button
@@ -116,25 +117,19 @@ export default function SetMultiSelect({ options, selections, onChange, defaultI
                     ref={buttonRef}
                     disabled={disabled}
                     onClick={() => setIsOpen(open => !open)}
-                    className={`
-                        ${isPill ? 'px-2 py-1 rounded-full text-sm' : 'h-11 px-3 rounded-xl'}
-                        bg-(--background-secondary) border border-form-element
-                        flex items-center cursor-pointer
-                        hover:bg-(--background-secondary-hover)
-                        disabled:opacity-40 disabled:cursor-not-allowed
-                    `}
+                    className={fieldClass(isPill ? 'sm' : 'lg', 'flex items-center cursor-pointer')}
                 >
-                    {prefix && <span className="text-primary font-semibold whitespace-nowrap mr-1">{prefix}</span>}
-                    {/* Same footprint as the single-select set dropdown: one w-16 logo (first pick) + "+N" for extras */}
+                    {prefix && <span className={`${INLINE_FIELD_LABEL_CLASS} mr-1`}>{prefix}</span>}
+                    {/* Same footprint as the single-select set dropdown: one badge (first pick) + "+N" for extras */}
                     {(() => {
                         const shown = selectedOptions[0];
-                        const image = shown?.image ?? defaultImage;
+                        const icon = shown?.icon ?? defaultIcon;
                         return (
                             <>
-                                {image
-                                    ? <img src={image} alt={shown?.value ?? 'default set'} className="object-contain object-center h-6 w-16 mr-1" />
+                                {icon
+                                    ? <span className="flex items-center shrink-0 mr-1">{icon}</span>
                                     : <span className={`${isPill ? '' : 'text-xs'} whitespace-nowrap truncate max-w-28 md:max-w-56 mr-1`}>{shown ? (shown.label ?? shown.value) : placeholder}</span>}
-                                {selectedOptions.length > 1 && <span className={`${isPill ? '' : 'text-xs'} text-secondary whitespace-nowrap`}>+{selectedOptions.length - 1}</span>}
+                                {selectedOptions.length > 1 && <span className={`${isPill ? '' : 'text-xs'} text-(--text-secondary) tabular-nums whitespace-nowrap`}>+{selectedOptions.length - 1}</span>}
                             </>
                         );
                     })()}
@@ -148,14 +143,14 @@ export default function SetMultiSelect({ options, selections, onChange, defaultI
                     style={{ left: menuPos.left, top: menuPos.top, minWidth: menuPos.minWidth }}
                     className="
                         fixed z-1000 mt-1 max-h-[60vh]
-                        bg-(--background-primary) rounded-xl shadow-lg
-                        border border-(--background-tertiary)
+                        bg-(--background-secondary) rounded-card shadow-overlay
+                        border border-(--rule-strong)
                         overflow-auto scrollbar-hide
                     "
                 >
-                    <div className="flex justify-between px-3 py-2 gap-5 text-xs border-b border-(--background-tertiary) bg-(--background-secondary)">
-                        <button type="button" onClick={() => onChange(options.map(o => o.value))} className="text-primary cursor-pointer">Select All</button>
-                        <button type="button" onClick={() => onChange([])} className="text-secondary cursor-pointer">Clear All</button>
+                    <div className="flex justify-between px-3 py-2 gap-5 text-xs font-semibold border-b border-(--divider)">
+                        <button type="button" onClick={() => onChange(options.map(o => o.value))} className="cursor-pointer text-(--showdown-blue) hover:underline">Select all</button>
+                        <button type="button" onClick={() => onChange([])} className="cursor-pointer text-(--text-tertiary) hover:text-(--text-primary)">Clear all</button>
                     </div>
                     {options.map((option, index) => {
                         const isSelected = selections.includes(option.value);
@@ -163,7 +158,7 @@ export default function SetMultiSelect({ options, selections, onChange, defaultI
                         return (
                             <Fragment key={option.value}>
                                 {showGroupHeader && (
-                                    <div className="px-3 pt-2 pb-1 text-[10px] font-bold uppercase tracking-wide text-(--text-tertiary) bg-(--background-secondary)">
+                                    <div className={`px-3 pt-2 pb-1 ${CAPS_LABEL_CLASS} text-(--text-tertiary)`}>
                                         {option.group}
                                     </div>
                                 )}
@@ -171,16 +166,16 @@ export default function SetMultiSelect({ options, selections, onChange, defaultI
                                     onClick={() => toggle(option.value)}
                                     className={`
                                         flex items-center gap-3 px-3 py-2 cursor-pointer
-                                        hover:bg-(--background-secondary)
-                                        border-b border-(--background-tertiary) last:border-b-0
-                                        ${isSelected ? 'bg-primary/10' : ''}
+                                        hover:bg-(--background-tertiary)
+                                        border-b border-(--divider) last:border-b-0
+                                        ${isSelected ? 'font-semibold' : ''}
                                     `}
                                 >
-                                    <div className={`flex items-center justify-center w-4 h-4 border rounded shrink-0 ${isSelected ? 'bg-primary border-primary' : 'border-(--border-primary)'}`}>
-                                        {isSelected && <FaCheck className="h-2 w-2" />}
-                                    </div>
-                                    {option.image
-                                        ? <img src={option.image} alt={option.value} className="object-contain object-center h-6 w-16" />
+                                    <span aria-hidden className={`w-4 h-4 text-[9px] ${checkBoxClass(isSelected)}`}>
+                                        {isSelected && <FaCheck />}
+                                    </span>
+                                    {option.icon
+                                        ? option.icon
                                         : <span className="text-sm whitespace-nowrap">{option.label ?? option.value}</span>}
                                 </div>
                             </Fragment>

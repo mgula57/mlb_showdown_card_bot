@@ -20,6 +20,7 @@ from ..card.card_image_builder import CardImageBuilder
 from ..card.images import DEFAULT_RENDER_FILE_FORMAT, ImageLibrary
 from ..database.postgres_db import PostgresDB
 from ..supabase import SupabaseClientManager
+from .release_style_rules import EditionStyleRules
 
 # Bump when card templates/rendering change enough that every release image should re-render
 # (2: JPEG instead of PNG, with 2003 transparency flattened onto white)
@@ -39,10 +40,12 @@ class EditionCardStyle(BaseModel):
     expansion: str = 'BS'
     edition: str = 'NONE'
     add_one_to_set_year: bool = False
+    set_year: Optional[str | int] = None
     show_year_text: bool = False
     disable_display_text_on_card: bool = False
     image_parallel: str = 'NONE'
     image_coloring: str = 'PRIMARY'
+    image_parallel_coloring: str = 'DEFAULT'
     image_glow_multiplier: Optional[str | float] = '1'
     stat_highlights_type: Optional[str] = 'NONE'
     nickname_index: Optional[str | int] = 'NONE'
@@ -54,6 +57,16 @@ class EditionCardStyle(BaseModel):
     def from_attributes(cls, attributes: dict | None) -> 'EditionCardStyle':
         raw = (attributes or {}).get('style')
         return cls(**raw) if isinstance(raw, dict) else cls()
+
+    def with_style(self, raw: dict | None) -> 'EditionCardStyle':
+        """This style with the given fields layered on top."""
+        if not isinstance(raw, dict) or not raw:
+            return self
+        return EditionCardStyle(**{**self.model_dump(), **raw})
+
+    def with_card_overrides(self, card_overrides: dict | None) -> 'EditionCardStyle':
+        """This style with a release card's own tweaks (`card_overrides.style`) layered on top."""
+        return self.with_style((card_overrides or {}).get('style'))
 
     def image_fields(self) -> dict:
         """`ShowdownImage` values for this style. Mirrors the frontend's `applyCardStyleOverrides`."""
@@ -69,9 +82,11 @@ class EditionCardStyle(BaseModel):
             'expansion': self.expansion,
             'edition': self.edition,
             'add_one_to_set_year': self.add_one_to_set_year,
+            'set_year': self.set_year or None,
             'show_year_text': self.show_year_text,
             'parallel': self.image_parallel,
             'coloring': self.image_coloring,
+            'parallel_coloring': self.image_parallel_coloring,
             'glow_multiplier': glow_multiplier,
             'stat_highlights_type': self.stat_highlights_type or 'NONE',
             'nickname_index': nickname_index,
@@ -109,11 +124,12 @@ class EditionNumbering(BaseModel):
         raw = (attributes or {}).get('numbering')
         return cls(**raw) if isinstance(raw, dict) else cls()
 
-    def set_number(self, card_number: Optional[int], total_cards: int) -> Optional[str]:
+    def set_number(self, card_number: Optional[str], total_cards: int) -> Optional[str]:
         """Number printed on the card, e.g. "AS007" (frontend `formatCardNumber`). None leaves it off."""
         if self.mode == 'none' or card_number is None:
             return None
-        number = str(card_number).zfill(len(str(total_cards))) if self.zero_pad else str(card_number)
+        # Manual numbers print as typed; auto numbers pad when enabled, digit-only ones only; free-form ones ("CC-A") print as typed
+        number = str(card_number).zfill(len(str(total_cards))) if self.mode == 'auto' and self.zero_pad and str(card_number).isdigit() else str(card_number)
         return f"{self.prefix}{number}"
 
 
@@ -133,10 +149,17 @@ class ReleaseCardImageSpec:
     render_hash: str = field(init=False)
 
     def __post_init__(self) -> None:
+        image = self.style.image_fields()
+        # Left out when unset, so images rendered before set years existed stay up to date
+        if image['set_year'] is None:
+            del image['set_year']
+        # Same for parallel coloring: images rendered before it existed match its default
+        if image['parallel_coloring'] == 'DEFAULT':
+            del image['parallel_coloring']
         inputs = {
             'version': RENDER_VERSION,
             'snapshot': self.card_snapshot,
-            'image': self.style.image_fields(),
+            'image': image,
             'disable_display_text_on_card': self.style.disable_display_text_on_card,
             'set_number': self.set_number,
         }
@@ -191,6 +214,7 @@ class EditionImagePlan:
         self.edition_id: str = edition['id']
         self.release_id: str = edition['release_id']
         style = EditionCardStyle.from_attributes(edition.get('attributes'))
+        rules = EditionStyleRules.from_attributes(edition.get('attributes'))
         numbering = EditionNumbering.from_attributes(edition.get('attributes'))
         cards = edition.get('cards') or []
         self.specs: list[ReleaseCardImageSpec] = [
@@ -198,7 +222,8 @@ class EditionImagePlan:
                 source_card_id=card['source_card_id'],
                 card_snapshot=card.get('card_snapshot') or {},
                 set_number=numbering.set_number(card.get('card_number'), len(cards)),
-                style=style,
+                # Edition style, then matching rules in order, then the card's own overrides
+                style=style.with_style(rules.style_for(card)).with_card_overrides(card.get('card_overrides')),
             )
             for card in cards if card.get('source_card_id')
         ]
@@ -269,6 +294,11 @@ class ReleaseImageStorage:
     @classmethod
     def folder(cls, release_id: str, edition_id: Optional[str] = None) -> str:
         return f"{cls.ROOT}/{release_id}/{edition_id}" if edition_id else f"{cls.ROOT}/{release_id}"
+
+    @classmethod
+    def public_url(cls, path: str) -> str:
+        """Public URL of a file in the bucket (frontend `cardImagePublicUrl`)."""
+        return f"{os.getenv('SUPABASE_URL', '').rstrip('/')}/storage/v1/object/public/{cls.BUCKET}/{path}"
 
     @classmethod
     def image_paths(cls, release_id: str, edition_id: str, spec: ReleaseCardImageSpec) -> tuple[str, str]:

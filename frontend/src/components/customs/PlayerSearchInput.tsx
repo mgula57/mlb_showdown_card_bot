@@ -11,8 +11,10 @@ import { useState, useEffect, useRef } from 'react';
 import { FaSearch } from 'react-icons/fa';
 import { FaXmark } from 'react-icons/fa6';
 import { createPortal } from 'react-dom';
-import { SearchGradientBorder } from '../shared/SearchGradientBorder';
+import { SearchFrame } from '../shared/SearchFrame';
+import { Plate } from '../shared/Plate';
 
+import { FIELD_LABEL_CLASS } from '../shared/fieldStyles';
 /**
  * Player search result option with comprehensive metadata
  */
@@ -78,7 +80,7 @@ const MENU_VIEWPORT_MARGIN = 8;
  * Demonstrates various search capabilities and formats
  */
 const PLACEHOLDER_EXAMPLES = [
-    "Search for a player...",
+    "Search for a player…",
     "Try: Aaron Judge",
     "Try: 2025",
     "Try: NYM",
@@ -293,6 +295,7 @@ export function PlayerSearchInput({
                 clearTimeout(debounceRef.current);
             }
         };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [query]);
 
     // Rotate placeholder examples
@@ -371,17 +374,17 @@ export function PlayerSearchInput({
     };
 
     // Get current placeholder text
-    const currentPlaceholder = (isFocused || query) ? "Search for a player..." : PLACEHOLDER_EXAMPLES[placeholderIndex];
+    const currentPlaceholder = (isFocused || query) ? "Search for a player…" : PLACEHOLDER_EXAMPLES[placeholderIndex];
 
     return (
         <div className={`relative ${className}`}>
-            <label className="block text-sm font-medium text-secondary">
+            <label className={FIELD_LABEL_CLASS}>
                 {label}
             </label>
 
-            <SearchGradientBorder className="relative">
+            <SearchFrame className="relative">
 
-                <div className="bg-primary rounded-md relative">
+                <div className="bg-primary rounded-[3px] relative">
                     <div className="absolute left-2 top-1/2 transform -translate-y-1/2 text-primary">
                         <FaSearch className="w-4 h-4" />
                     </div>
@@ -407,17 +410,17 @@ export function PlayerSearchInput({
                             w-full pl-8 py-2
                             text-primary
                             focus:outline-none
-                            placeholder-gray-500
+                            placeholder:text-(--text-tertiary)
                             transition-opacity duration-300 ease-in-out
                             font-bold
-                            ${isFocused || query ? 'opacity-100' : 'animate-pulse // Optional: adds subtle pulse effect'}
+                            ${isFocused || query ? 'opacity-100' : 'animate-pulse'}
                         `}
                     />
                     
                     {/* Loading indicator */}
                     {isLoading && (
                         <div className="absolute right-8 top-1/2 transform -translate-y-1/2">
-                            <div className="animate-spin rounded-full h-4 w-4 border-2 border-blue-500 border-t-transparent"></div>
+                            <div className="animate-spin rounded-full h-4 w-4 border-2 border-(--showdown-blue) border-t-transparent"></div>
                         </div>
                     )}
 
@@ -426,11 +429,12 @@ export function PlayerSearchInput({
                         <button
                             type="button"
                             onClick={handleClear}
+                            aria-label="Clear search"
                             className="
                                 absolute right-0 top-1/2 transform -translate-y-1/2
-                                text-secondary hover:text-secondary/80
+                                text-secondary hover:text-(--text-secondary)/80
                                 w-6 h-10 flex items-center justify-center
-                                backdrop-blur-xs rounded-r-md p-1
+                                rounded-r-control p-1 cursor-pointer
                                 text-lg
                             "
                         >
@@ -439,7 +443,7 @@ export function PlayerSearchInput({
                     )}
 
                 </div>
-            </SearchGradientBorder>
+            </SearchFrame>
 
             {isOpen && options.length > 0 && typeof document !== 'undefined' && (
                 createPortal(
@@ -448,7 +452,7 @@ export function PlayerSearchInput({
                         className="
                             fixed z-5
                             transform
-                            bg-secondary rounded-xl shadow-lg
+                            bg-secondary rounded-card shadow-overlay
                             text-nowrap overflow-auto scrollbar-hide max-h-[40vh]
                             border-2 border-form-element
                         "
@@ -461,8 +465,8 @@ export function PlayerSearchInput({
                                 className={`
                                     pl-3 py-3 cursor-pointer border-b border-form-element last:border-b-0
                                     hover:bg-(--background-tertiary)
-                                    ${index === 0 ? 'rounded-t-lg' : ''}
-                                    ${index === options.length - 1 ? 'rounded-b-lg' : ''}
+                                    ${index === 0 ? 'rounded-t-card' : ''}
+                                    ${index === options.length - 1 ? 'rounded-b-card' : ''}
                                 `}
                             >
                                 <div className="flex-col items-center gap-2">
@@ -470,16 +474,16 @@ export function PlayerSearchInput({
                                     <div className='flex flex-row items-center gap-2'>
                                         <div className="font-medium" style={{ textTransform: 'capitalize' }}>{option.name}</div>
 
-                                        <div className={`flex items-center gap-1 text-sm ${index === selectedIndex ? 'text-blue-100' : 'text-gray-400'}`}>
+                                        <div className={`flex items-center gap-1 text-sm ${index === selectedIndex ? 'text-(--text-secondary)' : 'text-(--text-tertiary)'}`}>
                                             <div className='text-xs'>{option.year_display ? option.year_display : option.year} </div>
                                             {option.team && <div className="text-xs">{option.team}</div>}
                                             {option.award_summary?.includes('AS') && option.year.toString().length < 5 && <div className="text-xs">★</div>}
                                         </div>
                                         
-                                        {option.is_hof && <div className="bg-yellow-300 rounded-md text-xs p-1 text-black">HOF</div>}
+                                        {option.is_hof && <Plate variant="custom" size="sm" className="bg-(--gold) text-(--field-ink)">HOF</Plate>}
                                     </div>
                                     {/* Contextual info */}
-                                    <div className="text-xs text-gray-500">
+                                    <div className="text-xs text-(--text-tertiary)">
                                         {option.player_type_override && <div className='font-bold'>{option.player_type_override.toUpperCase()}</div>}
                                         {option.award_summary && <div>Awards: {option.award_summary}</div>}
                                         {option.war !== undefined && option.war !== null && <div>{option.war_type}: {option.war.toFixed(1)}</div>}

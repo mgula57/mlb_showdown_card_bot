@@ -5,6 +5,12 @@ import FormEnabler from '../../../customs/FormEnabler';
 import type { ChallengeCategory, ChallengeGoalType } from '../../../../api/sim';
 import type { ChallengeTemplateInput } from '../../../../api/adminChallenges';
 
+import { InlineError } from '../../../shared/InlineError';
+import { FIELD_FRAME_CLASS, FIELD_LABEL_CLASS } from '../../../shared/fieldStyles';
+
+// A multi-line field in the shared field frame (fieldClass fixes the height, so textareas build on the frame).
+const TEXTAREA_CLASS = `w-full px-3 py-2 text-[13px] resize-y focus:outline-none ${FIELD_FRAME_CLASS}`;
+import { buttonClass } from '../../../shared/buttonStyles';
 const GOAL_OPTIONS: { label: string; value: ChallengeGoalType }[] = [
     { label: 'Make the playoffs', value: 'made_playoffs' },
     { label: 'Win the division', value: 'win_division' },
@@ -141,7 +147,7 @@ export function ChallengeTemplateForm({ initial, submitLabel, busy, error, onSub
         });
     };
 
-    const fieldLabel = 'text-sm font-medium block text-secondary';
+    const fieldLabel = FIELD_LABEL_CLASS;
 
     return (
         <div className="flex flex-col gap-3 p-3">
@@ -157,7 +163,7 @@ export function ChallengeTemplateForm({ initial, submitLabel, busy, error, onSub
                     onChange={e => set('description', e.target.value)}
                     rows={2}
                     placeholder="Flavor text shown on the challenge card."
-                    className="w-full rounded-lg border border-(--divider) bg-(--background-tertiary) px-3 py-2 text-[13px] text-(--text-primary) resize-y"
+                    className={TEXTAREA_CLASS}
                 />
             </div>
 
@@ -203,23 +209,23 @@ export function ChallengeTemplateForm({ initial, submitLabel, busy, error, onSub
                     onChange={e => set('player_filters', e.target.value)}
                     rows={3}
                     placeholder={'{ "min_year": 1990, "max_year": 1999, "team": ["NYM", "NYY"] }'}
-                    className="w-full rounded-lg border border-(--divider) bg-(--background-tertiary) px-3 py-2 font-mono text-[12px] text-(--text-primary) resize-y"
+                    className={`${TEXTAREA_CLASS} font-mono text-[12px]!`}
                 />
             </div>
 
             <FormEnabler label="Active (included in the weekly rotation)" isEnabled={form.active} onChange={v => set('active', !v)} />
 
             {(clientError || error) && (
-                <div className="text-[12px] text-red-400 px-3 py-2 rounded-lg border border-red-400/30 bg-red-400/5">
+                <InlineError size="md">
                     {error || clientError}
-                </div>
+                </InlineError>
             )}
 
             <div className="flex justify-end gap-2 pt-1">
                 <button
                     type="button"
                     onClick={onCancel}
-                    className="px-3 py-1.5 text-[13px] font-semibold text-(--text-secondary) rounded-lg hover:bg-(--background-tertiary) cursor-pointer"
+                    className="px-3 py-1.5 text-[13px] font-semibold text-(--text-secondary) rounded-control hover:bg-(--background-tertiary) cursor-pointer"
                 >
                     Cancel
                 </button>
@@ -227,7 +233,7 @@ export function ChallengeTemplateForm({ initial, submitLabel, busy, error, onSub
                     type="button"
                     onClick={submit}
                     disabled={busy || !!clientError}
-                    className="px-3 py-1.5 text-[13px] font-bold text-(--background-primary) bg-(--secondary) rounded-lg hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+                    className={buttonClass('primary', 'sm')}
                 >
                     {busy ? 'Saving…' : submitLabel}
                 </button>

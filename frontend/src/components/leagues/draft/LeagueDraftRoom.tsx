@@ -211,7 +211,7 @@ export function LeagueDraftRoom({ league, seasonNumber, token, myMemberId, isCom
                         icon: isQueued ? <FaBookmark /> : <FaRegBookmark />,
                         label: isQueued ? 'Queued' : 'Queue',
                         variant: 'prominent',
-                        bgColorClass: isQueued ? 'bg-amber-500' : 'bg-neutral-500',
+                        bgColorClass: isQueued ? 'bg-(--gold)' : 'bg-(--showdown-gray)',
                         onClick: () => queue.toggle(card),
                     };
                 } : undefined}

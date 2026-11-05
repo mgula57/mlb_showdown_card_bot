@@ -1,5 +1,6 @@
 import FormDropdown from '../customs/FormDropdown';
 import { MANAGER_FIELDS, type ManagerPreference } from '../../api/manager';
+import { Heading } from '../shared/Heading';
 
 type Props = {
     value: ManagerPreference;
@@ -21,7 +22,7 @@ type Props = {
 export default function ManagerStyleFields({ value, onChange, title = 'Manager style', disabled, className = '' }: Props) {
     return (
         <div className={`flex flex-col gap-2 ${className}`}>
-            <div className="text-[13px] font-bold text-(--text-secondary)">{title}</div>
+            <Heading level="panel" as="div">{title}</Heading>
             <p className="text-[11px] text-(--text-tertiary)">
                 Sets how this club manages — Only the club you
                 control is affected.

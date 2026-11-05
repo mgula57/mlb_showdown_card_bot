@@ -18,15 +18,20 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { type CardDatabaseRecord, fetchCardData, IMAGE_MATCH_TYPE_OPTIONS } from "../../api/card_db/cardDatabase";
 import { CardDetail } from "./CardDetail";
+import type { CardReleaseSource } from "./card_detail/ReleaseSourceBadge";
 import { type ShowdownBotCardAPIResponse } from "../../api/showdownBotCard";
 import type { CardStyleOverrides } from "./cardStyleOverrides";
 import { Modal } from "../shared/Modal";
-import { useSiteSettings, showdownSets, imageForSet } from "../shared/SiteSettingsContext";
+import PinnedFooterScrollArea from "../shared/PinnedFooterScrollArea";
+import { PanelCloseContext, type PanelClose } from "../shared/panelClose";
+import { CARD_STYLE_DEFAULTS } from "../releases/editionStyle";
+import { useSiteSettings, showdownSets } from "../shared/SiteSettingsContext";
+import { SetBadge, setSelectOption } from "../shared/SetBadge";
 import {
-    FaFilter, FaBaseballBall, FaArrowUp, FaArrowDown, FaTimes, FaHashtag,
-    FaDollarSign, FaMitten, FaCalendarAlt, FaChevronCircleRight, FaChevronCircleLeft,
-    FaSort, FaTable, FaImage, FaAddressCard, FaLayerGroup, FaCheck, FaGripVertical,
-    FaChartLine, FaLock
+    FaFilter, FaBaseballBall, FaArrowUp, FaArrowDown, FaHashtag,
+    FaDollarSign, FaMitten, FaCalendarAlt,
+    FaSort, FaTable, FaImage, FaAddressCard, FaLayerGroup, FaCheck,
+    FaChartLine
 } from "react-icons/fa";
 import { FaArrowRotateRight, FaTableList, FaXmark } from "react-icons/fa6";
 import { snakeToTitleCase } from "../../functions/text";
@@ -37,6 +42,8 @@ import FormInput from "../customs/FormInput";
 import MultiSelect from "../shared/MultiSelect";
 import FormDropdown from "../customs/FormDropdown";
 import FormSection from "../customs/FormSection";
+import FormEnabler from "../customs/FormEnabler";
+import { hasVariableSpeedSet } from "../../functions/showdownSets";
 import CustomSelect, { type SelectOption } from '../shared/CustomSelect';
 import { CardItemFromCardDatabaseRecord, CardItemFromCard, CardItemSkeleton } from "./CardItem";
 import { CardThumbnailFromCardDatabaseRecord, CardThumbnailSkeleton } from "./CardThumbnail";
@@ -47,12 +54,17 @@ import SetMultiSelect from "./SetMultiSelect";
 
 import { TeamHierarchy } from "./TeamHierarchy";
 import SortButton from "./SortButton";
+import { FilterChip, type FilterChipText } from "./FilterChip";
 import { fetchTeamHierarchy, type TeamHierarchyRecord } from '../../api/card_db/cardDatabase';
 import { CardSource } from '../../types/cardSource';
 import { QuickFiltersDropdown } from './QuickFiltersDropdown';
 import { useAuth } from '../auth/AuthContext';
 import { useIsSmallScreen } from '../../hooks/useIsSmallScreen';
 
+import { fieldClass, FIELD_LABEL_CLASS, FIELD_FRAME_CLASS } from '../shared/fieldStyles';
+import { Heading } from '../shared/Heading';
+import { buttonClass } from '../shared/buttonStyles';
+import { smoothScrollBehavior } from '../../hooks/usePrefersReducedMotion';
 /**
  * Props for the ShowdownCardSearch component
  */
@@ -72,6 +84,11 @@ type ShowdownCardSearchProps = {
      */
     defaultFilters?: Partial<FilterSelections>;
     /**
+     * Optional flexible year string ("2023", "2000-2004", "2006+2014") seeded as year filters
+     * alongside `defaultFilters` — see `yearFiltersFromString`.
+     */
+    defaultYears?: string;
+    /**
      * Keys from `defaultFilters` the user cannot clear: their controls in the filter
      * modal are disabled and their chip in the "Selected Filters" row shows a lock icon
      * instead of an ✕. Keys not listed here seed as normal, removable chips.
@@ -80,7 +97,7 @@ type ShowdownCardSearchProps = {
     /** Optionally disable storing and loading from local storage */
     disableLocalStorage?: boolean;
     /**
-     * Compact mode: hides the WhatsNew banner and sidebar toggle, removes the
+     * Compact mode: hides the sidebar toggle, removes the
      * fixed-height container so the component fills its parent. Use when
      * embedding inside a panel or bottom sheet.
      */
@@ -92,7 +109,10 @@ type ShowdownCardSearchProps = {
     actionButton?: {
         icon: React.ReactNode;
         label?: string;
-        bgColorClass?: string;
+        /** Label for the button in the card detail sidebar/modal, where there's room to spell out
+         * the action (e.g. "Add to Edition"). Defaults to CardDetail's "Draft". */
+        detailLabel?: string;
+        emphasis?: CardItemActionButton['emphasis'];
         onClick: (card: CardDatabaseRecord) => void;
         /** Greys out the button and blocks clicks everywhere it's rendered (grid, sidebar, modal) — e.g. while a previous pick is still saving. */
         disabled?: boolean;
@@ -106,6 +126,11 @@ type ShowdownCardSearchProps = {
     secondaryAction?: (card: CardDatabaseRecord) => CardItemActionButton | undefined;
     /** Card IDs to hide from results (e.g. already-drafted players). Filtered client-side. */
     excludeIds?: string[];
+    /**
+     * Filters always sent with the query but never shown, saved or editable - a hard scope the
+     * caller owns (e.g. an edition's per-player-type sets via `showdown_set_hitters`/`_pitchers`).
+     */
+    scopeFilters?: Record<string, unknown>;
     /**
      * Change this value (e.g. bump a counter) to clear the search text and reset all filters
      * back to source defaults — used by callers to start fresh after a pick completes.
@@ -129,6 +154,12 @@ type ShowdownCardSearchProps = {
      * images - currently RELEASE.
      */
     enableThumbnailView?: boolean;
+    /**
+     * Adds Customize to the detail modal/sidebar: restyles the selected card in place without
+     * saving (see `CardDetail`'s `localStyleDefaults`). Off by default — currently just the Cards
+     * explorer.
+     */
+    enableStyleEditor?: boolean;
     /** Extra controls rendered in the search bar after the Filter button (e.g. the release edition picker) */
     toolbarSlot?: React.ReactNode;
     /**
@@ -137,6 +168,13 @@ type ShowdownCardSearchProps = {
      * points, where a release otherwise sorts by card number).
      */
     defaultSort?: Pick<FilterSelections, 'sort_by' | 'sort_direction'>;
+
+    /**
+     * Shows a toggle next to the sort that switches 2000/2001 cards between standard (10/15/20) and
+     * variable speed, with points to match. Off by default — currently the Cards explorer and the
+     * Edition Builder's manual search.
+     */
+    enableVariableSpeedToggle?: boolean;
 };
 
 // =============================================================================
@@ -233,6 +271,8 @@ export interface FilterSelections {
     min_year?: number;
     /** Maximum season year */
     max_year?: number;
+    /** Specific season years, for non-consecutive seasons that min/max can't express (e.g. "2006+2014") */
+    year?: string[];
 
     // Organizational hierarchy filters
     /** Organizations (e.g., ["MLB", "NGL"]) */
@@ -274,6 +314,9 @@ export interface FilterSelections {
 
     // Release Builder editions (RELEASE source) — required to search that source
     release_edition_id?: string[];
+
+    /** Show, filter and sort 2000/2001 hitters with variable speed. Unset (never `false`) when off */
+    variable_speed?: boolean;
 }
 
 /**
@@ -293,7 +336,8 @@ const getDefaultFilterSelections = (source: CardSource): FilterSelections => {
     // Customize defaults based on source
     switch (source) {
         case CardSource.BOT:
-            return baseDefaults;
+            // Variable speed is on by default; it only applies when 2000/2001 is searched
+            return { ...baseDefaults, variable_speed: true };
         case CardSource.WOTC:
             return {
                 sort_by: "points",
@@ -317,6 +361,22 @@ const getDefaultFilterSelections = (source: CardSource): FilterSelections => {
         default:
             return baseDefaults;
     }
+};
+
+/**
+ * Converts a flexible year string (mirrors `convert_year_string_to_list` on the backend) into
+ * year filters: a single year or range becomes min/max (so it shows in the Year range control),
+ * a "+" list of seasons becomes `year`. Blank, "CAREER" or unparseable input adds no filter.
+ */
+const yearFiltersFromString = (years: string | undefined): Partial<FilterSelections> => {
+    const value = (years ?? '').trim();
+    const toYear = (part: string) => /^\d{4}$/.test(part.trim()) ? parseInt(part, 10) : null;
+    if (value.includes('+')) {
+        const list = value.split('+').map(toYear);
+        return list.every(y => y !== null) ? { year: list.map(String) } : {};
+    }
+    const [start, end = start] = value.split('-').map(toYear);
+    return start && end ? { min_year: start, max_year: end } : {};
 };
 
 /**
@@ -683,6 +743,29 @@ const saveViewMode = (mode: CardViewMode, source: CardSource) => {
     }
 };
 
+/** localStorage key for the card detail sidebar's width, stored as a fraction of the search container's width */
+const SIDEBAR_WIDTH_STORAGE_KEY = 'exploreSidebarWidthPct:v1';
+const SIDEBAR_DEFAULT_WIDTH = 384; // matches w-96
+const SIDEBAR_MIN_WIDTH = 280;
+const SIDEBAR_MAX_WIDTH = 840;
+
+const loadSidebarWidthPct = (): number | null => {
+    try {
+        const pct = parseFloat(localStorage.getItem(SIDEBAR_WIDTH_STORAGE_KEY) ?? '');
+        return pct > 0 && pct < 1 ? pct : null;
+    } catch {
+        return null;
+    }
+};
+
+const saveSidebarWidthPct = (pct: number) => {
+    try {
+        localStorage.setItem(SIDEBAR_WIDTH_STORAGE_KEY, String(pct));
+    } catch {
+        // ignore storage errors
+    }
+};
+
 // Helper used for lazy init so we don't set state in an effect
 const getInitialFilters = (source: CardSource, defaultFilters: Partial<FilterSelections> = {}, disableLocalStorage = false): FilterSelections =>
     loadSavedFilters(source, defaultFilters, disableLocalStorage) ?? ({ ...getDefaultFilterSelections(source), ...defaultFilters });
@@ -739,7 +822,7 @@ const DEFAULT_QUICK_FILTERS: Record<CardSource, { id: string; name: string; filt
  * @param disableLocalStorage - Optionally disable storing and loading from local storage
  * @param verticalOffset - Vertical offset of the content that lives above
  */
-export default function ShowdownCardSearch({ className, verticalOffset='22', source = CardSource.BOT, defaultFilters = {}, lockedFilters, disableLocalStorage = false, compact = false, actionButton, excludeIds, resetTrigger, enableSetSwitcher = false, enableSetOverride = false, enableThumbnailView = false, toolbarSlot, defaultSort, secondaryAction }: ShowdownCardSearchProps) {
+export default function ShowdownCardSearch({ className, verticalOffset='22', source = CardSource.BOT, defaultFilters: defaultFiltersProp, defaultYears, lockedFilters, disableLocalStorage = false, compact = false, actionButton, excludeIds, scopeFilters, resetTrigger, enableSetSwitcher = false, enableSetOverride = false, enableThumbnailView = false, enableStyleEditor = false, toolbarSlot, defaultSort, secondaryAction, enableVariableSpeedToggle = false }: ShowdownCardSearchProps) {
     // =============================================================================
     // CORE STATE MANAGEMENT
     // =============================================================================
@@ -758,7 +841,6 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
     /** Currently selected card for detail view */
     const [selectedCardForModal, setSelectedCardForModal] = useState<CardDatabaseRecord | null>(null);
     const [selectedCardForSidebar, setSelectedCardForSidebar] = useState<CardDatabaseRecord | null>(null);
-    const selectedCard = window.innerWidth >= 1000 ? selectedCardForSidebar : selectedCardForModal;
 
     // Pagination state management
     /** Current page number for infinite scroll */
@@ -777,6 +859,10 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
     const [showPlayerDetailModal, setShowPlayerDetailModal] = useState(false);
     /** Show/hide player detail sidebar */
     const [showPlayerDetailSidebar, setShowPlayerDetailSidebar] = useState(false);
+    // The sidebar keeps its last card while it slides shut, so only count it as selected while open
+    const selectedCard = window.innerWidth >= 1000
+        ? (showPlayerDetailSidebar ? selectedCardForSidebar : null)
+        : selectedCardForModal;
 
     // Global application state
     /** Current user's selected Showdown set */
@@ -785,7 +871,6 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
     const [showdownSetOverride, setShowdownSetOverride] = useState<string | null>(null);
     const showSetOverride = enableSetOverride && !isFilterAvailable('showdown_set', source);
     const effectiveShowdownSet = (showSetOverride ? showdownSetOverride : null) ?? userShowdownSet;
-    const userDefaultSetImage = showdownSets.find(set => set.value === userShowdownSet)?.image;
     const { session } = useAuth();
     // Only My Customs (and Release cards, where owners also see their draft editions) need auth —
     // derived so other sources see a stable `undefined` and don't treat an unrelated session
@@ -795,8 +880,14 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
     // Separate search from filters
     const [searchText, setSearchText] = useState('');
     const [debouncedSearchText, setDebouncedSearchText] = useState('');
+    // Content key, so a caller passing a fresh `scopeFilters` object each render doesn't refetch
+    const scopeFiltersKey = JSON.stringify(scopeFilters ?? {});
 
     // Filters
+    const defaultFilters = useMemo<Partial<FilterSelections>>(
+        () => ({ ...yearFiltersFromString(defaultYears), ...defaultFiltersProp }),
+        [defaultFiltersProp, defaultYears]
+    );
     // The source's defaults, with the caller's sort (if any) in place of the source's own
     const sourceDefaults = useMemo(
         () => ({ ...getDefaultFilterSelections(source), ...defaultSort }),
@@ -821,6 +912,9 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
     );
     const [filters, setFilters] = useState<FilterSelections>(() => getInitialFilters(source, { ...defaultSort, ...defaultFilters }, disableLocalStorage));
     const [filtersForEditing, setFiltersForEditing] = useState<FilterSelections>(() => getInitialFilters(source, { ...defaultSort, ...defaultFilters }, disableLocalStorage));
+    // Variable speed only changes 2000/2001 cards
+    const searchedSets = filters.showdown_set?.length ? filters.showdown_set : [effectiveShowdownSet];
+    const isVariableSpeedAvailable = enableVariableSpeedToggle && hasVariableSpeedSet(searchedSets);
     // Nothing picked → the search uses the header's set, so show that set as the selection
     // (when it's one WOTC printed; Classic/Expanded fall back to the "(Default)" display).
     const wotcSetSelections = filters.showdown_set?.length
@@ -890,6 +984,16 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
     const sidebarStyleOverrides = useMemo(() => releaseImageOverrides(selectedCardForSidebar), [selectedCardForSidebar]);
     const modalStyleOverrides = useMemo(() => releaseImageOverrides(selectedCardForModal), [selectedCardForModal]);
 
+    /** A release card's edition, linking to the card in the Release Builder (`id` is the release card's own id). */
+    const releaseSourceOf = (card: CardDatabaseRecord | null): CardReleaseSource | null =>
+        card?.release_id && card.release_edition_slug && card.release_name && card.release_edition_name ? {
+            releaseName: card.release_name,
+            editionName: card.release_edition_name,
+            path: `/release-builder/${card.release_id}/${card.release_edition_slug}/${card.id}`,
+        } : null;
+    const sidebarReleaseSource = useMemo(() => releaseSourceOf(selectedCardForSidebar), [selectedCardForSidebar]);
+    const modalReleaseSource = useMemo(() => releaseSourceOf(selectedCardForModal), [selectedCardForModal]);
+
     /** Initial load with nothing to show yet: render card skeletons instead of the spinner overlay */
     const showSkeletons = isLoading && (!displayedCards || displayedCards.length === 0);
 
@@ -904,32 +1008,52 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
     const cardsAbortControllerRef = useRef<AbortController | null>(null);
     const cardsRequestIdRef = useRef(0);
 
-    // Sidebar resize
-    const [sidebarWidth, setSidebarWidth] = useState(384); // matches w-96
+    // Sidebar resize — width is kept as a fraction of the container so it scales with the window,
+    // and persisted locally once a drag finishes. Null means the user hasn't resized it yet.
+    const [sidebarWidthPct, setSidebarWidthPct] = useState<number | null>(loadSidebarWidthPct);
+    const [sidebarContainerWidth, setSidebarContainerWidth] = useState(() => typeof window === 'undefined' ? 0 : window.innerWidth);
+    const clampSidebarWidth = (width: number) => Math.min(Math.max(width, SIDEBAR_MIN_WIDTH), SIDEBAR_MAX_WIDTH);
+    const sidebarWidth = sidebarWidthPct === null
+        ? SIDEBAR_DEFAULT_WIDTH
+        : clampSidebarWidth(Math.round(sidebarWidthPct * sidebarContainerWidth));
     const isResizing = useRef(false);
 
-    const handleSidebarResizeStart = (e: React.MouseEvent) => {
+    const handleSidebarResizeStart = (e: React.PointerEvent) => {
         e.preventDefault();
         isResizing.current = true;
         const startX = e.clientX;
         const startWidth = sidebarWidth;
+        const containerWidth = sidebarContainerRef.current?.clientWidth || window.innerWidth;
+        let latestPct = startWidth / containerWidth;
 
-        const onMouseMove = (ev: MouseEvent) => {
+        const onPointerMove = (ev: PointerEvent) => {
             if (!isResizing.current) return;
-            const newWidth = Math.min(Math.max(startWidth + (startX - ev.clientX), 280), 720);
-            setSidebarWidth(newWidth);
+            latestPct = clampSidebarWidth(startWidth + (startX - ev.clientX)) / containerWidth;
+            setSidebarWidthPct(latestPct);
         };
-        const onMouseUp = () => {
+        const onPointerUp = () => {
             isResizing.current = false;
-            document.removeEventListener('mousemove', onMouseMove);
-            document.removeEventListener('mouseup', onMouseUp);
+            saveSidebarWidthPct(latestPct);
+            document.removeEventListener('pointermove', onPointerMove);
+            document.removeEventListener('pointerup', onPointerUp);
+            document.removeEventListener('pointercancel', onPointerUp);
             document.body.style.cursor = '';
             document.body.style.userSelect = '';
         };
         document.body.style.cursor = 'ew-resize';
         document.body.style.userSelect = 'none';
-        document.addEventListener('mousemove', onMouseMove);
-        document.addEventListener('mouseup', onMouseUp);
+        document.addEventListener('pointermove', onPointerMove);
+        document.addEventListener('pointerup', onPointerUp);
+        document.addEventListener('pointercancel', onPointerUp);
+    };
+
+    const handleSidebarResizeReset = () => {
+        setSidebarWidthPct(null);
+        try {
+            localStorage.removeItem(SIDEBAR_WIDTH_STORAGE_KEY);
+        } catch {
+            // ignore storage errors
+        }
     };
 
     // Auto-close sidebar when container shrinks below @2xl (672px)
@@ -937,6 +1061,7 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
         const el = sidebarContainerRef.current;
         if (!el) return;
         const observer = new ResizeObserver(([entry]) => {
+            setSidebarContainerWidth(entry.contentRect.width);
             if (entry.contentRect.width < 672) {
                 setShowPlayerDetailSidebar(false);
             }
@@ -950,6 +1075,7 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
         if (!disableLocalStorage) {
             saveFilters(filters, source);
         }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [filters, source]);
 
     // Clean filters when source changes to remove unavailable filters
@@ -964,6 +1090,7 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
         if (JSON.stringify(cleanedForEditing) !== JSON.stringify(filtersForEditing)) {
             setFiltersForEditing(cleanedForEditing);
         }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [source]);
 
     // Re-seed whenever the injected `defaultFilters` change. A key that was seeded before but
@@ -1008,6 +1135,7 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
         };
 
         loadHierarchyData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []); // Empty dependency array - only run once
 
     // Note: We don't clear selected card when showdown set changes anymore
@@ -1033,7 +1161,8 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
     // Only My Customs' request depends on the session (sent as a bearer token, required to scope
     // the search) — `authToken` stays a stable `undefined` for other sources so a session
     // resolving/changing (e.g. restoring one from storage on refresh) doesn't refetch every tab.
-    }, [effectiveShowdownSet, filters, debouncedSearchText, authToken]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [effectiveShowdownSet, filters, debouncedSearchText, authToken, scopeFiltersKey]);
 
     // Abort any in-flight card fetch on unmount
     useEffect(() => () => cardsAbortControllerRef.current?.abort(), []);
@@ -1064,6 +1193,7 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
             root: null
         });
         if (node) observer.current.observe(node);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [isLoading, hasMore, isLoadingMore]);
 
     const getCardsData = async (pageNum: number = 1, append: boolean = false) => {
@@ -1119,13 +1249,15 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
                 ...filters,
                 ...searchFilters,
                 ...showdownSetFilter,
+                ...scopeFilters,
+                variable_speed: isVariableSpeedAvailable ? filters.variable_speed : undefined,
                 page: pageNum,
                 limit: pageLimit // Cards per page
             };
 
             // Remove filters with empty arrays or undefined values
             const cleanedFilters = Object.fromEntries(
-                Object.entries(combinedFilters).filter(([_, v]) => v !== undefined && v !== null && v.length !== 0)
+                Object.entries(combinedFilters).filter(([_, v]) => v !== undefined && v !== null && !((typeof v === 'string' || Array.isArray(v)) && v.length === 0))
             );
             const data = await fetchCardData(source, cleanedFilters, authToken, abortController.signal);
 
@@ -1218,17 +1350,18 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
             setShowPlayerDetailSidebar(true);
             
             if (!isSidebarAlreadyOpen) {
-                // Auto-scroll to the selected card after the sidebar animation completes
-                setTimeout(() => {
+                // The grid makes room for the sidebar in one step (no animated reflow), so the
+                // selected card can be scrolled back into view on the next frame
+                requestAnimationFrame(() => {
                     const selectedElement = document.querySelector(`[data-card-id="${card.id}"]`);
                     if (selectedElement) {
                         selectedElement.scrollIntoView({
-                            behavior: 'smooth',
+                            behavior: smoothScrollBehavior(),
                             block: 'center',
                             inline: 'nearest'
                         });
                     }
-                }, 350); // Wait for sidebar animation (300ms + small buffer)
+                });
             }
         } else {
             setShowPlayerDetailModal(true);
@@ -1240,10 +1373,27 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
         setSelectedCardForModal(null);
     };
 
+    // Keep selectedCardForSidebar so the panel doesn't empty out mid-slide; reopening shows it again
     const handleCloseSidebar = () => {
         setShowPlayerDetailSidebar(false);
-        setSelectedCardForSidebar(null);
     }
+
+    // CardDetail puts the sidebar's close button in its own header row, beside the player's name.
+    // The sidebar has no floating button of its own, so claiming is a no-op.
+    const sidebarPanelClose = useMemo<PanelClose>(() => ({
+        onClose: () => setShowPlayerDetailSidebar(false),
+        claim: () => () => {},
+    }), []);
+
+    // Escape closes the sidebar (the modal handles its own)
+    useEffect(() => {
+        if (!showPlayerDetailSidebar) return;
+        const onKeyDown = (e: KeyboardEvent) => {
+            if (e.key === 'Escape') setShowPlayerDetailSidebar(false);
+        };
+        document.addEventListener('keydown', onKeyDown);
+        return () => document.removeEventListener('keydown', onKeyDown);
+    }, [showPlayerDetailSidebar]);
 
     const handleOpenFilters = () => {
         setFiltersForEditing(applyLockedFilters(filters));
@@ -1312,17 +1462,17 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
     const removeFilter = makeRemoveFilter(filters, setFilters);
     const removeFilterForEditing = makeRemoveFilter(filtersForEditing, setFiltersForEditing);
 
-    const filterDisplayText = (key: string, value: any, overallList: Record<string, unknown>) => {
+    const filterDisplayText = (key: string, value: any, overallList: Record<string, unknown>): FilterChipText | undefined => {
         if (key.startsWith('min_chart_') || key.startsWith('max_chart_')) {
             const comparisonOperator = key.startsWith('min_') ? '>=' : '<=';
             const category = key.replace('min_chart_', '').replace('max_chart_', '').toUpperCase();
             const correspondingKey = key.startsWith('min_') ? key.replace('min_chart_', 'max_chart_') : key.replace('max_chart_', 'min_chart_');
 
             if (overallList[correspondingKey] === value) {
-                return key.startsWith('min_') ? `Chart ${category}: ${value}` : undefined;
+                return key.startsWith('min_') ? { label: `Chart ${category}`, value: String(value) } : undefined;
             }
 
-            return `Chart ${category} ${comparisonOperator} ${value}`;
+            return { label: `Chart ${category}`, value: `${comparisonOperator} ${value}` };
         }
 
         if (key.startsWith('min_') || key.startsWith('max_')) {
@@ -1333,7 +1483,7 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
             // Check if there's a max with the same value. If so just display the min and show as `= value` instead of `>= value`
             const correspondingKey = key.startsWith('min_') ? `max_${shortKey}` : `min_${shortKey}`;
             if (overallList[correspondingKey] === value) {
-                return key.startsWith('min_') ? `${snakeToTitleCase(shortKey)}: ${value}` : undefined; // Don't show the max if it's the same as min, it will be redundant. Just show the min as `= value`
+                return key.startsWith('min_') ? { label: snakeToTitleCase(shortKey), value: String(value) } : undefined; // Don't show the max if it's the same as min, it will be redundant. Just show the min as `= value`
             }
 
             if (shortKey.length == 2) {
@@ -1350,36 +1500,41 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
                 shortKey = 'Control/Onbase';
             }
 
-            return `${shortKey} ${comparisonOperator} ${value}`;
+            return { label: shortKey, value: `${comparisonOperator} ${value}` };
         }
 
         if (key === 'include_small_sample_size') {
             const finalValues = value.length === 2 ? ['Yes', 'No'] : value[0] === 'true' ? ['Yes'] : ['No'];
             const finalValue = finalValues.join(',');
-            return `Small Samples?: ${finalValue}`;
+            return { label: 'Small Samples?', value: finalValue };
         }
+
+        // Shown by the speed toggle next to the sort instead of as a chip
+        if (key === 'variable_speed') return undefined;
 
         if (key === 'is_hof') {
             const finalValues = value.length === 2 ? ['Yes', 'No'] : value[0] === 'true' ? ['Yes'] : ['No'];
             const finalValue = finalValues.join(',');
-            return `HOF?: ${finalValue}`;
+            return { label: 'HOF?', value: finalValue };
         }
 
         // Shown by the edition picker in the search bar instead of as a chip
         if (key === 'release_edition_id') return undefined;
 
+        if (key === 'year') return { label: 'Years', value: value.join(', ') };
+
         if (key === 'showdown_set') {
             const finalValue = Array.isArray(value) ? value.map(s => s.toUpperCase()).join(', ') : value.toUpperCase();
-            return `Set: ${finalValue}`;
+            return { label: 'Set', value: finalValue };
         }
 
         const keysWithValuesToTitleCase = ['image_match_type']
         if (keysWithValuesToTitleCase.includes(key)) {
             const finalValue = Array.isArray(value) ? value.map(snakeToTitleCase).join(', ') : snakeToTitleCase(value);
-            return `${snakeToTitleCase(key)}: ${finalValue}`;
+            return { label: snakeToTitleCase(key), value: finalValue };
         }
 
-        return `${snakeToTitleCase(key)}: ${value}`;
+        return { label: snakeToTitleCase(key), value: String(value) };
     }
 
     const renderLoadingIndicator = () => {
@@ -1399,9 +1554,9 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
 
     const renderResetButton = (targets: String[]) => {
         return (
-            <button onClick={() => resetFilters(targets)} className="text-black font-bold flex items-center bg-(--warning) rounded-full px-2 mx-1 gap-1 py-1 cursor-pointer">
+            <button type="button" onClick={() => resetFilters(targets)} className={buttonClass('secondary', 'sm', 'mx-1')}>
                 <FaArrowRotateRight />
-                <span className="text-sm">Reset</span>
+                Reset
             </button>
         );
     };
@@ -1421,7 +1576,7 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
 
             {/* Search Bar and Filters */}
             <div
-                className="@container sticky top-0 z-10 flex flex-col gap-2 w-full bg-background-secondary/95 backdrop-blur py-3 transition-[width] duration-300 ease-in-out"
+                className="@container sticky top-0 z-10 flex flex-col gap-2 w-full bg-(--background-secondary) py-3"
                 style={{ width: `calc(100% - ${showPlayerDetailSidebar ? sidebarWidth : 0}px)` }}
             >
 
@@ -1433,7 +1588,7 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
                             label=""
                             type="text"
                             value={searchText || ''}
-                            placeholder={isSmallScreen ? "Search" : "Search for a Player..."}
+                            placeholder={isSmallScreen ? "Search" : "Search for a player…"}
                             onChange={(value) => setSearchText(value || '')}
                             className="w-full @2xl:w-1/3 font-bold"
                             isClearable={true}
@@ -1453,12 +1608,7 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
                         {/* Filters */}
                         <button
                             onClick={handleOpenFilters}
-                            className="
-                                px-3 h-11
-                                rounded-xl bg-(--background-secondary) border border-form-element
-                                flex items-center gap-2
-                                hover:bg-(--background-secondary-hover)
-                            ">
+                            className={fieldClass('lg', 'flex items-center gap-2 cursor-pointer')}>
                             <FaFilter className="text-primary" />
                             <span className="hidden @2xl:inline">Filter</span>
                         </button>
@@ -1467,13 +1617,13 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
                         {isFilterAvailable('showdown_set', source) && !isFilterLocked('showdown_set') && (
                             <SetMultiSelect
                                 className="shrink-0"
-                                options={showdownSets.filter(set => WOTC_SET_VALUES.includes(set.value)).map(set => ({ value: set.value, image: set.image }))}
+                                options={WOTC_SET_VALUES.map(set => ({ value: set, icon: <SetBadge set={set} /> }))}
                                 selections={wotcSetSelections}
                                 onChange={(values) => {
                                     setFilters(prev => ({ ...prev, showdown_set: values }));
                                     setFiltersForEditing(prev => ({ ...prev, showdown_set: values }));
                                 }}
-                                defaultImage={userDefaultSetImage}
+                                defaultIcon={<SetBadge set={userShowdownSet} />}
                             />
                         )}
 
@@ -1481,7 +1631,7 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
 
                         {/* List / Thumbnail view toggle */}
                         {enableThumbnailView && (
-                            <div className="flex shrink-0 h-11 p-1 gap-1 rounded-xl bg-(--background-secondary) border border-form-element">
+                            <div className={`${FIELD_FRAME_CLASS} flex shrink-0 h-11 p-1 gap-1`}>
                                 {([
                                     { mode: 'list', icon: <FaTableList />, label: 'Detailed view' },
                                     { mode: 'thumbnail', icon: <FaImage />, label: 'Image view' },
@@ -1494,10 +1644,10 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
                                         aria-pressed={viewMode === mode}
                                         onClick={() => handleViewModeChange(mode)}
                                         className={`
-                                            px-2.5 rounded-lg flex items-center cursor-pointer transition-colors
+                                            px-2.5 rounded-plate flex items-center cursor-pointer transition-colors
                                             ${viewMode === mode
-                                                ? 'bg-(--background-quaternary) text-primary'
-                                                : 'text-(--text-tertiary) hover:text-primary hover:bg-(--background-secondary-hover)'}
+                                                ? 'bg-(--background-tertiary) text-(--text-primary)'
+                                                : 'text-(--text-tertiary) hover:text-(--text-primary) hover:bg-(--background-tertiary)'}
                                         `}
                                     >
                                         {icon}
@@ -1506,27 +1656,22 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
                             </div>
                         )}
 
-                        {/* Showdown Set Override */}
+                        {/* Showdown Set Override. Small screens give it a fixed narrow size container so the
+                            badge abbreviates ('05); elsewhere it hugs the full badge (the menu still sizes
+                            itself to its options). */}
                         {showSetOverride && (
-                            <div className="@container shrink-0 w-24 md:w-40">
+                            <div className={isSmallScreen ? '@container shrink-0 w-24' : 'shrink-0'}>
                                 <CustomSelect
                                     className="shrink-0"
-                                    buttonClassName="
-                                        h-11 px-3
-                                        rounded-xl bg-(--background-secondary) border border-form-element
-                                        flex items-center cursor-pointer
-                                        hover:bg-(--background-secondary-hover)
-                                    "
+                                    size="lg"
                                     dropdownClassName="text-xs sm:text-sm"
-                                    imageClassName="object-contain object-center h-6 w-16 mr-1"
-                                    compactImageClassName="object-contain object-center h-5 w-auto mr-1"
                                     align="auto"
-                                    labelClassName="hidden @2xl:inline text-xs text-secondary whitespace-nowrap"
+                                    labelClassName="hidden"
                                     value={showdownSetOverride ?? ''}
                                     onChange={(v) => setShowdownSetOverride(v === '' ? null : v)}
                                     options={[
-                                        { value: '', label: ' (Default)', image: userDefaultSetImage, imageCompact: imageForSet(userShowdownSet, true) },
-                                        ...showdownSets.map(set => ({ ...set, imageCompact: set.imageAbbr })),
+                                        { ...setSelectOption(userShowdownSet, { label: ' (Default)', compact: true }), value: '' },
+                                        ...showdownSets.map(set => setSelectOption(set.value, { compact: true })),
                                     ]}
                                     showDropdownArrow={true}
                                 />
@@ -1536,16 +1681,14 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
                     
 
                     {/* If lg screen, show open button for side menu */}
-                    {!compact && (
+                    {!compact && !showPlayerDetailSidebar && (
                         <button
+                            type="button"
                             onClick={() => setShowPlayerDetailSidebar(true)}
-                            className={`
-                                items-center gap-2
-                                hover:bg-(--background-secondary-hover)
-                                ${showPlayerDetailSidebar ? 'hidden' : 'hidden @2xl:flex'}
-                            `}>
-                            <FaChevronCircleLeft className="text-(--tertiary) w-7 h-7" />
-                            <span className="text-(--tertiary) text-lg font-bold">Card Detail</span>
+                            aria-label="Open card detail"
+                            className={fieldClass('lg', 'hidden @2xl:flex items-center gap-2 shrink-0 cursor-pointer')}>
+                            <FaAddressCard className="text-(--text-secondary)" />
+                            <span className="hidden @5xl:inline whitespace-nowrap">Card detail</span>
                         </button>
                     )}
 
@@ -1566,11 +1709,29 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
                             disableSortDirection={isFilterLocked('sort_direction')}
                         />
 
+                        {/* Standard (10/15/20) vs variable speed for 2000/2001 cards */}
+                        {isVariableSpeedAvailable && (
+                            <FormEnabler
+                                size="sm"
+                                className="shrink-0"
+                                label={<><span className="@2xl:hidden">Var SPD</span><span className="hidden @2xl:inline">Variable Speed</span></>}
+                                title="Uncapped speed on 2000/2001 hitters instead of 10/15/20, with points to match"
+                                isEnabled={!!filters.variable_speed}
+                                isDisabled={isFilterLocked('variable_speed')}
+                                onChange={(isEnabled) => {
+                                    // Explicit false, so an unset key falls back to the variable speed default
+                                    const variable_speed = !isEnabled;
+                                    setFilters(prev => ({ ...prev, variable_speed }));
+                                    setFiltersForEditing(prev => ({ ...prev, variable_speed }));
+                                }}
+                            />
+                        )}
+
                         {/* Positions (always exposed; replaces the positions chip) */}
                         <SetMultiSelect
                             className="shrink-0"
                             variant="pill"
-                            prefix={<><span className="@2xl:hidden">Pos:</span><span className="hidden @2xl:inline">Positions:</span></>}
+                            prefix={<><span className="@2xl:hidden">Pos</span><span className="hidden @2xl:inline">Positions</span></>}
                             placeholder="All"
                             options={POSITION_OPTIONS}
                             selections={filters.positions ?? []}
@@ -1589,21 +1750,9 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
                             .filter(([_, value]) => !(value === undefined || value === null || (Array.isArray(value) && value.length === 0)))
                             .sort(([a], [b]) => Number(isFilterLocked(a as keyof FilterSelections)) - Number(isFilterLocked(b as keyof FilterSelections)))
                             .map(([key, value]) => {
-                                const displayText = filterDisplayText(key, value, filtersWithoutSorting);
-                                if (!displayText) return null;
-                                const locked = isFilterLocked(key as keyof FilterSelections);
-                                return (
-                                    <div key={key} className={`flex items-center rounded-full px-2 py-1 ${locked ? 'bg-(--background-tertiary) text-(--text-secondary)' : 'bg-(--background-secondary)'}`}>
-                                        <span className="text-sm max-w-84 overflow-x-clip text-nowrap">{displayText}</span>
-                                        {locked ? (
-                                            <FaLock className="ml-1 shrink-0 text-[10px] opacity-50" title="Locked by team settings" />
-                                        ) : (
-                                            <button onClick={() => removeFilter(key)} className="ml-1 cursor-pointer">
-                                                <FaTimes />
-                                            </button>
-                                        )}
-                                    </div>
-                                )
+                                const chipText = filterDisplayText(key, value, filtersWithoutSorting);
+                                if (!chipText) return null;
+                                return <FilterChip key={key} text={chipText} locked={isFilterLocked(key as keyof FilterSelections)} onRemove={() => removeFilter(key)} />;
                             }
                         )}
 
@@ -1613,7 +1762,7 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
 
                     {/* Reset Button */}
                     {hasCustomFiltersApplied && (
-                        <div className="absolute right-0 flex justify-end shadow-xl">
+                        <div className="absolute right-0 flex justify-end shadow-overlay">
                             {renderResetButton(['filters', 'editing'])}
                         </div>
                     )}
@@ -1627,7 +1776,7 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
                 {/* Main Content Area */}
                 <div
                     ref={cardScrollParentRef}
-                    className="relative flex-1 min-w-0 transition-all duration-300 ease-in-out md:overflow-y-auto"
+                    className="relative flex-1 min-w-0 md:overflow-y-auto"
                     style={{ marginRight: showPlayerDetailSidebar ? sidebarWidth : 0 }}
                 >
                     <div className={`py-2 px-3 grid gap-3 md:gap-4 ${isThumbnailView
@@ -1705,7 +1854,7 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
 
                     {/* No results found message */}
                     {warningMessage && (
-                        <div className="flex justify-center p-6 text-secondary bg-(--primary)/10 rounded-xl m-10">
+                        <div className="flex justify-center p-6 text-secondary bg-(--primary)/10 rounded-card m-10">
                             <span className="text-sm">{warningMessage}</span>
                         </div>
                     )}
@@ -1727,44 +1876,46 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
                 </div>
 
                 
-                {/* Right Sidebar with Slide Animation */}
-                <div
+                {/* Right Sidebar. Only the panel's transform animates: the grid and toolbar make room
+                    in one step, so the card grid reflows once instead of on every frame. Opening
+                    eases out on the side menu's curve, closing eases in and runs a little faster. */}
+                <aside
+                    aria-label="Card detail"
+                    aria-hidden={!showPlayerDetailSidebar}
+                    inert={!showPlayerDetailSidebar}
                     style={{ top: `calc(${verticalOffset} * 0.25rem)`, width: sidebarWidth }}
                     className={`
                     fixed right-0 bottom-0 z-30
-                    bg-primary border-l-2 border-form-element
-                    transform transition-transform duration-300 ease-in-out
-                    ${showPlayerDetailSidebar ? 'translate-x-0' : 'translate-x-full'}
+                    bg-(--background-primary) border-l border-(--divider)
+                    transition-transform will-change-transform
+                    ${showPlayerDetailSidebar
+                        ? 'translate-x-0 duration-300 ease-(--side-menu-ease)'
+                        : 'translate-x-full duration-200 ease-[cubic-bezier(0.32,0,0.67,0)]'}
                     hidden @2xl:block
-                    shadow-xl
                 `}>
-                    {/* Drag-to-resize handle */}
+                    {/* Drag-to-resize handle: a hit area straddling the left border that lights the
+                        border navy on hover or drag. Double-click resets the width. */}
                     <div
-                        onMouseDown={handleSidebarResizeStart}
-                        className="absolute left-0 top-0 bottom-0 w-4 cursor-ew-resize flex items-center justify-center z-10 group"
+                        role="separator"
+                        aria-orientation="vertical"
+                        aria-label="Resize card detail"
+                        title="Drag to resize, double-click to reset"
+                        onPointerDown={handleSidebarResizeStart}
+                        onDoubleClick={handleSidebarResizeReset}
+                        className="absolute -left-1.5 top-0 bottom-0 w-3 z-10 cursor-ew-resize touch-none group flex justify-center"
                     >
-                        <FaGripVertical className={`${showPlayerDetailSidebar ? 'block' : 'hidden'} group-hover:text-tertiary transition-colors text-2xl -translate-x-2 text-secondary bg-(--divider) p-1 rounded-md`} />
+                        <div className="w-0.5 h-full bg-transparent transition-colors group-hover:bg-(--showdown-blue) group-active:bg-(--showdown-blue)" />
                     </div>
 
-                    {/* Sidebar Content */}
+                    {/* Sidebar Content — CardDetail's header (name, actions, close) pins to the top */}
                     <div className="h-full flex flex-col">
-
-                        {/* Stick header with close button */}
-                        <div className="py-8 h-12 flex items-center space-x-2 p-2 border-b border-form-element">
-                            <button 
-                                onClick={handleCloseSidebar}>
-                                <FaChevronCircleRight className="text-(--tertiary) w-7 h-7" />
-                            </button>
-                            <h2 className="text-(--tertiary) text-lg font-bold">Card Detail</h2>
-                        </div>
-                        
-
-                        {/* Scrollable Content */}
-                        <div className="flex-1 overflow-y-auto min-h-0">
+                        <PinnedFooterScrollArea className="flex-1">
+                            <PanelCloseContext.Provider value={sidebarPanelClose}>
                             <CardDetail
                                 showdownBotCardData={{ card: selectedCardForSidebar?.card_data } as ShowdownBotCardAPIResponse}
                                 cardId={selectedCardForSidebar?.card_id}
                                 styleOverrides={sidebarStyleOverrides}
+                                variableSpeed={!!selectedCardForSidebar?.is_variable_speed_00_01}
                                 hideTrendGraphs={true}
                                 context='explore'
                                 parent="sidebar"
@@ -1772,11 +1923,15 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
                                     ? () => { actionButton.onClick(selectedCardForSidebar); handleCloseSidebar(); }
                                     : undefined}
                                 draftDisabled={actionButton?.disabled}
+                                draftLabel={actionButton?.detailLabel}
                                 enableSetSwitcher={enableSetSwitcher}
+                                localStyleDefaults={enableStyleEditor ? CARD_STYLE_DEFAULTS : undefined}
+                                releaseSource={sidebarReleaseSource}
                             />
-                        </div>
+                            </PanelCloseContext.Provider>
+                        </PinnedFooterScrollArea>
                     </div>
-                </div>
+                </aside>
                 
 
             </div>
@@ -1785,8 +1940,8 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
             {isLoading && !showSkeletons && (
                 <div className="
                     absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2
-                    bg-(--primary)/10 backdrop-blur
-                    p-4 rounded-2xl
+                    bg-(--background-secondary) border border-(--divider) shadow-overlay
+                    p-4 rounded-card
                     flex items-center space-x-2
                     z-10
                 ">
@@ -1801,6 +1956,7 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
                         showdownBotCardData={selectedCardForModal ? { card: selectedCardForModal.card_data } as ShowdownBotCardAPIResponse : undefined}
                         cardId={selectedCardForModal?.card_id}
                         styleOverrides={modalStyleOverrides}
+                        variableSpeed={!!selectedCardForModal?.is_variable_speed_00_01}
                         hideTrendGraphs={true}
                         context='explore'
                         parent="modal"
@@ -1808,7 +1964,10 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
                             ? () => { actionButton.onClick(selectedCardForModal); handleCloseModal(); }
                             : undefined}
                         draftDisabled={actionButton?.disabled}
+                        draftLabel={actionButton?.detailLabel}
                         enableSetSwitcher={enableSetSwitcher}
+                        localStyleDefaults={enableStyleEditor ? CARD_STYLE_DEFAULTS : undefined}
+                        releaseSource={modalReleaseSource}
                     />
                 </Modal>
             </div>
@@ -1825,11 +1984,11 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
                                 sticky top-0 flex flex-col
                                 gap-y-1 mb-4 px-4 pb-3 pt-4 z-10
                                 border-b-2 border-form-element 
-                                bg-background-secondary/95 backdrop-blur
+                                bg-(--background-secondary)
                             ">
                             
                             <div className="flex items-center gap-2">
-                                <h2 className="text-xl font-bold">Filter Options</h2>
+                                <Heading level="section">Filter Options</Heading>
 
                                 <div className="absolute text-sm flex gap-x-6 right-0 p-4 text-(--background-primary)">
                                     {/* Reset button */}
@@ -1839,7 +1998,7 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
                                     {hasFiltersChanged ? (
                                         <button
                                             onClick={handleFilterApply}
-                                            className="bg-(--success) rounded-full flex items-center px-2 gap-1 py-1 cursor-pointer"
+                                            className="bg-(--success) rounded-control flex items-center px-2 gap-1 py-1 cursor-pointer"
                                         >
                                             <FaCheck />
                                             <span className="font-bold">Apply</span>
@@ -1847,7 +2006,7 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
                                     ) : (
                                         <button
                                             onClick={handleFilterApply}
-                                            className="bg-(--warning) rounded-full flex items-center px-3 gap-1 py-1 cursor-pointer"
+                                            className="bg-(--warning) rounded-control flex items-center px-3 gap-1 py-1 cursor-pointer"
                                         >
                                             <FaXmark />
                                             <span className="font-bold">Exit</span>
@@ -1861,7 +2020,7 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
 
                                 {selectedSortOptionForEditing && (
                                     <button
-                                        className="flex items-center bg-(--background-secondary) rounded-full px-2 py-1 text-sm text-nowrap cursor-pointer"
+                                        className="flex items-center bg-(--background-secondary) rounded-control px-2 py-1 text-sm text-nowrap cursor-pointer"
                                         disabled={isFilterLocked('sort_direction')}
                                         onClick={() => setFiltersForEditing((prev) => ({ ...prev, sort_direction: prev.sort_direction === 'asc' ? 'desc' : 'asc' }))} // Toggle direction
                                     >
@@ -1879,21 +2038,9 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
                                     .filter(([_, value]) => !(value === undefined || value === null || (Array.isArray(value) && value.length === 0)))
                                     .sort(([a], [b]) => Number(isFilterLocked(a as keyof FilterSelections)) - Number(isFilterLocked(b as keyof FilterSelections)))
                                     .map(([key, value]) => {
-                                        const displayText = filterDisplayText(key, value, filtersWithoutSortingForEditing);
-                                        if (!displayText) return null;
-                                        const locked = isFilterLocked(key as keyof FilterSelections);
-                                        return (
-                                            <div key={key} className={`flex items-center rounded-full px-2 py-1 ${locked ? 'bg-(--background-tertiary) text-(--text-secondary)' : 'bg-(--background-secondary)'}`}>
-                                                <span className="text-sm max-w-84 overflow-x-clip text-nowrap">{displayText}</span>
-                                                {locked ? (
-                                                    <FaLock className="ml-1 shrink-0 text-[10px] opacity-50" title="Locked by team settings" />
-                                                ) : (
-                                                    <button onClick={() => removeFilterForEditing(key)} className="ml-1 cursor-pointer">
-                                                        <FaTimes />
-                                                    </button>
-                                                )}
-                                            </div>
-                                        )
+                                        const chipText = filterDisplayText(key, value, filtersWithoutSortingForEditing);
+                                        if (!chipText) return null;
+                                        return <FilterChip key={key} text={chipText} locked={isFilterLocked(key as keyof FilterSelections)} onRemove={() => removeFilterForEditing(key)} />;
                                     }
                                 )}
                             </div>
@@ -2067,10 +2214,10 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
 
                                 {/* Same grouped dropdown as the chip row's Positions picker */}
                                 <div className="space-y-2">
-                                    <label className="block text-sm font-medium text-(--text-primary)">Positions</label>
+                                    <label className={FIELD_LABEL_CLASS}>Positions</label>
                                     <SetMultiSelect
                                         variant="form"
-                                        placeholder="Select..."
+                                        placeholder="Select…"
                                         options={POSITION_OPTIONS}
                                         selections={filtersForEditing.positions ?? []}
                                         onChange={(values) => setFiltersForEditing(prev => ({ ...prev, positions: values }))}

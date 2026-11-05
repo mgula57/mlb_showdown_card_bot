@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { FaLayerGroup, FaStar, FaUsers, FaClockRotateLeft, FaTrophy } from 'react-icons/fa6';
 import { fetchPublicTeams, type TeamSummary } from '../../api/userTeams';
 import { fetchHistoricalTeams, type HistoricalTeam, fetchEraTeams, type EraTeam, ALL_TIME_ERA_KEY } from '../../api/mlbAPI';
-import { showdownSets, imageForSet } from '../shared/SiteSettingsContext';
+import { SET_SELECT_OPTIONS } from '../shared/SetBadge';
 import { TeamPreviewCard, TeamPreviewCardSkeleton } from './TeamPreviewCard';
 import { TeamSearchInput } from './TeamSearchInput';
 import { matchesTeamQuery } from './teamSearch';
@@ -13,6 +13,9 @@ import { HistoricalTeams, type HistoricalNavState } from './HistoricalTeams';
 import { EraTeams } from './EraTeams';
 import CustomSelect, { type SelectOption } from '../shared/CustomSelect';
 
+import { Heading } from '../shared/Heading';
+import { headingClass } from '../shared/headingStyles';
+import { EmptyState } from '../shared/EmptyState';
 type BrowseType = 'all' | 'featured' | 'community' | 'historical' | 'era';
 
 const TYPE_OPTIONS: SelectOption[] = [
@@ -29,7 +32,7 @@ const BROWSE_SET_STORAGE_KEY = 'browseTeams.set';
 // "" = All Sets, meaning no set filter at all.
 const SET_OPTIONS: SelectOption[] = [
     { value: '', label: 'All Sets', icon: <FaLayerGroup /> },
-    ...showdownSets.map(s => ({ value: s.value, label: s.value, image: imageForSet(s.value, true) })),
+    ...SET_SELECT_OPTIONS,
 ];
 
 // Navigating into a team's detail page fully unmounts this tree (it's a distinct top-level
@@ -132,7 +135,7 @@ function BrowseSection({ meta, horizontalPadding, children }: {
                 <div className={horizontalPadding}>
                     <div className="flex items-center gap-2">
                         <span className="text-[18px]" style={{ color: `var(${accent})` }}>{icon}</span>
-                        <h2 className="text-[22px] font-black text-(--text-primary) tracking-tight">{title}</h2>
+                        <Heading level="section">{title}</Heading>
                     </div>
                     <p className="text-[12px] text-(--text-secondary) mt-0.5 max-w-2xl">{description}</p>
                 </div>
@@ -316,8 +319,7 @@ export function BrowseTeams({ onOpenTeam, horizontalPadding, currentUserId, myTe
                         }
                     }}
                     options={TYPE_OPTIONS}
-                    buttonClassName="px-2.5 py-2 rounded-lg border border-(--divider) bg-(--background-secondary) text-(--text-primary) text-[13px] text-nowrap cursor-pointer flex items-center"
-                    dropdownArrowSize={12}
+                    size="md"
                 />
 
                 <CustomSelect
@@ -331,9 +333,7 @@ export function BrowseTeams({ onOpenTeam, horizontalPadding, currentUserId, myTe
                         }
                     }}
                     options={SET_OPTIONS}
-                    buttonClassName="px-2.5 py-2 rounded-lg border border-(--divider) bg-(--background-secondary) text-(--text-primary) text-[13px] text-nowrap cursor-pointer flex items-center"
-                    imageClassName="mr-0.5 w-6 h-5 object-contain object-center"
-                    dropdownArrowSize={12}
+                    size="md"
                 />
 
                 <div className="flex-1 min-w-48 max-w-88">
@@ -355,10 +355,10 @@ export function BrowseTeams({ onOpenTeam, horizontalPadding, currentUserId, myTe
                         </div>
                     </div>
                 ) : !searchModeResults || searchModeResults.length === 0 ? (
-                    <p className="text-[13px] text-(--text-tertiary) py-8 text-center">No teams match “{q}”.</p>
+                    <EmptyState size="inline">No teams match “{q}”.</EmptyState>
                 ) : (
                     <div className={px}>
-                        <div className="text-[12px] font-semibold text-(--text-secondary) uppercase tracking-wide mb-3">
+                        <div className={`mb-3 ${headingClass('panel')}`}>
                             {searchModeResults.length} result{searchModeResults.length === 1 ? '' : 's'}
                         </div>
                         <div className="flex flex-wrap gap-3">

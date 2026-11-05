@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, type ReactNode } from 'react';
 import * as Tabs from '@radix-ui/react-tabs';
 import {
     FaTrophy, FaArrowRotateLeft, FaChartLine, FaCalendarDays, FaBaseballBatBall, FaBaseball,
@@ -23,8 +23,32 @@ import { useStandingsEntries, useIdentity, hashId, label } from './simStandings'
 import { useClubSeason } from './simClubSeason';
 import { describePostseasonExit } from './postseasonExit';
 import { radixTabTriggerClass } from '../../shared/tabStyles';
+import { buttonClass } from '../../shared/buttonStyles';
+import { CAPS_LABEL_CLASS } from '../../shared/fieldStyles';
 
 const TAB_TRIGGER_CLASS = radixTabTriggerClass();
+
+type OutcomeTone = 'good' | 'mixed' | 'bad';
+
+/** Full class strings per outcome (Tailwind can't see classes assembled from a variable). */
+const OUTCOME_TONE_CLASSES: Record<OutcomeTone, { text: string; panel: string }> = {
+    good:  { text: 'text-(--green)', panel: 'border-(--green)/30 bg-(--green)/10 text-(--green)' },
+    mixed: { text: 'text-(--gold)',  panel: 'border-(--gold)/30 bg-(--gold)/10 text-(--gold)' },
+    bad:   { text: 'text-(--red)',   panel: 'border-(--red)/30 bg-(--red)/10 text-(--red)' },
+};
+
+/** One fact in the challenge standing row (attempt, budget, leaderboard). Clickable when it
+ *  links somewhere. */
+function StandingTile({ children, onClick }: { children: ReactNode; onClick?: () => void }) {
+    const className = 'flex flex-col text-left rounded-card border border-(--divider) bg-(--background-secondary) px-3 py-2';
+    return onClick ? (
+        <button type="button" onClick={onClick} className={`${className} hover:bg-(--background-tertiary) transition-colors cursor-pointer`}>
+            {children}
+        </button>
+    ) : (
+        <div className={className}>{children}</div>
+    );
+}
 const TAB_ICON_CLASS = 'text-[12px]';
 
 function ordinal(n: number): string {
@@ -150,13 +174,17 @@ export function SimResult({ summary, challengeResult, challengeStanding, onOpenC
                 ? 'Made the playoffs'
                 : 'Missed the playoffs';
 
-    const outcomeColor = inProgressLabel
-        ? '--warning'
+    // A CHALLENGE ATTEMPT IS COLORED BY ITS RESULT, SO A TITLE THAT STILL MISSED THE GOAL ISN'T GREEN.
+    // A SEASON STILL IN PROGRESS (E.G. A LIVE LEAGUE) READS AS 'mixed' UNTIL IT FINISHES.
+    const outcomeTone: OutcomeTone = inProgressLabel
+        ? 'mixed'
+        : challengeResult === 'failed'
+        ? 'bad'
         : (team.is_champion || challengeResult === 'passed')
-        ? '--success'
+        ? 'good'
         : team.made_playoffs
-            ? '--warning'
-            : '--error';
+            ? 'mixed'
+            : 'bad';
 
     return (
         <div className="flex flex-col gap-2 py-4 max-w-4xl lg:max-w-7xl mx-auto w-full md:px-4">
@@ -176,21 +204,21 @@ export function SimResult({ summary, challengeResult, challengeStanding, onOpenC
                                 value={clubAbbr}
                                 onChange={onFocusChange}
                                 options={clubOptions}
-                                buttonClassName="text-[11px] py-0.5 px-2 rounded-md bg-(--background-tertiary) text-(--text-primary) text-nowrap cursor-pointer"
+                                size="sm"
                             />
                         )}
                     </div>
-                    <h1 className="text-[24px] font-black text-(--text-primary) leading-tight">
+                    <h1 className="font-display-upright text-[28px] leading-none tabular-nums text-(--text-primary)">
                         {team.wins}<span className="text-(--text-tertiary)">-</span>{team.losses}
                         {team.is_champion && <FaTrophy className="inline ml-2 text-[18px] text-(--secondary)" />}
                     </h1>
-                    <p className={`text-[10px] sm:text-[12px] ${outcomeColor}`}>
+                    <p className={`text-[10px] sm:text-[12px] ${OUTCOME_TONE_CLASSES[outcomeTone].text}`}>
                         {teamName}
                         {` ·  ${team.points} PTS`}
                     </p>
                 </div>
 
-                <div className={`flex flex-col items-center space-y-0 px-2 sm:px-4 py-2 rounded-xl border border-(${outcomeColor})/30 bg-linear-to-b from-(${outcomeColor})/20 to-(${outcomeColor})/5 shadow-sm font-bold text-(${outcomeColor})`}>
+                <div className={`flex flex-col items-center space-y-0 px-2 sm:px-4 py-2 rounded-card border font-bold ${OUTCOME_TONE_CLASSES[outcomeTone].panel}`}>
                     {challengeResult && (
                         <div className={`text-[10px] sm:text-[12px] text-tertiary flex items-center gap-1 `}>
                             {challengeResult === 'passed' ? <FaCheck /> : <FaXmark />}
@@ -209,10 +237,10 @@ export function SimResult({ summary, challengeResult, challengeStanding, onOpenC
                         <button
                             type="button"
                             onClick={onTryAgain ?? onRunAgain}
-                            className="flex items-center gap-1.5 px-3 py-1 mt-1 rounded-lg bg-(--background-tertiary) text-[10px] sm:text-[12px] font-bold text-(--text-primary) hover:opacity-90 transition-opacity cursor-pointer shrink-0"
+                            className={buttonClass('secondary', 'sm', 'mt-1 px-3! py-1! text-[10px]! sm:text-[12px]!')}
                         >
                             <FaArrowRotateLeft className="text-[10px]" />
-                            {onTryAgain ? 'Edit & Try Again' : 'Run again'}
+                            {onTryAgain ? 'Edit and try again' : 'Run again'}
                         </button>
                     )}
                 </div>
@@ -221,13 +249,13 @@ export function SimResult({ summary, challengeResult, challengeStanding, onOpenC
 
             {challengeStanding && (
                 <div className="mx-4 flex flex-wrap items-stretch gap-2 text-[12px]">
-                    <div className="flex flex-col rounded-lg border border-(--divider) bg-linear-to-br from-(--background-tertiary) to-(--background-secondary) shadow-sm px-3 py-2">
-                        <span className="text-[10px] font-bold uppercase tracking-wide text-(--text-tertiary)">Attempt</span>
-                        <span className="font-black text-(--text-primary)">#{challengeStanding.attempts}</span>
-                    </div>
-                    <div className="flex flex-col rounded-lg border border-(--divider) bg-linear-to-br from-(--background-tertiary) to-(--background-secondary) shadow-sm px-3 py-2">
-                        <span className="text-[10px] font-bold uppercase tracking-wide text-(--text-tertiary)">Budget</span>
-                        <span className="font-black text-(--text-primary) tabular-nums">
+                    <StandingTile>
+                        <span className={`${CAPS_LABEL_CLASS} text-(--text-tertiary)`}>Attempt</span>
+                        <span className="font-bold text-(--text-primary)">#{challengeStanding.attempts}</span>
+                    </StandingTile>
+                    <StandingTile>
+                        <span className={`${CAPS_LABEL_CLASS} text-(--text-tertiary)`}>Budget</span>
+                        <span className="font-bold text-(--text-primary) tabular-nums">
                             {challengeStanding.roster_points ?? '?'}
                             {challengeStanding.pts_limit != null && (
                                 <span className="font-semibold text-(--text-tertiary)"> / {challengeStanding.pts_limit} pts</span>
@@ -240,15 +268,15 @@ export function SimResult({ summary, challengeResult, challengeStanding, onOpenC
                                     : `${challengeStanding.roster_points - challengeStanding.pts_limit} over cap`}
                             </span>
                         )}
-                    </div>
+                    </StandingTile>
                     {(() => {
                         const inner = (
                             <>
-                                <span className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide text-(--text-tertiary)">
+                                <span className={`flex items-center gap-1 ${CAPS_LABEL_CLASS} text-(--text-tertiary)`}>
                                     Leaderboard
                                     {onOpenChallengeLeaderboard && <FaChevronRight className="text-[8px]" />}
                                 </span>
-                                <span className="font-black text-(--text-primary)">
+                                <span className="font-bold text-(--text-primary)">
                                     {challengeStanding.rank != null
                                         ? `${ordinal(challengeStanding.rank)} of ${challengeStanding.entrants}`
                                         : `${challengeStanding.entrants} entered`}
@@ -258,17 +286,7 @@ export function SimResult({ summary, challengeResult, challengeStanding, onOpenC
                                 </span>
                             </>
                         );
-                        return onOpenChallengeLeaderboard ? (
-                            <button
-                                type="button"
-                                onClick={onOpenChallengeLeaderboard}
-                                className="flex flex-col text-left rounded-lg border border-(--divider) bg-linear-to-br from-(--background-tertiary) to-(--background-secondary) shadow-sm px-3 py-2 hover:from-(--divider) transition-colors cursor-pointer"
-                            >
-                                {inner}
-                            </button>
-                        ) : (
-                            <div className="flex flex-col rounded-lg border border-(--divider) bg-linear-to-br from-(--background-tertiary) to-(--background-secondary) shadow-sm px-3 py-2">{inner}</div>
-                        );
+                        return <StandingTile onClick={onOpenChallengeLeaderboard}>{inner}</StandingTile>;
                     })()}
                 </div>
             )}
@@ -305,11 +323,11 @@ export function SimResult({ summary, challengeResult, challengeStanding, onOpenC
                             <div
                                 key={i}
                                 title={`${game.date} ${game.is_home ? 'vs' : '@'} ${label(identityFor(game.opponent), game.opponent)} — ${game.runs_scored}-${game.runs_allowed}`}
-                                className={`h-4 w-4 rounded-sm ${game.is_win ? 'bg-(--showdown-blue)' : 'bg-(--background-quaternary)'}`}
+                                className={`h-4 w-4 rounded-control ${game.is_win ? 'bg-(--showdown-blue-fill)' : 'bg-(--background-quaternary)'}`}
                             />
                         ))}
                     </div>
-                    <div className="overflow-x-auto scrollbar-hide border border-(--divider) rounded-xl">
+                    <div className="overflow-x-auto scrollbar-hide border border-(--divider) rounded-card">
                         <table className="w-full text-[12px] whitespace-nowrap">
                             <thead>
                                 <tr className="text-(--text-tertiary) border-b border-(--divider)">
@@ -322,7 +340,7 @@ export function SimResult({ summary, challengeResult, challengeStanding, onOpenC
                             </thead>
                             {gamesByMonth.map(month => (
                                 <tbody key={month.key}>
-                                    <tr className="bg-linear-to-r from-(--background-tertiary) to-(--background-secondary) border-y border-(--divider)">
+                                    <tr className="bg-(--background-tertiary) border-y border-(--divider)">
                                         <td colSpan={5} className="py-1.5 px-2 font-bold text-(--text-primary)">
                                             {month.label} 
                                             <span className="ml-2 font-semibold tabular-nums text-(--text-tertiary)">{month.wins}-{month.losses}</span>
@@ -437,6 +455,27 @@ export function SimResult({ summary, challengeResult, challengeStanding, onOpenC
                     </Tabs.Content>
                 )}
             </Tabs.Root>
+        </div>
+    );
+}
+
+/** Placeholder shaped like `SimResult` (record headline, KPI row, two panels) while a finished
+ *  sim's summary loads, shared by the team and season sim views. */
+export function SimResultSkeleton() {
+    return (
+        <div aria-label="Loading results" className="flex flex-col gap-4 py-4 max-w-4xl lg:max-w-7xl mx-auto w-full md:px-4 animate-pulse">
+            <div className="px-4 space-y-2">
+                <div className="h-3 w-40 rounded-plate bg-(--background-tertiary)" />
+                <div className="h-7 w-24 rounded-plate bg-(--background-tertiary)" />
+                <div className="h-3 w-32 rounded-plate bg-(--background-tertiary)" />
+            </div>
+            <div className="px-4 grid grid-cols-2 sm:grid-cols-4 gap-2">
+                {Array.from({ length: 4 }, (_, i) => <div key={i} className="h-16 rounded-card bg-(--background-tertiary)" />)}
+            </div>
+            <div className="px-4 grid md:grid-cols-2 gap-3">
+                <div className="h-64 rounded-card bg-(--background-tertiary)" />
+                <div className="h-64 rounded-card bg-(--background-tertiary)" />
+            </div>
         </div>
     );
 }

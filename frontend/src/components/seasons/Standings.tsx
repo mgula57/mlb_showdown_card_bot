@@ -5,6 +5,8 @@ import { type Standings, type Team } from '../../api/mlbAPI';
 import { countryCodeForTeam } from "../../functions/flags";
 import { getContrastTextColor } from "../../functions/colors";
 
+import { Eyebrow } from '../shared/Eyebrow';
+import { CAPS_LABEL_CLASS } from '../shared/fieldStyles';
 type StandingsProps = {
 	standingsEntries: [string, Standings[]][];
 	selectedSportId?: number;
@@ -24,11 +26,11 @@ export function StandingsSkeleton() {
 	return (
 		<div className="grid grid-cols-[repeat(auto-fill,minmax(300px,1fr))] gap-4 sm:mt-0 animate-pulse">
 			{Array.from({ length: 4 }).map((_, cardIndex) => (
-				<div key={cardIndex} className="rounded-xl border border-(--divider) bg-(--background-secondary) p-3">
-					<div className="h-3.5 w-28 rounded bg-(--background-quaternary) mb-3" />
+				<div key={cardIndex} className="rounded-card border border-(--divider) bg-(--background-secondary) p-3">
+					<div className="h-3.5 w-28 rounded-plate bg-(--background-tertiary) mb-3" />
 					<div className="space-y-1.5">
 						{Array.from({ length: 5 }).map((_, rowIndex) => (
-							<div key={rowIndex} className="h-9 rounded-lg bg-(--background-quaternary)" />
+							<div key={rowIndex} className="h-9 rounded-card bg-(--background-quaternary)" />
 						))}
 					</div>
 				</div>
@@ -57,13 +59,13 @@ export default function Standings({ standingsEntries, selectedSportId, selectedT
 					? "grid-cols-[minmax(0,1fr)_4.5rem_3rem_3.5rem]"
 					: "grid-cols-[minmax(0,1fr)_4.5rem_3rem]";
 				return (
-					<div key={`${leagueAbbreviation}-${index}`} className="rounded-xl border border-(--divider) bg-(--background-secondary) p-3">
-						<h3 className="px-1 pb-2 text-sm font-black uppercase tracking-wide text-(--text-primary)">
+					<div key={`${leagueAbbreviation}-${index}`} className="rounded-card border border-(--divider) bg-(--background-secondary) p-3">
+						<Eyebrow className="px-1 pb-2">
 							{title}
-						</h3>
+						</Eyebrow>
 
 						{/* Column headers */}
-						<div className={`grid ${rowTemplate} gap-x-2 px-3 pb-1.5 text-[10px] font-bold uppercase tracking-wider text-(--text-secondary)`}>
+						<div className={`grid ${rowTemplate} gap-x-2 px-3 pb-1.5 ${CAPS_LABEL_CLASS} text-(--text-tertiary)`}>
 							<span>Team</span>
 							<span className="text-center">Record</span>
 							<span className="text-right">GB</span>
@@ -80,7 +82,7 @@ export default function Standings({ standingsEntries, selectedSportId, selectedT
 								return (
 									<Fragment key={record.team.id}>
 									{showCutline && (
-										<div className="flex items-center gap-2 px-1 py-0.5 text-[10px] font-bold uppercase tracking-wider text-(--text-secondary)">
+										<div className={`flex items-center gap-2 px-1 py-0.5 ${CAPS_LABEL_CLASS} text-(--text-tertiary)`}>
 											<span className="h-px flex-1 bg-(--divider)" />
 											Wild Card cutoff
 											<span className="h-px flex-1 bg-(--divider)" />
@@ -91,7 +93,7 @@ export default function Standings({ standingsEntries, selectedSportId, selectedT
 										title="View team roster below"
 										className={`
 											grid ${rowTemplate} gap-x-2 items-center
-											rounded-lg border border-black/70 px-3 py-2
+											rounded-control border border-(--field-ink)/70 px-3 py-2
 											${onTeamSelect ? 'cursor-pointer transition-[filter] hover:brightness-60' : ''}
 											${isSelected ? 'ring-2 ring-(--text-primary)' : ''}
 										`}
@@ -100,7 +102,7 @@ export default function Standings({ standingsEntries, selectedSportId, selectedT
 											color: getContrastTextColor(backgroundColor),
 										}}
 									>
-										<span className="flex items-center gap-1.5 font-black tracking-wide truncate">
+										<span className="flex items-center gap-1.5 font-display-upright uppercase truncate">
 											{isoCountryCode && (
 												<ReactCountryFlag
 													countryCode={isoCountryCode}

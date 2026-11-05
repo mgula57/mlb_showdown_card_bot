@@ -4,7 +4,7 @@ from psycopg2 import sql
 from pydantic import BaseModel
 
 from ..database.postgres_db import PostgresDB
-from .selection import PositionTarget, SlotPosition
+from .selection import PositionTarget, SlotPosition, TeamWeighting
 from .showdown_bot_set import PointBucket
 
 
@@ -17,6 +17,10 @@ class WotcSetProfile(BaseModel):
     team_count: int
     position_targets: List[PositionTarget]
     point_buckets: List[PointBucket] = []
+    team_weighting: TeamWeighting = TeamWeighting.EVEN
+
+    # 2000/2001 gave every team 15-17 cards; from 2002 the count ranged from 5 to 16, with more for stronger and bigger market teams
+    EVEN_TEAM_SETS: ClassVar[List[str]] = ['2000', '2001']
 
     # Low point buckets that bring each set's 10-100 pt card counts closer to the WOTC base set.
     # Tuned with the review-set-build skill (2026 season); a bucket is a per player type floor.
@@ -80,6 +84,7 @@ class WotcSetProfile(BaseModel):
                 set_size=set_size,
                 team_count=len({row['team_id'] for row in set_rows if row['team_id']}),
                 point_buckets=cls.POINT_BUCKETS.get(showdown_set, []),
+                team_weighting=TeamWeighting.EVEN if showdown_set in cls.EVEN_TEAM_SETS else TeamWeighting.STRENGTH,
                 position_targets=[
                     PositionTarget(
                         position=slot,

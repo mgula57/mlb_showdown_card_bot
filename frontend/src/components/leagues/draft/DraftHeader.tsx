@@ -168,7 +168,7 @@ export function DraftPickStrip({ draft, view, myMemberId }: StripProps) {
                 <button
                     type="button"
                     onClick={() => scrollToCurrent('smooth')}
-                    className={`absolute top-1/2 -translate-y-1/2 ${currentOffscreen === 'left' ? 'left-2' : 'right-2'} flex items-center gap-1 rounded-full px-2.5 py-1 text-[10px] font-black uppercase tracking-wide shadow-md animated-showdown-gradient text-white cursor-pointer hover:brightness-110`}
+                    className={`absolute top-1/2 -translate-y-1/2 ${currentOffscreen === 'left' ? 'left-2' : 'right-2'} flex items-center gap-1 rounded-full px-2.5 py-1 text-[10px] font-black uppercase tracking-wide shadow-md bg-(--showdown-blue-fill) text-white cursor-pointer hover:brightness-110`}
                 >
                     {currentOffscreen === 'left' && <FaAnglesLeft />}
                     Now
@@ -182,7 +182,7 @@ export function DraftPickStrip({ draft, view, myMemberId }: StripProps) {
 const PICK_CHIP_TONE: Record<PickKind, string> = {
     // Done - flat and faded, so the live end of the strip stands out
     past: 'border-transparent bg-(--background-secondary) opacity-60',
-    current: 'border-transparent animated-showdown-gradient text-white shadow-md font-black',
+    current: 'border-transparent bg-(--showdown-blue-fill) text-white shadow-md font-black',
     mine: 'border-(--secondary) bg-(--secondary)/15',
     // Not made yet - an outline only
     future: 'border-dashed border-(--divider)',

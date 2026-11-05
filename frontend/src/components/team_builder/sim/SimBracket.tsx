@@ -8,6 +8,8 @@ import CardIdentityCell from '../../cards/card_elements/CardIdentityCell';
 import { CardDetail } from '../../cards/CardDetail';
 import { Modal } from '../../shared/Modal';
 import { useCardDetailModal } from '../../../hooks/useCardDetailModal';
+import { CAPS_LABEL_CLASS } from '../../shared/fieldStyles';
+import { EmptyState } from '../../shared/EmptyState';
 
 // Mirrors PostseasonRound in models.py (oldest to newest); WS is pulled out and rendered
 // separately since it's the one round with no league.
@@ -50,7 +52,7 @@ function Matchup({ series, identityFor, highlightAbbr, isSelected, onSelect }: {
             role={onSelect ? 'button' : undefined}
             onClick={onSelect}
             className={`
-                flex flex-col gap-1 rounded-lg border bg-(--background-tertiary) px-2.5 py-1.5 min-w-24 max-w-48
+                flex flex-col gap-1 rounded-control border bg-(--background-tertiary) px-2.5 py-1.5 min-w-24 max-w-48
                 ${onSelect ? 'cursor-pointer hover:bg-(--background-quaternary)' : ''}
                 ${isSelected ? 'border-(--showdown-blue) ring-1 ring-(--showdown-blue)' : isHighlighted ? 'border-(--showdown-blue)' : 'border-(--divider)'}
             `}
@@ -81,7 +83,7 @@ function LeagueColumns({ league, rounds, identityFor, highlightAbbr, selectedKey
         <div className="flex items-stretch gap-6">
             {rounds.map(([round, seriesList]) => (
                 <div key={round} className="flex flex-col gap-2">
-                    <p className="text-[10px] font-bold uppercase tracking-wide text-(--text-tertiary) text-center">
+                    <p className={`text-center ${CAPS_LABEL_CLASS} text-(--text-tertiary)`}>
                         {roundLabel(round, league)}
                     </p>
                     <div className="flex flex-1 flex-col justify-around gap-4">
@@ -110,7 +112,7 @@ function WorldSeriesPanel({ series, champion, identityFor, highlightAbbr, select
     if (!series) return null;
     return (
         <div className="flex flex-col items-center justify-center gap-2 self-stretch px-2">
-            <p className="text-[10px] font-bold uppercase tracking-wide text-(--text-tertiary)">World Series</p>
+            <p className={`${CAPS_LABEL_CLASS} text-(--text-tertiary)`}>World Series</p>
             <Matchup
                 series={series} identityFor={identityFor} highlightAbbr={highlightAbbr}
                 isSelected={selectedKey === seriesKey(series)}
@@ -141,7 +143,7 @@ function StarterChip({ starter, identity, onOpen, isFetching }: {
             type="button"
             disabled={!clickable}
             onClick={clickable ? () => onOpen(starter) : undefined}
-            className={`text-left rounded-md ${clickable ? 'cursor-pointer hover:bg-(--background-primary)/50' : ''} ${isFetching ? 'opacity-50' : ''}`}
+            className={`text-left rounded-control ${clickable ? 'cursor-pointer hover:bg-(--background-primary)/50' : ''} ${isFetching ? 'opacity-50' : ''}`}
         >
             <CardIdentityCell
                 name={starter.name}
@@ -178,11 +180,11 @@ function PostseasonGameResults({ seriesList, seriesMvps, identityFor, selectedKe
     const colCount = hasStarters ? 7 : 4;
 
     if (shown.length === 0) {
-        return <p className="text-[13px] text-(--text-tertiary) py-6 text-center">No game data available for this series.</p>;
+        return <EmptyState size="inline">No game data for this series.</EmptyState>;
     }
 
     return (
-        <div className="overflow-x-auto scrollbar-hide border border-(--divider) rounded-xl">
+        <div className="overflow-x-auto scrollbar-hide border border-(--divider) rounded-card">
             <table className="w-full text-[12px] whitespace-nowrap">
                 <thead>
                     <tr className="text-(--text-tertiary) border-b border-(--divider)">
@@ -334,7 +336,7 @@ export function SimBracket({ summary, highlightAbbr, showGameResults = false }: 
                                 role={onSelectSeries ? 'button' : undefined}
                                 onClick={onSelectSeries ? () => onSelectSeries(series) : undefined}
                                 className={`
-                                    flex items-center gap-2 text-[12px] rounded-lg bg-(--background-tertiary) px-3 py-2
+                                    flex items-center gap-2 text-[12px] rounded-control bg-(--background-tertiary) px-3 py-2
                                     ${onSelectSeries ? 'cursor-pointer hover:bg-(--background-quaternary)' : ''}
                                     ${selectedKey === seriesKey(series) ? 'ring-1 ring-(--showdown-blue)' : ''}
                                 `}

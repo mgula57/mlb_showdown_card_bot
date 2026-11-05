@@ -41,7 +41,7 @@ class ReleaseImporter:
         for card in self.cards:
             groups[card['image'].get('edition') or self.BASE_EDITION_CODE].append(card)
         for cards in groups.values():
-            cards.sort(key=self._card_number)
+            cards.sort(key=lambda card: int(self._card_number(card) or 0))
         # BASE EDITION FIRST, EXPANSIONS ALPHABETICAL
         return dict(sorted(groups.items(), key=lambda kv: (kv[0] != self.BASE_EDITION_CODE, kv[0])))
 
@@ -51,12 +51,12 @@ class ReleaseImporter:
     def edition_attributes(self, edition_code: str) -> dict:
         """Manual numbering that reproduces the export's set numbers (e.g. 001, CC01)."""
         prefix = '' if edition_code == self.BASE_EDITION_CODE else edition_code
-        return {'numbering': {'mode': 'manual', 'zeroPad': True, 'prefix': prefix}}
+        return {'numbering': {'mode': 'manual', 'prefix': prefix}}
 
     @staticmethod
-    def _card_number(card: dict) -> int | None:
-        digits = re.sub(r'\D', '', str(card['image'].get('set_number') or ''))
-        return int(digits) if digits else None
+    def _card_number(card: dict) -> str | None:
+        """The export's set number without its edition prefix, padding kept (e.g. "CC07" -> "07")."""
+        return re.sub(r'\D', '', str(card['image'].get('set_number') or '')) or None
 
     # ---------------------------------------------------------------------
     # MARK: - SNAPSHOTS
@@ -124,7 +124,7 @@ class ReleaseImporter:
         existing_editions = {e['name']: e for e in release.get('editions', [])}
         for code, cards in edition_cards.items():
             name = self.edition_name(code)
-            payload = {'name': name, 'attributes': self.edition_attributes(code), 'is_published': self.publish, 'cards': cards}
+            payload = {'name': name, 'attributes': self.edition_attributes(code), 'cards': cards}
             if name in existing_editions:
                 self.db.update_edition(existing_editions[name]['id'], self.user_id, payload)
                 action = 'Updated'
@@ -132,4 +132,5 @@ class ReleaseImporter:
                 self.db.create_edition(release['id'], self.user_id, payload)
                 action = 'Created'
             print(f"  {action} edition '{name}': {len(cards)} cards")
+        self.db.set_release_published(release['id'], self.user_id, self.publish)
         return release['id']

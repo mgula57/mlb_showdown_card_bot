@@ -40,7 +40,7 @@ export default function RollDie({ value, label, playId, phase, speed = 1, stagge
             <div className="relative h-9 w-9 @md:h-11 @md:w-11">
                 <div
                     key={tossKey ?? "static"}
-                    className={`absolute inset-0 drop-shadow-md ${tossKey ? "sim-die-toss" : ""}`}
+                    className={`absolute inset-0 drop-shadow-[0_2px_0_rgb(0_0_0/0.25)] ${tossKey ? "sim-die-toss" : ""}`}
                     // Overrides the 900ms in the `sim-die-toss` rule: the toss starts with the pitch
                     // beat and finishes before the result reveals.
                     style={tossKey ? { animationDuration: `${tossMs}ms`, animationDelay: `${delayMs}ms` } : undefined}

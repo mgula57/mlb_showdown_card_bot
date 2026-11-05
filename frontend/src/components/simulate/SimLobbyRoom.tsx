@@ -7,6 +7,9 @@ import {
 } from '../../api/sim';
 import { fetchUserTeams, type TeamSummary } from '../../api/userTeams';
 
+import { InlineError } from '../shared/InlineError';
+import { Heading } from '../shared/Heading';
+import { buttonClass } from '../shared/buttonStyles';
 // Matches the cadence the plan settled on for lobby state - fast enough to feel live, no new
 // infrastructure (no websockets/Realtime) needed.
 const POLL_INTERVAL_MS = 2000;
@@ -164,13 +167,25 @@ export function SimLobbyRoom({ lobbyId, initialState, token, userId, onRunning, 
 
     if (!lobby) {
         return (
-            <div className="flex flex-col items-center justify-center gap-3 py-16 px-4 text-center">
-                {error ? (
+            error ? (
+                <div className="flex flex-col items-center justify-center gap-3 py-16 px-4 text-center">
                     <p className="text-[13px] text-(--text-secondary) max-w-sm">{error}</p>
-                ) : (
-                    <FaSpinner className="animate-spin text-(--text-tertiary) text-xl" />
-                )}
-            </div>
+                </div>
+            ) : (
+                <div aria-label="Loading lobby" className="flex flex-col gap-4 max-w-2xl mx-auto w-full p-4 animate-pulse">
+                    <div className="flex items-center justify-between gap-3">
+                        <div className="space-y-2">
+                            <div className="h-7 w-44 rounded-plate bg-(--background-tertiary)" />
+                            <div className="h-3.5 w-64 rounded-plate bg-(--background-tertiary)" />
+                        </div>
+                        <div className="h-9 w-24 rounded-control bg-(--background-tertiary)" />
+                    </div>
+                    <div className="rounded-card bg-(--background-secondary) p-3 flex flex-col gap-1.5">
+                        <div className="h-3.5 w-24 rounded-plate bg-(--background-tertiary) mb-1" />
+                        {Array.from({ length: 4 }, (_, i) => <div key={i} className="h-11 rounded-control bg-(--background-tertiary)" />)}
+                    </div>
+                </div>
+            )
         );
     }
 
@@ -178,20 +193,20 @@ export function SimLobbyRoom({ lobbyId, initialState, token, userId, onRunning, 
         <div className="flex flex-col gap-4 max-w-2xl mx-auto w-full p-4">
             <div className="flex items-center justify-between gap-3">
                 <div>
-                    <h1 className="text-[20px] font-black text-(--text-primary)">{lobby.year} Lobby</h1>
+                    <Heading level="page">{lobby.year} Lobby</Heading>
                     <p className="text-[13px] text-(--text-secondary)">Set {lobby.showdown_set} · waiting for the host to start</p>
                 </div>
                 <button
                     type="button"
                     onClick={copyCode}
-                    className="flex items-center gap-2 px-3 py-2 rounded-lg bg-(--background-tertiary) text-[13px] font-bold text-(--text-primary) hover:opacity-90 transition-opacity cursor-pointer"
+                    className="flex items-center gap-2 px-3 py-2 rounded-control bg-(--background-tertiary) text-[13px] font-bold text-(--text-primary) hover:opacity-90 transition-opacity cursor-pointer"
                 >
                     {lobby.join_code}
                     {codeCopied ? <FaCheck className="text-[11px] text-(--success)" /> : <FaCopy className="text-[11px]" />}
                 </button>
             </div>
 
-            <div className="rounded-xl bg-(--background-secondary) p-3 flex flex-col gap-2">
+            <div className="rounded-card bg-(--background-secondary) p-3 flex flex-col gap-2">
                 <p className="text-[12px] font-bold text-(--text-primary) flex items-center gap-1.5">
                     <FaUserGroup className="text-[11px]" /> Players ({state?.members.length ?? 0})
                 </p>
@@ -200,7 +215,7 @@ export function SimLobbyRoom({ lobbyId, initialState, token, userId, onRunning, 
                 ) : (
                     <div className="flex flex-col gap-1.5">
                         {state?.members.map(member => (
-                            <div key={member.user_id} className="flex items-center justify-between text-[12px] rounded-lg bg-(--background-tertiary) px-3 py-2">
+                            <div key={member.user_id} className="flex items-center justify-between text-[12px] rounded-card bg-(--background-tertiary) px-3 py-2">
                                 <span className="font-semibold text-(--text-primary)">
                                     {member.club_abbr}
                                     {member.user_id === lobby.host_user_id && <span className="text-(--text-tertiary) font-normal"> · host</span>}
@@ -215,7 +230,7 @@ export function SimLobbyRoom({ lobbyId, initialState, token, userId, onRunning, 
             </div>
 
             {token && (
-                <div className="rounded-xl bg-(--background-secondary) p-3 flex flex-col gap-3">
+                <div className="rounded-card bg-(--background-secondary) p-3 flex flex-col gap-3">
                     <p className="text-[12px] font-bold text-(--text-primary)">
                         {myMember ? 'Change your claim' : 'Claim a club'}
                     </p>
@@ -239,18 +254,18 @@ export function SimLobbyRoom({ lobbyId, initialState, token, userId, onRunning, 
                         type="button"
                         onClick={handleClaim}
                         disabled={claiming || !(claimClub || myMember)}
-                        className="self-start flex items-center gap-1.5 px-3 py-2 rounded-lg bg-(--secondary) text-[12px] font-bold text-(--background-primary) hover:opacity-90 transition-opacity cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                        className={buttonClass('primary', 'sm', 'self-start')}
                     >
                         {claiming ? <FaSpinner className="animate-spin text-[10px]" /> : <FaCheck className="text-[10px]" />}
-                        {myMember ? 'Update Claim' : 'Claim Club'}
+                        {myMember ? 'Update claim' : 'Claim club'}
                     </button>
                 </div>
             )}
 
             {error && (
-                <div className="text-[12px] text-red-400 px-3 py-2 rounded-lg border border-red-400/30 bg-red-400/5">
+                <InlineError size="md">
                     {error}
-                </div>
+                </InlineError>
             )}
 
             <div className="flex items-center justify-between gap-2 pt-1">
@@ -258,9 +273,9 @@ export function SimLobbyRoom({ lobbyId, initialState, token, userId, onRunning, 
                     <button
                         type="button"
                         onClick={handleLeave}
-                        className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-[12px] font-semibold text-(--text-secondary) hover:text-(--text-primary) transition-colors cursor-pointer"
+                        className="flex items-center gap-1.5 px-3 py-2 rounded-control text-[12px] font-semibold text-(--text-secondary) hover:text-(--text-primary) transition-colors cursor-pointer"
                     >
-                        <FaRightFromBracket className="text-[10px]" /> Leave Lobby
+                        <FaRightFromBracket className="text-[10px]" /> Leave lobby
                     </button>
                 )}
                 {isHost && (
@@ -268,10 +283,10 @@ export function SimLobbyRoom({ lobbyId, initialState, token, userId, onRunning, 
                         type="button"
                         onClick={handleStart}
                         disabled={starting || (state?.members.length ?? 0) === 0}
-                        className="ml-auto flex items-center gap-1.5 px-4 py-2.5 rounded-lg bg-(--secondary) text-[13px] font-bold text-(--background-primary) hover:opacity-90 transition-opacity cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                        className={buttonClass('primary', 'md', 'ml-auto')}
                     >
                         {starting ? <FaSpinner className="animate-spin text-[11px]" /> : <FaPlay className="text-[11px]" />}
-                        Start Simulation
+                        Start simulation
                     </button>
                 )}
             </div>

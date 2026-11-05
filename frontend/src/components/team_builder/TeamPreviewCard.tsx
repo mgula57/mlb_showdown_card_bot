@@ -2,9 +2,12 @@ import type { CardDatabaseRecord } from '../../api/card_db/cardDatabase';
 import type { TeamSource } from '../../api/userTeams';
 import { CardItemCompactFromCardDatabaseRecord } from '../cards/CardItemCompact';
 import { getContrastTextColor } from '../../functions/colors';
-import { imageForSet } from '../shared/SiteSettingsContext';
+import { SetBadgeRow } from '../shared/SetBadge';
 import { useAuth } from '../auth/AuthContext';
 import { FaCircle, FaHatWizard, FaRobot, FaUsers, FaHeart, FaEye } from 'react-icons/fa6';
+import type { ReactNode } from 'react';
+import { Plate } from '../shared/Plate';
+import { FitText } from '../shared/FitText';
 
 // A minimal, source-agnostic shape so the same tile renders community teams (TeamSummary),
 // historical MLB teams, and All-Star teams alike.
@@ -41,10 +44,6 @@ export type TeamPreviewData = {
     creator_username?: string | null;
 };
 
-function toRgba(color: string, alpha: number): string {
-    return color.replace('rgb(', 'rgba(').replace(')', `, ${alpha})`);
-}
-
 type TeamPreviewCardProps = {
     team: TeamPreviewData;
     onClick: () => void;
@@ -53,13 +52,12 @@ type TeamPreviewCardProps = {
     className?: string;
 };
 
-/** Spotify-style "album cover" tile for a team: gradient border, field art, identity, and top-3 cards. */
+/** "Album cover" tile for a team in the card-front style: team-color field with pinstripes and a
+ *  watermark, white card edge, identity plates, and top-3 cards. */
 export function TeamPreviewCard({ team, onClick, size = 'md', className = '' }: TeamPreviewCardProps) {
     const { user, userSettings } = useAuth();
     const primary = team.primary_color || 'rgb(20,20,20)';
-    const secondary = team.secondary_color || 'rgb(80,80,80)';
     const onPrimary = getContrastTextColor(primary);
-    const onSecondary = getContrastTextColor(secondary);
     const isOwnTeam = !!user && !!team.user_id && team.user_id === user.id;
     const avatarUrl = isOwnTeam ? userSettings?.avatar_url : null;
     // Curated (official), All-Star, and synthetic MLB tiles carry their own credit/badge — the
@@ -81,105 +79,86 @@ export function TeamPreviewCard({ team, onClick, size = 'md', className = '' }: 
     const allowedSets = team.allowed_sets ?? [];
     const showSetGrid = allowedSets.length > 0;
 
+    // Chips on the team field: a dark stat plate for points, outline plates for everything else.
+    const outlineChip = (key: string, content: ReactNode, title?: string) => (
+        <Plate key={key} variant="onFieldOutline" size="sm" title={title}>{content}</Plate>
+    );
+
     return (
         <button
             type="button"
             onClick={onClick}
             className={`
                 snap-start shrink-0 relative
-                ${widthClass} aspect-3/4 rounded-xl
+                ${widthClass} aspect-3/4 rounded-trading-card
                 overflow-hidden
+                border-[3px] border-(--card-edge) ring-1 ring-(--rule-strong)
                 [@media(hover:hover)]:hover:scale-[1.025] [@media(hover:hover)]:active:scale-[0.975]
                 [@media(hover:hover)]:transition-transform [@media(hover:hover)]:duration-150
-                text-left border-4 border-transparent
-                cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-1
+                text-left
+                cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--showdown-blue) focus-visible:ring-offset-1
                 ${className}
             `}
-            style={{
-                backgroundImage: `linear-gradient(${primary}, ${primary}), linear-gradient(135deg, ${secondary}, ${primary})`,
-                backgroundOrigin: 'border-box',
-                backgroundClip: 'padding-box, border-box',
-            }}
+            style={{ backgroundColor: primary }}
         >
-            <div className="absolute top-0 left-0 z-20 flex flex-col items-end gap-0.5 max-w-32">
-                {team.badge && (
-                    <span
-                        className="text-[9px] font-black rounded-br-md px-1.5 py-0.5 leading-none uppercase tracking-wide"
-                        style={{ backgroundColor: secondary, color: onSecondary }}
-                    >
-                        {team.badge}
-                    </span>
-                )}
-            </div>
-            <div className="absolute top-0 right-0 z-20 flex flex-col items-end gap-0.5">
-                
-                {team.is_drafting && (
-                    <span
-                        className="flex items-center text-[9px] font-black rounded-bl-md px-1 py-0.5 leading-none"
-                        style={{ backgroundColor: secondary, color: onSecondary }}
-                    >
-                        <FaCircle className="animate-pulse w-1.5 h-1.5 inline-block mr-0.5" />
-                        DRAFTING
-                    </span>
-                )}
-                {showSetGrid && (
-                    <div
-                        className="rounded-bl-md p-1 flex flex-wrap items-center justify-end gap-0.5 max-w-24"
-                        style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}
-                    >
-                        {allowedSets.map(set => {
-                            const useAbbreviated = allowedSets.length >= 2;
-                            const image = imageForSet(set, useAbbreviated);
-                            const heightClass = useAbbreviated ? 'h-3' : 'h-4';
-                            return image ? (
-                                <img key={set} src={image} alt={set} loading="lazy" className={`${heightClass} w-auto object-contain`} />
-                            ) : null;
-                        })}
-                    </div>
-                )}
-            </div>
-
-            {/* Field background image */}
+            {/* Ballpark backdrop: faded field art, a team-color wash up top, darkening toward the roster */}
             <img
                 src="/images/teams/Field.png"
-                className="absolute -translate-y-25 w-full h-full object-cover object-top select-none opacity-30"
+                className="absolute -translate-y-25 w-full h-full object-cover object-top select-none pointer-events-none opacity-30"
                 alt=""
                 aria-hidden
                 draggable={false}
                 loading="lazy"
             />
-
-            {/* Team primary color wash over the field (top) */}
+            {/* design-ok-start: readability scrims over the field photo, not decoration */}
             <div
-                className="absolute inset-0"
-                style={{ background: `linear-gradient(to bottom, ${toRgba(primary, 0.30)} 0%, ${toRgba(primary, 0.15)} 55%, transparent 75%)` }}
+                aria-hidden
+                className="absolute inset-0 pointer-events-none"
+                style={{ background: `linear-gradient(to bottom, color-mix(in srgb, ${primary} 30%, transparent) 0%, color-mix(in srgb, ${primary} 15%, transparent) 55%, transparent 75%)` }}
             />
-
-            {/* Dark gradient at the bottom for readability */}
             <div
-                className="absolute inset-0"
-                style={{ background: 'linear-gradient(to top, rgba(0,0,0,0.92) 0%, rgba(0,0,0,0.70) 35%, transparent 60%)' }}
+                aria-hidden
+                className="absolute inset-0 pointer-events-none"
+                style={{ background: 'linear-gradient(to top, rgb(0 0 0 / 0.92) 0%, rgb(0 0 0 / 0.7) 35%, transparent 60%)' }}
             />
+            {/* design-ok-end */}
+
+            <div className="absolute top-1.5 left-1.5 z-20 flex flex-col items-start gap-0.5 max-w-32">
+                {team.badge && <Plate variant="onField" size="sm">{team.badge}</Plate>}
+            </div>
+            <div className="absolute top-1.5 right-1.5 z-20 flex flex-col items-end gap-0.5">
+                {team.is_drafting && (
+                    <Plate variant="onField" size="sm" className="text-(--field-live)">
+                        <FaCircle className="animate-pulse motion-reduce:animate-none w-1.5 h-1.5" />
+                        Drafting
+                    </Plate>
+                )}
+                {showSetGrid && (
+                    <SetBadgeRow
+                        sets={allowedSets}
+                        onField
+                        className="rounded-plate p-1 flex flex-wrap items-center justify-end gap-0.5 max-w-24 bg-(--field-ink)/60"
+                    />
+                )}
+            </div>
 
             {/* Content */}
-            <div className="relative z-10 flex flex-col h-full p-2.5 gap-1">
-                <div className={`flex-1 flex flex-col justify-start min-h-0 ${team.badge ? 'pt-2' : 'pt-1'}`}>
-                    
+            <div className="relative z-10 flex flex-col h-full p-2 gap-1">
+                <div className={`flex-1 flex flex-col justify-start min-h-0 ${team.badge || team.is_drafting ? 'pt-6' : 'pt-1'}`}>
+
                     {/* Team logo and abbreviation */}
                     <div className="flex items-end gap-1.5 min-w-0">
-                        <div className="flex items-center gap-1.5 min-w-0">
-                            {team.logo_url && (
-                                <img
-                                    src={team.logo_url}
-                                    alt=""
-                                    loading="lazy"
-                                    className="w-7 h-7 rounded-md object-cover shrink-0 ring-1 ring-white/20"
-                                />
-                            )}
-                            <div className="text-[38px] leading-none font-black tracking-tight drop-shadow-lg truncate" style={{ color: onPrimary }}>
-                                {team.abbreviation}
-                            </div>
-                        </div>
+                        {team.logo_url && (
+                            <img
+                                src={team.logo_url}
+                                alt=""
+                                loading="lazy"
+                                className="self-center w-7 h-7 rounded-[3px] object-cover shrink-0 ring-1 ring-white/20"
+                            />
+                        )}
+                        <FitText minScale={0.45} className="font-display text-[44px] leading-[0.88] text-white text-outline-double">
+                            {team.abbreviation}
+                        </FitText>
                         {avatarUrl && (
                             <img
                                 src={avatarUrl}
@@ -189,86 +168,66 @@ export function TeamPreviewCard({ team, onClick, size = 'md', className = '' }: 
                             />
                         )}
                     </div>
-                    <div className="text-[10px] font-bold mt-0.5 line-clamp-1 drop-shadow opacity-85" style={{ color: onPrimary }}>
+                    <FitText minScale={0.75} className="font-display text-[11px] uppercase tracking-[0.2em] mt-1 opacity-90" style={{ color: onPrimary }}>
                         {team.name}
-                    </div>
+                    </FitText>
                     {byline && (
-                        <div className="flex items-center gap-1 text-[9px] font-bold line-clamp-1 drop-shadow opacity-75" style={{ color: onPrimary }}>
+                        <div className="text-[10px] font-semibold line-clamp-1 opacity-75" style={{ color: onPrimary }}>
                             {byline}
                         </div>
                     )}
 
                     {/* Team stats and allowed card sources */}
-                    <div className="flex items-center gap-x-1.5 gap-y-0.5 mt-0.5 flex-wrap text-[10px]">
+                    <div className="flex items-center gap-1 mt-1.5 flex-wrap">
                         {team.total_points && team.total_points > 0 ? (
-                            <div className="font-black rounded px-1.5 py-0.5 self-start leading-none" style={{ backgroundColor: secondary, color: onSecondary }}>
-                                {team.total_points} PTS
-                            </div>
+                            <Plate variant="onField" size="sm">{team.total_points.toLocaleString()} pt.</Plate>
                         ) : team.subtitle ? (
-                            <div className="font-bold rounded px-1.5 py-0.5 self-start leading-none" style={{ backgroundColor: secondary, color: onSecondary }}>
-                                {team.subtitle}
-                            </div>
+                            <Plate variant="onField" size="sm">{team.subtitle}</Plate>
                         ) : null}
-                        {team.roster_size ? (
-                            <div
-                                className="flex items-center gap-0.5 font-bold rounded px-1.5 py-0.5 self-start leading-none"
-                                style={{ backgroundColor: 'rgba(255,255,255,0.85)', color: getContrastTextColor('rgba(255,255,255,0.85)') }}
-                                title={`${team.roster_size}-player roster`}
-                            >
-                                <FaUsers className="w-2.5 h-2.5" />
-                                {team.roster_size}
-                            </div>
-                        ) : null}
-                        {team.allowed_card_sources && team.allowed_card_sources.length > 0 && (
-                            <>
-                                {team.allowed_card_sources.map(src => (
-                                    <div
-                                        key={src}
-                                        className="flex items-center gap-0.5 font-bold rounded px-1.5 py-0.5 self-start leading-none"
-                                        style={{ backgroundColor: 'rgba(255,255,255,0.85)', color: getContrastTextColor('rgba(255,255,255,0.85)') }}
-                                    >
-                                        {src === 'WOTC' ? <FaHatWizard className="w-2.5 h-2.5" /> : undefined}
-                                        {src === 'BOT' ? <FaRobot className="w-2.5 h-2.5" /> : undefined}
-                                        {src}
-                                    </div>
-                                ))}
-                            </>
-                        )}
-                        {(team.is_public || team.source === 'official') && (team.like_count ?? 0) > 0 && (
-                            <div
-                                className="flex items-center gap-0.5 font-bold rounded px-1.5 py-0.5 self-start leading-none"
-                                style={{ backgroundColor: 'rgba(255,255,255,0.85)', color: getContrastTextColor('rgba(255,255,255,0.85)') }}
-                                title={`${team.like_count} likes`}
-                            >
-                                <FaHeart className="w-2.5 h-2.5" />
-                                {team.like_count}
-                            </div>
-                        )}
-                        {(team.is_public || team.source === 'official') && (team.view_count ?? 0) > 0 && (
-                            <div
-                                className="flex items-center gap-0.5 font-bold rounded px-1.5 py-0.5 self-start leading-none"
-                                style={{ backgroundColor: 'rgba(255,255,255,0.85)', color: getContrastTextColor('rgba(255,255,255,0.85)') }}
-                                title={`${team.view_count} views`}
-                            >
-                                <FaEye className="w-2.5 h-2.5" />
-                                {team.view_count}
-                            </div>
-                        )}
+                        {team.roster_size ? outlineChip('roster', <><FaUsers className="w-2.5 h-2.5" />{team.roster_size}</>, `${team.roster_size}-player roster`) : null}
+                        {team.allowed_card_sources?.map(src => outlineChip(src, <>
+                            {src === 'WOTC' ? <FaHatWizard className="w-2.5 h-2.5" /> : undefined}
+                            {src === 'BOT' ? <FaRobot className="w-2.5 h-2.5" /> : undefined}
+                            {src}
+                        </>))}
+                        {(team.is_public || team.source === 'official') && (team.like_count ?? 0) > 0 &&
+                            outlineChip('likes', <><FaHeart className="w-2.5 h-2.5" />{team.like_count}</>, `${team.like_count} likes`)}
+                        {(team.is_public || team.source === 'official') && (team.view_count ?? 0) > 0 &&
+                            outlineChip('views', <><FaEye className="w-2.5 h-2.5" />{team.view_count}</>, `${team.view_count} views`)}
                     </div>
-                    
                 </div>
 
-                {hasCards && (
+                {/* User teams always show three slots, so a fresh or mid-draft roster keeps its shape;
+                    other tiles only render the cards they have. */}
+                {(hasCards || isUserTeam) && (
                     <div className="flex flex-col gap-0.5">
+                        {!hasCards && (
+                            <div className="text-[9px] font-semibold uppercase tracking-wider text-white/70 pl-0.5">
+                                {team.is_drafting ? 'On the clock' : 'No picks yet'}
+                            </div>
+                        )}
                         {slots.map((card, i) => (
-                            card === null ? null : (
-                                <CardItemCompactFromCardDatabaseRecord key={i} card={card} hideDetails />
-                            )
+                            card ? <CardItemCompactFromCardDatabaseRecord key={i} card={card} hideDetails />
+                                : isUserTeam ? <EmptyRosterSlot key={i} n={i + 1} />
+                                : null
                         ))}
                     </div>
                 )}
             </div>
         </button>
+    );
+}
+
+/** An open top-3 slot on a user team that hasn't filled it yet, sized like a `CardItemCompact` row. */
+function EmptyRosterSlot({ n }: { n: number }) {
+    return (
+        <div
+            aria-hidden
+            className="h-9 flex items-center gap-2 pl-1.5 rounded-trading-card border border-dashed border-white/35 bg-(--field-ink)/30"
+        >
+            <span className="font-display-upright text-[13px] leading-none text-white/45 w-3 text-center">{n}</span>
+            <span className="h-1.5 w-16 rounded-plate bg-white/15" />
+        </div>
     );
 }
 
@@ -278,7 +237,7 @@ export function TeamPreviewCardSkeleton({ size = 'md', className = '' }: { size?
     return (
         <div
             aria-hidden
-            className={`snap-start shrink-0 ${widthClass} aspect-3/4 rounded-xl bg-(--background-secondary) animate-pulse ${className}`}
+            className={`snap-start shrink-0 ${widthClass} aspect-3/4 rounded-trading-card bg-(--background-tertiary) animate-pulse ${className}`}
         />
     );
 }

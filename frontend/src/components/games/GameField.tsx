@@ -22,6 +22,8 @@ import FieldMarker from "./FieldMarker";
 import type { AdvantageSide } from "../../domain/play";
 import { usePresenceList } from "../../hooks/usePresenceList";
 import type { PlayPhase } from "../../hooks/useGamePlayback";
+import { SLANT_ROOM_CLASS } from "../shared/headingStyles";
+import { FitText } from "../shared/FitText";
 
 type CardMap = Record<string, ShowdownBotCardAPIResponse>;
 
@@ -62,8 +64,27 @@ type GameFieldProps = {
      *  so a big centered button is overlaid here rather than leaving "Watch" as a small banner
      *  action the user has to spot. Hidden as soon as playback starts. */
     onPlayClick?: () => void;
+    /** Paints the mowed-grass art behind the diamond, locked to the field art's scale and
+     *  centering. Painted at `-z-10`, so the caller should give an ancestor `isolate` to keep it
+     *  above that ancestor's own background layers. */
+    showGrassBackdrop?: boolean;
+    /** Skips the diamond art, for callers that paint `FieldArt` themselves so it can outlive this
+     *  field (e.g. stay put while the field's contents crossfade). */
+    hideFieldArt?: boolean;
+    /** Drops the players onto the field with a staggered bounce when this field mounts (e.g. a new
+     *  game swapped in). Markers that show up later enter normally. */
+    plopIn?: boolean;
     className?: string;
 };
+
+/** `plopIn` timing — the duration must match `.field-plop` in index.css. Pitcher lands first,
+ *  then the batter, then runners in base order. */
+const PLOP_DURATION_MS = 550;
+const PLOP_STAGGER_MS = 90;
+const PLOP_ORDER: Record<RunnerSpot, number> = { plate: 1, first: 2, second: 3, third: 4, home: 4 };
+/** When the last `plopIn` marker has landed. */
+export const FIELD_PLOP_MS = PLOP_DURATION_MS + Math.max(...Object.values(PLOP_ORDER)) * PLOP_STAGGER_MS;
+const plopDelay = (order: number): React.CSSProperties => ({ animationDelay: `${order * PLOP_STAGGER_MS}ms` });
 
 /**
  * The art (736x800) is mostly transparent padding — the field itself occupies x 17-720,
@@ -82,6 +103,15 @@ const ART_STYLE: React.CSSProperties = {
     maxWidth: "none",
 };
 
+/** The diamond art, filling a positioned `aspect-703/369` box. */
+export function FieldArt() {
+    return (
+        <div className="absolute inset-0 overflow-hidden rounded-card">
+            <img src="/images/teams/Field No BG No IF.png" alt="" style={ART_STYLE} className="pointer-events-none select-none" />
+        </div>
+    );
+}
+
 /** Percentages of the visible field. Base coordinates are measured from the art's white base
  * markers; fielder spots are placed relative to them. */
 const BASES = {
@@ -90,6 +120,30 @@ const BASES = {
     third: [20.6, 49.6],
 } as const;
 const HOME: readonly [number, number] = [49.9, 85.4];
+
+/**
+ * Mowed-grass backdrop (1264x841), drawn at `scale` of the field art's pixel scale and centered
+ * on it: the pattern's center line sits on the field's center line and its lower apex (y 740)
+ * on home plate, nudged down by `offsetY` (a fraction of the field height). It runs past the
+ * field box vertically and is clipped to it on x so it never widens the page. Both fades live on
+ * the image (a mask on the clipping wrapper would also clip the vertical overflow); the x fade
+ * reaches transparent just inside the wrapper's edges so the clip never shows as a hard line.
+ */
+const GRASS = { width: 1264, height: 841, centerX: 632, apexY: 740, scale: 0.6, offsetY: 0.18 } as const;
+const GRASS_FADE_Y = "linear-gradient(to bottom, transparent 0%, black 25%, black 80%, transparent 100%)";
+const GRASS_FADE_X = "linear-gradient(to right, transparent 4%, black 15%, black 85%, transparent 96%)";
+const GRASS_STYLE: React.CSSProperties = {
+    position: "absolute",
+    width: `${((GRASS.width * GRASS.scale) / FIELD_W) * 100}%`,
+    height: `${((GRASS.height * GRASS.scale) / FIELD_H) * 100}%`,
+    left: `${(0.5 - (GRASS.centerX * GRASS.scale) / FIELD_W) * 100}%`,
+    top: `${(HOME[1] / 100 + GRASS.offsetY - (GRASS.apexY * GRASS.scale) / FIELD_H) * 100}%`,
+    maxWidth: "none",
+    maskImage: `${GRASS_FADE_X}, ${GRASS_FADE_Y}`,
+    WebkitMaskImage: `${GRASS_FADE_X}, ${GRASS_FADE_Y}`,
+    maskComposite: "intersect",
+    WebkitMaskComposite: "source-in",
+};
 
 const DEFENSE_SPOTS: Record<keyof DefenseAlignment, readonly [number, number]> = {
     pitcher: [49.9, 50.5],
@@ -108,6 +162,13 @@ const DEFENSE_POSITIONS: Record<keyof DefenseAlignment, string> = {
     pitcher: "P", catcher: "C", first: "1B", second: "2B", third: "3B",
     shortstop: "SS", left: "LF", center: "CF", right: "RF",
 };
+
+/** Stacking order on the field: runners on the bases sit lowest, then the pitch/swing dice, then
+ *  the pitcher and the hitter at the plate. Each die is docked inside a positioned wrapper (the
+ *  pitcher's, or its own at the plate), which is what puts it on the `die`/`battery` layer —
+ *  `DieDock` then tucks it behind the card it belongs to within that wrapper. Fielders other
+ *  than the pitcher stay on the default layer. */
+const FIELD_Z = { runner: 1, die: 2, battery: 3 } as const;
 
 const atPercent = ([x, y]: readonly [number, number]): React.CSSProperties => ({
     left: `${x}%`,
@@ -232,8 +293,10 @@ function buildFieldOccupants(
     return [...occupants.values()];
 }
 
-/** How long each individual base-to-base hop takes. A HR (plate→home, 4 hops) then takes 4x this,
- *  which is intentional — covering more ground should visibly take longer, not less per hop. */
+/** How long each individual base-to-base hop takes at 1x. A HR (plate→home, 4 hops) then takes 4x
+ *  this, which is intentional — covering more ground should visibly take longer, not less per hop.
+ *  Divided by the playback speed like the phase beats are, or at 2x/4x the frame commits before a
+ *  multi-base run finishes and the card snaps the rest of the way. */
 const BASE_HOP_MS = 220;
 
 /**
@@ -258,6 +321,7 @@ const BASE_HOP_MS = 220;
 function useRunnerMovement(
     transition: FrameTransition | undefined,
     phase: PlayPhase,
+    hopMs: number,
 ): Record<string, RunnerSpot> {
     // "runners" is when the cards translate; "settle" holds them at their destination while the
     // score/outs catch up, until the frame commits and `situation` takes over. Before "runners"
@@ -304,13 +368,13 @@ function useRunnerMovement(
                         const base = prev.transition === transition ? prev.overrides : {};
                         return { transition, overrides: { ...base, [move.key]: stop } };
                     });
-                }, i * BASE_HOP_MS));
+                }, i * hopMs));
             });
         }
 
         timersRef.current = timers;
         return () => timers.forEach(clearTimeout);
-    }, [transition, moving]);
+    }, [transition, moving, hopMs]);
 
     const merged: Record<string, RunnerSpot> = { ...initialOverrides };
     if (laterState.transition === transition) Object.assign(merged, laterState.overrides);
@@ -319,8 +383,8 @@ function useRunnerMovement(
 
 const FLASH_SHELL = `
     absolute left-1/2 top-[6%] z-30 -translate-x-1/2
-    pointer-events-none select-none whitespace-nowrap
-    rounded-full border font-black uppercase tracking-wide shadow-lg
+    pointer-events-none select-none whitespace-nowrap max-w-[calc(100%-1rem)]
+    rounded-control border font-display uppercase shadow-overlay
     transition-[opacity,transform] duration-300 ease-out
 `;
 
@@ -353,7 +417,7 @@ function HalfInningFlash({ brk, phase, visible }: {
                 className="text-(--live) transition-transform duration-500 ease-out"
                 style={{ transform: isTop ? "rotate(0deg)" : "rotate(180deg)" }}
             />
-            <span className="inline-block h-[1.15em] overflow-hidden tabular-nums">
+            <span className={`inline-block h-[1.15em] overflow-hidden tabular-nums ${SLANT_ROOM_CLASS}`}>
                 <span
                     className="block transition-transform duration-500 ease-out"
                     style={{ transform: flipped && inningChanges ? "translateY(-50%)" : "translateY(0)" }}
@@ -406,15 +470,16 @@ function ResultFlash({ play, phase, transition }: { play: PlayEntry | undefined;
                     : `bg-(--background-secondary)/95 text-(--primary) text-xs px-3.5 py-1.5 ${negativeBeat ? "border-(--live)" : "border-(--divider)"}`}
             `}
         >
-            {label}
+            <FitText as="span" className="block" minScale={0.7}>{label}</FitText>
         </div>
     );
 }
 
 /** Pins a sim die to the left of the player marker it sits inside (the marker's wrapper is the
- *  positioned ancestor), vertically centered on the card. */
+ *  positioned ancestor), vertically centered on the card. The negative z-index keeps it behind
+ *  that marker if they overlap, while the wrapper's own layer keeps it above the runners. */
 function DieDock({ children }: { children: ReactNode }) {
-    return <div className="absolute right-full top-1/2 -translate-y-1/2 pr-1">{children}</div>;
+    return <div className="absolute right-full top-1/2 -z-10 -translate-y-1/2 pr-1">{children}</div>;
 }
 
 /** OF / IF / CA totals for the fielding side plus the expand/collapse toggle, gathered into one
@@ -473,7 +538,7 @@ function DefenseSummary({
     }
 
     return (
-        <div className="inline-grid grid-cols-2 overflow-hidden rounded-md border border-(--divider) bg-(--background-secondary)/30 text-[10px] font-bold">
+        <div className="inline-grid grid-cols-2 overflow-hidden rounded-card border border-(--divider) bg-(--background-secondary)/30 text-[10px] font-bold">
             {cells.map((cell, i) => {
                 const edges = `${i % 2 === 0 ? "border-r " : ""}${i < 2 ? "border-b " : ""}border-(--divider)`;
                 const base = `flex items-center justify-center gap-1 px-1.5 py-1 ${edges}`;
@@ -507,17 +572,27 @@ function LastPlaySummary({ play }: { play: PlayEntry }) {
     if (!description && !play.event) return null;
 
     return (
-        <div className="w-full rounded-md border border-(--divider) bg-(--background-secondary)/30 px-2 py-1 text-right text-[10px] leading-snug text-(--primary)">
+        <div className="w-full rounded-card border border-(--divider) bg-(--background-secondary)/30 px-2 py-1 text-right text-[10px] leading-snug text-(--primary)">
             <p className="line-clamp-3">
-                {play.event && <span className="font-extrabold text-(--primary)">{play.event}</span>}
+                {play.event && <span className="font-bold text-(--primary)">{play.event}</span>}
                 {description && description !== play.event && <span className="ml-0.5">{description}</span>}
             </p>
         </div>
     );
 }
 
-export default function GameField({ game, cardMap, onCardSelect, expanded = false, onToggleExpanded, isLoadingCards, transition, pendingPlay, phase = "idle", lastPlay, advantage, playbackSpeed, onPlayClick, className = "" }: GameFieldProps) {
+export default function GameField({ game, cardMap, onCardSelect, expanded = false, onToggleExpanded, isLoadingCards, transition, pendingPlay, phase = "idle", lastPlay, advantage, playbackSpeed, onPlayClick, showGrassBackdrop = false, hideFieldArt = false, plopIn = false, className = "" }: GameFieldProps) {
     const situation = game.situation;
+
+    // Markers mounted during the plop window get the drop; the class comes off once everyone has
+    // landed so later arrivals use their own entrances.
+    const [isPlopping, setIsPlopping] = useState(plopIn);
+    useEffect(() => {
+        if (!plopIn) return;
+        const timer = window.setTimeout(() => setIsPlopping(false), FIELD_PLOP_MS);
+        return () => window.clearTimeout(timer);
+    }, [plopIn]);
+    const plopClass = isPlopping ? "field-plop" : "";
     // if (!situation) return null;
 
     // The fielding side is whichever team isn't batting — used for the pitcher's line score.
@@ -534,7 +609,8 @@ export default function GameField({ game, cardMap, onCardSelect, expanded = fals
     // before `usePresenceList` drops them — this is a JS-side mirror of that timing, not a second
     // source of truth for how long the actual CSS transitions run.
     const presentOccupants = usePresenceList(occupants, BASE_HOP_MS * 4 + 300);
-    const pathOverrides = useRunnerMovement(transition, phase);
+    const hopMs = BASE_HOP_MS / (playbackSpeed ?? 1);
+    const pathOverrides = useRunnerMovement(transition, phase, hopMs);
 
     return (
         <div className={`@container relative w-full ${className}`}>
@@ -546,9 +622,12 @@ export default function GameField({ game, cardMap, onCardSelect, expanded = fals
                 field is growing rather than snapping to a new size. */}
             <div className={`relative px-1 transition-[padding] duration-300 ease-out ${expanded ? "pt-28 pb-12" : "pt-0 pb-0"}`}>
                 <div className="relative aspect-703/369 w-full overflow-visible">
-                    <div className="absolute inset-0 overflow-hidden rounded-lg">
-                        <img src="/images/teams/Field No BG.png" alt="" style={ART_STYLE} className="pointer-events-none select-none" />
-                    </div>
+                    {showGrassBackdrop && (
+                        <div className="absolute inset-0 -z-10 overflow-x-clip pointer-events-none">
+                            <img src="/images/games/Grass Field.jpg" alt="" style={GRASS_STYLE} className="select-none" />
+                        </div>
+                    )}
+                    {!hideFieldArt && <FieldArt />}
 
                     {/* Defense — the battery is always mounted; the rest of the alignment stays
                         mounted too (so it can fade/scale in instead of popping in) but is hidden
@@ -559,15 +638,15 @@ export default function GameField({ game, cardMap, onCardSelect, expanded = fals
                             if (!player) return null;
                             const isBattery = slot === "pitcher";
                             const isVisible = expanded || isBattery;
-                            const backgroundSettings = isBattery ? `bg-secondary` : 'backdrop-blur';
+                            const backgroundSettings = isBattery ? 'bg-secondary' : '';
                             return (
                                 <div
                                     key={slot}
                                     aria-hidden={!isVisible}
                                     className={`absolute -translate-x-1/2 -translate-y-1/2 transition-[opacity,transform] duration-300 ease-out ${
                                         isVisible ? "opacity-100 scale-100" : "pointer-events-none scale-75 opacity-0"
-                                    }`}
-                                    style={atPercent(DEFENSE_SPOTS[slot])}
+                                    } ${isVisible ? plopClass : ""}`}
+                                    style={{ ...atPercent(DEFENSE_SPOTS[slot]), zIndex: isBattery ? FIELD_Z.battery : undefined, ...plopDelay(isBattery ? 0 : 1) }}
                                 >
                                     <FieldMarker
                                         player={player}
@@ -593,7 +672,7 @@ export default function GameField({ game, cardMap, onCardSelect, expanded = fals
 
                     {/* Pitcher without an alignment (sim, or a defense the feed hasn't set yet). */}
                     {!defense && situation?.pitcher && (
-                        <div className="absolute -translate-x-1/2 -translate-y-1/2" style={atPercent(DEFENSE_SPOTS.pitcher)}>
+                        <div className={`absolute -translate-x-1/2 -translate-y-1/2 ${plopClass}`} style={{ ...atPercent(DEFENSE_SPOTS.pitcher), zIndex: FIELD_Z.battery }}>
                             <FieldMarker
                                 player={situation.pitcher}
                                 role="P"
@@ -648,7 +727,7 @@ export default function GameField({ game, cardMap, onCardSelect, expanded = fals
                         // still reads as "tagged" where they stood.
                         const taggedOut = occ.isOut && !occ.exit && occ.presence === "present" && !isMidPath;
 
-                        const posDur = walkingIn ? 450 : occ.exit === "drift" ? 600 : BASE_HOP_MS;
+                        const posDur = walkingIn ? 450 : occ.exit === "drift" ? 600 : hopMs;
                         const opacityDur = occ.exit === "poof" ? 200 : occ.exit === "drift" ? 520 : 300;
 
                         const stateClass = occ.presence === "entering"
@@ -672,13 +751,15 @@ export default function GameField({ game, cardMap, onCardSelect, expanded = fals
                                 style={{
                                     left: `${x}%`,
                                     top: `${y}%`,
-                                    zIndex: renderSpot === "plate" ? 2 : 1,
+                                    zIndex: renderSpot === "plate" ? FIELD_Z.battery : FIELD_Z.runner,
                                     transitionDuration: `${posDur}ms, ${posDur}ms, ${opacityDur}ms, 300ms`,
+                                    ...plopDelay(PLOP_ORDER[occ.spot]),
                                 }}
                                 className={`
                                     absolute -translate-x-1/2 -translate-y-1/2
                                     transition-[left,top,opacity,transform] ease-in-out
                                     ${stateClass}
+                                    ${occ.presence === "leaving" ? "" : plopClass}
                                 `}
                             >
                                 <FieldMarker
@@ -688,10 +769,7 @@ export default function GameField({ game, cardMap, onCardSelect, expanded = fals
                                     onCardSelect={onCardSelect}
                                     isLoadingCards={isLoadingCards}
                                     tone="offense"
-                                    hideCommand={occ.spot !== "plate"}
-                                    hideTeamPoints={occ.spot !== "plate"}
-                                    showSpeedBadge={occ.spot !== "plate"}
-                                    detailStat1Category={occ.spot === "plate" ? "hr" : "hr"}
+                                    detailStat1Category="hr"
                                     hasAdvantage={advantage === "hitter" && isPendingBatter}
                                 />
                             </div>
@@ -703,7 +781,7 @@ export default function GameField({ game, cardMap, onCardSelect, expanded = fals
                     {presentOccupants.some((occ) => pendingPlay?.batterId != null && String(occ.player.id) === String(pendingPlay.batterId)) && (
                         <div
                             className="absolute -translate-x-1/2 -translate-y-1/2 w-18 @[380px]:w-24 @[520px]:w-30 @[650px]:w-40 h-px pointer-events-none"
-                            style={{ left: `${SPOTS.plate[0]}%`, top: `${SPOTS.plate[1]}%`, zIndex: 2 }}
+                            style={{ left: `${SPOTS.plate[0]}%`, top: `${SPOTS.plate[1]}%`, zIndex: FIELD_Z.die }}
                         >
                             <DieDock><SimFieldDie kind="swing" pendingPlay={pendingPlay} phase={phase} speed={playbackSpeed} /></DieDock>
                         </div>
@@ -714,15 +792,9 @@ export default function GameField({ game, cardMap, onCardSelect, expanded = fals
                     {/* Big, unmissable play prompt — a finished sim otherwise just sits parked on
                         the first pitch with nothing on the field itself hinting that pressing play
                         is what reveals the game. Centered over the diamond, above every marker
-                        (z-40), with a soft radial backdrop so it reads clearly regardless of what's
-                        behind it. */}
+                        (z-40); its overlay shadow keeps it legible over whatever is behind it. */}
                     {onPlayClick && (
-                        <div
-                            className="absolute inset-0 z-40 flex items-center justify-center pointer-events-none"
-                            style={{
-                                background: 'radial-gradient(circle, rgba(0,0,0,0.35) 0%, rgba(0,0,0,0.15) 45%, rgba(0,0,0,0) 72%)',
-                            }}
-                        >
+                        <div className="absolute inset-0 z-40 flex items-center justify-center pointer-events-none">
                             <button
                                 type="button"
                                 onClick={onPlayClick}
@@ -730,7 +802,7 @@ export default function GameField({ game, cardMap, onCardSelect, expanded = fals
                                 className="
                                     pointer-events-auto group
                                     flex h-16 w-16 items-center justify-center rounded-full
-                                    animated-showdown-gradient text-white shadow-xl
+                                    bg-(--showdown-blue-fill) text-white shadow-overlay
                                     cursor-pointer transition-transform duration-150 ease-out
                                     hover:scale-110 active:scale-95
                                 "

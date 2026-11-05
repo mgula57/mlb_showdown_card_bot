@@ -5,6 +5,9 @@ import { CardItemFromCard } from '../CardItem';
 import { buildChartRangesFromValues } from '../card_elements/CardChart';
 import { FaMinus } from 'react-icons/fa';
 import { FaMagnifyingGlass } from 'react-icons/fa6';
+import { CAPS_LABEL_CLASS } from '../../shared/fieldStyles';
+import { choiceClass } from '../../shared/choiceStyles';
+import { StatTile } from '../../shared/StatTile';
 
 const OUTCOME_ORDER = ['PU', 'SO', 'GB', 'FB', 'BB', '1B', '1B+', '2B', '3B', 'HR'];
 const TOTAL = 20;
@@ -19,9 +22,9 @@ const PLACEHOLDER_CHART: ShowdownBotCardChart = {
 
 function outcomeColor(key: string, primaryColor?: string, secondaryColor?: string): string {
     const k = key.toUpperCase();
-    if (['PU','SO','GB','FB'].includes(k)) return primaryColor || 'rgb(239,68,68)';
-    if (k === 'HR') return secondaryColor || 'rgb(168,85,247)';
-    return 'rgb(70,70,70)';
+    if (['PU','SO','GB','FB'].includes(k)) return primaryColor || 'var(--showdown-red)';
+    if (k === 'HR') return secondaryColor || 'var(--showdown-blue)';
+    return 'var(--field-ink)';
 }
 
 function calcProbabilities(
@@ -114,15 +117,6 @@ function calcPitcherStats(results: { key: string; prob: number }[]) {
     };
 }
 
-function StatCell({ label, value }: { label: string; value: string | number }) {
-    return (
-        <div className="flex flex-col items-center gap-0.5">
-            <span className="text-sm font-black tabular-nums leading-none">{value}</span>
-            <span className="text-[9px] font-semibold uppercase tracking-wide opacity-40">{label}</span>
-        </div>
-    );
-}
-
 type OpponentMode = 'slider' | 'search';
 type OpponentModeOption = { label: string; value: OpponentMode, symbol: ReactNode };
 
@@ -200,6 +194,7 @@ export default function OutcomeProbability({ chart, primaryColor, secondaryColor
         setOpponentCommand(defaultOpponentCommand);
         setOpponentCard(null);
         setSearchKey(k => k + 1);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [chart, set]);
 
     const handleOpponentSelect = async (selection: PlayerSearchSelection) => {
@@ -244,7 +239,7 @@ export default function OutcomeProbability({ chart, primaryColor, secondaryColor
         <div className={`space-y-3 ${isEmpty ? 'opacity-25 pointer-events-none select-none' : ''}`}>
 
             {/* Mode toggle */}
-            <div className="flex items-center gap-1 p-0.5 rounded-lg self-start" style={{ background: 'color-mix(in srgb, var(--form-element) 30%, transparent)' }}>
+            <div className="flex items-center gap-1.5 self-start">
                 {(
                     [
                         { label: 'Baseline', value: 'slider', symbol: <FaMinus /> },
@@ -257,16 +252,7 @@ export default function OutcomeProbability({ chart, primaryColor, secondaryColor
                             setOpponentMode(mode.value);
                             if (mode.value === 'slider') handleClearOpponent();
                         }}
-                        className={`
-                            flex items-center gap-1
-                            px-3 py-1 rounded-md 
-                            text-[10px] font-semibold uppercase tracking-wide 
-                            transition-colors cursor-pointer
-                            ${
-                                opponentMode === mode.value
-                                    ? 'bg-background-primary text-secondary shadow-sm'
-                                    : 'text-secondary opacity-40 hover:opacity-60'
-                            }`}
+                        className={choiceClass(opponentMode === mode.value, 'sm')}
                     >
                         {mode.symbol}
                         {mode.label}
@@ -278,7 +264,7 @@ export default function OutcomeProbability({ chart, primaryColor, secondaryColor
             {opponentMode === 'slider' ? (
                 <>
                     <div className="flex items-center gap-3">
-                        <span className="text-[10px] font-semibold uppercase tracking-wide opacity-50 shrink-0 w-24">{opponentLabel}</span>
+                        <span className={`opacity-50 shrink-0 w-24 ${CAPS_LABEL_CLASS}`}>{opponentLabel}</span>
                         <input
                             type="range"
                             min={opponentCommandMin}
@@ -288,7 +274,7 @@ export default function OutcomeProbability({ chart, primaryColor, secondaryColor
                             onChange={e => setOpponentCommand(Number(e.target.value))}
                             className="flex-1 accent-current"
                         />
-                        <span className="text-sm font-black w-5 text-right tabular-nums opacity-80">{opponentCommand}</span>
+                        <span className="text-sm font-bold w-5 text-right tabular-nums opacity-80">{opponentCommand}</span>
                     </div>
 
                     <div className="flex items-center gap-2">
@@ -326,14 +312,14 @@ export default function OutcomeProbability({ chart, primaryColor, secondaryColor
                     <div className="flex items-center gap-2">
                         <CardItemFromCard
                             card={opponentCard}
-                            className="flex-1"
+                            className="flex-1 min-w-0"
                         />
                     </div>
                 </div>
             )}
 
             {/* Stacked area bar */}
-            <div className={`flex h-10 rounded-lg overflow-hidden gap-px transition-opacity duration-300 ${resultsAreBaseline ? 'opacity-20 pointer-events-none' : ''}`}>
+            <div className={`flex h-10 rounded-card overflow-hidden gap-px transition-opacity duration-300 ${resultsAreBaseline ? 'opacity-20 pointer-events-none' : ''}`}>
                 {results.map(({ key, prob }) => {
                     const pct = (prob / total) * 100;
                     const color = outcomeColor(key, primaryColor, secondaryColor);
@@ -347,7 +333,8 @@ export default function OutcomeProbability({ chart, primaryColor, secondaryColor
                         >
                             {showLabel && (
                                 <div className="flex flex-col items-center leading-none gap-0.5">
-                                    <span className="text-[10px] font-black text-white drop-shadow">{key}</span>
+                                    {/* design-ok: drop-shadow keeps white labels legible on light team colors */}
+                                    <span className="text-[10px] font-bold text-white drop-shadow">{key}</span>
                                     <span className="text-[9px] font-semibold text-white/80 drop-shadow tabular-nums">
                                         {(prob * 100).toFixed(1)}%
                                     </span>
@@ -375,42 +362,42 @@ export default function OutcomeProbability({ chart, primaryColor, secondaryColor
             </div>
 
             {/* Estimated season stats */}
-            <div className={`rounded-lg p-3 space-y-2.5 transition-opacity duration-300 ${resultsAreBaseline ? 'opacity-20 pointer-events-none' : ''}`} style={{ background: 'color-mix(in srgb, var(--form-element) 20%, transparent)' }}>
+            <div className={`rounded-card p-3 space-y-2.5 transition-opacity duration-300 ${resultsAreBaseline ? 'opacity-20 pointer-events-none' : ''}`} style={{ background: 'color-mix(in srgb, var(--form-element) 20%, transparent)' }}>
                 {isPitcher && pStats ? (
                     <>
-                        <div className="text-[9px] font-semibold uppercase tracking-widest opacity-40">Est. per 9 inn.</div>
+                        <div className={`${CAPS_LABEL_CLASS} text-(--text-tertiary)`}>Est. per 9 inn.</div>
                         <div className="flex justify-around">
-                            <StatCell label="ERA"  value={pStats.era.toFixed(2)}  />
-                            <StatCell label="WHIP" value={pStats.whip.toFixed(2)} />
-                            <StatCell label="K/9"  value={pStats.kPer9.toFixed(1)}  />
-                            <StatCell label="BB/9" value={pStats.bbPer9.toFixed(1)} />
+                            <StatTile size="inline" label="ERA"  value={pStats.era.toFixed(2)}  />
+                            <StatTile size="inline" label="WHIP" value={pStats.whip.toFixed(2)} />
+                            <StatTile size="inline" label="K/9"  value={pStats.kPer9.toFixed(1)}  />
+                            <StatTile size="inline" label="BB/9" value={pStats.bbPer9.toFixed(1)} />
                         </div>
                         <div className="h-px opacity-10" style={{ background: 'currentColor' }} />
-                        <div className="text-[9px] font-semibold uppercase tracking-widest opacity-40">Against per 9 inn.</div>
+                        <div className={`${CAPS_LABEL_CLASS} text-(--text-tertiary)`}>Against per 9 inn.</div>
                         <div className="flex justify-around">
-                            <StatCell label="BAA" value={fmtRate(pStats.avg)} />
-                            <StatCell label="H"   value={pStats.h}  />
-                            <StatCell label="2B"  value={pStats.d}  />
-                            <StatCell label="3B"  value={pStats.t}  />
-                            <StatCell label="HR"  value={pStats.hr} />
+                            <StatTile size="inline" label="BAA" value={fmtRate(pStats.avg)} />
+                            <StatTile size="inline" label="H"   value={pStats.h}  />
+                            <StatTile size="inline" label="2B"  value={pStats.d}  />
+                            <StatTile size="inline" label="3B"  value={pStats.t}  />
+                            <StatTile size="inline" label="HR"  value={pStats.hr} />
                         </div>
                     </>
                 ) : stats ? (
                     <>
-                        <div className="text-[9px] font-semibold uppercase tracking-widest opacity-40">Est. over {SEASON_PA} PA</div>
+                        <div className={`${CAPS_LABEL_CLASS} text-(--text-tertiary)`}>Est. over {SEASON_PA} PA</div>
                         <div className="flex justify-around">
-                            <StatCell label="AVG" value={fmtRate(stats.avg)} />
-                            <StatCell label="OBP" value={fmtRate(stats.obp)} />
-                            <StatCell label="SLG" value={fmtRate(stats.slg)} />
-                            <StatCell label="OPS" value={fmtRate(stats.obp + stats.slg)} />
+                            <StatTile size="inline" label="AVG" value={fmtRate(stats.avg)} />
+                            <StatTile size="inline" label="OBP" value={fmtRate(stats.obp)} />
+                            <StatTile size="inline" label="SLG" value={fmtRate(stats.slg)} />
+                            <StatTile size="inline" label="OPS" value={fmtRate(stats.obp + stats.slg)} />
                         </div>
                         <div className="h-px opacity-10" style={{ background: 'currentColor' }} />
                         <div className="flex justify-around">
-                            <StatCell label="H"  value={stats.h}  />
-                            <StatCell label="2B" value={stats.d}  />
-                            <StatCell label="3B" value={stats.t}  />
-                            <StatCell label="HR" value={stats.hr} />
-                            <StatCell label="BB" value={stats.bb} />
+                            <StatTile size="inline" label="H"  value={stats.h}  />
+                            <StatTile size="inline" label="2B" value={stats.d}  />
+                            <StatTile size="inline" label="3B" value={stats.t}  />
+                            <StatTile size="inline" label="HR" value={stats.hr} />
+                            <StatTile size="inline" label="BB" value={stats.bb} />
                         </div>
                     </>
                 ) : null}

@@ -39,8 +39,7 @@ export type GamePlaybackState = {
     awaitingInput: AwaitingInput;
     isPlaying: boolean;
     speed: PlaybackSpeed;
-    /** `speed`, boosted automatically while catching up on a large backlog (live mode only) —
-     *  what CSS's `--playback-speed` custom property should be set to. */
+    /** `speed`, boosted automatically while catching up on a large backlog (live mode only). */
     effectiveSpeed: number;
     /** The transition being animated right now; undefined while idle. */
     transition?: FrameTransition;

@@ -1,6 +1,10 @@
 import React, { useState } from 'react';
+import { buttonClass } from './buttonStyles';
 import { FaLock } from 'react-icons/fa';
 import { LoginModal } from '../auth/LoginModal';
+
+import { Heading } from './Heading';
+import { EmptyState } from './EmptyState';
 
 interface SignInPromptProps {
     /** Icon to display above the message. Defaults to FaLock. */
@@ -11,6 +15,8 @@ interface SignInPromptProps {
     message?: string;
     /** Additional CSS classes for the wrapper (e.g. sizing / spacing). */
     className?: string;
+    /** `page` (default) is the full-screen lock prompt; `panel` is a compact bordered panel for one gated part of a screen. */
+    size?: 'page' | 'panel';
 }
 
 /**
@@ -22,8 +28,31 @@ export const SignInPrompt: React.FC<SignInPromptProps> = ({
     title = 'Sign in required',
     message,
     className = '',
+    size = 'page',
 }) => {
     const [showLoginModal, setShowLoginModal] = useState(false);
+
+    const loginModal = showLoginModal && <LoginModal onClose={() => setShowLoginModal(false)} />;
+
+    if (size === 'panel') {
+        return (
+            <>
+                <EmptyState
+                    size="panel"
+                    title={title}
+                    className={`rounded-card border border-(--divider) bg-(--background-secondary) ${className}`}
+                    action={
+                        <button type="button" onClick={() => setShowLoginModal(true)} className={`${buttonClass('primary')} cursor-pointer`}>
+                            Sign in / Sign up
+                        </button>
+                    }
+                >
+                    {message}
+                </EmptyState>
+                {loginModal}
+            </>
+        );
+    }
 
     return (
         <div className={`flex flex-col items-center justify-center gap-4 text-center px-6 ${className}`}>
@@ -32,20 +61,18 @@ export const SignInPrompt: React.FC<SignInPromptProps> = ({
             </div>
 
             <div className="flex flex-col gap-1">
-                <h2 className="text-lg font-bold text-primary">{title}</h2>
+                <Heading level="section">{title}</Heading>
                 {message && <p className="text-sm text-secondary">{message}</p>}
             </div>
 
             <button
                 onClick={() => setShowLoginModal(true)}
-                className="px-6 py-2.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold transition-colors cursor-pointer"
+                className={buttonClass('primary')}
             >
                 Sign in / Sign up
             </button>
 
-            {showLoginModal && (
-                <LoginModal onClose={() => setShowLoginModal(false)} />
-            )}
+            {loginModal}
         </div>
     );
 };

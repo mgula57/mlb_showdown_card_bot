@@ -11,7 +11,7 @@ export default function BackButton({ onBack, label = "Back", className = "" }: B
         <button
             type="button"
             onClick={onBack}
-            className={`flex items-center gap-1.5 text-sm font-semibold text-(--secondary) hover:text-(--primary) bg-(--background-secondary) p-2 rounded-lg cursor-pointer transition-colors ${className}`}
+            className={`flex items-center gap-1.5 text-sm font-semibold text-(--secondary) hover:text-(--primary) bg-(--background-secondary) p-2 rounded-control cursor-pointer transition-colors ${className}`}
         >
             <FaChevronLeft className="h-3 w-3" />
             {label}

@@ -638,7 +638,7 @@ class Team(str, Enum):
     def secondary_color(self) -> tuple[int,int,int,int]:
         match self.value:
             case 'ANA': return (0,50,99,255)
-            case 'ARI': return (227, 212, 173, 255)
+            case 'ARI': return (48, 206, 216, 255)
             case 'ATH': return (239, 178, 30, 255)
             case 'ATL': return (19, 39, 79, 255)
             case 'BAL': return (39, 37, 31, 255)
@@ -712,6 +712,7 @@ class Team(str, Enum):
             }
             case 'ARI': return {
                 '1': (0,95,97,255),
+                '2': (227,212,173,255),
             }
             case 'ATH': return {
                 '1': (31, 77, 139, 255),
@@ -865,6 +866,12 @@ class Team(str, Enum):
 
         return color_historical
     
+    def chart_secondary_color_override(self, year:int) -> Optional[tuple[tuple[int,int,int,int], tuple[int,int,int,int]]]:
+        """Fill and text colors replacing a secondary color that reads better as text than as a fill. Only used for the EXPANDED set's chart elements and icons."""
+        if self == Team.ARI and year >= 2024:
+            return (39, 37, 31, 255), self.secondary_color
+        return None
+
     def rgb_color_for_html(self, year:int) -> str:
         """RGB color for HTML"""
         color = self.color(year=year, is_secondary=self.use_secondary_color_for_graphs)
@@ -893,7 +900,8 @@ class Team(str, Enum):
                 '1': list(range(1997, 2002)),
             }
             case 'ARI': return {
-                '1': list(range(1998,2007))
+                '1': list(range(1998,2007)),
+                '2': list(range(2007,2024)),
             }
             case 'ATH': return {
                 '1': list(range(1901,1955)),

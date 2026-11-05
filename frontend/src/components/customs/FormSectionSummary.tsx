@@ -4,6 +4,13 @@
 
 import type { SelectOption } from '../shared/CustomSelect';
 
+/** A summary chip for a dropdown value, showing the option's readable label instead of its raw value
+ * (e.g. "Last Team" rather than LAST_TEAM). `label` overrides the chip's label, which drives prefixes/suffixes below. */
+export function optionSummaryItem(options: SelectOption[], value: string, label?: string): SelectOption {
+    const option = options.find(opt => opt.value === value);
+    return { ...option, value: option?.label ?? value, label: label ?? option?.label };
+}
+
 /** Returns the summary chips for a FormSection's `childrenWhenClosed`, or undefined when there's nothing to show. */
 export function formSectionSummary(summaryItems: SelectOption[]) {
     if (summaryItems.length === 0) {
@@ -12,7 +19,7 @@ export function formSectionSummary(summaryItems: SelectOption[]) {
     return (
         <div className="text-xs font-bold flex flex-wrap items-center gap-x-1.5 gap-y-1 text-(--tertiary)">
             {summaryItems.map(item => (
-                <div key={item.label} className={`flex shrink-0 items-center whitespace-nowrap rounded-md px-1 border ${item.borderColor || 'border-(--tertiary)/65'}`}>
+                <div key={item.label ?? item.value}className={`flex shrink-0 items-center whitespace-nowrap rounded-plate px-1 border ${item.borderColor || 'border-(--tertiary)/65'}`}>
                     <span className="font-semibold">{item.icon}</span>
                     {(() => {
                         const label = item.label?.toLowerCase()
@@ -36,11 +43,8 @@ export function formSectionSummary(summaryItems: SelectOption[]) {
                         }
                         switch (label) {
                             case "set number": prefix = "#"; break;
-                            case "coloring": suffix = " COLOR"; break;
-                            case "glow": suffix = "X"; prefix = "GLOW "; break;
-                            case "nickname": prefix = "NICKNAME "; break;
-                            case "chart version": prefix = "CHART "; break;
-                            case "real stats": prefix = "SHOW "; suffix = " STATS"; break;
+                            case "chart version": prefix = "Chart "; break;
+                            case "real stats": prefix = "Show "; suffix = " Stats"; break;
                         }
                         return <span className={`${item.borderColor || 'text-(--tertiary)'}`}>{prefix}{value}{suffix}</span>;
                     })()}

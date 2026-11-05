@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
 import { type RealVsProjectedStat } from '../../../api/showdownBotCard';
 import { formatStatValue } from '../../../functions/formatters';
+import { heatColor } from '../../../functions/colors';
+import { CAPS_LABEL_CLASS } from '../../shared/fieldStyles';
 
 type StatRanges = Record<string, { min: number; max: number }>;
 
@@ -44,20 +46,12 @@ function simStatValue(stat: string, simStats?: Record<string, number>): number |
     return simStats[STAT_TO_SIM_KEY[stat] ?? stat.toLowerCase()];
 }
 
-function percentileColor(p: number): string {
-    if (p >= 80) return 'rgb(220,38,38)';
-    if (p >= 60) return 'rgb(249,115,22)';
-    if (p >= 40) return 'rgb(148,163,184)';
-    if (p >= 20) return 'rgb(100,116,139)';
-    return 'rgb(59,130,246)';
-}
-
 function diffColor(diffStr: string): string {
     if (!diffStr || diffStr === '0' || diffStr === '+0') return 'opacity-40';
-    return diffStr.startsWith('+') ? 'text-green-500' : 'text-red-500';
+    return diffStr.startsWith('+') ? 'text-(--green)' : 'text-(--red)';
 }
 
-const GHOST_COLOR = 'rgb(148,163,184)';
+const GHOST_COLOR = 'var(--rule-strong)';
 
 // Stats where a lower value is better, keyed by player type
 const INVERTED_STATS: Record<'HITTER' | 'PITCHER', Set<string>> = {
@@ -71,8 +65,8 @@ const INVERTED_STATS: Record<'HITTER' | 'PITCHER', Set<string>> = {
 function PercentileBar({ stat, real, statRanges, hasRanges, isLoading, playerType, className }: { stat: string; real: number | null; statRanges: StatRanges; hasRanges: boolean; isLoading?: boolean; playerType?: 'HITTER' | 'PITCHER'; className?: string }) {
     if (isLoading) return (
         <div className={`flex-1 relative h-5 flex items-center ${className || ''}`}>
-            <div className="absolute inset-x-0 h-1 rounded-full animate-pulse" style={{ background: 'rgba(148,163,184,0.35)' }} />
-            <div className="absolute h-5 w-5 rounded-full animate-pulse" style={{ left: '0%', background: 'rgba(148,163,184,0.35)' }} />
+            <div className="absolute inset-x-0 h-1 rounded-full animate-pulse bg-(--background-tertiary)" />
+            <div className="absolute left-0 h-5 w-5 rounded-full animate-pulse bg-(--background-tertiary)" />
         </div>
     );
     // Compute target pct unconditionally so hooks are always called in the same order
@@ -93,6 +87,7 @@ function PercentileBar({ stat, real, statRanges, hasRanges, isLoading, playerTyp
         if (animatedPct === targetPct) return; // No animation if value is unchanged
         const frame = requestAnimationFrame(() => setAnimatedPct(targetPct));
         return () => cancelAnimationFrame(frame);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [targetPct, hasValidRange]);
 
     // Early returns after all hooks
@@ -101,7 +96,7 @@ function PercentileBar({ stat, real, statRanges, hasRanges, isLoading, playerTyp
         if (!hasRanges) return (
             <div className={`flex-1 relative h-5 flex items-center opacity-25 ${className || ''}`}>
                 <div className="absolute inset-x-0 h-1 rounded-full" style={{ backgroundColor: GHOST_COLOR }} />
-                <div className="absolute h-4.5 w-4.5 rounded-full flex items-center justify-center text-[8px] font-black text-white" style={{ left: '-2px', backgroundColor: GHOST_COLOR }}>
+                <div className="absolute h-4.5 w-4.5 rounded-full flex items-center justify-center text-[8px] font-bold text-white" style={{ left: '-2px', backgroundColor: GHOST_COLOR }}>
                     0
                 </div>
             </div>
@@ -109,7 +104,7 @@ function PercentileBar({ stat, real, statRanges, hasRanges, isLoading, playerTyp
         return <div className={`flex-1 h-1 rounded-full opacity-10 ${className || ''}`} style={{ background: 'var(--form-element)' }} />;
     }
 
-    const color = percentileColor(targetPct);
+    const color = heatColor(targetPct);
     const badgeOffset = Math.max(0, Math.min(animatedPct, 96));
 
     return (
@@ -125,15 +120,15 @@ function PercentileBar({ stat, real, statRanges, hasRanges, isLoading, playerTyp
             <div
                 className={`
                     absolute h-5 w-5 rounded-full flex items-center justify-center
-                    font-extrabold text-white ${targetPct.toString().length > 2 ? 'text-[8px]' : 'text-[10px]'}
+                    font-bold text-white ${targetPct.toString().length > 2 ? 'text-[8px]' : 'text-[10px]'}
                     transition-all duration-700 cursor-default group
                 `}
                 style={{ left: `calc(${badgeOffset}%)`, backgroundColor: color }}
             >
                 {targetPct}
                 <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 hidden group-hover:flex flex-col items-center pointer-events-none z-10">
-                    <div className="rounded px-2 py-1 text-[9px] font-semibold text-white whitespace-nowrap shadow-lg" style={{ backgroundColor: color }}>
-                        <div className="font-black">{targetPct}th percentile</div>
+                    <div className="rounded-control px-2 py-1 text-[9px] font-semibold text-white whitespace-nowrap shadow-overlay" style={{ backgroundColor: color }}>
+                        <div className="font-bold">{targetPct}th percentile</div>
                         <div className="opacity-80">Min {formatStatValue(range!.min, stat)} · Max {formatStatValue(range!.max, stat)}</div>
                     </div>
                     <div className="w-1.5 h-1.5 rotate-45 -mt-1" style={{ backgroundColor: color }} />
@@ -170,7 +165,7 @@ export default function RealVsProjectedVisual({ realVsProjectedData, statRanges,
     return (
         <div className={`space-y-2 ${isEmpty ? 'opacity-25 pointer-events-none select-none' : ''}`}>
             {/* Header */}
-            <div className="flex items-center gap-2 text-[9px] font-semibold uppercase tracking-widest opacity-40 mb-0.5">
+            <div className={`flex items-center gap-2 mb-0.5 ${CAPS_LABEL_CLASS} text-(--text-tertiary)`}>
                 <span className="w-14 shrink-0">Stat</span>
                 <span className="w-12 shrink-0 text-right">Card</span>
                 <span className="w-12 shrink-0 text-right">Real</span>
@@ -188,7 +183,7 @@ export default function RealVsProjectedVisual({ realVsProjectedData, statRanges,
                         <span className="text-[12px] font-bold w-14 shrink-0 opacity-70 leading-tight">
                             {cleanStat}{suffix && <span className="text-[9px] opacity-50">{suffix}</span>}
                         </span>
-                        <span className={`text-[12px] font-black w-12 shrink-0 text-right tabular-nums ${isEmpty ? 'blur-xs' : ''}`}>
+                        <span className={`text-[12px] font-bold w-12 shrink-0 text-right tabular-nums ${isEmpty ? 'blur-xs' : ''}`}>
                             {formatStatValue(stat.projected, cleanStat)}
                         </span>
                         <span className={`text-[12px] font-semibold w-12 shrink-0 text-right tabular-nums opacity-60 ${isEmpty ? 'blur-xs' : ''}`}>

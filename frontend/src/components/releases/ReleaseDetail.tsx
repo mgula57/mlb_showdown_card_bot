@@ -1,13 +1,27 @@
-import { useState, useEffect, type ReactNode } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import * as Tabs from '@radix-ui/react-tabs';
-import type { Release, ReleaseEdition } from '../../api/releases';
-import { fetchEdition, createEdition, updateEdition } from '../../api/releases';
-import { EditionBuilder } from './EditionBuilder';
+import type { Release, ReleaseEdition, ReleaseEditionSummary, ReleaseReviewItem } from '../../api/releases';
+import { recordReleaseView } from '../../api/releases';
+import { fetchEdition, createEdition, updateEdition, updateRelease, editionSummaryOf, releaseDraftRequest, deleteRelease, deleteEdition, restoreEdition } from '../../api/releases';
+import { ReleaseDeleteModal } from './ReleaseDeleteModal';
+import { EditionBuilder, EditionBuilderSkeleton, type EditionNavRequest } from './EditionBuilder';
+import { ReleaseReviewPanel } from './ReleaseReviewPanel';
+import { useReleaseReview } from './useReleaseReview';
+import { useBeforeUnloadWarning } from '../../hooks/useBeforeUnloadWarning';
+import { ReleaseShareSheet } from './ReleaseShareSheet';
+import { ReleaseHeaderButton } from './ReleaseHeaderButton';
+import { ReleasePublicHeader } from './ReleasePublicHeader';
+import { ReleaseOnboardingContext, useReleaseOnboardingState } from './releaseOnboardingState';
+import { ReleaseOnboardingScope, ReleaseOnboardingWelcome, ReleaseTip } from './ReleaseOnboarding';
 import FormInput from '../customs/FormInput';
-import { ModeBanner } from '../shared/ModeBanner';
-import { bannerTokens } from '../../functions/colors';
-import { FaArrowLeft, FaCheck, FaEye, FaEyeSlash, FaGlobe, FaPen, FaPlus, FaSpinner, FaXmark } from 'react-icons/fa6';
+import { ModeBanner, ModeBannerButton } from '../shared/ModeBanner';
+import { FaArrowLeft, FaCheck, FaEye, FaGlobe, FaPen, FaPlus, FaRotateLeft, FaShareNodes, FaSpinner, FaTrashCan, FaXmark } from 'react-icons/fa6';
 
+import { InlineError } from '../shared/InlineError';
+import { Heading } from '../shared/Heading';
+import { buttonClass } from '../shared/buttonStyles';
+import { Plate } from '../shared/Plate';
+import { EmptyState } from '../shared/EmptyState';
 type ReleaseDetailProps = {
     release: Release;
     readOnly: boolean;
@@ -16,58 +30,224 @@ type ReleaseDetailProps = {
     onEditionChange: (slug: string) => void;
     onBack: () => void;
     onReleaseUpdated: (release: Release) => void;
+    /** The owner deleted (or retired) the release. */
+    onDeleted: (releaseId: string) => void;
+    /** The viewer remixed this release into a new one of their own (see `ReleaseRemixModal`). */
+    onRemixed?: (release: Release) => void;
     token?: string;
+    /** A card link's release card id, to open in the edition from the URL. */
+    cardRef?: string | null;
+    onCardLinkOpened?: () => void;
 };
 
 /** Owners land in `browse` once a release is published (the view everyone else gets) and in
  *  `edit` while it's still a draft. Browsing a draft is the pre-publish preview. */
 type ViewMode = 'browse' | 'edit';
 
+// The tab strip's red active bar, in the body face rather than the display italic because each tab
+// carries upright count and Draft plates (same reasoning as radixVerticalTabTriggerClass).
 const EDITION_TAB_CLASS =
-    'relative flex items-center px-3 py-2.5 text-[13px] font-bold transition-colors border-b-2 shrink-0 ' +
-    'data-[state=active]:border-(--secondary) data-[state=active]:text-(--text-primary) ' +
+    'relative flex items-center px-3 py-2.5 text-[13px] font-bold transition-colors border-b-[3px] shrink-0 cursor-pointer ' +
+    'data-[state=active]:border-(--showdown-red) data-[state=active]:text-(--text-primary) ' +
     'data-[state=inactive]:border-transparent data-[state=inactive]:text-(--text-tertiary) data-[state=inactive]:hover:text-(--text-secondary)';
 
-const PREVIEW_BANNER = { primary: '#1e3a8a', secondary: '#2563eb' };
-const LIVE_EDIT_BANNER = { primary: '#92400e', secondary: '#d97706' };
 
-export function ReleaseDetail({ release, readOnly, editionSlug, onEditionChange, onBack, onReleaseUpdated, token }: ReleaseDetailProps) {
+export function ReleaseDetail({ release, readOnly, editionSlug, onEditionChange, onBack, onReleaseUpdated, onDeleted, onRemixed, token, cardRef, onCardLinkOpened }: ReleaseDetailProps) {
     const isOwner = !readOnly;
     // Other users can only open published editions — the release itself still lists drafts.
     const editions = isOwner ? release.editions : release.editions.filter(e => e.is_published);
     const isPublished = release.editions.some(e => e.is_published);
     const hasDrafts = release.editions.some(e => !e.is_published);
+    // Once published, edits go to private working copies until the owner publishes them
+    const isStaged = release.published_version > 0;
+    const hasUnpublishedWork = isStaged ? release.has_pending_changes : hasDrafts;
 
     const [mode, setMode] = useState<ViewMode>(() => isPublished ? 'browse' : 'edit');
     const isEditing = isOwner && mode === 'edit';
-    const [publishing, setPublishing] = useState(false);
+    /** The edition the builder loads: its working copy while editing a published release. */
+    const loadedIdOf = (edition: ReleaseEditionSummary) => isEditing && edition.draft ? edition.draft.id : edition.id;
+    /** What the tab shows for an edition: the working copy's name and count while editing it. */
+    const shownOf = (edition: ReleaseEditionSummary) => isEditing && edition.draft ? edition.draft : edition;
+    /** A loaded edition knows its own cards, so prefer that over the summary's count, which a stale
+     *  release snapshot can leave behind. */
+    const cardCountOf = (edition: ReleaseEditionSummary) => editionCache[loadedIdOf(edition)]?.cards.length ?? shownOf(edition).card_count;
+    // A published edition without a working copy yet can't be edited, so open them first
+    const needsDraft = isEditing && isStaged && release.editions.some(e => e.published_at && !e.draft);
+    // Browsing a published release gets the full public header; editing (and previewing a never-
+    // published release) keeps the compact builder header
+    const showPublicHeader = !isEditing && isPublished;
 
-    const activeEditionId = (editions.find(e => e.slug === editionSlug) ?? editions[0])?.id ?? null;
+    /** Step 4 is release-wide, so it lives here rather than in each edition's builder. */
+    const [reviewOpen, setReviewOpen] = useState(false);
+    const isReviewing = isEditing && reviewOpen && !!token;
+    const review = useReleaseReview(release.id, token, isReviewing);
+    const [navRequest, setNavRequest] = useState<{ editionId: string; request: EditionNavRequest } | null>(null);
+    const [unsavedPreviews, setUnsavedPreviews] = useState<Record<string, boolean>>({});
+    const handleUnsavedPreviewChange = useCallback((editionId: string, hasUnsavedPreview: boolean) => {
+        setUnsavedPreviews(prev => prev[editionId] === hasUnsavedPreview ? prev : { ...prev, [editionId]: hasUnsavedPreview });
+    }, []);
+    // An algorithm run can take a while; a reload or closed tab shouldn't drop it unasked
+    useBeforeUnloadWarning(Object.values(unsavedPreviews).some(Boolean));
+
+    const activeEdition = editions.find(e => e.slug === editionSlug) ?? editions[0] ?? null;
+    const activeEditionId = activeEdition?.id ?? null;
+    const activeLoadedId = activeEdition && !needsDraft ? loadedIdOf(activeEdition) : null;
     const [editionCache, setEditionCache] = useState<Record<string, ReleaseEdition>>({});
+    /** Bumped per edition by a reload, so its builder remounts with the fresh copy. */
+    const [reloadCounts, setReloadCounts] = useState<Record<string, number>>({});
     const [error, setError] = useState<string | null>(null);
+    /** Set right after a publish, for the confirmation strip. */
+    const [publishedVersion, setPublishedVersion] = useState<number | null>(null);
+    const [confirmingDiscard, setConfirmingDiscard] = useState(false);
+    const [discarding, setDiscarding] = useState(false);
+    /** Which delete confirmation is open. */
+    const [deleteTarget, setDeleteTarget] = useState<'release' | 'edition' | null>(null);
+    const [restoring, setRestoring] = useState(false);
+    /** The share sheet, with an eyebrow line when it opens right after a first publish. */
+    const [shareSheet, setShareSheet] = useState<{ eyebrow?: string } | null>(null);
 
-    /** Inline name form above the builder — creates a new edition or renames the active one. */
-    const [editionForm, setEditionForm] = useState<'create' | 'rename' | null>(null);
+    // The first-build tour: owners editing a release that has never been published, outside the Review step
+    const onboarding = useReleaseOnboardingState(isEditing && !!token && !isStaged && !reviewOpen);
+    const [publishButton, setPublishButton] = useState<HTMLButtonElement | null>(null);
+    const totalCardCount = release.editions.reduce((sum, e) => sum + cardCountOf(e), 0);
+
+    /** Releases from publish/draft endpoints lack the list-only fields, so keep ours for those. */
+    function mergeRelease(updated: Release) {
+        onReleaseUpdated({ ...release, ...updated });
+    }
+
+    // Count a visit once per open (the server skips the owner's own)
+    useEffect(() => {
+        if (isPublished && !isOwner) recordReleaseView(release.id, token).catch(() => {});
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [release.id]);
+
+    const draftRequested = useRef(false);
+    useEffect(() => {
+        if (!needsDraft || !token || draftRequested.current) return;
+        draftRequested.current = true;
+        releaseDraftRequest(release.id, 'start', token)
+            .then(mergeRelease)
+            .catch(err => setError(err instanceof Error ? err.message : 'Failed to start editing.'))
+            .finally(() => { draftRequested.current = false; });
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [needsDraft, token, release.id]);
+
+    /** Inline name form above the builder — creates a new edition, renames the active one, or renames the release. */
+    const [editionForm, setEditionForm] = useState<'create' | 'rename' | 'renameRelease' | null>(null);
     const [editionFormName, setEditionFormName] = useState('');
     const [savingEditionForm, setSavingEditionForm] = useState(false);
-    const activeEditionName = editions.find(e => e.id === activeEditionId)?.name ?? '';
+    const activeEditionName = activeEdition ? shownOf(activeEdition).name : '';
 
     useEffect(() => {
-        if (!activeEditionId || editionCache[activeEditionId]) return;
+        if (!activeLoadedId || editionCache[activeLoadedId]) return;
         setError(null);
-        fetchEdition(release.id, activeEditionId, token)
+        fetchEdition(release.id, activeLoadedId, token)
             .then(edition => setEditionCache(prev => ({ ...prev, [edition.id]: edition })))
             .catch(err => setError(err.message ?? 'Failed to load edition.'));
-    }, [activeEditionId, release.id, token]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [activeLoadedId, release.id, token]);
 
     function changeMode(next: ViewMode) {
         setMode(next);
+        if (next === 'browse') setReviewOpen(false);
+        if (next === 'edit') setPublishedVersion(null);
+        setConfirmingDiscard(false);
         closeEditionForm();
     }
 
-    function openEditionForm(mode: 'create' | 'rename') {
+    function openReview() {
+        changeMode('edit');
+        setReviewOpen(true);
+    }
+
+    /** A review fix link: leave the review for the edition and step where the item gets fixed. */
+    function handleReviewFix(item: ReleaseReviewItem) {
+        const fix = item.fix;
+        const edition = release.editions.find(e => fix?.edition_id && loadedIdOf(e) === fix.edition_id);
+        if (!fix || fix.step === 'details' || !edition) return;
+        setReviewOpen(false);
+        onEditionChange(edition.slug);
+        setNavRequest({ editionId: edition.id, request: { step: fix.step, imageStatus: fix.image_status } });
+    }
+
+    /** Unpublish and description saves from the Review step. */
+    function handleReviewReleaseUpdated(updated: Release) {
+        const publishedById = new Map(updated.editions.map(e => [e.id, e.is_published]));
+        setEditionCache(prev => Object.fromEntries(Object.entries(prev).map(([id, edition]) => [
+            id, publishedById.has(id) ? { ...edition, is_published: publishedById.get(id)! } : edition,
+        ])));
+        mergeRelease(updated);
+    }
+
+    /** Publishing replaces the live editions (and drops the working copies), so reload everything. */
+    function handlePublished(updated: Release) {
+        setEditionCache({});
+        mergeRelease(updated);
+        changeMode('browse');
+        setPublishedVersion(updated.published_version);
+        onboarding.finish();
+        // The first publish is when there's a link to send for the first time
+        if (updated.published_version === 1) setShareSheet({ eyebrow: 'Published · v1' });
+    }
+
+    async function handleDiscard() {
+        if (!token || discarding) return;
+        setDiscarding(true);
+        setError(null);
+        try {
+            const updated = await releaseDraftRequest(release.id, 'discard', token);
+            setEditionCache({});
+            mergeRelease(updated);
+            changeMode('browse');
+        } catch (err) {
+            setError(err instanceof Error ? err.message : 'Failed to discard changes.');
+        } finally {
+            setDiscarding(false);
+        }
+    }
+
+    async function handleDeleteRelease() {
+        if (!token) return;
+        await deleteRelease(release.id, token);
+        setDeleteTarget(null);
+        onDeleted(release.id);
+    }
+
+    /** A published edition's removal is staged until the next publish; a never-published one goes now. */
+    async function handleDeleteEdition() {
+        if (!token || !activeEdition) return;
+        const { outcome, release: updated } = await deleteEdition(release.id, activeEdition.id, token);
+        setDeleteTarget(null);
+        closeEditionForm();
+        // Drop the edition from the release first: if the cache cleared while it was still the active
+        // edition, the load effect would refetch it and 404
+        mergeRelease(updated);
+        if (outcome !== 'staged') {
+            const goneIds = [activeEdition.id, activeEdition.draft?.id];
+            setEditionCache(prev => Object.fromEntries(Object.entries(prev).filter(([id]) => !goneIds.includes(id))));
+            setError(null);
+            const next = updated.editions[0];
+            if (next) onEditionChange(next.slug);
+        }
+    }
+
+    async function handleRestoreEdition() {
+        if (!token || !activeEdition || restoring) return;
+        setRestoring(true);
+        setError(null);
+        try {
+            mergeRelease(await restoreEdition(release.id, activeEdition.id, token));
+        } catch (err) {
+            setError(err instanceof Error ? err.message : 'Failed to keep the edition.');
+        } finally {
+            setRestoring(false);
+        }
+    }
+
+    function openEditionForm(mode: 'create' | 'rename' | 'renameRelease') {
         setEditionForm(mode);
-        setEditionFormName(mode === 'rename' ? activeEditionName : '');
+        setEditionFormName(mode === 'rename' ? activeEditionName : mode === 'renameRelease' ? release.name : '');
     }
 
     function closeEditionForm() {
@@ -78,12 +258,30 @@ export function ReleaseDetail({ release, readOnly, editionSlug, onEditionChange,
     async function handleSubmitEditionForm() {
         const name = editionFormName.trim();
         if (!token || !name || savingEditionForm) return;
-        if (editionForm === 'rename') {
-            if (!activeEditionId || name === activeEditionName) { closeEditionForm(); return; }
+        if (editionForm === 'renameRelease') {
+            // Release metadata saves directly, even while staged; the slug (and share links) stay put
+            if (name === release.name) { closeEditionForm(); return; }
             setSavingEditionForm(true);
             setError(null);
             try {
-                handleEditionUpdated(await updateEdition(release.id, activeEditionId, { name }, token));
+                mergeRelease(await updateRelease(release.id, { name }, token));
+                closeEditionForm();
+            } catch (err) {
+                setError(err instanceof Error ? err.message : 'Failed to rename release.');
+            } finally {
+                setSavingEditionForm(false);
+            }
+            return;
+        }
+        if (editionForm === 'rename') {
+            if (!activeLoadedId || name === activeEditionName) { closeEditionForm(); return; }
+            setSavingEditionForm(true);
+            setError(null);
+            try {
+                const updated = await updateEdition(release.id, activeLoadedId, { name }, token);
+                handleEditionUpdated(updated);
+                // A never-published edition's slug follows its name, so keep the URL on it
+                if (activeEdition && updated.id === activeEdition.id && updated.slug !== activeEdition.slug) onEditionChange(updated.slug);
                 closeEditionForm();
             } catch (err: any) {
                 setError(err.message ?? 'Failed to rename edition.');
@@ -99,9 +297,10 @@ export function ReleaseDetail({ release, readOnly, editionSlug, onEditionChange,
             setEditionCache(prev => ({ ...prev, [edition.id]: edition }));
             onReleaseUpdated({
                 ...release,
+                has_pending_changes: isStaged || release.has_pending_changes,
                 editions: [
                     ...release.editions,
-                    { id: edition.id, name: edition.name, attributes: edition.attributes, slug: edition.slug, is_published: edition.is_published, card_count: 0 },
+                    editionSummaryOf(edition),
                 ].sort((a, b) => a.name.localeCompare(b.name)),
             });
             onEditionChange(edition.slug);
@@ -121,12 +320,18 @@ export function ReleaseDetail({ release, readOnly, editionSlug, onEditionChange,
         setEditionCache(prev => ({ ...prev, ...Object.fromEntries(byId) }));
         onReleaseUpdated({
             ...release,
+            // Any save while staged is unpublished work (to a working copy or a new edition)
+            has_pending_changes: isStaged || release.has_pending_changes,
             editions: release.editions.map(e => {
                 const updated = byId.get(e.id);
-                return updated
-                    ? { ...e, name: updated.name, attributes: updated.attributes, is_published: updated.is_published, card_count: updated.cards.length }
+                if (updated) {
+                    return { ...e, name: updated.name, slug: updated.slug, attributes: updated.attributes, is_published: updated.is_published, card_count: updated.cards.length };
+                }
+                const updatedDraft = e.draft && byId.get(e.draft.id);
+                return updatedDraft && e.draft
+                    ? { ...e, draft: { ...e.draft, name: updatedDraft.name, card_count: updatedDraft.cards.length } }
                     : e;
-            }).sort((a, b) => a.name.localeCompare(b.name)),
+            }).sort((a, b) => shownOf(a).name.localeCompare(shownOf(b).name)),
         });
     }
 
@@ -134,36 +339,24 @@ export function ReleaseDetail({ release, readOnly, editionSlug, onEditionChange,
         applyEditionUpdates([updated]);
     }
 
-    /** Publishing is release-wide: every edition flips together. */
-    async function handleSetPublished(published: boolean) {
-        if (!token || publishing) return;
-        const targets = release.editions.filter(e => e.is_published !== published);
-        if (targets.length === 0) return;
-        const confirmed = window.confirm(published
-            ? `Publish "${release.name}"? Anyone will be able to browse ${targets.length === 1 ? 'it' : `its ${targets.length} unpublished editions`}.`
-            : `Unpublish "${release.name}"? It will be hidden from everyone but you.`
-        );
-        if (!confirmed) return;
-        setPublishing(true);
+    /** After a card save was refused because the edition changed elsewhere: load the latest copy
+     *  and start its builder over on it. */
+    async function handleReloadEdition(editionId: string) {
         setError(null);
-        const results = await Promise.allSettled(
-            targets.map(e => updateEdition(release.id, e.id, { is_published: published }, token))
-        );
-        applyEditionUpdates(results.flatMap(r => r.status === 'fulfilled' ? [r.value] : []));
-        const failed = results.find((r): r is PromiseRejectedResult => r.status === 'rejected');
-        if (failed) {
-            setError(failed.reason?.message ?? `Failed to ${published ? 'publish' : 'unpublish'} release.`);
-        } else {
-            changeMode(published ? 'browse' : 'edit');
+        try {
+            const fresh = await fetchEdition(release.id, editionId, token);
+            applyEditionUpdates([fresh]);
+            setReloadCounts(prev => ({ ...prev, [editionId]: (prev[editionId] ?? 0) + 1 }));
+        } catch (err) {
+            setError(err instanceof Error ? err.message : 'Failed to reload the edition.');
         }
-        setPublishing(false);
     }
 
-    const previewBannerButton = bannerTokens(PREVIEW_BANNER.secondary).btnClass;
-    const liveEditBannerButton = bannerTokens(LIVE_EDIT_BANNER.secondary).btnClass;
-
     return (
-        <div className="flex flex-col h-[calc(100dvh-2.5rem)] overflow-hidden">
+        <ReleaseOnboardingContext.Provider value={onboarding}>
+        {/* Height-locked from md up only — on phones the page scrolls naturally so Safari's URL bar can
+            collapse (a dvh-locked shell leaves a black bar at the bottom as the bar animates). */}
+        <div className="flex flex-col md:h-[calc(100dvh-2.5rem)] md:overflow-hidden">
             <Tabs.Root
                 value={activeEditionId ?? undefined}
                 onValueChange={id => {
@@ -172,30 +365,78 @@ export function ReleaseDetail({ release, readOnly, editionSlug, onEditionChange,
                 }}
                 className="flex flex-col flex-1 min-h-0"
             >
-                {/* Desktop: one row — back + name, edition tabs, actions. Mobile: the edition tabs wrap onto their own row. */}
+                {showPublicHeader && (
+                    <ReleasePublicHeader
+                        release={release}
+                        cardCount={editions.reduce((sum, e) => sum + cardCountOf(e), 0)}
+                        editionCount={editions.length}
+                        isOwner={isOwner}
+                        token={token}
+                        onBack={onBack}
+                        onShare={() => setShareSheet({})}
+                        onReleaseUpdated={onReleaseUpdated}
+                        onRemixed={onRemixed}
+                    >
+                        {isOwner && <ReleaseHeaderButton icon={<FaPen />} label="Edit" onClick={() => changeMode('edit')} />}
+                    </ReleasePublicHeader>
+                )}
+
+                {/* Desktop: one row — back + name, edition tabs, actions. Mobile: the edition tabs wrap onto their own row.
+                    Under the public header it's just the edition tabs. */}
                 <div className="flex flex-wrap md:flex-nowrap items-stretch gap-x-3 px-4 bg-(--background-secondary) border-b border-(--divider) shrink-0">
+                    {!showPublicHeader && (
+                    <>
                     <button type="button" onClick={onBack} aria-label="Back" className="text-(--text-tertiary) opacity-70 hover:text-(--text-primary) transition-colors shrink-0 cursor-pointer">
                         <FaArrowLeft />
                     </button>
                     <div className="flex flex-col justify-center min-w-0 flex-1 md:flex-none md:max-w-[40%] py-1.5" title={release.description || undefined}>
                         <div className="flex items-center gap-2 min-w-0">
-                            <div className="text-lg leading-tight font-black text-(--text-primary) truncate uppercase">{release.name}</div>
-                            {release.is_official && <HeaderBadge className="bg-(--secondary) text-(--background-primary)">OFFICIAL</HeaderBadge>}
-                            {isOwner && !isPublished && <HeaderBadge className="border border-(--divider) text-(--text-tertiary)">DRAFT</HeaderBadge>}
+                            <Heading level="section" as="h1" fit>{release.name}</Heading>
+                            {isEditing && (
+                                <button
+                                    type="button"
+                                    onClick={() => openEditionForm('renameRelease')}
+                                    aria-label="Rename release"
+                                    title="Rename release"
+                                    className="text-(--text-tertiary) hover:text-(--text-secondary) transition-colors shrink-0 cursor-pointer"
+                                >
+                                    <FaPen className="text-[10px]" />
+                                </button>
+                            )}
+                            {isEditing && (
+                                <button
+                                    type="button"
+                                    onClick={() => setDeleteTarget('release')}
+                                    aria-label="Delete release"
+                                    title="Delete release"
+                                    className="text-(--text-tertiary) hover:text-(--showdown-red) transition-colors shrink-0 cursor-pointer"
+                                >
+                                    <FaTrashCan className="text-[10px]" />
+                                </button>
+                            )}
+                            {release.is_official && <Plate variant="navy" size="sm">Official</Plate>}
+                            {isOwner && !isPublished && <Plate variant="outline" size="sm">Draft</Plate>}
                         </div>
                         {release.description && (
                             <div className="text-[11px] text-(--text-secondary) truncate">{release.description}</div>
                         )}
                     </div>
                     <div className="hidden md:block w-px my-2.5 bg-(--divider) shrink-0" />
-                    <Tabs.List className="order-last md:order-0 w-full md:w-auto md:flex-1 flex items-stretch gap-x-3 min-w-0 overflow-x-auto border-t border-(--divider) md:border-t-0">
+                    </>
+                    )}
+                    {/* On mobile the strip is its own row, so it bleeds through the header's px-4 (the
+                        shared carousel pattern): tabs scroll to the screen edge instead of clipping 16px short. */}
+                    <Tabs.List className={`order-last md:order-0 w-[calc(100%+2rem)] -mx-4 px-4 md:w-auto md:mx-0 md:px-0 md:flex-1 flex items-stretch gap-x-3 min-w-0 overflow-x-auto scrollbar-hide md:border-t-0 ${showPublicHeader ? '' : 'border-t border-(--divider)'}`}>
                         {editions.map(edition => (
                             <Tabs.Trigger key={edition.id} value={edition.id} className={EDITION_TAB_CLASS}>
-                                {edition.name}
-                                <span className="ml-1.5 text-[10px] text-(--text-tertiary) font-normal py-0.5 bg-(--background-primary) px-1 rounded-md">{edition.card_count}</span>
+                                {shownOf(edition).name}
+                                <Plate size="sm" className="ml-1.5">{cardCountOf(edition)}</Plate>
                                 {/* Only worth flagging per edition when the rest of the release is already public */}
                                 {isOwner && isPublished && !edition.is_published && (
-                                    <span className="ml-1.5 text-[9px] font-black text-(--text-tertiary)">DRAFT</span>
+                                    <Plate variant="outline" size="sm" className="ml-1.5">Draft</Plate>
+                                )}
+                                {isEditing && edition.pending_removal && (
+                                    <Plate variant="red" size="sm" className="ml-1.5">Removing</Plate>
                                 )}
                             </Tabs.Trigger>
                         ))}
@@ -208,72 +449,134 @@ export function ReleaseDetail({ release, readOnly, editionSlug, onEditionChange,
                                 <FaPlus className="text-[10px]" /> Edition
                             </button>
                         )}
-                        {isEditing && activeEditionId && (
-                            <button
-                                type="button"
-                                onClick={() => openEditionForm('rename')}
-                                title="Rename edition"
-                                className="flex items-center gap-1 px-2 py-2.5 text-[13px] font-semibold text-(--text-tertiary) hover:text-(--text-secondary) transition-colors shrink-0 cursor-pointer"
-                            >
-                                <FaPen className="text-[10px]" /> Rename
-                            </button>
+                        {isEditing && activeEdition && !activeEdition.pending_removal && (
+                            <>
+                                <button
+                                    type="button"
+                                    onClick={() => openEditionForm('rename')}
+                                    title="Rename edition"
+                                    className="flex items-center gap-1 px-2 py-2.5 text-[13px] font-semibold text-(--text-tertiary) hover:text-(--text-secondary) transition-colors shrink-0 cursor-pointer"
+                                >
+                                    <FaPen className="text-[10px]" /> Rename
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setDeleteTarget('edition')}
+                                    title="Delete edition"
+                                    className="flex items-center gap-1 px-2 py-2.5 text-[13px] font-semibold text-(--text-tertiary) hover:text-(--showdown-red) transition-colors shrink-0 cursor-pointer"
+                                >
+                                    <FaTrashCan className="text-[10px]" /> Delete
+                                </button>
+                            </>
                         )}
                     </Tabs.List>
 
-                    {isOwner && (
+                    {isOwner && !showPublicHeader && (
                         <div className="flex items-center gap-1.5 shrink-0 py-1.5">
                             {isEditing ? (
                                 <>
-                                    <HeaderButton icon={<FaEye />} label="Preview" collapseLabel onClick={() => changeMode('browse')} title="See this release the way others will" />
-                                    {isPublished && (
-                                        <HeaderButton icon={<FaEyeSlash />} label="Unpublish" collapseLabel busy={publishing} onClick={() => handleSetPublished(false)} title="Hide this release from everyone but you" />
+                                    <ReleaseHeaderButton
+                                        icon={<FaEye />}
+                                        label={isStaged ? 'View live' : 'Preview'}
+                                        collapseLabel
+                                        onClick={() => changeMode('browse')}
+                                        title={isStaged ? 'See the published version' : 'See this release the way others will'}
+                                    />
+                                    {hasUnpublishedWork && !reviewOpen && (
+                                        <ReleaseHeaderButton ref={setPublishButton} icon={<FaGlobe />} label={isStaged && isPublished ? 'Publish changes' : 'Publish'} tone="primary" onClick={openReview} title="Review the release, then publish it" />
                                     )}
-                                    {hasDrafts && (
-                                        <HeaderButton icon={<FaGlobe />} label="Publish" tone="primary" busy={publishing} onClick={() => handleSetPublished(true)} title="Make this release visible to everyone" />
-                                    )}
+                                    <ReleaseTip
+                                        id="publish"
+                                        show={hasUnpublishedWork && totalCardCount > 0 && onboarding.hasSeen('imagesStep')}
+                                        anchor={publishButton}
+                                        placement="bottom-end"
+                                    />
                                 </>
                             ) : (
-                                <HeaderButton icon={<FaPen />} label="Edit" onClick={() => changeMode('edit')} />
+                                <ReleaseHeaderButton icon={<FaPen />} label="Edit" onClick={() => changeMode('edit')} />
                             )}
                         </div>
                     )}
                 </div>
 
-                {isOwner && !isEditing && hasDrafts && (
-                    <ModeBanner
-                        primaryColor={PREVIEW_BANNER.primary}
-                        secondaryColor={PREVIEW_BANNER.secondary}
-                        label="PREVIEW"
-                        detail={isPublished
-                            ? '— editions marked DRAFT are only visible to you until published'
-                            : '— this is how your release will look to others once published'}
-                    >
-                        <BannerButton className={previewBannerButton} onClick={() => changeMode('edit')}>
-                            Back to Editing
-                        </BannerButton>
-                        <BannerButton className={previewBannerButton} onClick={() => handleSetPublished(true)} disabled={publishing}>
-                            {publishing ? <FaSpinner className="animate-spin" /> : <FaGlobe />} Publish
-                        </BannerButton>
+                {isOwner && !isEditing && publishedVersion !== null && (
+                    <ModeBanner tone="navy" label="PUBLISHED" detail={`— v${publishedVersion} is live. Anyone can browse it.`}>
+                        <ModeBannerButton onClick={() => setShareSheet({})}>
+                            <FaShareNodes /> Share
+                        </ModeBannerButton>
+                        <ModeBannerButton onClick={() => setPublishedVersion(null)}>
+                            <FaXmark /> Dismiss
+                        </ModeBannerButton>
                     </ModeBanner>
                 )}
 
-                {isEditing && isPublished && (
+                {isOwner && !isEditing && publishedVersion === null && hasUnpublishedWork && (
                     <ModeBanner
-                        primaryColor={LIVE_EDIT_BANNER.primary}
-                        secondaryColor={LIVE_EDIT_BANNER.secondary}
-                        label="EDITING"
-                        detail="— this release is published, so changes are live as soon as they save"
+                        tone="navy"
+                        label={isStaged ? 'LIVE VERSION' : 'PREVIEW'}
+                        detail={isStaged
+                            ? `— this is v${release.published_version}. Your unpublished changes show up once you publish them`
+                            : isPublished
+                                ? '— editions marked DRAFT are only visible to you until published'
+                                : '— this is how your release will look to others once published'}
                     >
-                        <BannerButton className={liveEditBannerButton} onClick={() => changeMode('browse')}>
-                            <FaCheck /> Done
-                        </BannerButton>
+                        <ModeBannerButton onClick={() => changeMode('edit')}>
+                            Back to Editing
+                        </ModeBannerButton>
+                        <ModeBannerButton onClick={openReview}>
+                            <FaGlobe /> Review and publish
+                        </ModeBannerButton>
+                    </ModeBanner>
+                )}
+
+                {isEditing && isStaged && (
+                    <ModeBanner
+                        tone="red"
+                        label="EDITING"
+                        detail={confirmingDiscard
+                            ? '— throw away every change since you last published? This can\'t be undone'
+                            : `— changes stay private until you publish them. Everyone else sees v${release.published_version}`}
+                    >
+                        {confirmingDiscard ? (
+                            <>
+                                <ModeBannerButton onClick={handleDiscard} disabled={discarding}>
+                                    {discarding && <FaSpinner className="animate-spin" />} Discard changes
+                                </ModeBannerButton>
+                                <ModeBannerButton onClick={() => setConfirmingDiscard(false)}>
+                                    Keep editing
+                                </ModeBannerButton>
+                            </>
+                        ) : (
+                            <>
+                                {release.has_pending_changes && (
+                                    <ModeBannerButton onClick={() => setConfirmingDiscard(true)}>
+                                        Discard changes…
+                                    </ModeBannerButton>
+                                )}
+                                <ModeBannerButton onClick={() => changeMode('browse')}>
+                                    <FaCheck /> Done
+                                </ModeBannerButton>
+                            </>
+                        )}
+                    </ModeBanner>
+                )}
+
+                {isEditing && activeEdition?.pending_removal && (
+                    <ModeBanner
+                        tone="red"
+                        label="REMOVING"
+                        detail={`— ${activeEdition.name} comes off the release when you publish. Until then it stays live`}
+                    >
+                        <ModeBannerButton onClick={handleRestoreEdition} disabled={restoring}>
+                            {restoring ? <FaSpinner className="animate-spin" /> : <FaRotateLeft />} Keep edition
+                        </ModeBannerButton>
                     </ModeBanner>
                 )}
 
                 {error && (
-                    <div className="mx-4 mt-2 text-[12px] text-red-400 px-3 py-2 rounded-lg border border-red-400/30 bg-red-400/5 shrink-0">
+                    <InlineError size="md" className="mx-4 mt-2 shrink-0">
                         {error}
-                    </div>
+                    </InlineError>
                 )}
 
                 {isEditing && editionForm && (
@@ -283,19 +586,19 @@ export function ReleaseDetail({ release, readOnly, editionSlug, onEditionChange,
                                 label=""
                                 value={editionFormName}
                                 onChange={v => setEditionFormName(v ?? '')}
-                                placeholder="Edition name (e.g. 2001, Rainbow Foil)"
+                                placeholder={editionForm === 'renameRelease' ? 'Release name' : 'Edition name (e.g. 2001, Rainbow Foil)'}
                             />
                         </div>
                         <button
                             type="button"
                             onClick={handleSubmitEditionForm}
                             disabled={!editionFormName.trim() || savingEditionForm}
-                            className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-(--secondary) text-[12px] font-bold text-(--background-primary) hover:opacity-90 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+                            className={buttonClass('primary', 'sm')}
                         >
                             {savingEditionForm
                                 ? <FaSpinner className="animate-spin text-[10px]" />
-                                : editionForm === 'rename' ? <FaCheck className="text-[10px]" /> : <FaPlus className="text-[10px]" />}
-                            {editionForm === 'rename' ? 'Save' : 'Create'}
+                                : editionForm === 'create' ? <FaPlus className="text-[10px]" /> : <FaCheck className="text-[10px]" />}
+                            {editionForm === 'create' ? 'Create' : 'Save'}
                         </button>
                         <button
                             type="button"
@@ -308,11 +611,13 @@ export function ReleaseDetail({ release, readOnly, editionSlug, onEditionChange,
                 )}
 
                 {editions.length === 0 && !(isEditing && editionForm) ? (
-                    <p className="text-[13px] text-(--text-tertiary) py-8 text-center">
+                    <EmptyState size="page" title="No editions yet.">
                         {isEditing ? 'Add an edition to start building your player pool.' : 'This release has no editions yet.'}
-                    </p>
+                    </EmptyState>
                 ) : (
-                    editions.map(edition => (
+                    editions.map(edition => {
+                        const loadedEdition = needsDraft ? undefined : editionCache[loadedIdOf(edition)];
+                        return (
                         <Tabs.Content
                             key={edition.id}
                             value={edition.id}
@@ -320,81 +625,106 @@ export function ReleaseDetail({ release, readOnly, editionSlug, onEditionChange,
                             forceMount
                             className="flex-1 min-h-0 flex flex-col focus:outline-none data-[state=inactive]:hidden"
                         >
-                            {!editionCache[edition.id] ? (
+                            {!loadedEdition ? (
                                 edition.id === activeEditionId && (
-                                    <div className="flex justify-center py-12">
-                                        <FaSpinner className="animate-spin text-(--text-tertiary) text-xl" />
-                                    </div>
+                                    <EditionBuilderSkeleton />
                                 )
                             ) : (
+                                <ReleaseOnboardingScope active={edition.id === activeEditionId}>
                                 <EditionBuilder
+                                    // The live edition and its working copy are different builders; a reload starts over
+                                    key={`${loadedEdition.id}:${reloadCounts[loadedEdition.id] ?? 0}`}
                                     releaseId={release.id}
                                     releaseName={release.name}
-                                    edition={editionCache[edition.id]}
-                                    readOnly={!isEditing}
+                                    edition={loadedEdition}
+                                    // An edition staged for removal is frozen until it's kept or published away
+                                    readOnly={!isEditing || !!edition.pending_removal}
                                     token={token}
                                     defaultShowdownSet={release.default_showdown_set}
                                     onEditionUpdated={handleEditionUpdated}
+                                    reviewOpen={isReviewing}
+                                    onReviewOpenChange={isEditing && token ? setReviewOpen : undefined}
+                                    review={isReviewing && edition.id === activeEditionId ? (
+                                        <ReleaseReviewPanel
+                                            release={release}
+                                            review={review}
+                                            unsavedPreviewEditionIds={release.editions.map(loadedIdOf).filter(id => unsavedPreviews[id])}
+                                            token={token}
+                                            onFix={handleReviewFix}
+                                            onReleaseUpdated={handleReviewReleaseUpdated}
+                                            onPublished={handlePublished}
+                                            onShare={() => setShareSheet({})}
+                                            onViewAsVisitor={() => changeMode('browse')}
+                                        />
+                                    ) : null}
+                                    navRequest={navRequest?.editionId === edition.id ? navRequest.request : null}
+                                    onUnsavedPreviewChange={handleUnsavedPreviewChange}
+                                    onReloadRequested={() => handleReloadEdition(loadedEdition.id)}
+                                    openCardRef={edition.id === activeEditionId ? cardRef : null}
+                                    onCardLinkOpened={onCardLinkOpened}
+                                    // Card links point at live cards, so only while browsing what's published
+                                    cardLinkSlugs={showPublicHeader ? { release: release.slug, edition: edition.slug } : null}
                                 />
+                                </ReleaseOnboardingScope>
                             )}
                         </Tabs.Content>
-                    ))
+                        );
+                    })
                 )}
             </Tabs.Root>
+
+            {shareSheet && (
+                <ReleaseShareSheet
+                    release={release}
+                    eyebrow={shareSheet.eyebrow}
+                    ownerToken={isOwner ? token : undefined}
+                    onReleaseUpdated={mergeRelease}
+                    onClose={() => setShareSheet(null)}
+                />
+            )}
+
+            {deleteTarget === 'release' && (
+                <ReleaseDeleteModal
+                    title={`Delete ${release.name}?`}
+                    confirmLabel="Delete release"
+                    onConfirm={handleDeleteRelease}
+                    onCancel={() => setDeleteTarget(null)}
+                >
+                    {isStaged ? (
+                        <p>It comes off the release list, card search and its share links, for you and everyone else. Teams already using its cards keep them, marked as retired.</p>
+                    ) : (
+                        <p>Deletes the release, its editions and their cards. Any of its cards already on your teams stay there, marked as retired.</p>
+                    )}
+                    <p className="font-semibold text-(--text-primary)">This can't be undone.</p>
+                </ReleaseDeleteModal>
+            )}
+
+            {deleteTarget === 'edition' && activeEdition && (
+                activeEdition.published_at ? (
+                    <ReleaseDeleteModal
+                        title={`Remove ${activeEdition.name}?`}
+                        confirmLabel="Remove on publish"
+                        onConfirm={handleDeleteEdition}
+                        onCancel={() => setDeleteTarget(null)}
+                    >
+                        <p>It stays live until you publish your changes, and you can keep it until then.</p>
+                        <p>Once published, it comes off the release. Teams already using its cards keep them, marked as retired.</p>
+                    </ReleaseDeleteModal>
+                ) : (
+                    <ReleaseDeleteModal
+                        title={`Delete ${activeEdition.name}?`}
+                        confirmLabel="Delete edition"
+                        onConfirm={handleDeleteEdition}
+                        onCancel={() => setDeleteTarget(null)}
+                    >
+                        <p>Deletes the edition and its {shownOf(activeEdition).card_count} card{shownOf(activeEdition).card_count === 1 ? '' : 's'}. Any already on your teams stay there, marked as retired.</p>
+                        <p className="font-semibold text-(--text-primary)">This can't be undone.</p>
+                    </ReleaseDeleteModal>
+                )
+            )}
+
+            <ReleaseOnboardingWelcome />
         </div>
-    );
-}
-
-function HeaderBadge({ className, children }: { className: string; children: ReactNode }) {
-    return (
-        <span className={`text-[9px] font-black rounded px-1.5 py-0.5 leading-none shrink-0 ${className}`}>
-            {children}
-        </span>
-    );
-}
-
-const HEADER_BUTTON_TONES = {
-    neutral: 'border border-(--divider) text-(--text-secondary) hover:border-(--text-tertiary) hover:text-(--text-primary)',
-    primary: 'bg-(--secondary) text-(--background-primary) hover:opacity-90',
-} as const;
-
-type HeaderButtonProps = {
-    icon: ReactNode;
-    label: string;
-    onClick: () => void;
-    tone?: keyof typeof HEADER_BUTTON_TONES;
-    /** Swaps the icon for a spinner and blocks re-entry while an async action is in flight. */
-    busy?: boolean;
-    /** Icon-only below `sm`, so secondary actions don't crowd the release name on phones. */
-    collapseLabel?: boolean;
-    title?: string;
-};
-
-function HeaderButton({ icon, label, onClick, tone = 'neutral', busy = false, collapseLabel = false, title }: HeaderButtonProps) {
-    return (
-        <button
-            type="button"
-            onClick={onClick}
-            disabled={busy}
-            title={title ?? label}
-            aria-label={label}
-            className={`flex items-center justify-center gap-1.5 h-8 min-w-8 px-2 sm:px-3 rounded-lg text-[12px] font-bold whitespace-nowrap transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${HEADER_BUTTON_TONES[tone]}`}
-        >
-            <span className="text-[12px]">{busy ? <FaSpinner className="animate-spin" /> : icon}</span>
-            <span className={collapseLabel ? 'hidden sm:inline' : ''}>{label}</span>
-        </button>
-    );
-}
-
-function BannerButton({ className, onClick, disabled, children }: { className: string; onClick: () => void; disabled?: boolean; children: ReactNode }) {
-    return (
-        <button
-            type="button"
-            onClick={onClick}
-            disabled={disabled}
-            className={`flex items-center gap-1 rounded-lg px-2 py-1 h-7 text-[11px] font-bold whitespace-nowrap cursor-pointer transition-colors disabled:opacity-60 disabled:cursor-not-allowed ${className}`}
-        >
-            {children}
-        </button>
+        </ReleaseOnboardingContext.Provider>
     );
 }

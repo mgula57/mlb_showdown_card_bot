@@ -1,4 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
+import { Heading } from './Heading';
+import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
+import { UnderToolbarFill } from './UnderToolbarFill';
 
 export type SnapPoint = 'closed' | 'peek' | 'expanded';
 
@@ -123,31 +126,21 @@ export function BottomSheet({ isOpen, onClose, title, children, dismissible = tr
     // scrollable/tappable wherever the touch isn't actually on the sheet
     // (that part is handled by the sheet's own non-passive touch listeners
     // below). Once expanded the sheet is meant to be fully modal, so on top
-    // of pinning body scroll (`overflow: hidden` alone isn't reliable on
-    // mobile Safari), also cut pointer-events to everything except the sheet
+    // of locking body scroll, also cut pointer-events to everything except the sheet
     // and backdrop themselves — this is the one guarantee that no tap can
     // ever reach whatever's behind it, regardless of z-index/layout quirks
     // in whatever page happens to be rendered underneath.
+    useBodyScrollLock(snapState === 'expanded');
     useEffect(() => {
         if (snapState !== 'expanded') return;
         const sheet = sheetRef.current;
-        const scrollY = window.scrollY;
         const body = document.body;
-        const prev = { position: body.style.position, top: body.style.top, width: body.style.width, overflow: body.style.overflow, pointerEvents: body.style.pointerEvents };
-        body.style.position = 'fixed';
-        body.style.top = `-${scrollY}px`;
-        body.style.width = '100%';
-        body.style.overflow = 'hidden';
+        const prev = body.style.pointerEvents;
         body.style.pointerEvents = 'none';
         if (sheet) sheet.style.pointerEvents = 'auto';
         return () => {
-            body.style.position = prev.position;
-            body.style.top = prev.top;
-            body.style.width = prev.width;
-            body.style.overflow = prev.overflow;
-            body.style.pointerEvents = prev.pointerEvents;
+            body.style.pointerEvents = prev;
             if (sheet) sheet.style.pointerEvents = '';
-            window.scrollTo(0, scrollY);
         };
     }, [snapState]);
 
@@ -302,6 +295,7 @@ export function BottomSheet({ isOpen, onClose, title, children, dismissible = tr
                     }
                 }}
             />
+            {backdropVisible && <UnderToolbarFill zIndex={40} className="left-0 w-full bg-black/50 lg:hidden" />}
 
             {/* Sheet — starts off-screen; JS drives all position changes. Height uses
                 lvh (large viewport, same reasoning as the backdrop above) rather than
@@ -312,7 +306,7 @@ export function BottomSheet({ isOpen, onClose, title, children, dismissible = tr
                 instead of leaving a gap. */}
             <div
                 ref={sheetRef}
-                className="lg:hidden fixed bottom-0 left-0 right-0 z-49 bg-(--background-primary) rounded-t-2xl flex flex-col shadow-[0_-8px_30px_rgba(0,0,0,0.18)] border-t border-(--divider)"
+                className="lg:hidden fixed bottom-0 left-0 right-0 z-49 bg-(--background-primary) rounded-t-card flex flex-col shadow-sheet border-t border-(--divider)"
                 style={{ height: '90lvh', transform: 'translateY(100%)', willChange: 'transform' }}
             >
                 {/* Drag handle */}
@@ -323,7 +317,7 @@ export function BottomSheet({ isOpen, onClose, title, children, dismissible = tr
                 >
                     <div className="w-10 h-1 rounded-full bg-(--divider)" />
                     {title && (
-                        <div className="text-[13px] font-bold text-(--text-primary) mt-2">{title}</div>
+                        <Heading level="section" className="mt-2">{title}</Heading>
                     )}
                     {handleContent && (
                         <div className="w-full mt-2">{handleContent}</div>

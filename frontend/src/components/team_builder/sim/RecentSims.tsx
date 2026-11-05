@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react';
 import { fetchSimHistory, fetchRecentSims as fetchRecentCommunitySims, type SimSeasonListItem } from '../../../api/sim';
 import { SimSeasonRow, SimSeasonRowSkeleton } from './SimSeasonRow';
 
+import { Eyebrow } from '../../shared/Eyebrow';
+import { Heading } from '../../shared/Heading';
 const RECENT_COUNT = 3;
 
 type Props = {
@@ -21,9 +23,9 @@ function RecentSimsColumn({ title, seasons, loading, error, emptyNote, onOpenSea
 }) {
     return (
         <div className="flex flex-col gap-2 min-w-0">
-            <h4 className="text-[13px] font-black text-(--text-tertiary) uppercase tracking-wide">{title}</h4>
+            <Eyebrow>{title}</Eyebrow>
             {error ? (
-                <p className="text-[12px] text-red-400 py-2">{error}</p>
+                <p className="text-[12px] text-(--red) py-2">{error}</p>
             ) : loading ? (
                 <div className="flex flex-col gap-1.5">
                     {Array.from({ length: RECENT_COUNT }, (_, i) => <SimSeasonRowSkeleton key={i} />)}
@@ -79,7 +81,7 @@ export function RecentSims({ token, onOpenSeason }: Props) {
 
     return (
         <div className="flex flex-col gap-3">
-            <h3 className="text-[16px] font-black text-(--text-primary)">Recent Sims</h3>
+            <Heading level="panel">Recent Sims</Heading>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <RecentSimsColumn
                     title="Mine"

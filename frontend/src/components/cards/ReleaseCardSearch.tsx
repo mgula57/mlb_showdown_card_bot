@@ -1,7 +1,8 @@
 /**
  * @fileoverview ReleaseCardSearch - card search over Release Builder editions. Wraps ShowdownCardSearch
  * (source RELEASE) with an edition picker in its search bar; the picked editions are fed in as a locked
- * `release_edition_id` filter so the rest of the filter/sort UI works unchanged. Nothing is searched
+ * `release_edition_id` filter so the rest of the filter/sort UI works unchanged. Only the signed-in
+ * user's own releases and the ones they saved in the Release Builder are offered. Nothing is searched
  * until the user picks at least one edition; the picks are remembered in localStorage.
  */
 
@@ -36,10 +37,10 @@ export default function ReleaseCardSearch() {
     const { session } = useAuth();
     const token = session?.access_token;
 
-    const options = useReleaseEditionOptions(token);
+    const options = useReleaseEditionOptions(token, 'saved');
     const [savedEditionIds, setSavedEditionIds] = useState<string[]>(loadSelectedEditions);
 
-    // Saved picks that are no longer searchable (deleted, unpublished, signed out) are left out
+    // Saved picks that are no longer searchable (deleted, unpublished, unsaved, signed out) are left out
     const selectedEditionIds = useMemo(() => {
         if (options === null) return savedEditionIds;
         const available = new Set(options.map(o => o.value));
@@ -57,14 +58,14 @@ export default function ReleaseCardSearch() {
     );
 
     const editionPicker = options === null ? (
-        <div className="h-11 w-28 md:w-48 shrink-0 rounded-xl bg-(--background-secondary) animate-pulse" />
+        <div className="h-11 w-28 md:w-48 shrink-0 rounded-card bg-(--background-secondary) animate-pulse" />
     ) : (
         <SetMultiSelect
             className="shrink-0"
             options={options}
             selections={selectedEditionIds}
             onChange={handleSelectionChange}
-            placeholder={options.length === 0 ? 'No editions' : 'Pick editions'}
+            placeholder={options.length === 0 ? (token ? 'No releases' : 'Sign in') : 'Pick editions'}
             disabled={options.length === 0}
         />
     );

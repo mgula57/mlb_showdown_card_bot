@@ -7,6 +7,7 @@ from pydantic import BaseModel
 
 from ..card.showdown_player_card import ShowdownPlayerCard
 from ..data.helpers_and_weights import REPLACEMENT_RUN_GAP_PA_BASIS
+from ..data.stat_normalizer import StatNormalizerType
 from ..shared.player_position import PlayerSubType, PositionSlot, PositionSlotParent
 from .models import Transaction, TransactionType
 from .player import SimPitcher, SimPlayer
@@ -221,7 +222,7 @@ class Roster:
 
     @staticmethod
     def _regressed_to_replacement_if_small_sample(card: ShowdownPlayerCard) -> ShowdownPlayerCard:
-        """Rebuild `card` with `regress_small_sample_to_replacement` on, from its own real stats -
+        """Rebuild `card` with the replacement level `stat_normalizer`, from its own real stats -
         no datasource re-fetch needed. Skipped for anyone already at/past the full-sample PA
         reference, so this only touches genuinely thin samples (a September callup, a Rule-5
         arm used as a spot starter, ...) whose hot small-sample rate stats can otherwise outvalue
@@ -230,7 +231,7 @@ class Roster:
         """
         if card.stats.get('PA', 0) >= REPLACEMENT_RUN_GAP_PA_BASIS:
             return card
-        return card.rebuilt(regress_small_sample_to_replacement=True)
+        return card.rebuilt(stat_normalizer=StatNormalizerType.REPLACEMENT_LEVEL)
 
     @classmethod
     def select(cls, cards: list[ShowdownPlayerCard], card_ids: dict[str, str] = {}, min_pa: int = 100, min_ip_sp: int = 50, min_ip_rp: int = 30, active_size: int = 26, full_size: int = 40, games_per_season: int = 162, regress_small_sample_stats: bool = False) -> RosterSelection:

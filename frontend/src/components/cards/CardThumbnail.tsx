@@ -3,7 +3,7 @@ import type { CardDatabaseRecord } from "../../api/card_db/cardDatabase";
 import { cardImagePublicUrl } from "../../api/supabase";
 import { getLastName } from "../../functions/names";
 import { getContrastTextColor } from "../../functions/colors";
-import { useTheme, imageForSet } from "../shared/SiteSettingsContext";
+import { SetBadge } from "../shared/SetBadge";
 import { CardActionButton } from "./CardItem";
 import type { CardItemActionButton } from "./CardItemCompact";
 import PointsBadge from "./card_elements/PointsBadge";
@@ -34,18 +34,16 @@ export const CardThumbnail = ({
     imageUrl, name, points, team, showdownSet, primaryColor, secondaryColor,
     onClick, className, isSelected, actionButton, secondaryActionButton,
 }: CardThumbnailProps) => {
-    const { isDark } = useTheme();
     // Track which URL failed so a recycled grid cell with a new card retries its image
     const [failedUrl, setFailedUrl] = useState<string | null>(null);
     const showImage = !!imageUrl && failedUrl !== imageUrl;
 
     const bannerColor = primaryColor || 'rgb(0, 0, 0)';
     const isClickable = onClick !== undefined;
+    // Same frame as CardItem: neutral hairline; selection is a navy outline (see frontend/DESIGN.md)
     const borderSettings = isSelected
-        ? 'border-current'
-        : isDark
-            ? `border-white/10${isClickable ? ' hover:border-white/50' : ''}`
-            : `border-gray-200${isClickable ? ' hover:border-black/40' : ''}`;
+        ? 'border-(--showdown-blue) ring-1 ring-(--showdown-blue)'
+        : `border-(--divider)${isClickable ? ' hover:border-(--rule-strong)' : ''}`;
 
     return (
         <div className={`${className ?? ''} relative ${actionButton?.variant === 'prominent' || secondaryActionButton?.variant === 'prominent' ? '@container' : ''}`}>
@@ -54,8 +52,8 @@ export const CardThumbnail = ({
             <div
                 className={`
                     relative aspect-[5/7] overflow-hidden
-                    rounded-xl border-3 shadow-xl bg-secondary
-                    ${isClickable ? 'cursor-pointer hover:shadow-2xl' : ''}
+                    rounded-trading-card border bg-secondary
+                    ${isClickable ? 'cursor-pointer' : ''}
                     ${borderSettings}
                 `}
                 onClick={onClick}
@@ -69,16 +67,12 @@ export const CardThumbnail = ({
                         onError={() => setFailedUrl(imageUrl!)}
                     />
                 ) : (
-                    // No rendered image yet - team-color tile with the set logo
+                    // No rendered image yet - team-color tile with the set badge
                     <div
                         className="absolute inset-0 flex items-center justify-center"
                         style={{ background: `linear-gradient(160deg, ${bannerColor}, ${secondaryColor || bannerColor})` }}
                     >
-                        <img
-                            src={imageForSet(showdownSet || '2005', true)}
-                            alt={showdownSet || 'Showdown Set'}
-                            className="w-1/2 h-auto object-contain opacity-40"
-                        />
+                        <SetBadge set={showdownSet || '2005'} size="lg" onField className="opacity-60" />
                     </div>
                 )}
 
@@ -88,7 +82,7 @@ export const CardThumbnail = ({
                     style={{ backgroundColor: bannerColor, color: getContrastTextColor(bannerColor) }}
                     title={team ? `${name} (${team})` : name}
                 >
-                    <span className="font-black text-xs truncate">{getLastName(name).toUpperCase()}</span>
+                    <span className="font-bold text-xs truncate">{getLastName(name).toUpperCase()}</span>
                     {points != null && <PointsBadge points={points} bg_color={secondaryColor} className="shrink-0" />}
                 </div>
             </div>
@@ -119,8 +113,8 @@ export const CardThumbnailFromCardDatabaseRecord = ({ card, ...props }: CardThum
 
 export function CardThumbnailSkeleton({ className }: { className?: string }) {
     return (
-        <div className={`${className ?? ''} relative aspect-[5/7] rounded-xl border border-(--divider) bg-(--background-quaternary)/40 animate-pulse overflow-hidden`}>
-            <div className="absolute bottom-0 inset-x-0 h-7 bg-(--background-quaternary)" />
+        <div className={`${className ?? ''} relative aspect-[5/7] rounded-trading-card border border-(--divider) bg-(--background-tertiary)/40 animate-pulse overflow-hidden`}>
+            <div className="absolute bottom-0 inset-x-0 h-7 bg-(--background-tertiary)" />
         </div>
     );
 }

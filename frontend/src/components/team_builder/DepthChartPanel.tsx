@@ -113,14 +113,14 @@ function PositionRow({
     return (
         <div
             className={`
-                relative flex items-center gap-3 min-h-9 rounded-lg shrink-0
+                relative flex items-center gap-3 min-h-9 rounded-card shrink-0
                 transition-all duration-200
-                ${isHighlighted ? 'ring-1 ring-(--secondary) shadow-[0_0_8px_2px_color-mix(in_srgb,var(--secondary)_40%,transparent)] animate-pulse px-1 -mx-1' : moveState ? moveSlotClass(moveState) : ''}`}
+                ${isHighlighted ? 'ring-2 ring-(--showdown-blue) animate-pulse px-1 -mx-1' : moveState ? moveSlotClass(moveState) : ''}`}
                 onClick={e => e.stopPropagation()}
                 onMouseEnter={onMouseEnter}
                 onMouseLeave={onMouseLeave}
             >
-            <span className={`text-[11px] font-bold w-5 shrink-0 text-right ${isHighlighted || moveState?.isTarget ? 'text-(--secondary)' : 'text-(--text-tertiary)'}`}>{label}</span>
+            <span className={`text-[11px] font-bold w-5 shrink-0 text-right ${isHighlighted || moveState?.isTarget ? 'text-(--showdown-blue)' : 'text-(--text-tertiary)'}`}>{label}</span>
             {card ? (
                 <div className={`flex-1 min-w-0 transition-transform ${isPeerHovered ? 'scale-[1.02]' : 'hover:scale-[1.02]'} active:scale-[0.98]`}>
                     <CardItemFromCardDatabaseRecord
@@ -145,11 +145,11 @@ function PositionRow({
                     onClick={isMoveUnderway ? moveState?.onClick : onClick}
                     // Mid-move the row fades as a whole (not as a disabled button) when it isn't a target
                     disabled={isMoveUnderway ? false : pickDisabled}
-                    className={`flex-1 flex items-center gap-1.5 px-3 h-18 rounded-lg border border-dashed
+                    className={`flex-1 flex items-center gap-1.5 px-3 h-18 rounded-control border border-dashed
                         text-[11px] disabled:pointer-events-none disabled:opacity-40 transition-colors
                         ${isActive || moveState?.isTarget
-                            ? 'border-(--secondary)/70 text-(--secondary) hover:border-(--secondary) hover:text-(--secondary)'
-                            : 'border-(--divider) text-(--text-tertiary) hover:border-(--secondary)/50 hover:text-(--secondary)'
+                            ? 'border-(--showdown-blue) text-(--showdown-blue)'
+                            : 'border-(--divider) text-(--text-tertiary) hover:border-(--rule-strong) hover:text-(--text-secondary)'
                         }`}
                 >
                     {!(isMoveUnderway ? !moveState?.onClick : pickDisabled) && <FaPlus className="text-[9px]" />}

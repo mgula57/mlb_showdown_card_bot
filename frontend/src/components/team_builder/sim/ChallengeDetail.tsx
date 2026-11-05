@@ -1,15 +1,18 @@
 import { useEffect, useState } from 'react';
-import { FaSpinner, FaTrophy } from 'react-icons/fa6';
+import { FaTrophy } from 'react-icons/fa6';
 import {
     fetchChallengeInstance, fetchSimLeaderboard,
     type ChallengeInstance, type SimLeaderboardEntry, type SimLeaderboardSort,
 } from '../../../api/sim';
-import { ChallengeCard } from './ChallengeCard';
-import { OutcomeDivider, SimSeasonRow } from './SimSeasonRow';
+import { ChallengeCard, ChallengeCardSkeleton } from './ChallengeCard';
+import { OutcomeDivider, SimSeasonRow, SimSeasonRowSkeleton } from './SimSeasonRow';
 import { challengeSuccessRate } from './challengeStats';
 import BackButton from '../../shared/BackButton';
 import { Tabs, type TabItem } from '../../shared/Tabs';
 
+import { InlineError } from '../../shared/InlineError';
+import { Heading } from '../../shared/Heading';
+import { EmptyState } from '../../shared/EmptyState';
 type Props = {
     instanceId: string;
     token?: string;
@@ -89,7 +92,7 @@ export function ChallengeDetail({ instanceId, token, initialChallenge, onBack, o
         return (
             <div className="flex flex-col gap-4">
                 {backButton}
-                <div className="text-[12px] text-red-400 px-3 py-2 rounded-lg border border-red-400/30 bg-red-400/5">{challengeError}</div>
+                <InlineError size="md">{challengeError}</InlineError>
             </div>
         );
     }
@@ -109,9 +112,7 @@ export function ChallengeDetail({ instanceId, token, initialChallenge, onBack, o
         return (
             <div className="flex flex-col gap-4">
                 {backButton}
-                <div className="flex justify-center py-12">
-                    <FaSpinner className="animate-spin text-(--text-tertiary) text-xl" />
-                </div>
+                <ChallengeCardSkeleton />
             </div>
         );
     }
@@ -129,34 +130,32 @@ export function ChallengeDetail({ instanceId, token, initialChallenge, onBack, o
 
             <div className="flex flex-col gap-2">
                 <div className="flex items-center justify-between gap-2">
-                    <h3 className="flex flex-col sm:flex-row text-left sm:items-center gap-x-2.5 text-[13px] font-black text-(--text-primary)">
-                        <div className="flex items-center gap-1.5">
-                            <FaTrophy className="text-[11px] text-(--showdown-blue)" /> 
+                    <div className="flex flex-col sm:flex-row text-left sm:items-center gap-x-2.5">
+                        <Heading level="panel" className="flex items-center gap-1.5">
+                            <FaTrophy className="text-[11px] text-(--showdown-blue)" />
                             Leaderboard
-                        </div>
+                        </Heading>
                         {successRate && (
                             <span className="text-[10px] sm:text-[11px] font-semibold text-(--text-tertiary)">
                                 {successRate.pct}% cleared ({successRate.passes}/{successRate.entrants})
                             </span>
                         )}
-                    </h3>
+                    </div>
                     <Tabs tabs={SORT_TABS} value={sort} onChange={setSort} size="sm" />
                 </div>
 
                 {entriesError && (
-                    <div className="text-[12px] text-red-400 px-3 py-2 rounded-lg border border-red-400/30 bg-red-400/5">
+                    <InlineError size="md">
                         {entriesError}
-                    </div>
+                    </InlineError>
                 )}
                 {!entriesError && entries === null && (
-                    <div className="flex justify-center py-8">
-                        <FaSpinner className="animate-spin text-(--text-tertiary) text-lg" />
+                    <div className="flex flex-col gap-1.5">
+                        {Array.from({ length: 4 }, (_, i) => <SimSeasonRowSkeleton key={i} showRank />)}
                     </div>
                 )}
                 {!entriesError && entries !== null && entries.length === 0 && (
-                    <p className="text-[12px] text-(--text-tertiary) py-6 text-center">
-                        No one has taken on this challenge yet — be the first.
-                    </p>
+                    <EmptyState size="panel" title="Be the first.">Nobody has taken on this challenge yet.</EmptyState>
                 )}
                 {entries !== null && entries.length > 0 && (
                     <div className="flex flex-col gap-1.5">

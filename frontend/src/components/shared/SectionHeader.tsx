@@ -4,6 +4,7 @@
  * `DepthChartPanel.SectionHeader`), identical except for outer container styling.
  */
 import type { KpiTile } from '../team_builder/TeamKpiUtils';
+import { CAPS_LABEL_CLASS } from './fieldStyles';
 
 type SectionHeaderVariant = 'overlay' | 'plain';
 
@@ -19,16 +20,16 @@ type SectionHeaderProps = {
 
 const VARIANT_CLASSES: Record<SectionHeaderVariant, { container: string; row: string; label: string; total: string }> = {
     overlay: {
-        container: 'px-4 py-1 backdrop-blur-xs bg-(--background)/40',
+        container: 'px-4 py-1 bg-(--background-primary)/80',
         row: 'flex items-center gap-1.5 opacity-75',
-        label: 'text-[11px] font-bold text-(--text-secondary) uppercase tracking-wide',
-        total: 'ml-auto text-[10px] font-semibold text-(--text-tertiary)',
+        label: `${CAPS_LABEL_CLASS} text-(--text-tertiary)`,
+        total: 'ml-auto text-[10px] font-semibold tabular-nums text-(--text-tertiary)',
     },
     plain: {
-        container: 'px-0 py-1 backdrop-blur-xs bg-(--background)/40',
+        container: 'px-0 py-1',
         row: 'flex items-center gap-1.5 opacity-75',
-        label: 'text-[11px] font-bold text-(--text-secondary) uppercase tracking-wide',
-        total: 'ml-auto text-[10px] font-semibold text-(--text-tertiary)',
+        label: `${CAPS_LABEL_CLASS} text-(--text-tertiary)`,
+        total: 'ml-auto text-[10px] font-semibold tabular-nums text-(--text-tertiary)',
     },
 };
 
@@ -38,17 +39,17 @@ export function SectionHeader({ label, filledCount, maxPlayers, total, kpis, var
         <div className={classes.container}>
             <div className={classes.row}>
                 <span className={classes.label}>{label}</span>
-                <span className="text-[10px] text-(--text-tertiary)">{filledCount}{maxPlayers !== undefined ? `/${maxPlayers}` : ''}</span>
+                <span className="text-[10px] tabular-nums text-(--text-tertiary)">{filledCount}{maxPlayers !== undefined ? `/${maxPlayers}` : ''}</span>
                 {total > 0 && (
                     <span className={classes.total}>{total} pts</span>
                 )}
             </div>
             {kpis && kpis.length > 0 && (
-                <div className="flex items-center gap-3 mt-1.5 overflow-x-auto scrollbar-hide pb-0.5">
+                <div className={`flex items-center gap-3 mt-1.5 overflow-x-auto scrollbar-hide pb-0.5 ${variant === 'overlay' ? '-mx-4 px-4' : ''}`}>
                     {kpis.map(({ label: kLabel, value }) => (
                         <div key={kLabel} className="flex flex-col items-center shrink-0">
                             <span className="text-[8px] text-(--text-tertiary) uppercase tracking-wider opacity-75">{kLabel}</span>
-                            <span className="text-[11px] font-bold text-(--text-secondary)">{value}</span>
+                            <span className="text-[11px] font-bold tabular-nums text-(--text-secondary)">{value}</span>
                         </div>
                     ))}
                 </div>

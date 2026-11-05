@@ -4,6 +4,7 @@ import time
 # Import business logic
 from ...core.set_builder.showdown_bot_set import ShowdownBotSet, PointBucket
 from ...core.set_builder.wotc_set_profile import WotcSetProfile
+from ...core.set_builder.selection import TeamWeighting
 from ...core.set_builder.release_importer import ReleaseImporter
 from ...core.set_builder.release_images import ReleaseImageJanitor
 from ...core.database.postgres_db import PostgresDB
@@ -67,6 +68,7 @@ def set_builder(
             all_stars_only=all_star_game,
             point_buckets=PointBucket.parse_cli(point_buckets) if point_buckets else (wotc_profile.point_buckets if wotc_profile else []),
             position_targets=wotc_profile.position_targets if wotc_profile else [],
+            team_weighting=wotc_profile.team_weighting if wotc_profile else TeamWeighting.EVEN,
             manually_included_ids=[pid.strip() for pid in manually_included_ids.split(',')] if manually_included_ids else None,
             manually_excluded_ids=[pid.strip() for pid in manually_excluded_ids.split(',')] if manually_excluded_ids else None,
             year_overrides=year_overrides_dict,

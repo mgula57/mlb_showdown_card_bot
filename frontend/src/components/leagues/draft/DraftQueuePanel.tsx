@@ -62,7 +62,7 @@ export function DraftQueuePanel({ queue, onMove, onRemove, onDraft, canDraft, fi
                                     title={canDraft ? `Draft ${card.name}` : 'Not your pick'}
                                     // The gradient is unlayered CSS, so it's swapped out rather than overridden with `disabled:`
                                     className={`shrink-0 flex items-center gap-1 rounded-full px-2.5 py-1.5 text-[10px] font-black uppercase tracking-wide ${canDraft
-                                        ? 'animated-showdown-gradient text-white shadow-md hover:brightness-110 cursor-pointer'
+                                        ? 'bg-(--showdown-blue-fill) text-white shadow-md hover:brightness-110 cursor-pointer'
                                         : 'bg-(--background-tertiary) text-(--text-tertiary) cursor-not-allowed'}`}
                                 >
                                     <FaHandPointer /> <span className="hidden sm:inline">Draft</span>

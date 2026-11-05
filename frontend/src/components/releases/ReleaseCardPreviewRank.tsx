@@ -4,20 +4,22 @@
  */
 
 import { FaStar } from 'react-icons/fa6';
+import { Plate } from '../shared/Plate';
+import { choiceClass } from '../shared/choiceStyles';
+import { FIELD_LABEL_CLASS } from '../shared/fieldStyles';
+import { InfoTooltip } from '../shared/InfoTooltip';
 
 /** Mirrors the backend's `_RELEASE_CARD_MAX_PREVIEW_RANK` (and the tile's fan size). */
 export const MAX_PREVIEW_RANK = 3;
 const RANKS = Array.from({ length: MAX_PREVIEW_RANK }, (_, i) => i + 1);
+const PICKER_HINT = 'Slot 1 sits in front. Needs a rendered image.';
 
 export function ReleaseCardPreviewRankBadge({ rank }: { rank: number }) {
     return (
-        <span
-            title={`Release preview #${rank}`}
-            className="inline-flex items-center gap-0.5 rounded-md bg-(--secondary) text-(--background-primary) text-[9px] font-black py-0.5 px-1.5 shadow-sm ring-1 ring-black/20"
-        >
+        <Plate variant="navy" size="sm" title={`Release preview #${rank}`} className="gap-0.5">
             <FaStar className="text-[8px]" />
             {rank}
-        </span>
+        </Plate>
     );
 }
 
@@ -40,8 +42,8 @@ export function ReleaseCardPreviewRankPicker({ rank, readOnly, onChange }: Relea
 
     return (
         <div className="flex flex-wrap items-center gap-2">
-            <span className="text-[10px] font-bold text-(--text-tertiary) uppercase tracking-wide">Release Preview</span>
-            <div className="flex items-center rounded-lg border border-(--divider) overflow-hidden">
+            <span className={FIELD_LABEL_CLASS}>Release Preview</span>
+            <div className="flex flex-wrap items-center gap-1">
                 {options.map(opt => {
                     const selected = opt.value === rank;
                     return (
@@ -50,15 +52,16 @@ export function ReleaseCardPreviewRankPicker({ rank, readOnly, onChange }: Relea
                             type="button"
                             onClick={() => onChange(opt.value)}
                             aria-pressed={selected}
-                            className={`min-h-8 px-2.5 text-[11px] font-bold uppercase tracking-wide transition-colors cursor-pointer
-                                ${selected ? 'bg-(--secondary) text-(--background-primary)' : 'text-(--text-tertiary) hover:text-(--text-primary)'}`}
+                            className={choiceClass(selected, 'sm', 'tabular-nums')}
                         >
                             {opt.label}
                         </button>
                     );
                 })}
             </div>
-            <span className="text-[10px] text-(--text-tertiary)">Slot 1 sits in front. Needs a rendered image.</span>
+            {/* Inline when CardDetail's action bar (an @container) has room, else behind an info icon. */}
+            <span className="hidden @4xl:inline text-[10px] text-(--text-tertiary)">{PICKER_HINT}</span>
+            <InfoTooltip text={PICKER_HINT} openOnHover className="@4xl:hidden" />
         </div>
     );
 }

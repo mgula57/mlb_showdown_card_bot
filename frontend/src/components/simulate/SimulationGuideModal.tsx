@@ -4,6 +4,7 @@ import { Modal } from '../shared/Modal';
 import { fetchSimGuide } from '../../api/sim';
 import { FaDice } from 'react-icons/fa';
 
+import { Heading } from '../shared/Heading';
 /** Strips the parts of `SIMULATION_GUIDE.md` that are written for developers, not players: the
  *  leading H1 (redundant with this modal's own title), the dev-doc cross-link in the intro
  *  paragraph, and the trailing "Where to look next" section, whose links (README.md, a frontend
@@ -17,19 +18,19 @@ function toDisplayMarkdown(raw: string): string {
 
 const markdownComponents: Components = {
     h2: ({ children }) => (
-        <h2 className="mt-6 first:mt-0 text-[15px] font-black text-(--text-primary) pb-1.5 border-b border-(--divider)">
+        <Heading level="section" className="mt-6 first:mt-0 pb-1.5 border-b border-(--divider)">
             {children}
-        </h2>
+        </Heading>
     ),
-    h3: ({ children }) => <h3 className="mt-4 text-[13px] font-black text-(--text-primary)">{children}</h3>,
+    h3: ({ children }) => <Heading level="panel" className="mt-4">{children}</Heading>,
     p: ({ children }) => <p className="text-[13px] leading-relaxed text-(--text-secondary)">{children}</p>,
     ul: ({ children }) => <ul className="list-disc pl-5 space-y-1.5 text-[13px] leading-relaxed text-(--text-secondary)">{children}</ul>,
     ol: ({ children }) => <ol className="list-decimal pl-5 space-y-1.5 text-[13px] leading-relaxed text-(--text-secondary)">{children}</ol>,
     li: ({ children }) => <li>{children}</li>,
-    strong: ({ children }) => <strong className="font-black text-(--text-primary)">{children}</strong>,
+    strong: ({ children }) => <strong className="font-bold text-(--text-primary)">{children}</strong>,
     hr: () => <hr className="border-(--divider) my-1" />,
     code: ({ children }) => (
-        <code className="px-1 py-0.5 rounded bg-(--background-secondary) text-(--showdown-blue) text-[12px] font-mono">{children}</code>
+        <code className="px-1 py-0.5 rounded-plate bg-(--background-secondary) text-(--showdown-blue) text-[12px] font-mono">{children}</code>
     ),
     a: ({ href, children }) => {
         // Only absolute links resolve outside the app - everything else in the guide is a
@@ -48,13 +49,13 @@ const markdownComponents: Components = {
 function GuideSkeleton() {
     return (
         <div className="flex flex-col gap-3 animate-pulse">
-            <div className="h-3 w-3/4 rounded bg-(--background-secondary)" />
-            <div className="h-3 w-full rounded bg-(--background-secondary)" />
-            <div className="h-3 w-5/6 rounded bg-(--background-secondary)" />
-            <div className="h-4 w-1/3 rounded bg-(--background-secondary) mt-3" />
-            <div className="h-3 w-full rounded bg-(--background-secondary)" />
-            <div className="h-3 w-full rounded bg-(--background-secondary)" />
-            <div className="h-3 w-2/3 rounded bg-(--background-secondary)" />
+            <div className="h-3 w-3/4 rounded-plate bg-(--background-tertiary)" />
+            <div className="h-3 w-full rounded-plate bg-(--background-tertiary)" />
+            <div className="h-3 w-5/6 rounded-plate bg-(--background-tertiary)" />
+            <div className="h-4 w-1/3 rounded-plate bg-(--background-tertiary) mt-3" />
+            <div className="h-3 w-full rounded-plate bg-(--background-tertiary)" />
+            <div className="h-3 w-full rounded-plate bg-(--background-tertiary)" />
+            <div className="h-3 w-2/3 rounded-plate bg-(--background-tertiary)" />
         </div>
     );
 }
@@ -83,7 +84,7 @@ function SimulationGuideContent() {
     return (
         <div className="p-5">
             {error ? (
-                <p className="text-[13px] text-red-500">{error}</p>
+                <p className="text-[13px] text-(--red)">{error}</p>
             ) : content ? (
                 <div className="flex flex-col gap-3">
                     <ReactMarkdown components={markdownComponents}>{toDisplayMarkdown(content)}</ReactMarkdown>
@@ -112,9 +113,9 @@ export function SimulationGuideModal({ onClose }: { onClose: () => void }) {
 /** The guide as an always-visible panel with its own scrolling body - for layouts with room beside the main content. */
 export function SimulationGuidePanel({ className = '' }: { className?: string }) {
     return (
-        <aside className={`flex flex-col overflow-hidden rounded-2xl border border-(--divider) bg-(--background-primary) shadow-sm ${className}`}>
+        <aside className={`flex flex-col overflow-hidden rounded-card border border-(--divider) bg-(--background-primary) ${className}`}>
             <div className="shrink-0 border-b border-(--divider) px-5 py-3">
-                <p className="text-[15px] font-black text-(--text-primary)"><FaDice className="inline mr-2" />{GUIDE_TITLE}</p>
+                <Heading level="section" as="div"><FaDice className="inline mr-2" />{GUIDE_TITLE}</Heading>
                 <p className="text-[12px] text-(--text-secondary)">{GUIDE_SUBTITLE}</p>
             </div>
             <div className="min-h-0 flex-1 overflow-y-auto">

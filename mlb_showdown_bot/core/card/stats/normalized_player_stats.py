@@ -124,6 +124,7 @@ class NormalizedPlayerStats(BaseModel):
     # Awards & Recognition
     award_summary: Optional[str] = None
     accolades: Optional[Dict[str, List[str]]] = None
+    gold_glove_position: Optional[str] = None  # Position won at for single season cards (ex: 'SS', 'UT')
     
     # Game Logs
     game_logs: Optional[List['GameLog']] = None
@@ -228,7 +229,8 @@ class NormalizedPlayerStats(BaseModel):
         # ADD TOTAL `OF` POSITION IF PLAYER HAS MULTIPLE OUTFIELD POSITIONS WITH GAMES PLAYED, USING A TOTAL FOR OAA IF AVAILABLE
         of_position_stat_lists = [p for p in position_stats_list if p.position in ('CF', 'LF', 'RF') and p.g and p.g > 0]
         if len(of_position_stat_lists) > 1:
-            of_position_stats = PositionStats(position='OF', g=0, oaa=0.0)
+            of_drs_values = [p.drs for p in of_position_stat_lists if p.drs is not None]
+            of_position_stats = PositionStats(position='OF', g=0, oaa=0.0, drs=sum(of_drs_values) if of_drs_values else None)
             for pos_stats in of_position_stat_lists:
                 of_position_stats.g += pos_stats.g
                 if pos_stats.oaa is None:
@@ -421,6 +423,7 @@ class PlayerStatsNormalizer:
             'accolades': PlayerStatsNormalizer._convert_mlb_stats_awards_and_ranks_to_accolades_dict(player, stats_period),
             'is_rookie': PlayerStatsNormalizer._determine_rookie_status(player, stats_period),
             'award_summary': PlayerStatsNormalizer._build_award_summary_str(player, stats_period),
+            'gold_glove_position': PlayerStatsNormalizer._extract_gold_glove_position(player, stats_period),
             'is_above_w_threshold': PlayerStatsNormalizer._determine_20_game_winner(player, stats_period),
 
             # # Advanced metrics
@@ -1097,6 +1100,7 @@ class PlayerStatsNormalizer:
 
             game_log_entry = {
                 'date': game_date,
+                **({'ps_round': split.game_type.value if split.game_type else None} if log_model is PostseasonGameLog else {}),
                 'team_ID': team_id,
                 'lg_ID': lg_id,
                 'game_pk': game_pk,
@@ -1201,6 +1205,16 @@ class PlayerStatsNormalizer:
                 return StatTypeEnum.STATS_SINGLE_SEASON
             case _:
                 return StatTypeEnum.STATS_SINGLE_SEASON
+
+    @staticmethod
+    def _extract_gold_glove_position(mlb_player: MLBStatsApi_Player, stats_period: StatsPeriod) -> Optional[str]:
+        """Returns the position the player won a Gold Glove at, if they won one in a single season stats period."""
+        if stats_period.is_multi_year:
+            return None
+        for award in (mlb_player.awards or []):
+            if award.short_name == 'GG' and award.season in stats_period.year_list_as_strs:
+                return award.position
+        return None
 
     @staticmethod
     def _convert_mlb_stats_awards_and_ranks_to_accolades_dict(mlb_player: MLBStatsApi_Player, stats_period: StatsPeriod) -> Dict[str, List[str]]:
@@ -1776,7 +1790,7 @@ class GameLog(BaseGameLog):
 
 class PostseasonGameLog(BaseGameLog):
     """Postseason game log"""
-    pass
+    ps_round: Optional[str] = None  # Round of the game. MLB API gameType code (e.g., "D"), same key Baseball Reference uses
 
 class Hand(str, Enum):
 

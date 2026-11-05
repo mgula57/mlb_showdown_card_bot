@@ -1,9 +1,11 @@
 import type { TeamSummary } from '../../api/userTeams';
 import { getContrastTextColor } from '../../functions/colors';
-import { useTheme, imageForSet } from '../shared/SiteSettingsContext';
+import { SetBadgeRow } from '../shared/SetBadge';
 import { useAuth } from '../auth/AuthContext';
 import { FaLock, FaUsers, FaHeart, FaEye } from 'react-icons/fa6';
 import PointsBadge from '../cards/card_elements/PointsBadge';
+import { Plate } from '../shared/Plate';
+import { headingClass } from '../shared/headingStyles';
 
 type TeamCardProps = {
     team: TeamSummary;
@@ -12,7 +14,6 @@ type TeamCardProps = {
 };
 
 export function TeamCard({ team, isSelected, onClick }: TeamCardProps) {
-    const { isDark } = useTheme();
     const { userSettings, username } = useAuth();
     const primary = team.primary_color || 'rgb(0,0,0)';
     const secondary = team.secondary_color || 'rgb(255,255,255)';
@@ -24,9 +25,7 @@ export function TeamCard({ team, isSelected, onClick }: TeamCardProps) {
     // Views/likes are only meaningful for teams reachable from Browse.
     const showSocialStats = team.is_public || team.source === 'official';
 
-    const borderSettings = isSelected
-        ? (isDark ? 'border-3 border-white/60' : 'border-3 border-gray-700')
-        : (isDark ? 'border-3 border-white/10' : 'border-3 border-gray-200');
+    const borderSettings = isSelected ? 'border-3 border-(--showdown-blue)' : 'border-3 border-(--divider)';
     const borderStyle = drafting ? 'border-dotted' : 'border-solid';
 
     return (
@@ -38,15 +37,13 @@ export function TeamCard({ team, isSelected, onClick }: TeamCardProps) {
             }}
             className={`
                 relative w-full text-left flex items-center gap-3
-                rounded-lg p-3 ${borderSettings} ${borderStyle}
+                rounded-control p-3 ${borderSettings} ${borderStyle}
                 ${onClick ? 'cursor-pointer hover:opacity-90' : 'cursor-default'}
                 transition-opacity
             `}
         >
             {drafting && (
-                <span className="absolute top-0 right-0 text-[9px] font-black rounded-tr px-1 py-0.5 leading-none bg-red-500 text-white">
-                    DRAFTING
-                </span>
+                <Plate variant="red" size="sm" className="absolute top-0 right-0">Drafting</Plate>
             )}
             {/* Team logo (left of the abbreviation badge) */}
             <div className="shrink-0 flex items-center gap-1.5">
@@ -54,11 +51,11 @@ export function TeamCard({ team, isSelected, onClick }: TeamCardProps) {
                     <img
                         src={team.logo_url}
                         alt={`${team.abbreviation} logo`}
-                        className="w-10 h-10 rounded-md object-cover shrink-0"
+                        className="w-10 h-10 rounded-control object-cover shrink-0"
                     />
                 ) : (
                     <div
-                        className="w-10 h-10 rounded-md flex items-center justify-center text-[11px] font-black shrink-0"
+                        className="w-10 h-10 rounded-control flex items-center justify-center font-display-upright uppercase text-[13px] shrink-0"
                         style={{ backgroundColor: primary, color: getContrastTextColor(primary) }}
                     >
                         {team.abbreviation}
@@ -68,7 +65,7 @@ export function TeamCard({ team, isSelected, onClick }: TeamCardProps) {
 
             <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-1.5">
-                    <span className="text-[13px] font-bold text-(--text-primary) truncate">
+                    <span className={`truncate ${headingClass('panel')}`}>
                         {team.name}
                     </span>
                     {!team.is_public && <FaLock className="shrink-0 text-[10px] text-(--text-tertiary)" />}
@@ -103,18 +100,7 @@ export function TeamCard({ team, isSelected, onClick }: TeamCardProps) {
             </div>
 
             {/* Allowed showdown sets, as a grid of icons to the left of the owner's avatar */}
-            {allowedSets.length > 0 && (
-                <div className="shrink-0 flex flex-wrap items-center justify-end gap-1 ml-auto max-w-28">
-                    {allowedSets.map(set => {
-                        const useAbbreviated = allowedSets.length >= 2;
-                        const image = imageForSet(set, useAbbreviated);
-                        const heightClass = useAbbreviated ? 'h-4.5' : 'h-5.5';
-                        return image ? (
-                            <img key={set} src={image} alt={set} className={`${heightClass} w-auto object-contain`} />
-                        ) : null;
-                    })}
-                </div>
-            )}
+            <SetBadgeRow sets={allowedSets} size="md" className="shrink-0 flex flex-wrap items-center justify-end gap-1 ml-auto max-w-28" />
 
             {/* Owner's avatar, on the far right of the card */}
             {avatarUrl && (

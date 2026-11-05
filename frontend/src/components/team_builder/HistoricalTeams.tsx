@@ -6,12 +6,15 @@ import {
 } from '../../api/mlbAPI';
 import { useSiteSettings } from '../shared/SiteSettingsContext';
 import { TeamPreviewCard, TeamPreviewCardSkeleton, type TeamPreviewData } from './TeamPreviewCard';
-import { TeamShelf } from './TeamShelf';
+import { TeamShelf, TeamShelfSkeleton } from './TeamShelf';
 import { TeamGridPage } from './TeamGridPage';
 import CustomSelect, { type SelectOption } from '../shared/CustomSelect';
-import { FaSpinner, FaChevronRight } from 'react-icons/fa6';
+import { FaChevronRight } from 'react-icons/fa6';
 import { TeamSearchInput } from './TeamSearchInput';
 
+import { InlineError } from '../shared/InlineError';
+import { headingClass } from '../shared/headingStyles';
+import { EmptyState } from '../shared/EmptyState';
 // League team-colors for the All-Star tiles / detail header.
 export const ASG_COLORS: Record<string, { primary: string; secondary: string }> = {
     AL: { primary: 'rgb(200,16,46)', secondary: 'rgb(255,255,255)' },
@@ -317,8 +320,7 @@ export function HistoricalTeams({ horizontalPadding, hideSearch = false, externa
                     value={selectedSeason == null ? 'all' : String(selectedSeason)}
                     onChange={v => setSelectedSeason(v === 'all' ? null : Number(v))}
                     options={seasonOptions}
-                    buttonClassName="px-2.5 py-1.5 rounded-lg border border-(--divider) bg-(--background-secondary) text-(--text-primary) text-[12px] text-nowrap cursor-pointer flex items-center"
-                    dropdownArrowSize={12}
+                    size="sm"
                 />
                 <button
                     type="button"
@@ -330,9 +332,9 @@ export function HistoricalTeams({ horizontalPadding, hideSearch = false, externa
             </div>
 
             {error && (
-                <div className={`${horizontalPadding ?? ''} mx-4 text-[12px] text-red-400 px-3 py-2 rounded-lg border border-red-400/30 bg-red-400/5`}>
+                <InlineError size="md" className={`${horizontalPadding ?? ''} mx-4`}>
                     {error}
-                </div>
+                </InlineError>
             )}
 
             {/* Floors the content area to one shelf's height, so switching years (which can
@@ -342,21 +344,22 @@ export function HistoricalTeams({ horizontalPadding, hideSearch = false, externa
                 {searchQuery ? (
                     /* Search results — a flat grid spanning every season */
                     searching ? (
-                        <div className="flex justify-center py-12"><FaSpinner className="animate-spin text-(--text-tertiary) text-xl" /></div>
+                        <div className={`flex flex-wrap gap-3 ${horizontalPadding ?? ''}`}>
+                            {Array.from({ length: 6 }, (_, i) => <TeamPreviewCardSkeleton key={i} />)}
+                        </div>
                     ) : searchResults.length === 0 ? (
-                        <p className="text-[13px] text-(--text-tertiary) py-8 text-center">No teams match “{searchQuery}”.</p>
+                        <EmptyState size="inline">No teams match “{searchQuery}”.</EmptyState>
                     ) : (
                         <div className={horizontalPadding ?? ''}>
                             <div className="flex items-center justify-between mb-3">
-                                <div className="text-[12px] font-semibold text-(--text-secondary) uppercase tracking-wide">
+                                <div className={headingClass('panel')}>
                                     {searchResults.length} result{searchResults.length === 1 ? '' : 's'}
                                 </div>
                                 <CustomSelect
                                     value={sortBy}
                                     onChange={v => setSortBy(v as SortKey)}
                                     options={SORT_OPTIONS}
-                                    buttonClassName="px-2.5 py-1.5 rounded-lg border border-(--divider) bg-(--background-secondary) text-(--text-primary) text-[12px] text-nowrap cursor-pointer flex items-center"
-                                    dropdownArrowSize={12}
+                                    size="sm"
                                 />
                             </div>
                             <div className="flex flex-wrap gap-3">
@@ -371,11 +374,11 @@ export function HistoricalTeams({ horizontalPadding, hideSearch = false, externa
                         </div>
                     )
                 ) : loadingSeasons ? (
-                    <div className="flex justify-center py-12"><FaSpinner className="animate-spin text-(--text-tertiary) text-xl" /></div>
+                    <TeamShelfSkeleton shelves={2} className={horizontalPadding} />
                 ) : seasons.length === 0 ? (
-                    <p className="text-[13px] text-(--text-tertiary) py-8 text-center">No historical teams have been processed yet.</p>
+                    <EmptyState size="panel" title="No teams yet.">Historical teams appear here once they have been processed.</EmptyState>
                 ) : filteredSeasons.length === 0 ? (
-                    <p className="text-[13px] text-(--text-tertiary) py-8 text-center">No teams found for {selectedSeason}.</p>
+                    <EmptyState size="inline">No teams found for {selectedSeason}.</EmptyState>
                 ) : (
                     <>
                         {filteredSeasons.slice(0, visibleCount).map(({ season, team_count }) => (

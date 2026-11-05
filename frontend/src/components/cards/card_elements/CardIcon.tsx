@@ -6,26 +6,36 @@ import { getContrastTextColor } from "../../../functions/colors";
 type CardIconProps = {
     /** Complete card data containing chart ranges and styling information */
     color: string;
+    /** Defaults to whichever of black or white contrasts with `color` */
+    textColor?: string;
     value: string;
-    circleSize: string;
+    circleSize: CircleSize;
     textSize: number;
+};
+
+type CircleSize = '3' | '4';
+
+/** Full class strings so Tailwind can see them (it can't read `w-${size}`). */
+const CIRCLE_SIZE_CLASSES: Record<CircleSize, string> = {
+    '3': 'w-3 h-3',
+    '4': 'w-4 h-4',
 };
 
 /**
  * CardIcon component displays an icon with a specified color and value.
  */
-const CardIcon = ({ color, value, circleSize, textSize }: CardIconProps) => {
-    const contrastColor = getContrastTextColor(color);
+const CardIcon = ({ color, textColor, value, circleSize, textSize }: CardIconProps) => {
+    const contrastColor = textColor ?? getContrastTextColor(color);
     const twoDigitTextSize = value.length === 2 ? (textSize - 1) : textSize;
 
     return (
-        <div 
+        <div
             className={`
-                text-[${twoDigitTextSize}px] flex w-${circleSize} h-${circleSize} 
-                items-center font-bold justify-center 
-                rounded-full tracking-tight shrink-0
-            `} 
-            style={{ backgroundColor: color, color: contrastColor }}
+                ${CIRCLE_SIZE_CLASSES[circleSize]} flex items-center justify-center
+                font-display-upright uppercase leading-none
+                rounded-full shrink-0
+            `}
+            style={{ backgroundColor: color, color: contrastColor, fontSize: `${twoDigitTextSize}px` }}
         >
             {value}
         </div>
