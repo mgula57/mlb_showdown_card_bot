@@ -4887,6 +4887,7 @@ class PostgresDB:
             ("sim_lobby",                 self.build_sim_lobby_tables),
             ("challenge tables",          self.build_challenge_tables),
             ("sim_game",                  self.build_sim_game_table),
+            ("sim_faceoff",               self.build_sim_faceoff_tables),
             ("releases",                  self.build_releases_table),
             ("historical team tables",   self.build_historical_team_tables),
             ("era team tables",           self.build_era_team_tables),
@@ -12439,6 +12440,210 @@ class PostgresDB:
             cur.execute("CREATE INDEX IF NOT EXISTS idx_sim_game_user ON internal.sim_game (user_id, created_at DESC);")
             # BACKS "OTHER PEOPLE'S SIMS OF THIS GAME", WHICH IS THE ONLY WAY TO DISCOVER ONE.
             cur.execute("CREATE INDEX IF NOT EXISTS idx_sim_game_game_pk ON internal.sim_game (game_pk, created_at DESC);")
+
+    def build_sim_faceoff_tables(self) -> None:
+        """Create the Faceoff tables: one `sim_faceoff` per matchup and one `sim_faceoff_game` per
+        game played, so a series needs no schema change.
+
+        Team ids deliberately carry no foreign key. A replay is built entirely from the snapshot in
+        `teams`, so it has to outlive the teams that played it.
+        """
+        if not self.connection:
+            return
+        with self.connection.cursor() as cur:
+            cur.execute("CREATE SCHEMA IF NOT EXISTS internal;")
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS internal.sim_faceoff (
+                    faceoff_id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                    user_id             TEXT NOT NULL,
+                    challenger_team_id  UUID,
+                    opponent_team_id    UUID,
+                    best_of             INT NOT NULL DEFAULT 1,
+                    challenger_wins     INT NOT NULL DEFAULT 0,
+                    opponent_wins       INT NOT NULL DEFAULT 0,
+                    winner_side         TEXT,
+                    is_own_matchup      BOOLEAN NOT NULL DEFAULT FALSE,
+                    seed                BIGINT,
+                    teams               JSONB NOT NULL,
+                    created_at          TIMESTAMP WITHOUT TIME ZONE DEFAULT NOW()
+                );
+            """)
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS internal.sim_faceoff_game (
+                    faceoff_id        UUID NOT NULL REFERENCES internal.sim_faceoff(faceoff_id) ON DELETE CASCADE,
+                    game_number       INT NOT NULL,
+                    home_side         TEXT NOT NULL,
+                    challenger_score  INT NOT NULL DEFAULT 0,
+                    opponent_score    INT NOT NULL DEFAULT 0,
+                    result            JSONB NOT NULL,
+                    PRIMARY KEY (faceoff_id, game_number)
+                );
+            """)
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_sim_faceoff_user ON internal.sim_faceoff (user_id, created_at DESC);")
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_sim_faceoff_challenger ON internal.sim_faceoff (challenger_team_id, created_at DESC);")
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_sim_faceoff_opponent ON internal.sim_faceoff (opponent_team_id, created_at DESC);")
+
+    # Readable by its creator, or by anyone while both teams are public. Joined live, like sim
+    # history: making a team private hides its Faceoffs, and a deleted team (no row to join) leaves
+    # them with the creator alone.
+    _SIM_FACEOFF_VISIBLE = """
+        (f.user_id = %(viewer)s OR (challenger.is_public IS TRUE AND opponent.is_public IS TRUE))
+    """
+    _SIM_FACEOFF_COLUMNS = """
+               f.faceoff_id, f.user_id, f.challenger_team_id, f.opponent_team_id, f.best_of,
+               f.challenger_wins, f.opponent_wins, f.winner_side, f.is_own_matchup, f.created_at,
+               f.teams #> '{challenger,identity}' AS challenger_identity,
+               f.teams #> '{opponent,identity}' AS opponent_identity,
+               (f.user_id = %(viewer)s) IS TRUE AS is_mine,
+               (
+                   SELECT json_agg(json_build_object(
+                       'game_number', g.game_number, 'home_side', g.home_side,
+                       'challenger_score', g.challenger_score, 'opponent_score', g.opponent_score
+                   ) ORDER BY g.game_number)
+                     FROM internal.sim_faceoff_game g
+                    WHERE g.faceoff_id = f.faceoff_id
+               ) AS game_scores
+    """
+    _SIM_FACEOFF_JOINS = """
+          FROM internal.sim_faceoff f
+          LEFT JOIN internal.user_teams challenger ON challenger.team_id = f.challenger_team_id
+          LEFT JOIN internal.user_teams opponent ON opponent.team_id = f.opponent_team_id
+    """
+
+    def record_sim_faceoff(self, user_id: str, result: dict, is_own_matchup: bool) -> str | None:
+        """Store a played Faceoff and its games together, returning its id.
+
+        Args:
+          result: A `FaceoffResult` dumped in JSON mode. Its games go to their own rows; everything
+            else is projected into `sim_faceoff`, so listing Faceoffs never parses a game log.
+        """
+        if not self.connection:
+            return None
+        teams = {side: result[side] for side in ('challenger', 'opponent')}
+        with self.transaction() as cur:
+            cur.execute(
+                """
+                INSERT INTO internal.sim_faceoff (
+                    user_id, challenger_team_id, opponent_team_id, best_of, challenger_wins,
+                    opponent_wins, winner_side, is_own_matchup, seed, teams
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                RETURNING faceoff_id
+                """,
+                (
+                    user_id, teams['challenger'].get('team_id'), teams['opponent'].get('team_id'),
+                    result.get('best_of'), result.get('challenger_wins'), result.get('opponent_wins'),
+                    result.get('winner_side'), is_own_matchup, result.get('seed'), extras.Json(teams),
+                ),
+            )
+            faceoff_id = str(cur.fetchone()[0])
+            games = result.get('games') or []
+            scores = [self._faceoff_game_scores(entry) for entry in games]
+            execute_values(
+                cur,
+                """
+                INSERT INTO internal.sim_faceoff_game (
+                    faceoff_id, game_number, home_side, challenger_score, opponent_score, result
+                ) VALUES %s
+                """,
+                [
+                    (faceoff_id, entry['game_number'], entry['home_side'], challenger, opponent, extras.Json(entry['game']))
+                    for entry, (challenger, opponent) in zip(games, scores)
+                ],
+            )
+        return faceoff_id
+
+    @staticmethod
+    def _faceoff_game_scores(entry: dict) -> tuple[int, int]:
+        """(challenger, opponent) runs for one game, which home/away alone doesn't say."""
+        game = entry.get('game') or {}
+        home, away = game.get('home_score', 0), game.get('away_score', 0)
+        return (away, home) if entry.get('home_side') == 'opponent' else (home, away)
+
+    def fetch_sim_faceoff(self, faceoff_id: str, viewer: str | None = None) -> dict | None:
+        """One Faceoff with its team snapshots and every game, or None if the viewer can't see it."""
+        if not self.connection:
+            return None
+        rows = self.execute_query(
+            f"""
+            SELECT f.teams, f.seed, {self._SIM_FACEOFF_COLUMNS}
+            {self._SIM_FACEOFF_JOINS}
+             WHERE f.faceoff_id = %(faceoff_id)s::uuid AND {self._SIM_FACEOFF_VISIBLE}
+            """,
+            {'faceoff_id': faceoff_id, 'viewer': viewer},
+        )
+        if not rows:
+            return None
+        faceoff = self._stringify_sim_faceoff_ids(rows)[0]
+        faceoff['games'] = self.execute_query(
+            """
+            SELECT game_number, home_side, challenger_score, opponent_score, result AS game
+              FROM internal.sim_faceoff_game
+             WHERE faceoff_id = %s::uuid
+             ORDER BY game_number
+            """,
+            (faceoff_id,),
+        )
+        return faceoff
+
+    def fetch_sim_faceoffs_for_user(self, user_id: str, limit: int = 20) -> list[dict]:
+        """A user's own Faceoffs, newest first, including games between their own teams."""
+        if not self.connection:
+            return []
+        rows = self.execute_query(
+            f"""
+            SELECT {self._SIM_FACEOFF_COLUMNS}
+            {self._SIM_FACEOFF_JOINS}
+             WHERE f.user_id = %(viewer)s
+             ORDER BY f.created_at DESC
+             LIMIT %(limit)s
+            """,
+            {'viewer': user_id, 'limit': limit},
+        )
+        return self._stringify_sim_faceoff_ids(rows)
+
+    def fetch_sim_faceoffs_for_team(self, team_id: str, viewer: str | None = None, limit: int = 20) -> list[dict]:
+        """Faceoffs a team played against other users' teams, newest first. Games between one
+        user's own teams stay out of this: they're practice, and live in that user's history."""
+        if not self.connection:
+            return []
+        rows = self.execute_query(
+            f"""
+            SELECT {self._SIM_FACEOFF_COLUMNS}
+            {self._SIM_FACEOFF_JOINS}
+             WHERE (f.challenger_team_id = %(team_id)s::uuid OR f.opponent_team_id = %(team_id)s::uuid)
+               AND NOT f.is_own_matchup
+               AND {self._SIM_FACEOFF_VISIBLE}
+             ORDER BY f.created_at DESC
+             LIMIT %(limit)s
+            """,
+            {'team_id': team_id, 'viewer': viewer, 'limit': limit},
+        )
+        return self._stringify_sim_faceoff_ids(rows)
+
+    def count_recent_faceoff_games(self, user_id: str, hours: int = 1) -> int:
+        """Games a user has played in the last `hours`, which is what a Faceoff rate limit counts:
+        a best-of-7 costs up to seven."""
+        if not self.connection:
+            return 0
+        rows = self.execute_query(
+            """
+            SELECT COUNT(*) AS count
+              FROM internal.sim_faceoff_game g
+              JOIN internal.sim_faceoff f ON f.faceoff_id = g.faceoff_id
+             WHERE f.user_id = %s AND f.created_at > NOW() - make_interval(hours => %s)
+            """,
+            (user_id, hours),
+        )
+        return int(rows[0]['count']) if rows else 0
+
+    @staticmethod
+    def _stringify_sim_faceoff_ids(rows: list[dict]) -> list[dict]:
+        """UUIDs and timestamps come back as objects `jsonify` won't take."""
+        for row in rows:
+            for key in ('faceoff_id', 'challenger_team_id', 'opponent_team_id', 'created_at'):
+                if row.get(key) is not None:
+                    row[key] = str(row[key])
+        return rows
 
     def record_sim_game(self, user_id: str | None, result: dict) -> str | None:
         """Store one simulated game and return its id.

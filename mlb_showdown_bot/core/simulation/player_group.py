@@ -209,6 +209,16 @@ class Rotation(PlayerGroup):
     def current_pitcher(self) -> SimPitcher:
         return self.players[self.pitcher_index]
 
+    def move_to_front(self, player_id: str) -> bool:
+        """Puts one pitcher first in the rotation, for a game where his start is chosen. Returns
+        False, changing nothing, if he isn't in it."""
+        pitcher = self.player_by_id(player_id)
+        if pitcher is None:
+            return False
+        self.players.remove(pitcher)
+        self.players.insert(0, pitcher)
+        return True
+
     # "4 DAYS REST" IN BASEBALL PARLANCE = 5 CALENDAR DAYS BETWEEN STARTS. USED ONLY FOR
     # POSTSEASON STARTER SELECTION (`starter_for_date`) - THE REGULAR SEASON STILL USES THE PLAIN
     # ROUND ROBIN ABOVE. THIS IS ALSO EXACTLY THE GAP A 5-MAN ROTATION PRODUCES ON A DAILY

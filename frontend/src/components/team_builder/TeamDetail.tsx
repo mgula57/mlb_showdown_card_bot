@@ -33,13 +33,16 @@ import {
     FaSpinner, FaArrowLeft, FaPlus, FaXmark, FaCircleCheck, FaWandMagicSparkles,
     FaShuffle, FaPenToSquare, FaStar, FaRegStar, FaGear, FaUsers,
     FaList, FaRing, FaClipboardList, FaListOl, FaCodeFork, FaPlay, FaChartLine,
-    FaRobot, FaBaseball, FaHatWizard, FaMagnifyingGlass, FaArrowRight, FaTrash,
+    FaRobot, FaBaseball, FaBaseballBatBall, FaHatWizard, FaMagnifyingGlass, FaArrowRight, FaTrash,
     FaHandPointer, FaFileImport, FaHeart, FaRegHeart, FaEye, FaGaugeHigh, FaCompass
 } from 'react-icons/fa6';
 import type { IconType } from 'react-icons';
 import { useNavigate } from 'react-router-dom';
 import { fetchTeamSimSeasons, cancelSimJob, fetchActiveSimJob, type SimSeasonListItem, type ActiveSimJob, type ChallengeInstance } from '../../api/sim';
 import { PlayModal } from './sim/PlayModal';
+import { FaceoffModal } from './faceoff/FaceoffModal';
+import { FaceoffRow } from './faceoff/FaceoffRow';
+import { fetchTeamFaceoffs, type FaceoffSummary } from '../../api/faceoff';
 import { SimSeasonRow } from './sim/SimSeasonRow';
 import { CardItemFromCardDatabaseRecord } from '../cards/CardItem';
 import PointsEstimateComparison from '../cards/card_elements/PointsEstimateComparison';
@@ -359,6 +362,8 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
     const [pendingSettings, setPendingSettings] = useState<TeamUpdatePayload | null>(null);
     const [showSettingsModal, setShowSettingsModal] = useState(false);
     const [showPlayModal, setShowPlayModal] = useState(false);
+    const [showFaceoffModal, setShowFaceoffModal] = useState(false);
+    const [teamFaceoffs, setTeamFaceoffs] = useState<FaceoffSummary[]>([]);
     const [logoUploading, setLogoUploading] = useState(false);
     const [logoError, setLogoError] = useState<string | null>(null);
     // null = not loaded yet. The Sims tab only appears once this comes back non-empty, so a
@@ -472,6 +477,16 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [team.team_id, token]);
 
+    // Faceoffs this team has played against other users' teams. Only saved teams can play one.
+    useEffect(() => {
+        if (!team.team_id || (team.source !== 'user' && team.source !== 'official')) return;
+        let stale = false;
+        fetchTeamFaceoffs(team.team_id, token)
+            .then(faceoffs => { if (!stale) setTeamFaceoffs(faceoffs); })
+            .catch(() => { if (!stale) setTeamFaceoffs([]); });
+        return () => { stale = true; };
+    }, [team.team_id, team.source, token]);
+
     // The user's own in-flight job (at most one can exist) - lets the Sims tab surface it, so a
     // stuck run can be found and cancelled without having to trigger the blocked-start 429 first.
     useEffect(() => {
@@ -507,18 +522,24 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [draft, dirty]);
 
-    // Flush any pending debounced save before navigating away, so a change made in the last
-    // 1.5s isn't lost — and, for a just-created team, so the abandon-cleanup on the parent sees
-    // the real roster rather than deleting a team that does have picks.
+    /** Saves a change still waiting on the auto-save debounce, for anything that's about to read
+     *  the team from the server. Rejects if the save fails. */
+    async function flushPendingSave() {
+        if (!dirty || readOnly) return;
+        if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        const { team_id, user_id, created_at, updated_at, total_points, ...payload } = draft;
+        await onSave(payload);
+        setDirty(false);
+    }
+
+    // Flush before navigating away, so a change made in the last 1.5s isn't lost — and, for a
+    // just-created team, so the abandon-cleanup on the parent sees the real roster rather than
+    // deleting a team that does have picks.
     async function handleBack() {
-        if (dirty && !readOnly) {
-            if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
-            try {
-                // eslint-disable-next-line @typescript-eslint/no-unused-vars
-                const { team_id, user_id, created_at, updated_at, total_points, ...payload } = draft;
-                await onSave(payload);
-            } catch { /* leaving anyway */ }
-        }
+        try {
+            await flushPendingSave();
+        } catch { /* leaving anyway */ }
         onBack?.();
     }
 
@@ -756,6 +777,10 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
     // Only the team's own owner can start a sim with it — someone browsing another user's team
     // shouldn't see a Sim action they're not allowed to use.
     const canSimulate = !!token && !isMlbTeam && !isDrafting && team.source === 'user' && !!team.team_id && isMyOwnTeam;
+    // Unlike a season, a Faceoff can start from someone else's team: their public team is the opponent.
+    const canFaceoff = !!token && !isDrafting && !!team.team_id
+        && (team.source === 'user' || team.source === 'official') && (isMyOwnTeam || team.is_public);
+    const hasFaceoffs = teamFaceoffs.length > 0;
     // Scoped to this team so a job started from a different team's page doesn't show up here.
     const activeJobForTeam = activeJob && activeJob.team_id === team.team_id ? activeJob : null;
     const hasSims = (!!teamSeasons && teamSeasons.length > 0) || !!activeJobForTeam;
@@ -1305,6 +1330,14 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
         }
     }
 
+    const faceoffsContent = (
+        <div className="grid grid-cols-1 @lg:grid-cols-2 gap-1.5 p-4">
+            {teamFaceoffs.map(faceoff => (
+                <FaceoffRow key={faceoff.faceoff_id} faceoff={faceoff} onOpen={() => navigate(`/teams/faceoffs/${faceoff.faceoff_id}`)} />
+            ))}
+        </div>
+    );
+
     const simsContent = (
         <div className="flex flex-col gap-1.5 p-4">
             {activeJobForTeam && (
@@ -1530,7 +1563,7 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
 
                 {/* Action toolbar: one filled Sim CTA plus a uniform strip of tinted actions. Sized for a
                     thumb on mobile, wrapping onto a second line rather than shrinking. */}
-                {((onToggleStar || onFork || onToggleLike || !readOnly || canSimulate || adminCanCurate) && teamMode === 'complete') && (
+                {((onToggleStar || onFork || onToggleLike || !readOnly || canSimulate || canFaceoff || adminCanCurate) && teamMode === 'complete') && (
                     <div className="flex flex-wrap items-center gap-2 basis-full md:basis-auto shrink-0 self-end px-4 pb-3.5">
 
                         {onToggleStar && (
@@ -1605,6 +1638,15 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                                 label="Publish"
                                 onClick={() => setShowPublishModal(true)}
                                 title="Publish this roster into a Featured collection"
+                            />
+                        )}
+
+                        {canFaceoff && teamMode === 'complete' && (
+                            <HeaderAction
+                                icon={FaBaseballBatBall}
+                                label="Faceoff"
+                                onClick={() => setShowFaceoffModal(true)}
+                                title={isMyOwnTeam ? `Play ${draft.name} against another team` : `Play one of your teams against ${draft.name}`}
                             />
                         )}
 
@@ -1821,6 +1863,7 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                                     {rosterFull && <Tabs.Trigger value="lineup"   className={TAB_TRIGGER_CLASS}><FaListOl className="inline mr-1" /> Lineup</Tabs.Trigger>}
                                     <Tabs.Trigger value="draft"    className={TAB_TRIGGER_CLASS}><FaList className="inline mr-1" /> Draft</Tabs.Trigger>
                                     {hasSims && <Tabs.Trigger value="sims" className={TAB_TRIGGER_CLASS}><FaChartLine className="inline mr-1" /> Sims</Tabs.Trigger>}
+                                    {hasFaceoffs && <Tabs.Trigger value="faceoffs" className={TAB_TRIGGER_CLASS}><FaBaseballBatBall className="inline mr-1" /> Faceoffs</Tabs.Trigger>}
                                 </Tabs.List>
                             )}
                             <Tabs.Content value="depth" className="focus:outline-none flex-1 overflow-y-auto scrollbar-hide" onClick={() => setPendingSlot(null)}>
@@ -1839,6 +1882,11 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                             {hasSims && (
                                 <Tabs.Content value="sims" className="focus:outline-none flex-1 overflow-y-auto scrollbar-hide">
                                     {simsContent}
+                                </Tabs.Content>
+                            )}
+                            {hasFaceoffs && (
+                                <Tabs.Content value="faceoffs" className="focus:outline-none flex-1 overflow-y-auto scrollbar-hide">
+                                    {faceoffsContent}
                                 </Tabs.Content>
                             )}
                         </Tabs.Root>
@@ -1861,6 +1909,7 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                                 {rosterFull && <Tabs.Trigger value="lineup"   className={TAB_TRIGGER_CLASS}><FaListOl className="inline mr-1" /> Lineup</Tabs.Trigger>}
                                 {!isMlbTeam && <Tabs.Trigger value="draft"    className={TAB_TRIGGER_CLASS}><FaList className="inline mr-1" />Draft</Tabs.Trigger>}
                                 {hasSims && <Tabs.Trigger value="sims" className={TAB_TRIGGER_CLASS}><FaChartLine className="inline mr-1" />Sims</Tabs.Trigger>}
+                                {hasFaceoffs && <Tabs.Trigger value="faceoffs" className={TAB_TRIGGER_CLASS}><FaBaseballBatBall className="inline mr-1" />Faceoffs</Tabs.Trigger>}
                             </Tabs.List>
 
                             <Tabs.Content value="field" className="focus:outline-none" onClick={() => setPendingSlot(null)}>
@@ -1889,6 +1938,13 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                             {hasSims && (
                                 <Tabs.Content value="sims" className="focus:outline-none">
                                     {simsContent}
+                                    {showEditControls && !isSplit && <div className="h-48" />}
+                                </Tabs.Content>
+                            )}
+
+                            {hasFaceoffs && (
+                                <Tabs.Content value="faceoffs" className="focus:outline-none">
+                                    {faceoffsContent}
                                     {showEditControls && !isSplit && <div className="h-48" />}
                                 </Tabs.Content>
                             )}
@@ -2019,6 +2075,20 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                     onPublished={published => {
                         setShowPublishModal(false);
                         navigate(`/teams/${published.team_id}`);
+                    }}
+                />
+            )}
+
+            {showFaceoffModal && token && (
+                <FaceoffModal
+                    team={draft}
+                    isOwnTeam={isMyOwnTeam}
+                    token={token}
+                    onBeforeStart={flushPendingSave}
+                    onClose={() => setShowFaceoffModal(false)}
+                    onStarted={faceoffId => {
+                        setShowFaceoffModal(false);
+                        navigate(`/teams/faceoffs/${faceoffId}`);
                     }}
                 />
             )}

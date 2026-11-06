@@ -15,6 +15,17 @@ from .team import SimTeam
 _MVP_ROUNDS = (PostseasonRound.CHAMPIONSHIP, PostseasonRound.WORLD_SERIES)
 
 
+def top_seed_is_home(game_number: int, series_length: int) -> bool:
+    """Whether the higher seed hosts this game of a series: 2-2-1 for a best-of-5, 2-3-2 for a
+    best-of-7."""
+    match game_number:
+        case 1 | 2: return True
+        case 3 | 4: return False
+        case 5: return False if series_length == 7 else True
+        case 6 | 7: return True
+        case _: return True
+
+
 class PostseasonSeries:
 
     def __init__(
@@ -107,16 +118,11 @@ class PostseasonSeries:
 
     def is_top_team_home(self, game_index: int) -> bool:
         # THE WILD CARD SERIES IS PLAYED ENTIRELY AT THE HIGHER SEED'S PARK (MLB, 2022+). EVERY
-        # OTHER ROUND ALTERNATES HOME/AWAY LIKE REAL LIFE - 2-2-1 FOR A BEST-OF-5, 2-3-2 FOR A
-        # BEST-OF-7 - REGARDLESS OF WHICH `PostseasonFormat` PRODUCED IT.
+        # OTHER ROUND ALTERNATES HOME/AWAY LIKE REAL LIFE, REGARDLESS OF WHICH `PostseasonFormat`
+        # PRODUCED IT.
         if self.round == PostseasonRound.WILDCARD:
             return True
-        match game_index:
-            case 1 | 2: return True
-            case 3 | 4: return False
-            case 5: return False if self.length == 7 else True
-            case 6 | 7: return True
-            case _: return True
+        return top_seed_is_home(game_index, self.length)
 
     def wins_for_team(self, team_name: str) -> int:
         num_wins = 0
