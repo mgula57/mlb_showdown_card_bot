@@ -5,6 +5,7 @@ import type { CardDatabaseRecord } from '../../api/card_db/cardDatabase';
 import { CardItemCompactFromCardDatabaseRecord } from '../cards/CardItemCompact';
 import { FaPlus, FaPencil } from 'react-icons/fa6';
 import { defenseAtPosition, OF_POSITIONS, IF_POSITIONS } from '../shared/DefenseUtils';
+import { orderedBullpen } from '../../domain/roster';
 import { buildLineupKpis, buildBenchKpis, buildPitcherKpis } from './TeamKpiUtils';
 import { SectionHeader } from '../shared/SectionHeader';
 import { Modal } from '../shared/Modal';
@@ -36,6 +37,7 @@ export type FieldViewRosterData = {
     roster: TeamRosterSlot[];
     rotation: PitcherAssignment[];
     benchPtsMultiplier: number;
+    bullpenOrderCustom?: boolean;
     minBench: number;
     minBullpen: number;
     maxRotation: number;
@@ -161,7 +163,7 @@ export function FieldView({
     const byPointsDesc = <T extends { card_id: string }>(a: T, b: T) => pts(b.card_id) - pts(a.card_id);
     const benchSlots    = (rosterData?.roster ?? []).filter(s => s.roster_position.toUpperCase() === 'BE').slice().sort(byPointsDesc);
     const rotByRole     = Object.fromEntries((rosterData?.rotation ?? []).filter(r => (ROTATION_ROLES as readonly string[]).includes(r.role)).map(r => [r.role, r]));
-    const bullpenSlots  = (rosterData?.rotation ?? []).filter(r => !(ROTATION_ROLES as readonly string[]).includes(r.role)).slice().sort(byPointsDesc);
+    const bullpenSlots  = orderedBullpen(rosterData?.roster ?? [], rosterData?.bullpenOrderCustom, pts);
 
     const isRoleActive = (role: string) => !!activeRole && (
         role === activeRole

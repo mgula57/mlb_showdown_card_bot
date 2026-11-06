@@ -5730,6 +5730,7 @@ class PostgresDB:
             t.primary_color, t.secondary_color,
             t.is_public, t.source, t.logo_url, t.is_archived,
             t.pts_limit, t.roster_size, t.min_bench, t.min_bullpen, t.num_starters, t.bench_pts_multiplier,
+            t.bullpen_order_custom,
             t.created_at, t.updated_at, t.allowed_sets, t.allowed_sets_by_source, t.player_filters, t.allowed_card_sources,
             t.origin_template_id, t.creation_source,
             t.view_count, t.like_count, t.fork_count, t.forked_from_id,
@@ -5985,6 +5986,14 @@ class PostgresDB:
             cur.execute("""
                 ALTER TABLE internal.user_teams
                     ADD COLUMN IF NOT EXISTS is_archived BOOLEAN NOT NULL DEFAULT FALSE;
+            """)
+            # Whether the owner has ordered the bullpen by hand. The order itself is the roster's
+            # `sort_order`, which exists on every team, so this is what separates a chosen order
+            # from a roster that merely happens to sit in draft order. FALSE leaves the sim's
+            # default ranking alone, so a team that never touches it plays exactly as before.
+            cur.execute("""
+                ALTER TABLE internal.user_teams
+                    ADD COLUMN IF NOT EXISTS bullpen_order_custom BOOLEAN NOT NULL DEFAULT FALSE;
             """)
             # How the team was first created, so it can be filtered later. Free-form text set by
             # the create route: 'new_team' (plain New Team button), 'challenge' (the New Team
@@ -6580,6 +6589,7 @@ class PostgresDB:
         'name', 'abbreviation', 'primary_color', 'secondary_color',
         'is_public', 'logo_url', 'is_archived',
         'pts_limit', 'roster_size', 'min_bench', 'min_bullpen', 'num_starters', 'bench_pts_multiplier',
+        'bullpen_order_custom',
         'allowed_sets', 'allowed_sets_by_source', 'player_filters', 'allowed_card_sources',
         'origin_template_id', 'creation_source', 'forked_from_id',
     }

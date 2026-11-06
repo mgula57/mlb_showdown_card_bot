@@ -567,7 +567,11 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
     function acceptAutofillPreview() {
         if (!autofillPreview) return;
         const { strategy, result } = autofillPreview;
-        update({ roster: result.roster, lineups: result.lineups, rotation: result.rotation });
+        update({
+            roster: result.roster, lineups: result.lineups, rotation: result.rotation,
+            // A rebuilt roster has no order the owner chose.
+            ...(strategy.replace_existing ? { bullpen_order_custom: false } : {}),
+        });
         setLastAutofillStrategy(strategy);
         if (strategy.replace_existing) {
             const n = result.roster.length;
@@ -645,22 +649,22 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
     }
 
     /** Bench and bullpen are drafted free-form: the pick is appended with a generic
-     *  roster_position ('BE' / 'RP'), and — when replacing an existing row — the old card is
-     *  pruned from the roster and any lineup/rotation slot first. The server re-derives the
-     *  rotation (points-ordered) on save; we mirror the bullpen change locally so it shows
-     *  immediately. */
+     *  roster_position ('BE' / 'RP'), and — when replacing an existing row — the new card takes
+     *  the old one's place in the roster, keeping a custom bullpen order and a closer's role, and
+     *  the old card is pruned from any lineup/rotation slot. The server re-derives the rotation
+     *  (points-ordered) on save; we mirror the bullpen change locally so it shows immediately. */
     function addGenericSlot(position: 'BE' | 'RP', card: CardDatabaseRecord, replacing: { card_id: string } | null, pickSource: PickSource = 'MANUAL') {
         addCard(card);
+        const replacedSlot = replacing ? draft.roster.find(s => s.card_id === replacing.card_id) : undefined;
         const rosterSlot: TeamRosterSlot = {
             ...slotRefForCard(card),
-            roster_position: position,
+            roster_position: replacedSlot?.roster_position === 'CL' ? 'CL' : position,
             draft_order: nextDraftOrder(),
             pick_source: pickSource,
         };
-        const roster = [
-            ...draft.roster.filter(s => !replacing || s.card_id !== replacing.card_id),
-            rosterSlot,
-        ];
+        const roster = replacedSlot
+            ? draft.roster.map(s => (s === replacedSlot ? rosterSlot : s))
+            : [...draft.roster, rosterSlot];
         const lineups = replacing
             ? draft.lineups.map(ln => ({ ...ln, slots: ln.slots.filter(s => s.card_id !== replacing.card_id) }))
             : draft.lineups;
@@ -1038,11 +1042,12 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
         roster: draft.roster,
         rotation: draft.rotation,
         benchPtsMultiplier: draft.bench_pts_multiplier,
+        bullpenOrderCustom: draft.bullpen_order_custom,
         minBench: effectiveBucketMins.bench,
         minBullpen: effectiveBucketMins.bullpen,
         maxRotation: draft.num_starters,
         draftSlots: showEditControls ? draftSlotCounts : undefined,
-    }), [draft.roster, draft.rotation, draft.bench_pts_multiplier, effectiveBucketMins, draft.num_starters, showEditControls, draftSlotCounts]);
+    }), [draft.roster, draft.rotation, draft.bench_pts_multiplier, draft.bullpen_order_custom, effectiveBucketMins, draft.num_starters, showEditControls, draftSlotCounts]);
 
     const previewRosterData: FieldViewRosterData | null = useMemo(() => {
         if (!autofillPreview) return null;

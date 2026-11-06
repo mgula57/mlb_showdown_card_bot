@@ -71,7 +71,7 @@ class Bullpen(PlayerGroup):
     players: list[SimPitcher]
     pitching_log: PitchingLog = Field(default_factory=PitchingLog)
     closer_id: Optional[str] = None            # EXPLICIT CLOSER FROM BUILDER TEAM "CP" ROLE
-    role_order: dict[str, int] = {}            # OPTIONAL EXPLICIT BULLPEN RANKING FROM BUILDER ROLES (SU < MR < LONG)
+    role_order: dict[str, int] = {}            # OPTIONAL BULLPEN RANKING CHOSEN BY THE BUILDER TEAM'S OWNER (LOWER RANKS HIGHER)
     # ARMS ONLY USED ONCE EVERY OTHER AVAILABLE RELIEVER IS GONE - E.G. A REAL MLB GAME'S OFF-DAY
     # STARTERS, WHO SIT ON THE ACTIVE ROSTER BUT AREN'T REALLY PART OF TONIGHT'S BULLPEN.
     last_resort_ids: set[str] = set()
