@@ -12,7 +12,7 @@
  *    current caller, so that branch is dead code until it exists; it costs nothing to leave wired.
  */
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import type { FrameTransition, GameFrame, GameTimeline, TransitionSeverity } from "../domain/timeline";
+import { nextInningFrameIndex, type FrameTransition, type GameFrame, type GameTimeline, type TransitionSeverity } from "../domain/timeline";
 import type { PlayEntry } from "../domain/play";
 import { usePrefersReducedMotion } from "./usePrefersReducedMotion";
 
@@ -49,6 +49,8 @@ export type GamePlaybackState = {
     pendingPlay?: PlayEntry;
     isBehindLive: boolean;
     behindBy: number;
+    /** Where `seekToNextInning` would land, or null when there's no next inning to jump to. */
+    nextInningIndex: number | null;
 };
 
 export type GamePlaybackControls = {
@@ -59,6 +61,8 @@ export type GamePlaybackControls = {
     stepBack: () => void;
     seek: (index: number) => void;
     seekToStart: () => void;
+    /** Jumps to the top of the next inning. Unlike `seek`, autoplay carries on from there. */
+    seekToNextInning: () => void;
     seekToLive: () => void;
     setSpeed: (speed: PlaybackSpeed) => void;
     /** Interactive seam — resolves an `"await-input"` suspension. The caller is responsible for
@@ -127,6 +131,7 @@ export function useGamePlayback(options: {
     }, [frames, cursorId]);
 
     const behindBy = Math.max(0, frames.length - 1 - cursorIndex);
+    const nextInningIndex = useMemo(() => nextInningFrameIndex(frames, cursorIndex), [frames, cursorIndex]);
     const isBehindLive = mode === "live" && behindBy > 0;
     const catchUpBoost = mode === "live" && isPlaying && behindBy > CATCH_UP_THRESHOLD ? CATCH_UP_MULTIPLIER : 1;
     const effectiveSpeed = speed * catchUpBoost;
@@ -286,6 +291,13 @@ export function useGamePlayback(options: {
             setCursorId(frames[clamped].id);
         },
         seekToStart: () => controls.seek(0),
+        seekToNextInning: () => {
+            if (nextInningIndex === null) return;
+            interrupt();
+            setCursorId(frames[nextInningIndex].id);
+            const reachedEnd = nextInningIndex >= frames.length - 1;
+            if (reachedEnd && mode !== "live" && mode !== "interactive") setIsPlaying(false);
+        },
         seekToLive: () => {
             interrupt();
             liveAnchorRef.current = null; // instant jump — don't let the anchor pull the cursor back to animate
@@ -314,6 +326,7 @@ export function useGamePlayback(options: {
         pendingPlay,
         isBehindLive,
         behindBy,
+        nextInningIndex,
     };
 
     return [state, controls];
