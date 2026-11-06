@@ -249,7 +249,8 @@ export const CardItem = ({
 
                     <div className="flex flex-col gap-1.5 pt-0.5 overflow-x-scroll scrollbar-hide">
                         {/* Player name, year/team badge, and special ability icons */}
-                        <div className="flex flex-row gap-1 items-center">
+                        {/* Fixed height so edition logos (which are taller than the text) never change the row height */}
+                        <div className="flex flex-row gap-1 items-center h-6 -my-0.5">
                             <div className={`font-display-upright text-[17px] leading-none ${isRedacted ? 'redacted text-sm' : ''}`}>{cardName?.toUpperCase() || 'REDACTED NAME'}</div>
 
                             {cardIsErrata && (
@@ -276,7 +277,7 @@ export const CardItem = ({
                                     {cardEdition === 'ASG' ? (
                                         <FaStar className="inline-block w-4 h-4 text-(--gold) shrink-0" />
                                     ) : (
-                                        <img src={`/images/card/edition-${cardEdition.toLowerCase()}.png`} className="w-6 h-6 object-contain object-center" alt="Edition" />
+                                        <img src={`/images/card/edition-${cardEdition.toLowerCase()}.png`} className="w-6 h-6 max-h-6 shrink-0 object-contain object-center" alt="Edition" />
                                     )}
                                     
                                 </>
