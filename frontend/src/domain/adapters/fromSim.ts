@@ -8,7 +8,7 @@ import type { BoxscoreBatterLine, BoxscorePitcherLine, GameDecisions, GameSide, 
 import type { PlayEntry } from "../play";
 import type { TeamIdentity } from "../team";
 import { ordinal } from "../../functions/formatters";
-import type { SimGameResult } from "../../api/simGame";
+import type { SimGameStartState } from "../../api/simGame";
 import {
     buildRunnerMoves,
     EMPTY_BASES,
@@ -24,7 +24,7 @@ import {
     type RunnerMove,
     type RunnerSpot,
 } from "../timeline";
-import { SimBoxscoreAccumulator } from "./simBoxscore";
+import { realCardId, SimBoxscoreAccumulator } from "./simBoxscore";
 
 export type SimTeamIdentityJson = {
     abbreviation: string;
@@ -198,6 +198,27 @@ export type SimGameResultJson = {
     innings_played: number;
     is_extra_innings: boolean;
 };
+
+const bareRunner = (runner: SimRunnerRefJson): SimRunnerRefJson => ({ ...runner, id: realCardId(runner.id) });
+const bareRoll = (roll: SimRunnerRollJson): SimRunnerRollJson => ({ ...roll, runner_id: realCardId(roll.runner_id) });
+
+/** A log entry with the engine's builder-prefixed player ids reduced to bare card ids, the id space
+ *  the card map and box score use. Everything past this point compares ids against those, so a
+ *  sim's log has to enter the adapter through here. An absent field stays absent, and a null stays
+ *  null: the replay reads the difference as whether the log recorded that beat at all. */
+const withRealCardIds = (entry: SimGameLogEntryJson): SimGameLogEntryJson => ({
+    ...entry,
+    pitcher_id: entry.pitcher_id && realCardId(entry.pitcher_id),
+    hitter_id: entry.hitter_id && realCardId(entry.hitter_id),
+    bases_detail: entry.bases_detail && entry.bases_detail.map(bareRunner),
+    scored: entry.scored && entry.scored.map(bareRunner),
+    retired: entry.retired && entry.retired.map(bareRunner),
+    bases_after_steal: entry.bases_after_steal && entry.bases_after_steal.map(bareRunner),
+    bases_after_swing: entry.bases_after_swing && entry.bases_after_swing.map(bareRunner),
+    steal_rolls: entry.steal_rolls && entry.steal_rolls.map(bareRoll),
+    advance_rolls: entry.advance_rolls && entry.advance_rolls.map(bareRoll),
+    double_play_roll: entry.double_play_roll && bareRoll(entry.double_play_roll),
+});
 
 /** `Result` enum values (`core/simulation/result.py`) as play-log badge labels. Only a fallback —
  * the engine now sends its own `event`, worded the way the MLB feed words it. */
@@ -436,10 +457,9 @@ const mapDetailBases = (refs: SimRunnerRefJson[]): Record<BaseSlot, PlayerRef | 
  * here" section. Only the simulated portion gets full playback; it's seeded from
  * `setup.start_state` so the handoff doesn't invent arrivals for runners already on base.
  */
-export const fromSimTimeline = (result: SimGameResult): GameTimeline => {
-    const view = fromSimGame(result.game);
-    const log = result.game.log ?? [];
-    const startState = result.setup.start_state;
+export const fromSimTimeline = (game: SimGameResultJson, gameId: number | string, startState?: SimGameStartState | null): GameTimeline => {
+    const view = fromSimGame(game);
+    const log = (game.log ?? []).map(withRealCardIds);
 
     const scheduledInnings = view.linescore?.scheduledInnings ?? 9;
     const finalErrors = { away: view.linescore?.away.errors ?? 0, home: view.linescore?.home.errors ?? 0 };
@@ -786,7 +806,7 @@ export const fromSimTimeline = (result: SimGameResult): GameTimeline => {
     }
 
     return {
-        gameId: result.game_pk,
+        gameId,
         source: "SIM",
         frames,
         liveIndex: frames.length - 1,
