@@ -1421,11 +1421,11 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
                         ref={setBuildPanelRail}
                         type="button"
                         onClick={toggleBuildPanelHidden}
-                        title="Show build method"
+                        title="Show build panel"
                         className="hidden md:flex flex-col items-center gap-3 w-9 shrink-0 py-3 border-r border-(--divider) text-(--text-tertiary) hover:text-(--text-primary) hover:bg-(--background-secondary) transition-colors cursor-pointer"
                     >
                         <FaAnglesRight className="text-[12px]" />
-                        <span className={`${FIELD_LABEL_CLASS} text-inherit! [writing-mode:vertical-rl]`}>Build Method</span>
+                        <span className={`${FIELD_LABEL_CLASS} text-inherit! [writing-mode:vertical-rl]`}>Build</span>
                     </button>
                 )}
 
@@ -1442,25 +1442,26 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
                             md:flex-none md:shrink-0 md:w-(--build-panel-width) md:max-w-(--build-panel-max-width) md:border-r md:border-(--divider)
                             ${buildPanelHidden ? 'md:hidden' : 'md:flex'}`}
                     >
+                        {/* Panel header first: hiding collapses everything below it, the scope included */}
+                        <div className={`px-3 pt-2 pb-1 shrink-0 flex items-center justify-between gap-2 ${CHROME_SURFACE_CLASS}`}>
+                            <div className="flex items-center gap-1.5">
+                                <button
+                                    type="button"
+                                    onClick={toggleBuildPanelHidden}
+                                    title="Hide build panel"
+                                    className="hidden md:flex items-center justify-center w-5 h-5 rounded-control text-(--text-tertiary) hover:text-(--text-primary) hover:bg-(--divider) transition-colors cursor-pointer"
+                                >
+                                    <FaAnglesLeft className="text-[11px]" />
+                                </button>
+                                <span className={FIELD_LABEL_CLASS}>Build</span>
+                            </div>
+                        </div>
                         <ScopeSummary
                             scope={scope}
                             outside={outsideScope}
                             onSetSizeChange={set_size => changeScope({ set_size })}
                             onEdit={handleOpenSetupStep}
                         />
-                        <div className={`px-3 pt-2 pb-1 shrink-0 flex items-center justify-between gap-2 ${CHROME_SURFACE_CLASS}`}>
-                            <div className="flex items-center gap-1.5">
-                                <button
-                                    type="button"
-                                    onClick={toggleBuildPanelHidden}
-                                    title="Hide build method"
-                                    className="hidden md:flex items-center justify-center w-5 h-5 rounded-control text-(--text-tertiary) hover:text-(--text-primary) hover:bg-(--divider) transition-colors cursor-pointer"
-                                >
-                                    <FaAnglesLeft className="text-[11px]" />
-                                </button>
-                                <span className={FIELD_LABEL_CLASS}>Build Method</span>
-                            </div>
-                        </div>
                         <Tabs.Root
                             value={buildMethod}
                             onValueChange={v => handleBuildMethodChange(v as BuildMethod)}
