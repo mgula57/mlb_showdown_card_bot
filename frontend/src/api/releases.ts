@@ -89,9 +89,9 @@ export type Release = {
     like_count: number;
     /** Who can open it once published (see `RELEASE_VISIBILITY`). */
     visibility: ReleaseVisibility;
-    /** Single-release fetches with a signed-in viewer only. */
+    /** Signed-in viewers only: single-release fetches and the public and saved lists (not My Releases). */
     liked_by_me?: boolean;
-    /** Saved to the viewer's card search. Single-release fetches with a signed-in viewer, and the saved list. */
+    /** Saved to the viewer's card search. Signed-in viewers only, like `liked_by_me`. */
     saved_by_me?: boolean;
     created_at: string;
     updated_at: string;

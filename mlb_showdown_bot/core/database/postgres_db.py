@@ -7219,7 +7219,9 @@ class PostgresDB:
                 'section': section if section in ('official', 'community') else None,
                 'pattern': pattern, 'limit': limit, 'offset': offset, 'viewer_id': viewer_id,
             })
-            return [self._serialize_release_row(self._visitor_release_row(dict(r))) for r in cur.fetchall()]
+            rows = [self._visitor_release_row(dict(r)) for r in cur.fetchall()]
+        self._add_viewer_engagement(rows, viewer_id)
+        return [self._serialize_release_row(row) for row in rows]
 
     def get_release(self, release_id: str, user_id: str | None = None) -> dict | None:
         """Return a single release (with metadata-only editions). Enforces ownership unless
@@ -7245,12 +7247,31 @@ class PostgresDB:
                 print(f"Release {release_id} not found or access denied for user {user_id}.")
                 return None
             row = dict(row)
-            if user_id is None or row['created_by'] != user_id:
-                row = self._visitor_release_row(row)
-            if user_id is not None:
-                row['liked_by_me'] = self._is_liked_by('internal.release_likes', 'release_id', release_id, user_id)
-                row['saved_by_me'] = self._is_liked_by('internal.release_saves', 'release_id', release_id, user_id)
-            return self._serialize_release_row(row)
+        if user_id is None or row['created_by'] != user_id:
+            row = self._visitor_release_row(row)
+        self._add_viewer_engagement([row], user_id)
+        return self._serialize_release_row(row)
+
+    def _add_viewer_engagement(self, rows: list[dict], viewer_id: str | None) -> None:
+        """Sets `liked_by_me` / `saved_by_me` on release rows for a signed-in viewer, in one lookup
+        for the whole list (so a list tile opens with its header's like and save state already known).
+        Left unset for an anonymous viewer."""
+        if viewer_id is None or not rows:
+            return
+        release_ids = [str(row['id']) for row in rows]
+        with self.connection.cursor() as cur:
+            cur.execute("""
+                SELECT release_id::text, 'liked' FROM internal.release_likes
+                 WHERE user_id = %(viewer_id)s AND release_id = ANY(%(ids)s::uuid[])
+                UNION ALL
+                SELECT release_id::text, 'saved' FROM internal.release_saves
+                 WHERE user_id = %(viewer_id)s AND release_id = ANY(%(ids)s::uuid[])
+            """, {'viewer_id': viewer_id, 'ids': release_ids})
+            engaged = set(cur.fetchall())
+        for row in rows:
+            release_id = str(row['id'])
+            row['liked_by_me'] = (release_id, 'liked') in engaged
+            row['saved_by_me'] = (release_id, 'saved') in engaged
 
     def create_release(self, user_id: str, payload: dict, with_main_edition: bool = False) -> str:
         """Insert a new release row and return the generated release id (UUID string). With
@@ -7399,7 +7420,9 @@ class PostgresDB:
         """
         with self.connection.cursor(cursor_factory=RealDictCursor) as cur:
             cur.execute(query, (user_id,))
-            return [self._serialize_release_row(self._visitor_release_row({**dict(r), 'saved_by_me': True})) for r in cur.fetchall()]
+            rows = [self._visitor_release_row(dict(r)) for r in cur.fetchall()]
+        self._add_viewer_engagement(rows, user_id)
+        return [self._serialize_release_row(row) for row in rows]
 
     def get_release_versions(self, release_id: str) -> list[dict]:
         """Every published version of a release, newest first, with its note and change summary."""

@@ -48,7 +48,7 @@ export function useReleaseLibrary(enabled: boolean, token?: string, userId?: str
         setLoading(true);
         setError(null);
         const results = await Promise.allSettled([
-            fetchPublicReleases(100, 0, { section: 'official', sort: 'new' }),
+            fetchPublicReleases(100, 0, { section: 'official', sort: 'new' }, token),
             token ? fetchMyReleases(token) : Promise.resolve([]),
             token ? fetchSavedReleases(token) : Promise.resolve([]),
         ]);

@@ -1,7 +1,7 @@
 import { useState, useEffect, useLayoutEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
-import { fetchRelease, createRelease, type Release, type ReleaseCreatePayload } from '../../api/releases';
+import { createRelease, type Release, type ReleaseCreatePayload } from '../../api/releases';
 import { useCommunityReleases } from './useCommunityReleases';
 import { useReleaseLibrary, withEngagement } from './useReleaseLibrary';
 import { useOpenReleases, useReleaseBuilderRoute } from './useOpenReleases';
@@ -48,14 +48,9 @@ export default function Releases() {
 
     function openRelease(release: Release, readOnly: boolean) {
         setGuideSection(null);
+        // List tiles already carry the viewer's like/save state, which the header's buttons need
         openReleases.mount(release, readOnly);
         navigate('/release-builder/' + release.id);
-        // List tiles lack the viewer's like/save state, which the header's buttons need
-        if (readOnly && token && release.liked_by_me === undefined) {
-            fetchRelease(release.id, token)
-                .then(full => handleReleaseUpdated({ ...release, liked_by_me: full.liked_by_me, saved_by_me: full.saved_by_me }))
-                .catch(() => {});
-        }
     }
 
     /** Community tiles show every release as visitors see it (published editions only). The user's

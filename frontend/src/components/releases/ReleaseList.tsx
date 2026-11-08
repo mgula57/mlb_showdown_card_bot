@@ -92,6 +92,17 @@ export function ReleaseList({ listRef, signedIn, library, community, notice, onO
                     </section>
                 ) : (
                     <>
+                        {/* Signed out, the invite to build takes My Releases' place at the top */}
+                        {!signedIn && (
+                            <div className={PX}>
+                                <SignInPrompt
+                                    size="panel"
+                                    title="Build your own release."
+                                    message="Sign in to create your own releases, save others' and like your favorites."
+                                />
+                            </div>
+                        )}
+
                         {/* Each section only as wide as its tiles, so short lists share a row and longer ones wrap onto their own */}
                         <div className={`${PX} flex flex-col gap-6 sm:flex-row sm:flex-wrap sm:gap-x-12 sm:items-start ${library.loading ? 'opacity-60' : ''} transition-opacity`}>
                             {signedIn && (
@@ -108,16 +119,6 @@ export function ReleaseList({ listRef, signedIn, library, community, notice, onO
                                 <ReleaseSection title="Official" releases={library.official} onOpen={r => onOpen(r, true)} />
                             )}
                         </div>
-
-                        {!signedIn && (
-                            <div className={PX}>
-                                <SignInPrompt
-                                    size="panel"
-                                    title="Build your own release."
-                                    message="Sign in to create your own releases, save others' and like your favorites."
-                                />
-                            </div>
-                        )}
                     </>
                 )}
 
