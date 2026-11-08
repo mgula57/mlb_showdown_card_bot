@@ -110,7 +110,7 @@ export default function GameDetail({ gamePk, sportId, season, showdownSet, isAct
 
     if (error || !boxscore || !view) {
         return (
-            <div className={`flex flex-col md:h-[calc(100dvh-2.5rem)] overflow-hidden ${className ?? ''}`}>
+            <div className={`flex flex-col md:tall:h-[calc(100dvh-2.5rem)] overflow-hidden ${className ?? ''}`}>
                 <div className="px-4 py-2.5 border-b border-(--divider) shrink-0">
                     <BackButton onBack={onBack} />
                 </div>

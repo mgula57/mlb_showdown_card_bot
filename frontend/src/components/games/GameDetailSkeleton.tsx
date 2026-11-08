@@ -66,7 +66,7 @@ function BoxScoreSkeleton() {
 
 export default function GameDetailSkeleton({ className, onBack }: { className?: string; onBack: () => void }) {
     return (
-        <div className={`flex flex-col md:h-[calc(100dvh-2.5rem)] overflow-hidden ${className ?? ''}`}>
+        <div className={`flex flex-col md:tall:h-[calc(100dvh-2.5rem)] overflow-hidden ${className ?? ''}`}>
             <div className="relative z-50 px-4 py-2 border-b border-(--divider) bg-(--background-primary) shrink-0 flex items-center gap-3">
                 <BackButton onBack={onBack} />
                 <div className="ml-auto flex items-center gap-2 animate-pulse">
@@ -82,7 +82,7 @@ export default function GameDetailSkeleton({ className, onBack }: { className?: 
                 <Bar className="h-8 flex-1 rounded-card" />
             </div>
 
-            <div className="flex-1 min-h-0 md:grid md:grid-cols-2 md:gap-4 md:px-4 md:overflow-hidden lg:grid-cols-[3fr_4fr_3fr]">
+            <div className="flex-1 min-h-0 md:grid md:grid-cols-2 md:gap-4 md:px-4 md:overflow-hidden md:short:flex-none md:short:h-[calc(100dvh-2.5rem)] lg:grid-cols-[3fr_4fr_3fr]">
                 {/* Box score column — its own column only at `lg`. */}
                 <div className="hidden lg:block lg:order-1 h-full overflow-y-auto py-4 scrollbar-hide">
                     <BoxScoreSkeleton />

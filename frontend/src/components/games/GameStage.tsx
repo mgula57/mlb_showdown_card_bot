@@ -121,7 +121,7 @@ export default function GameStage({
     const swingResult = isResultRevealed ? playbackState.pendingPlay?.roll?.swingResult : undefined;
 
     return (
-        <div className={`flex flex-col md:h-[calc(100dvh-2.5rem)] overflow-hidden ${className ?? ''}`}>
+        <div className={`flex flex-col md:tall:h-[calc(100dvh-2.5rem)] overflow-hidden ${className ?? ''}`}>
             <div
                 className={`relative z-50 px-4 py-2 border-b border-(--divider) shrink-0 flex items-center gap-3 ${modeBarColor ? '' : 'bg-(--background-primary)'}`}
                 style={modeBarColor ? { backgroundColor: modeBarColor } : undefined}
@@ -144,7 +144,7 @@ export default function GameStage({
                 <TabButtons tabs={MOBILE_TABS} value={mobileTab} onChange={setMobileTab} className="px-2" fullWidth />
             </div>
 
-            <div className="flex-1 min-h-0 md:grid md:grid-cols-2 md:gap-4 md:px-4 md:overflow-hidden lg:grid-cols-[3fr_4fr_3fr]">
+            <div className="flex-1 min-h-0 md:grid md:grid-cols-2 md:gap-4 md:px-4 md:overflow-hidden md:short:flex-none md:short:h-[calc(100dvh-2.5rem)] lg:grid-cols-[3fr_4fr_3fr]">
 
                 {/* Spotlight column — field, playback bar and matchup. Pinned left from `md` up;
                     `lg:order-2` slides it back to the centre once the box score gets its own column
