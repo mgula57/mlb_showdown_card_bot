@@ -183,6 +183,9 @@ export type ReleaseEditionUpdatePayload = Partial<Omit<ReleaseEditionCreatePaylo
 /** A card save was refused because the edition's cards changed elsewhere (another tab or device). */
 export class StaleEditionError extends Error {}
 
+/** The release doesn't exist, or isn't open to this viewer (unpublished or private). */
+export class ReleaseNotFoundError extends Error {}
+
 /** The error an edition save failed with: a `StaleEditionError` for the server's stale-cards 409. */
 async function editionSaveError(res: Response, fallback: string): Promise<Error> {
     const err = await res.json().catch(() => ({}));
@@ -455,6 +458,7 @@ export async function fetchRelease(releaseId: string, token?: string): Promise<R
     const headers: Record<string, string> = {};
     if (token) headers['Authorization'] = `Bearer ${token}`;
     const res = await fetch(`${API_BASE}/releases/${releaseId}`, { headers });
+    if (res.status === 404) throw new ReleaseNotFoundError('Release not found');
     if (!res.ok) throw new Error(`Failed to fetch release: ${res.status}`);
     return res.json();
 }

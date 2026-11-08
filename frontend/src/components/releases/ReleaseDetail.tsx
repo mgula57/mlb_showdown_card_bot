@@ -22,7 +22,7 @@ import { Heading } from '../shared/Heading';
 import { buttonClass } from '../shared/buttonStyles';
 import { Plate } from '../shared/Plate';
 import { EmptyState } from '../shared/EmptyState';
-import { isPrivateRelease, releaseAudience } from './releaseVisibility';
+import { isPrivateRelease, isReleasePublished, releaseAudience } from './releaseVisibility';
 type ReleaseDetailProps = {
     release: Release;
     readOnly: boolean;
@@ -57,7 +57,7 @@ export function ReleaseDetail({ release, readOnly, editionSlug, onEditionChange,
     const isOwner = !readOnly;
     // Other users can only open published editions — the release itself still lists drafts.
     const editions = isOwner ? release.editions : release.editions.filter(e => e.is_published);
-    const isPublished = release.editions.some(e => e.is_published);
+    const isPublished = isReleasePublished(release);
     const hasDrafts = release.editions.some(e => !e.is_published);
     // Once published, edits go to private working copies until the owner publishes them
     const isStaged = release.published_version > 0;

@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useLayoutEffect, useRef } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
 import {
@@ -7,6 +7,7 @@ import {
     fetchSavedReleases,
     fetchRelease,
     createRelease,
+    ReleaseNotFoundError,
     type Release,
     type PublicReleaseSort,
 } from '../../api/releases';
@@ -22,6 +23,8 @@ import { FaPlus, FaSpinner } from 'react-icons/fa6';
 import type { ReleaseCreatePayload } from '../../api/releases';
 
 import { InlineError } from '../shared/InlineError';
+import { RetryableError } from '../shared/RetryableError';
+import { isInCommunity } from './releaseVisibility';
 import { Heading } from '../shared/Heading';
 import { BetaBadge } from '../shared/BetaBadge';
 import { buttonClass } from '../shared/buttonStyles';
@@ -80,7 +83,15 @@ export default function Releases() {
     const [openReleases, setOpenReleases] = useState<Record<string, OpenRelease>>({});
     const [loading, setLoading] = useState(true);
     const [listLoaded, setListLoaded] = useState(false);
+    /** The lists hold this viewer's releases (from a load since the last sign-in change), so a reload
+     *  can keep them on screen instead of going back to the skeleton. */
+    const [libraryReady, setLibraryReady] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    /** Why the list was opened in place of a release link (it's private or gone). */
+    const [releaseNotice, setReleaseNotice] = useState<string | null>(null);
+    /** A release link that failed to load for another reason (offline, server error), kept on screen to retry. */
+    const [openError, setOpenError] = useState<{ releaseId: string; message: string } | null>(null);
+    const [openAttempt, setOpenAttempt] = useState(0);
     const [showCreateModal, setShowCreateModal] = useState(false);
     const [communitySort, setCommunitySort] = useState<PublicReleaseSort>('popular');
     const [communitySearch, setCommunitySearch] = useState('');
@@ -99,11 +110,15 @@ export default function Releases() {
 
     // Signing in, out, or as someone else invalidates the cached list. Keyed on the user id (not the
     // token) so routine token refreshes don't reload it.
-    // Bumping the load sequence drops any load still in flight for the previous user.
+    // Bumping the load sequence drops any load still in flight for the previous user, and the
+    // previous user's own lists are cleared so they never show under the new one.
     const loadSeq = useRef(0);
     useEffect(() => {
         loadSeq.current++;
         setListLoaded(false);
+        setLibraryReady(false);
+        setUserReleases([]);
+        setSavedReleases([]);
     }, [userId]);
 
     // Load the releases list lazily — only when viewing the list, so a direct visit to a
@@ -142,20 +157,56 @@ export default function Releases() {
         if (authLoading || !isOnReleaseBuilder || !releaseIdFromUrl || openReleases[releaseIdFromUrl]) return;
 
         let cancelled = false;
-        fetchRelease(releaseIdFromUrl, token ?? undefined)
+        const releaseId = releaseIdFromUrl;
+        fetchRelease(releaseId, token ?? undefined)
             .then(release => {
                 if (cancelled) return;
-                const readOnly = !token || release.created_by !== session?.user?.id;
+                const readOnly = !token || release.created_by !== userId;
                 mountRelease(release, readOnly);
             })
-            .catch(() => {
-                if (!cancelled) navigate('/release-builder', { replace: true });
+            .catch(err => {
+                if (cancelled) return;
+                // Private or gone: nothing to retry, so say why on the list. Anything else (offline,
+                // a server error) stays on the link so it can be retried.
+                if (err instanceof ReleaseNotFoundError) {
+                    setReleaseNotice("That release is private or no longer exists.");
+                    navigate('/release-builder', { replace: true });
+                } else {
+                    setOpenError({ releaseId, message: "Couldn't load this release. Check your connection and try again." });
+                }
             });
         return () => { cancelled = true; };
     // isActiveReleaseMounted: a sign-out or account switch clears the open releases in the same
     // commit this runs in (seeing the stale map), so it must run again once the release unmounts.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [authLoading, releaseIdFromUrl, isOnReleaseBuilder, token, isActiveReleaseMounted]);
+    }, [authLoading, releaseIdFromUrl, isOnReleaseBuilder, token, isActiveReleaseMounted, openAttempt]);
+
+    // Opening a release clears the note about the last link that couldn't be opened
+    useEffect(() => {
+        if (releaseIdFromUrl) setReleaseNotice(null);
+    }, [releaseIdFromUrl]);
+
+    function retryOpen() {
+        setOpenError(null);
+        setOpenAttempt(n => n + 1);
+    }
+
+    // The list unmounts while a release is open, so remember where it was scrolled and go back
+    // there on return (the tiles and loaded Community pages are still in state, so it's that tall
+    // again right away). Only while the list is on screen, since this page stays mounted hidden.
+    const listRef = useRef<HTMLDivElement>(null);
+    const listScrollY = useRef(0);
+    useEffect(() => {
+        const onScroll = () => {
+            if (listRef.current?.offsetParent) listScrollY.current = window.scrollY;
+        };
+        window.addEventListener('scroll', onScroll, { passive: true });
+        return () => window.removeEventListener('scroll', onScroll);
+    }, []);
+    const isListShown = isOnReleaseBuilder && !releaseIdFromUrl;
+    useLayoutEffect(() => {
+        if (isListShown) window.scrollTo(0, listScrollY.current);
+    }, [isListShown]);
 
     // Bare release URL (no edition slug) → restore the edition last viewed in that release.
     useEffect(() => {
@@ -194,6 +245,7 @@ export default function Releases() {
             token ? fetchSavedReleases(token) : Promise.resolve([]),
         ]);
         if (seq !== loadSeq.current) return;
+        setLibraryReady(true);
         if (official.status === 'fulfilled') setOfficialReleases(official.value.filter(r => r.created_by !== userId));
         if (mine.status === 'fulfilled') setUserReleases(mine.value);
         if (saved.status === 'fulfilled') setSavedReleases(saved.value);
@@ -204,7 +256,7 @@ export default function Releases() {
             const reason = (failed[0] as PromiseRejectedResult).reason;
             setError(failed.length === 3
                 ? (reason instanceof Error ? reason.message : 'Failed to load releases.')
-                : 'Some releases didn\'t load. Reload the page to try again.');
+                : 'Some releases didn\'t load.');
         }
         setLoading(false);
     }
@@ -274,12 +326,18 @@ export default function Releases() {
     }
 
     function handleReleaseUpdated(updated: Release) {
+        // One of the user's releases newly published or listed: Community reloads when next shown,
+        // since it's sorted and paged on the server and can't just be added to the loaded pages
+        if (updated.created_by === userId && isInCommunity(updated)) {
+            const previous = openReleases[updated.id]?.release ?? userReleases.find(r => r.id === updated.id);
+            if (!previous || !isInCommunity(previous)) community.invalidate();
+        }
         setUserReleases(prev => prev.map(r => r.id === updated.id ? updated : r));
         // A like from the release's header shows on its public tiles too
         const syncTile = (r: Release) => r.id === updated.id ? withEngagement(r, updated) : r;
         setOfficialReleases(prev => prev.map(syncTile));
-        // Made link-only or private: it leaves the public lists right away, not on the next load
-        community.mapReleases(r => r.id === updated.id && updated.visibility && updated.visibility !== 'listed' ? null : syncTile(r));
+        // Unpublished, or made link-only or private: it leaves the public lists right away, not on the next load
+        community.mapReleases(r => r.id === updated.id && updated.visibility && !isInCommunity(updated) ? null : syncTile(r));
         // Saving or unsaving in the release's header adds it to (or drops it from) the Saved section
         if (updated.saved_by_me !== undefined) {
             setSavedReleases(prev => {
@@ -319,7 +377,16 @@ export default function Releases() {
                 );
             })}
 
-            {releaseIdFromUrl && !activeOpenRelease && <ReleaseDetailSkeleton />}
+            {releaseIdFromUrl && !activeOpenRelease && (openError?.releaseId === releaseIdFromUrl ? (
+                <div className="px-4 sm:px-8 py-6">
+                    <RetryableError
+                        onRetry={retryOpen}
+                        actions={<button type="button" onClick={goBack} className={buttonClass('ghost', 'sm')}>Back to releases</button>}
+                    >
+                        {openError.message}
+                    </RetryableError>
+                </div>
+            ) : <ReleaseDetailSkeleton />)}
 
             {!releaseIdFromUrl && renderList()}
 
@@ -337,7 +404,7 @@ export default function Releases() {
 
     function renderList() {
         return (
-        <div className="@container w-full relative isolate">
+        <div ref={listRef} className="@container w-full relative isolate">
         {/* Card-back pinstripes behind the page header, echoing the release tiles' card fields */}
         <PinstripeBackdrop heightClass="h-72" />
         <div className="flex flex-col gap-6 py-4 max-w-4xl lg:max-w-7xl mx-auto w-full">
@@ -367,15 +434,20 @@ export default function Releases() {
                 </div>
             </div>
 
-            {error && (
+            {releaseNotice && (
                 <div className={px}>
-                    <InlineError size="md">
-                        {error}
-                    </InlineError>
+                    <InlineError size="md">{releaseNotice}</InlineError>
                 </div>
             )}
 
-            {loading ? (
+            {error && (
+                <div className={px}>
+                    <RetryableError onRetry={loadReleases}>{error}</RetryableError>
+                </div>
+            )}
+
+            {/* Skeleton only until this viewer's lists first load; a reload keeps the tiles up, dimmed */}
+            {loading && !libraryReady ? (
                 <section className={px}>
                     <div className="h-3 w-24 rounded-plate bg-(--background-tertiary) animate-pulse mb-2" />
                     <ReleaseSkeletonRow />
@@ -383,7 +455,7 @@ export default function Releases() {
             ) : (
                 <>
                     {/* Library: each section only as wide as its tiles, so short lists share a row and longer ones wrap onto their own */}
-                    <div className={`${px} flex flex-col gap-6 sm:flex-row sm:flex-wrap sm:gap-x-12 sm:items-start`}>
+                    <div className={`${px} flex flex-col gap-6 sm:flex-row sm:flex-wrap sm:gap-x-12 sm:items-start ${loading ? 'opacity-60' : ''} transition-opacity`}>
                     {/* My Releases */}
                     {token && (
                         <section className="min-w-0">

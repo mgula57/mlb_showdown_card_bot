@@ -9,6 +9,7 @@ import { Plate } from '../shared/Plate';
 import { FrameCorners } from '../shared/FrameCorners';
 import { CAPS_LABEL_CLASS } from '../shared/fieldStyles';
 import { ReleaseVisibilityPlate } from './ReleaseVisibilityPlate';
+import { isReleasePublished } from './releaseVisibility';
 
 /** Tile frame shared by ReleaseItem and its skeleton — sized like TeamPreviewCard's 'md' tile on
  *  wider screens, filling a 2-column grid cell on phones. */
@@ -52,8 +53,7 @@ type ReleaseItemProps = {
 export function ReleaseItem({ release, onClick, showPublishStatus = false }: ReleaseItemProps) {
     const totalCards = release.editions.reduce((sum, e) => sum + e.card_count, 0);
     const editionCount = release.editions.length;
-    // Matches the public list: a release is visible to others once any edition is published
-    const isPublished = release.editions.some(e => e.is_published);
+    const isPublished = isReleasePublished(release);
     const images = (release.preview_images ?? []).slice(0, 3);
     // Sets actually in the release's cards; before any cards are added, the default set it was created with
     const sets = release.showdown_sets?.length ? release.showdown_sets : [release.default_showdown_set];

@@ -5,6 +5,7 @@ import { cardImagePublicUrl } from '../../api/supabase';
 import { Modal } from '../shared/Modal';
 import { Eyebrow } from '../shared/Eyebrow';
 import { InlineError } from '../shared/InlineError';
+import { RetryableError } from '../shared/RetryableError';
 import { buttonClass } from '../shared/buttonStyles';
 import { fieldClass } from '../shared/fieldStyles';
 import { useCopyReleaseLink } from './useCopyReleaseLink';
@@ -125,10 +126,7 @@ export function ReleaseShareSheet({ release, onClose, eyebrow, ownerToken, onRel
                         )}
                     </div>
                 ) : shareImage.error ? (
-                    <div className="flex flex-col items-start gap-2">
-                        <InlineError size="md" icon>{shareImage.error}</InlineError>
-                        <button type="button" onClick={shareImage.retry} className={buttonClass('secondary', 'sm')}>Try again</button>
-                    </div>
+                    <RetryableError onRetry={shareImage.retry}>{shareImage.error}</RetryableError>
                 ) : (
                     <div className="flex flex-col gap-1.5">
                         <div aria-hidden className={`w-full aspect-1200/630 rounded-card bg-(--background-tertiary) flex items-center justify-center ${shareImage.loading ? 'animate-pulse' : ''}`}>

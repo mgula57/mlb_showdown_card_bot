@@ -64,5 +64,9 @@ export function useCommunityReleases(sort: PublicReleaseSort, search: string, en
         setReleases(prev => prev && prev.flatMap(release => fn(release) ?? []));
     }, []);
 
-    return { releases, loading, hasMore, error, loadMore, mapReleases, searching: debouncedSearch.trim() !== '' };
+    /** Reloads from the first page the next time the list is shown, for a change `mapReleases` can't
+     *  apply in place (a release that should now join the list). */
+    const invalidate = useCallback(() => { loadedQueryRef.current = null; }, []);
+
+    return { releases, loading, hasMore, error, loadMore, mapReleases, invalidate, searching: debouncedSearch.trim() !== '' };
 }

@@ -33,3 +33,13 @@ export function releaseAudience(visibility: ReleaseVisibility): string {
         case 'private': return 'Only you can see it and use its cards.';
     }
 }
+
+/** Visible to anyone but its owner once any edition is published (matches the public lists). */
+export function isReleasePublished(release: Pick<Release, 'editions'>): boolean {
+    return release.editions.some(e => e.is_published);
+}
+
+/** Shows in the Community list: published and listed. */
+export function isInCommunity(release: Pick<Release, 'editions' | 'visibility'>): boolean {
+    return release.visibility === 'listed' && isReleasePublished(release);
+}
