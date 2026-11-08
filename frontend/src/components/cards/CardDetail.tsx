@@ -558,7 +558,8 @@ export const CardDetail = memo(function CardDetail({ showdownBotCardData: showdo
     const mechSecondaryColor = ['NYM', 'SDP'].includes(team || '') ? rawPrimary : rawSecondary;
 
     const getBlankPlayerImageName = (): string => {
-        const setName = (showdownSetForPlaceholder || userShowdownSet || '2001').toLowerCase();
+        // The shown card's own set (e.g. the one just picked in the set switcher) beats the global default
+        const setName = (showdownSetForPlaceholder || activeCardData?.card?.set || userShowdownSet || '2001').toLowerCase();
         const appearance = isDark ? 'dark' : 'light';
         return `/images/blank_players/blankplayer-${setName}-${appearance}.png`;
     };
