@@ -355,9 +355,10 @@ export function ReleaseDetail({ release, readOnly, editionSlug, onEditionChange,
 
     return (
         <ReleaseOnboardingContext.Provider value={onboarding}>
-        {/* Height-locked from md up only — on phones the page scrolls naturally so Safari's URL bar can
-            collapse (a dvh-locked shell leaves a black bar at the bottom as the bar animates). */}
-        <div className="flex flex-col md:h-[calc(100dvh-2.5rem)] md:overflow-hidden">
+        {/* Height-locked from md up only, and only when tall enough — on phones the page scrolls naturally
+            so Safari's URL bar can collapse (a dvh-locked shell leaves a black bar at the bottom as the bar
+            animates). Wide but short screens scroll the header away instead (see the edition Tabs.Content). */}
+        <div className="flex flex-col md:tall:h-[calc(100dvh-2.5rem)] md:tall:overflow-hidden">
             <Tabs.Root
                 value={activeEditionId ?? undefined}
                 onValueChange={id => {
@@ -626,7 +627,8 @@ export function ReleaseDetail({ release, readOnly, editionSlug, onEditionChange,
                             value={edition.id}
                             // Kept mounted once loaded (just hidden) so each edition's builder state survives tab switches.
                             forceMount
-                            className="flex-1 min-h-0 flex flex-col focus:outline-none data-[state=inactive]:hidden"
+                            // md + short: the page scrolls the header away and the builder takes the full viewport.
+                            className="flex-1 min-h-0 flex flex-col md:short:flex-none md:short:h-[calc(100dvh-2.5rem)] focus:outline-none data-[state=inactive]:hidden"
                         >
                             {!loadedEdition ? (
                                 edition.id === activeEditionId && (

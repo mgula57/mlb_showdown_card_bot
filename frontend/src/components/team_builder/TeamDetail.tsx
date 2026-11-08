@@ -1436,8 +1436,11 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
         );
     };
 
+    // Height-locked (header pinned, panes scroll inside) only on split screens tall enough for it.
+    // Split but short (e.g. a foldable's inner screen): the page scrolls so the header and banner
+    // move away, and the roster area below takes the full viewport with its own pane scrolling.
     return (
-        <div className={`flex flex-col ${embedded ? '' : 'split:h-[calc(100dvh-2.5rem)] split:overflow-hidden'}`}>
+        <div className={`flex flex-col ${embedded ? '' : 'split:tall:h-[calc(100dvh-2.5rem)] split:tall:overflow-hidden'}`}>
             
             {/* Header: the release header's pinstripe band, with a team-color rule along the top. Info on the
                 left (eyebrow, crest + name, meta, points plates), the actions bottom-right; below md the
@@ -1818,7 +1821,7 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
             )}
 
             {/* Team Roster Content */}
-            <div className={`flex flex-1 ${embedded ? '' : 'split:min-h-0 split:overflow-hidden'}`}>
+            <div className={`flex flex-1 ${embedded ? '' : 'split:min-h-0 split:overflow-hidden split:short:flex-none split:short:h-[calc(100dvh-2.5rem)]'}`}>
                 {showEditControls && setupStep === 'settings' ? (
                     /* Setup step 1: team settings, edited inline (auto-saved) before drafting */
                     <div className="flex flex-col flex-1 min-w-0 split:min-h-0 split:overflow-y-auto scrollbar-hide">

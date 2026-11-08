@@ -99,7 +99,12 @@ export default function Releases() {
 
     // Signing in, out, or as someone else invalidates the cached list. Keyed on the user id (not the
     // token) so routine token refreshes don't reload it.
-    useEffect(() => { setListLoaded(false); }, [userId]);
+    // Bumping the load sequence drops any load still in flight for the previous user.
+    const loadSeq = useRef(0);
+    useEffect(() => {
+        loadSeq.current++;
+        setListLoaded(false);
+    }, [userId]);
 
     // Load the releases list lazily — only when viewing the list, so a direct visit to a
     // release URL opens the release without first loading every release.
@@ -147,8 +152,10 @@ export default function Releases() {
                 if (!cancelled) navigate('/release-builder', { replace: true });
             });
         return () => { cancelled = true; };
+    // isActiveReleaseMounted: a sign-out or account switch clears the open releases in the same
+    // commit this runs in (seeing the stale map), so it must run again once the release unmounts.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [authLoading, releaseIdFromUrl, isOnReleaseBuilder, token]);
+    }, [authLoading, releaseIdFromUrl, isOnReleaseBuilder, token, isActiveReleaseMounted]);
 
     // Bare release URL (no edition slug) → restore the edition last viewed in that release.
     useEffect(() => {
@@ -175,8 +182,10 @@ export default function Releases() {
     }
 
     /** Loads each section on its own, so one failing (say, Saved) doesn't blank the others. A
-     *  partial load isn't marked loaded, so coming back to the list retries. */
+     *  partial load isn't marked loaded, so coming back to the list retries. Only the latest load
+     *  applies, so a slow one from before a sign-out can't restore the previous user's lists. */
     async function loadReleases() {
+        const seq = ++loadSeq.current;
         setLoading(true);
         setError(null);
         const [official, mine, saved] = await Promise.allSettled([
@@ -184,6 +193,7 @@ export default function Releases() {
             token ? fetchMyReleases(token) : Promise.resolve([]),
             token ? fetchSavedReleases(token) : Promise.resolve([]),
         ]);
+        if (seq !== loadSeq.current) return;
         if (official.status === 'fulfilled') setOfficialReleases(official.value.filter(r => r.created_by !== userId));
         if (mine.status === 'fulfilled') setUserReleases(mine.value);
         if (saved.status === 'fulfilled') setSavedReleases(saved.value);
@@ -525,7 +535,7 @@ function ReleaseSkeletonRow() {
 /** Placeholder shaped like ReleaseDetail's header + edition tab bar while a release loads. */
 function ReleaseDetailSkeleton() {
     return (
-        <div className="flex flex-col md:h-[calc(100dvh-2.5rem)] md:overflow-hidden animate-pulse">
+        <div className="flex flex-col md:tall:h-[calc(100dvh-2.5rem)] md:tall:overflow-hidden animate-pulse">
             <div className="flex items-start gap-3 px-4 py-2.5 border-b border-(--divider)">
                 <div className="h-4 w-4 rounded-plate bg-(--background-tertiary) mt-1" />
                 <div className="flex-1 space-y-2">
