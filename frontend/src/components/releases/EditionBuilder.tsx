@@ -1390,6 +1390,7 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
                         previewRanks={previewRanks}
                         onPreviewRankChange={handlePreviewRankChange}
                         statusFilterRequest={imagesStatusRequest}
+                        liveImageMatches={liveImageMatches.matches}
                     />
                 </div>
             )}

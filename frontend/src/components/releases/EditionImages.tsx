@@ -1,7 +1,7 @@
-import { useState, useEffect, useCallback, useMemo, memo } from 'react';
-import type { ReleaseEdition, ReleaseCardImage, ReleaseCardImageStatus, EditionImages as EditionImagesData } from '../../api/releases';
+import { useState, useEffect, useCallback, useMemo, useRef, memo, type PointerEvent } from 'react';
+import type { ReleaseEdition, ReleaseCardImage, ReleaseCardImageStatus, EditionImages as EditionImagesData, LiveImageMatch } from '../../api/releases';
 import { fetchEditionImages, renderEditionImages, cancelEditionImageRender, isImageJobActive } from '../../api/releases';
-import type { CardDatabaseRecord } from '../../api/card_db/cardDatabase';
+import { IMAGE_MATCH_TYPE_OPTIONS, type CardDatabaseRecord, type ImageMatchType } from '../../api/card_db/cardDatabase';
 import { cardImagePublicUrl } from '../../api/supabase';
 import { BorderCroppedImage } from '../cards/BorderCroppedImage';
 import { Modal } from '../shared/Modal';
@@ -34,6 +34,14 @@ const STATUS_META: Record<ReleaseCardImageStatus, { label: string; badgeClass: s
 };
 const STATUS_ORDER: ReleaseCardImageStatus[] = ['rendered', 'stale', 'missing', 'failed'];
 
+/** Image match quality, best to worst, on the grade scale. */
+const IMAGE_MATCH_META: Record<ImageMatchType, { label: string; color: string }> = {
+    exact: { label: 'Exact', color: 'var(--grade-a)' },
+    'team match': { label: 'Team', color: 'var(--grade-b)' },
+    'year match': { label: 'Year', color: 'var(--grade-c)' },
+    'no match': { label: 'No match', color: 'var(--grade-d)' },
+};
+
 type EditionImagesProps = {
     releaseId: string;
     /** Used to name the ZIP download. */
@@ -46,11 +54,13 @@ type EditionImagesProps = {
     onPreviewRankChange: (sourceCardId: string, rank: number | null) => void;
     /** Applies a status filter from outside (a Review fix link). A new object re-applies the same status. */
     statusFilterRequest?: { status: ReleaseCardImageStatus } | null;
+    /** Live image matches by snapshot id (edit mode). Cards without one use their snapshot's stored match. */
+    liveImageMatches?: Record<string, LiveImageMatch>;
 };
 
 /** Step 3 of the Edition Builder: renders every card in the edition (with its edition style and set
  * number) to Supabase in a background job, and shows each card's image as it lands. */
-export function EditionImages({ releaseId, releaseName, edition, readOnly, token, previewRanks, onPreviewRankChange, statusFilterRequest }: EditionImagesProps) {
+export function EditionImages({ releaseId, releaseName, edition, readOnly, token, previewRanks, onPreviewRankChange, statusFilterRequest, liveImageMatches }: EditionImagesProps) {
     const [data, setData] = useState<EditionImagesData | null>(null);
     const [error, setError] = useState<string | null>(null);
     const [requesting, setRequesting] = useState(false);
@@ -89,6 +99,14 @@ export function EditionImages({ releaseId, releaseName, edition, readOnly, token
         images.forEach(image => { result[image.status] += 1; });
         return result;
     }, [images]);
+    const imageMatchCounts = useMemo(() => {
+        const result: Record<ImageMatchType, number> = { exact: 0, 'team match': 0, 'year match': 0, 'no match': 0 };
+        edition.cards.forEach(card => {
+            const type = liveImageMatches?.[card.card_snapshot.id]?.image_match_type ?? card.card_snapshot.image_match_type ?? 'no match';
+            result[type in result ? type : 'no match'] += 1;
+        });
+        return result;
+    }, [edition.cards, liveImageMatches]);
     const needsRenderCount = counts.stale + counts.missing + counts.failed;
     const zipDownload = useEditionZipDownload();
     const zipEntries = useMemo(() => buildZipEntries(images, snapshotsById), [images, snapshotsById]);
@@ -243,6 +261,8 @@ export function EditionImages({ releaseId, releaseName, edition, readOnly, token
                         </div>
                     )}
                 </div>
+
+                <ImageMatchBar counts={imageMatchCounts} total={edition.cards.length} />
 
                 {job && <RenderJobStatus job={job} />}
                 <ReleaseTip id="render" show={!!data && !jobActive && needsRenderCount > 0} anchor={renderButton} placement="bottom-end" />
@@ -409,6 +429,58 @@ function ProgressBar({ percent }: { percent: number }) {
     return (
         <div className="h-1.5 rounded-full bg-(--background-quaternary) overflow-hidden">
             <div className="h-full bg-(--secondary) transition-[width] duration-500" style={{ width: `${percent}%` }} />
+        </div>
+    );
+}
+
+/** One horizontal bar split by image match quality, with a count legend. Hovering a legend item
+ * (or a segment) highlights its segment; on touch, a tap toggles the highlight. */
+function ImageMatchBar({ counts, total }: { counts: Record<ImageMatchType, number>; total: number }) {
+    const present = IMAGE_MATCH_TYPE_OPTIONS.filter(option => counts[option.value] > 0);
+    const [highlighted, setHighlighted] = useState<ImageMatchType | null>(null);
+    // A mouse click follows a hover that already set the highlight, so only touch/pen/keyboard taps toggle it
+    const lastPointerType = useRef<string | null>(null);
+    const hoverProps = (type: ImageMatchType) => ({
+        onPointerEnter: (e: PointerEvent) => { if (e.pointerType === 'mouse') setHighlighted(type); },
+        onPointerLeave: (e: PointerEvent) => { if (e.pointerType === 'mouse') setHighlighted(null); },
+    });
+    const dimClass = (type: ImageMatchType) => highlighted && highlighted !== type ? 'opacity-30' : 'opacity-100';
+    return (
+        <div className="flex flex-col gap-1">
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[12px]">
+                <span className="font-semibold text-(--text-secondary)">Image matches</span>
+                {present.map(option => (
+                    <button
+                        key={option.value}
+                        type="button"
+                        title={option.label}
+                        aria-pressed={highlighted === option.value}
+                        {...hoverProps(option.value)}
+                        onPointerDown={e => { lastPointerType.current = e.pointerType; }}
+                        onClick={() => {
+                            if (lastPointerType.current !== 'mouse') setHighlighted(prev => prev === option.value ? null : option.value);
+                            lastPointerType.current = null;
+                        }}
+                        className={`flex items-center gap-1 text-(--text-secondary) transition-opacity cursor-pointer ${dimClass(option.value)}`}
+                    >
+                        <span className="w-2 h-2 rounded-full" style={{ backgroundColor: IMAGE_MATCH_META[option.value].color }} />
+                        {IMAGE_MATCH_META[option.value].label}
+                        <span className="tabular-nums text-(--text-tertiary)">{counts[option.value]}</span>
+                    </button>
+                ))}
+                <span className="ml-auto tabular-nums text-(--text-tertiary)">{counts.exact} of {total} exact</span>
+            </div>
+            <div className="flex gap-px h-1.5 rounded-plate overflow-hidden bg-(--background-quaternary)">
+                {present.map(option => (
+                    <div
+                        key={option.value}
+                        title={`${option.label}: ${counts[option.value]}`}
+                        {...hoverProps(option.value)}
+                        className={`h-full basis-0 transition-[flex-grow,opacity] duration-500 ${dimClass(option.value)}`}
+                        style={{ flexGrow: counts[option.value], backgroundColor: IMAGE_MATCH_META[option.value].color }}
+                    />
+                ))}
+            </div>
         </div>
     );
 }
