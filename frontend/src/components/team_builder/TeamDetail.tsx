@@ -17,7 +17,7 @@ import type { CardDatabaseRecord } from '../../api/card_db/cardDatabase';
 import type { CardSource as CardSourceType } from '../../types/cardSource';
 import { CardSource } from '../../types/cardSource';
 import { useCardMap } from '../../hooks/useCardMap';
-import { useMediaQuery } from '../../hooks/useMediaQuery';
+import { SHORT_SCREEN_QUERY, useMediaQuery } from '../../hooks/useMediaQuery';
 import { bannerTokens, getContrastTextColor } from "../../functions/colors";
 import { FieldView, FIELD_POSITIONS } from './FieldView';
 import type { FieldViewRosterData } from './FieldView';
@@ -158,7 +158,7 @@ function HeaderAction({ icon: Icon, label, onClick, tone = 'neutral', busy = fal
             disabled={busy}
             title={title ?? label}
             aria-label={label}
-            className={`flex flex-1 md:flex-none items-center justify-center md:min-w-24 gap-2 h-10 px-4 rounded-control text-[13px] font-semibold whitespace-nowrap transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${HEADER_ACTION_TONES[tone]}`}
+            className={`flex flex-1 md:flex-none items-center justify-center md:min-w-24 gap-2 h-10 split:short:h-8 px-4 rounded-control text-[13px] font-semibold whitespace-nowrap transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${HEADER_ACTION_TONES[tone]}`}
         >
             {busy ? <FaSpinner className="h-4 w-4 shrink-0 animate-spin" /> : <Icon className="h-4 w-4 shrink-0" />}
             {label}
@@ -381,6 +381,8 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
     const saveImmediatelyRef = useRef(false);
     const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const isSplit = useMediaQuery(SPLIT_SCREEN_QUERY);
+    // Wide but short (foldable inner screen, phone in landscape): the header compacts to match `split:short:`.
+    const isShortSplit = useMediaQuery(`${SPLIT_SCREEN_QUERY} and ${SHORT_SCREEN_QUERY}`);
 
     // Crossing down into the mobile SlideOver layout: clear any pending slot left over
     // from the desktop panel so the slideover doesn't spring open immediately.
@@ -1449,7 +1451,7 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                 <div aria-hidden className="absolute inset-0 -z-10 bg-pinstripe" />
                 <div aria-hidden className="absolute inset-x-0 top-0 h-0.75" style={{ backgroundColor: primary }} />
                 <div className="flex flex-wrap md:flex-nowrap items-stretch">
-                <div className="flex flex-col gap-2 basis-full md:basis-auto md:flex-1 min-w-0 px-4 pt-3.5 pb-3 md:pb-3.5">
+                <div className="flex flex-col gap-2 split:short:gap-1 basis-full md:basis-auto md:flex-1 min-w-0 px-4 pt-3.5 pb-3 md:pb-3.5 split:short:py-2">
                     <div className="flex items-center gap-3 min-w-0">
                         {onBack && (
                             <button type="button" onClick={handleBack} aria-label="Back" className="text-(--text-tertiary) opacity-70 hover:text-(--text-primary) transition-colors shrink-0 cursor-pointer">
@@ -1480,10 +1482,10 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                             uploading={logoUploading}
                             onUpload={handleLogoUpload}
                             onRemove={handleLogoRemove}
-                            size="lg"
+                            size={isShortSplit ? 'md' : 'lg'}
                         />
 
-                        <div className="flex flex-col gap-1.5 flex-1 min-w-0">
+                        <div className="flex flex-col gap-1.5 split:short:gap-1 flex-1 min-w-0">
                             <div className="flex items-center gap-2 min-w-0">
                                 <Heading level="page" as="h1" fit>{draft.name || 'Untitled Team'}</Heading>
                                 <div className="flex items-center gap-0.5 shrink-0">
@@ -1495,7 +1497,7 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                             </div>
 
                             {(draft.subtitle || draft.credit || (showSocialStats && team.view_count > 0) || draft.roster.length === draft.roster_size) && (
-                                <div className="flex flex-wrap items-center gap-x-1.5 text-[13px] text-(--text-secondary) min-w-0">
+                                <div className="flex split:short:hidden flex-wrap items-center gap-x-1.5 text-[13px] text-(--text-secondary) min-w-0">
                                     {[
                                         draft.subtitle && <span key="subtitle" className="font-semibold text-(--text-primary)">{draft.subtitle}</span>,
                                         draft.credit && <span key="credit">{draft.credit}</span>,
@@ -1567,7 +1569,7 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                 {/* Action toolbar: one filled Sim CTA plus a uniform strip of tinted actions. Sized for a
                     thumb on mobile, wrapping onto a second line rather than shrinking. */}
                 {((onToggleStar || onFork || onToggleLike || !readOnly || canSimulate || canFaceoff || adminCanCurate) && teamMode === 'complete') && (
-                    <div className="flex flex-wrap items-center gap-2 basis-full md:basis-auto shrink-0 self-end px-4 pb-3.5">
+                    <div className="flex flex-wrap items-center gap-2 basis-full md:basis-auto shrink-0 self-end split:short:self-center px-4 pb-3.5 split:short:pb-0">
 
                         {onToggleStar && (
                             <HeaderAction
@@ -1658,7 +1660,7 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                                 <button
                                     type="button"
                                     onClick={() => setShowPlayModal(true)}
-                                    className="flex flex-1 md:flex-none items-center justify-center md:justify-start gap-2 h-10 px-4 rounded-control shadow-raised text-[13px] font-bold whitespace-nowrap hover:brightness-110 active:translate-y-px active:shadow-none cursor-pointer transition"
+                                    className="flex flex-1 md:flex-none items-center justify-center md:justify-start gap-2 h-10 split:short:h-8 px-4 rounded-control shadow-raised text-[13px] font-bold whitespace-nowrap hover:brightness-110 active:translate-y-px active:shadow-none cursor-pointer transition"
                                     style={{
                                         backgroundColor: draft.primary_color,
                                         color: getContrastTextColor(draft.primary_color),
@@ -1689,7 +1691,7 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
             {teamMode !== 'complete' && (
                 // Wraps the controls onto a second row (right-aligned) rather than letting the
                 // step chips squeeze under them on narrow screens.
-                <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 px-2 py-2.5 shrink-0" style={bannerStyle}>
+                <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 px-2 py-2.5 split:short:py-1.5 shrink-0" style={bannerStyle}>
                     <div className="flex items-center gap-1 min-w-0">
                         <span className={`hidden md:block w-2 h-2 rounded-full shrink-0 ${teamMode === 'drafting' ? 'animate-pulse' : ''}`} style={{ backgroundColor: bannerInk.dot }} />
                         <span className="text-[10px] md:text-[11px] font-bold flex items-center gap-2 min-w-0" style={{ color: bannerInk.fill }}>

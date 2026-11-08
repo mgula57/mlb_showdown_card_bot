@@ -7,7 +7,7 @@
    breakpoint but leave too little room under a pinned header, so the lock also requires `tall`;
    on `short` the header scrolls away and the pane area alone takes the viewport. See DESIGN.md. */
 @custom-variant tall (@media (height >= 40rem));
-@custom-variant short (@media (height < 40rem));
+@custom-variant short (@media (height < 40rem)); /* mirrored by SHORT_SCREEN_QUERY in hooks/useMediaQuery.ts */
 
 @theme {
     --container-field-split: 600px;
