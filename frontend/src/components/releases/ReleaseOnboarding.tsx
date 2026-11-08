@@ -31,7 +31,7 @@ const WELCOME_STEPS = [
     { label: 'Setup', detail: 'Choose the seasons, showdown sets and size this edition draws from.' },
     { label: 'Player Pool', detail: 'Pick the players with the algorithm, a search, or your own custom cards.' },
     { label: 'Images', detail: 'Choose a card style and render an image for every card.' },
-    { label: 'Review & Publish', detail: 'Check for problems, then publish so anyone can browse it.' },
+    { label: 'Review & Publish', detail: 'Check for problems, then publish it for everyone, people with the link, or just you.' },
 ];
 
 /** Opens the tour the first time an owner edits a release that has never been published. */
@@ -68,7 +68,7 @@ export function ReleaseOnboardingWelcome() {
                     ))}
                 </ol>
                 <p className="text-[12px] text-(--text-tertiary)">
-                    Nothing is public until you publish.
+                    Nothing is public until you publish. Best practices for each step are under Tips, any time.
                 </p>
             </div>
         </Modal>

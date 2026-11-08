@@ -21,6 +21,7 @@ import { StatTile } from '../shared/StatTile';
 import { InlineError } from '../shared/InlineError';
 import { buttonClass } from '../shared/buttonStyles';
 import { CAPS_LABEL_CLASS, FIELD_LABEL_CLASS, fieldClass } from '../shared/fieldStyles';
+import { isPrivateRelease, releaseAudience } from './releaseVisibility';
 
 const LEVEL_ORDER: ReleaseReviewLevel[] = ['blocker', 'check', 'polish'];
 const LEVEL_LABELS: Record<ReleaseReviewLevel, string> = { blocker: 'Must fix', check: 'Check', polish: 'Polish' };
@@ -349,7 +350,9 @@ function PublishControls({ release, token, ready, blockerCount, checkCount, hasC
                         )}
                     </div>
                     <span className="text-[12px] text-(--text-secondary)">
-                        {isUpdate ? `Everyone sees v${release.published_version} until you publish your changes.` : 'Anyone can browse it and use its cards.'}
+                        {isUpdate
+                            ? `${isPrivateRelease(release) ? 'Your teams use' : 'Everyone sees'} v${release.published_version} until you publish your changes.`
+                            : releaseAudience(release.visibility)}
                     </span>
                 </div>
             )}

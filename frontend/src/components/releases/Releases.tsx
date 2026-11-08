@@ -16,6 +16,8 @@ import { choiceClass } from '../shared/choiceStyles';
 import { ReleaseItem, ReleaseItemSkeleton, NewReleaseTile } from './ReleaseItem';
 import { ReleaseDetail } from './ReleaseDetail';
 import { NewReleaseModal } from './NewReleaseModal';
+import { ReleaseGuide, ReleaseGuideButton } from './ReleaseGuide';
+import type { ReleaseGuideSectionId } from './releaseGuideContent';
 import { FaPlus, FaSpinner } from 'react-icons/fa6';
 import type { ReleaseCreatePayload } from '../../api/releases';
 
@@ -82,6 +84,7 @@ export default function Releases() {
     const [showCreateModal, setShowCreateModal] = useState(false);
     const [communitySort, setCommunitySort] = useState<PublicReleaseSort>('popular');
     const [communitySearch, setCommunitySearch] = useState('');
+    const [guideSection, setGuideSection] = useState<ReleaseGuideSectionId | null>(null);
 
     // UX Spacing — matches TeamBuilder
     const px = 'px-4 sm:px-8';
@@ -197,6 +200,7 @@ export default function Releases() {
     }
 
     function openRelease(release: Release, readOnly: boolean) {
+        setGuideSection(null);
         mountRelease(release, readOnly);
         navigate('/release-builder/' + release.id);
         // List tiles lack the viewer's like/save state, which the header's buttons need
@@ -210,6 +214,7 @@ export default function Releases() {
     /** Community tiles show every release as visitors see it (published editions only). The user's
      *  own open in the builder, so they mount the full copy from My Releases, or fetch it. */
     function openCommunityRelease(release: Release) {
+        setGuideSection(null);
         if (release.created_by !== userId) {
             openRelease(release, true);
             return;
@@ -251,6 +256,7 @@ export default function Releases() {
 
     /** Opens a release the user just made (new or remixed) in the builder, at its first edition. */
     function openNewRelease(created: Release) {
+        setGuideSection(null);
         const firstSlug = created.editions[0]?.slug ?? null;
         setUserReleases(prev => [created, ...prev]);
         mountRelease(created, false, firstSlug);
@@ -262,7 +268,8 @@ export default function Releases() {
         // A like from the release's header shows on its public tiles too
         const syncTile = (r: Release) => r.id === updated.id ? withEngagement(r, updated) : r;
         setOfficialReleases(prev => prev.map(syncTile));
-        community.mapReleases(syncTile);
+        // Made link-only or private: it leaves the public lists right away, not on the next load
+        community.mapReleases(r => r.id === updated.id && updated.visibility && updated.visibility !== 'listed' ? null : syncTile(r));
         // Saving or unsaving in the release's header adds it to (or drops it from) the Saved section
         if (updated.saved_by_me !== undefined) {
             setSavedReleases(prev => {
@@ -307,7 +314,8 @@ export default function Releases() {
             {!releaseIdFromUrl && renderList()}
 
             {/* Outside the list's @container: container-type makes it the containing block for fixed
-                descendants, which would clip the modal to the list's height. */}
+                descendants, which would clip the modal and the guide to the list's height. */}
+            {!releaseIdFromUrl && <ReleaseGuide section={guideSection} onClose={() => setGuideSection(null)} />}
             {showCreateModal && (
                 <NewReleaseModal
                     onConfirm={handleCreate}
@@ -334,16 +342,19 @@ export default function Releases() {
                         Browse official card sets or build your own
                     </p>
                 </div>
-                {token && (
-                    <button
-                        type="button"
-                        onClick={() => setShowCreateModal(true)}
-                        className={buttonClass('primary', 'sm', TOUCH_TARGET)}
-                    >
-                        <FaPlus className="text-[10px]" />
-                        <span>New<span className="hidden sm:inline"> release</span></span>
-                    </button>
-                )}
+                <div className="flex items-center gap-2 shrink-0">
+                    <ReleaseGuideButton onClick={() => setGuideSection('plan')} className={TOUCH_TARGET} />
+                    {token && (
+                        <button
+                            type="button"
+                            onClick={() => setShowCreateModal(true)}
+                            className={buttonClass('primary', 'sm', TOUCH_TARGET)}
+                        >
+                            <FaPlus className="text-[10px]" />
+                            <span>New<span className="hidden sm:inline"> release</span></span>
+                        </button>
+                    )}
+                </div>
             </div>
 
             {error && (

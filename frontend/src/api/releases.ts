@@ -39,12 +39,15 @@ export type ReleasePreviewImage = {
     name: string | null;
 };
 
+/** Who can open a published release: listed in Community and search, anyone with the link, or only its owner. */
+export type ReleaseVisibility = 'listed' | 'link' | 'private';
+
 /** The release a remix was started from, for its "Remixed from" credit. */
 export type ReleaseForkParent = {
     id: string;
     name: string;
     creator_username: string | null;
-    /** Published, listed and not deleted, so the credit can link to it (a link-only source stays unlinked). */
+    /** Published, listed and not deleted, so the credit can link to it (a link-only or private source stays unlinked). */
     is_linkable: boolean;
 };
 
@@ -84,8 +87,8 @@ export type Release = {
     version_published_at: string | null;
     view_count: number;
     like_count: number;
-    /** False for a link-only release: it opens from its link but stays out of the public list and search. */
-    is_listed: boolean;
+    /** Who can open it once published (see `RELEASE_VISIBILITY`). */
+    visibility: ReleaseVisibility;
     /** Single-release fetches with a signed-in viewer only. */
     liked_by_me?: boolean;
     /** Saved to the viewer's card search. Single-release fetches with a signed-in viewer, and the saved list. */
@@ -152,7 +155,7 @@ export type ReleaseCreatePayload = {
 };
 
 export type ReleaseUpdatePayload = Partial<ReleaseCreatePayload> & {
-    is_listed?: boolean;
+    visibility?: ReleaseVisibility;
     allow_remix?: boolean;
     is_wip?: boolean;
 };

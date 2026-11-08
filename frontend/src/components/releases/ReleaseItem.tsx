@@ -8,6 +8,7 @@ import { SLANT_ROOM_CLASS } from '../shared/headingStyles';
 import { Plate } from '../shared/Plate';
 import { FrameCorners } from '../shared/FrameCorners';
 import { CAPS_LABEL_CLASS } from '../shared/fieldStyles';
+import { ReleaseVisibilityPlate } from './ReleaseVisibilityPlate';
 
 /** Tile frame shared by ReleaseItem and its skeleton — sized like TeamPreviewCard's 'md' tile on
  *  wider screens, filling a 2-column grid cell on phones. */
@@ -132,7 +133,7 @@ export function ReleaseItem({ release, onClick, showPublishStatus = false }: Rel
                             <Plate variant={isPublished ? 'success' : 'outline'} size="sm">
                                 {isPublished ? 'Published' : 'Draft'}
                             </Plate>
-                            {isPublished && !release.is_listed && <Plate variant="outline" size="sm">Link only</Plate>}
+                            <ReleaseVisibilityPlate release={release} show={isPublished} />
                             {release.has_pending_changes && <Plate variant="outline" size="sm">Unpublished changes</Plate>}
                         </div>
                     )}

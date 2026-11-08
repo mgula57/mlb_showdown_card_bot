@@ -1047,7 +1047,7 @@ class PostgresDB:
             WHERE
                 e.id::text = ANY(%s) AND
                 rc.retired_at IS NULL AND
-                (e.is_published OR r.created_by = %s)
+                ((e.is_published AND r.visibility <> 'private') OR r.created_by = %s)
         ) sub""")
         return from_clause, [edition_ids, user_id]
 
@@ -6820,8 +6820,29 @@ class PostgresDB:
             """)
             # The link-preview image (see `ReleaseShareImage`), rendered when the release is published
             cur.execute("ALTER TABLE internal.releases ADD COLUMN IF NOT EXISTS share_image_path TEXT;")
-            # Link-only releases (FALSE) open from their link but stay out of the public list and card search
+            # Superseded by `visibility` below (kept so older deploys reading it don't break; no longer written)
             cur.execute("ALTER TABLE internal.releases ADD COLUMN IF NOT EXISTS is_listed BOOLEAN NOT NULL DEFAULT TRUE;")
+            # Who can open the published release: 'listed' (Community and search), 'link' (anyone with
+            # the link) or 'private' (only the owner: published for their own teams and card search).
+            # Backfilled once from `is_listed`, while the column is still null.
+            cur.execute("ALTER TABLE internal.releases ADD COLUMN IF NOT EXISTS visibility TEXT;")
+            cur.execute("""
+                UPDATE internal.releases SET visibility = CASE WHEN is_listed THEN 'listed' ELSE 'link' END
+                 WHERE visibility IS NULL;
+            """)
+            cur.execute("""
+                ALTER TABLE internal.releases
+                    ALTER COLUMN visibility SET DEFAULT 'listed',
+                    ALTER COLUMN visibility SET NOT NULL;
+            """)
+            cur.execute("""
+                DO $$ BEGIN
+                    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'releases_visibility_check') THEN
+                        ALTER TABLE internal.releases ADD CONSTRAINT releases_visibility_check
+                            CHECK (visibility IN ('listed', 'link', 'private'));
+                    END IF;
+                END $$;
+            """)
             # Owner's toggle for "Remix" (see `remix_release`): others may start a release from this one.
             # Remixes record their source in `fork_parent_id`
             cur.execute("ALTER TABLE internal.releases ADD COLUMN IF NOT EXISTS allow_remix BOOLEAN NOT NULL DEFAULT TRUE;")
@@ -7076,13 +7097,13 @@ class PostgresDB:
         SELECT
             r.id, r.name, r.description, r.created_by, r.is_official,
             r.fork_parent_id, r.slug, r.default_showdown_set, r.created_at, r.updated_at,
-            r.published_at, r.published_version, r.share_image_path, r.view_count, r.like_count, r.is_listed, r.allow_remix, r.is_wip,
+            r.published_at, r.published_version, r.share_image_path, r.view_count, r.like_count, r.visibility, r.allow_remix, r.is_wip,
             -- The release this one was remixed from, for its credit. Linked only while anyone can find it
-            -- (published, listed, not retired), so a remix never exposes a link-only release
+            -- (published, listed, not retired), so a remix never exposes a link-only or private release
             (SELECT json_build_object(
                         'id', fp.id, 'name', fp.name,
                         'creator_username', (SELECT p.username FROM public.profiles p WHERE p.id::text = fp.created_by),
-                        'is_linkable', fp.retired_at IS NULL AND fp.is_listed
+                        'is_linkable', fp.retired_at IS NULL AND fp.visibility = 'listed'
                                        AND EXISTS (SELECT 1 FROM internal.release_editions fe WHERE fe.release_id = fp.id AND fe.is_published)
                     )
                FROM internal.releases fp WHERE fp.id = r.fork_parent_id) AS fork_parent,
@@ -7183,7 +7204,7 @@ class PostgresDB:
                 SELECT 1 FROM internal.release_editions pe
                 WHERE pe.release_id = r.id AND pe.is_published = TRUE
             )
-              AND r.is_listed AND r.retired_at IS NULL
+              AND r.visibility = 'listed' AND r.retired_at IS NULL
               AND (%(section)s::text IS NULL OR r.is_official = (%(section)s = 'official')
                    OR (%(section)s = 'community' AND r.created_by = %(viewer_id)s::text))
               AND (%(pattern)s::text IS NULL
@@ -7202,18 +7223,18 @@ class PostgresDB:
 
     def get_release(self, release_id: str, user_id: str | None = None) -> dict | None:
         """Return a single release (with metadata-only editions). Enforces ownership unless
-        it has at least one published edition. Its `preview_images` and `showdown_sets` come from
-        published editions only, for the public header."""
+        it has at least one published edition and isn't private. Its `preview_images` and `showdown_sets`
+        come from published editions only, for the public header."""
         if not self.connection:
             return None
         query = self._release_list_select(published_only=True) + """
             WHERE r.id = %s AND r.retired_at IS NULL
               AND (
                   r.created_by = %s
-                  OR EXISTS (
+                  OR (r.visibility <> 'private' AND EXISTS (
                       SELECT 1 FROM internal.release_editions pe
                       WHERE pe.release_id = r.id AND pe.is_published = TRUE
-                  )
+                  ))
               )
             GROUP BY r.id
         """
@@ -7261,7 +7282,7 @@ class PostgresDB:
         `attributes`), their live cards, and their image rows, sharing the same files (every file
         delete checks no other row points to it, see `_unshared_release_image_paths`). Nothing is
         published; the new release credits the source via `fork_parent_id`. Returns its id, or None if
-        the source isn't published, is the user's own, or its owner turned remixes off."""
+        the source isn't published, is private, is the user's own, or its owner turned remixes off."""
         if not self.connection:
             raise RuntimeError("No database connection")
         fields = self._release_payload_fields(payload)
@@ -7270,7 +7291,7 @@ class PostgresDB:
             # copy to commit, so the remix copies one version of it
             cur.execute("""
                 SELECT r.id FROM internal.releases r
-                 WHERE r.id = %s AND r.created_by <> %s AND r.allow_remix AND r.retired_at IS NULL
+                 WHERE r.id = %s AND r.created_by <> %s AND r.allow_remix AND r.visibility <> 'private' AND r.retired_at IS NULL
                    AND EXISTS (SELECT 1 FROM internal.release_editions e WHERE e.release_id = r.id AND e.is_published)
                    FOR SHARE
             """, (source_release_id, user_id))
@@ -7362,13 +7383,14 @@ class PostgresDB:
             return True
 
     def get_saved_releases(self, user_id: str) -> list[dict]:
-        """Releases user_id saved that are still published, most recently saved first. Link-only ones
-        count (the user opened them from the link); tiles and editions come from published editions."""
+        """Releases user_id saved that are still published and not private, most recently saved first.
+        Link-only ones count (the user opened them from the link); tiles and editions come from published
+        editions. A save on a release that went private is kept, and returns if it's shared again."""
         if not self.connection:
             return []
         query = self._release_list_select(published_only=True) + """
             JOIN internal.release_saves s ON s.release_id = r.id AND s.user_id = %s
-            WHERE r.retired_at IS NULL AND EXISTS (
+            WHERE r.retired_at IS NULL AND r.visibility <> 'private' AND EXISTS (
                 SELECT 1 FROM internal.release_editions pe
                 WHERE pe.release_id = r.id AND pe.is_published = TRUE
             )
@@ -7398,11 +7420,11 @@ class PostgresDB:
 
     def get_public_release_tile(self, release_id: str) -> dict | None:
         """A published release as anyone sees its tile (published editions only), for link previews
-        and its share image. None if it doesn't exist or nothing is published."""
+        and its share image. None if it doesn't exist, nothing is published, or it's private."""
         if not self.connection:
             return None
         query = self._release_list_select(published_only=True) + """
-            WHERE r.id::text = %s AND r.retired_at IS NULL
+            WHERE r.id::text = %s AND r.retired_at IS NULL AND r.visibility <> 'private'
               AND EXISTS (SELECT 1 FROM internal.release_editions pe WHERE pe.release_id = r.id AND pe.is_published)
             GROUP BY r.id
         """
@@ -7422,6 +7444,7 @@ class PostgresDB:
                    e.name AS edition_name, i.storage_path
               FROM internal.release_cards rc
               JOIN internal.release_editions e ON e.id = rc.edition_id
+              JOIN internal.releases r ON r.id = e.release_id AND r.visibility <> 'private'
               LEFT JOIN internal.release_card_images i ON i.edition_id = rc.edition_id AND i.source_card_id = rc.source_card_id
              WHERE e.release_id::text = %s AND e.slug = %s AND e.is_published AND e.draft_of IS NULL
                AND rc.retired_at IS NULL
@@ -7677,7 +7700,7 @@ class PostgresDB:
             return True, orphaned_paths
 
     def get_edition(self, edition_id: str, user_id: str | None = None) -> dict | None:
-        """Return a single edition with its full card list. Enforces ownership unless published."""
+        """Return a single edition with its full card list. Enforces ownership unless published (and not private)."""
         if not self.connection:
             return None
         edition_query = """
@@ -7686,7 +7709,7 @@ class PostgresDB:
             FROM internal.release_editions e
             JOIN internal.releases r ON r.id = e.release_id
             WHERE e.id = %s AND e.retired_at IS NULL AND r.retired_at IS NULL
-              AND (e.is_published = TRUE OR r.created_by = %s)
+              AND ((e.is_published = TRUE AND r.visibility <> 'private') OR r.created_by = %s)
         """
         # Cards are fetched as rows, not json_agg'd: aggregating with ORDER BY sorts every wide
         # card_snapshot and spills to temp files, so rows come back in natural card_number order
@@ -8361,7 +8384,8 @@ class PostgresDB:
                 return slug
             slug = f"{base_slug}-{secrets.token_hex(3)}"
 
-    _RELEASE_ALLOWED_FIELDS = frozenset({'name', 'description', 'default_showdown_set', 'is_listed', 'allow_remix', 'is_wip'})
+    _RELEASE_ALLOWED_FIELDS = frozenset({'name', 'description', 'default_showdown_set', 'visibility', 'allow_remix', 'is_wip'})
+    RELEASE_VISIBILITIES = ('listed', 'link', 'private')
 
     @staticmethod
     def _release_payload_fields(payload: dict) -> dict:

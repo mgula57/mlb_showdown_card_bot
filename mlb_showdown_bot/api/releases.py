@@ -106,9 +106,11 @@ def update_release(release_id: str):
         payload = request.get_json(silent=True)
         if not payload or not isinstance(payload, dict):
             return jsonify({'error': 'Request body must be a JSON object'}), 400
-        for flag in ('is_listed', 'allow_remix', 'is_wip'):
+        for flag in ('allow_remix', 'is_wip'):
             if flag in payload and not isinstance(payload[flag], bool):
                 return jsonify({'error': f'{flag} must be true or false'}), 400
+        if 'visibility' in payload and payload['visibility'] not in PostgresDB.RELEASE_VISIBILITIES:
+            return jsonify({'error': f"visibility must be one of {', '.join(PostgresDB.RELEASE_VISIBILITIES)}"}), 400
         if 'name' in payload:
             if not isinstance(payload['name'], str) or not payload['name'].strip():
                 return jsonify({'error': 'Release name cannot be blank'}), 400

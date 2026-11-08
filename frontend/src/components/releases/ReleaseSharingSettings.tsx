@@ -1,17 +1,14 @@
 import { useState } from 'react';
 import { FaSpinner } from 'react-icons/fa6';
-import { updateRelease, type Release, type ReleaseUpdatePayload } from '../../api/releases';
+import { updateRelease, type Release, type ReleaseUpdatePayload, type ReleaseVisibility } from '../../api/releases';
 import FormEnabler from '../customs/FormEnabler';
 import { choiceClass } from '../shared/choiceStyles';
 import { FIELD_LABEL_CLASS } from '../shared/fieldStyles';
 import { InlineError } from '../shared/InlineError';
+import { RELEASE_VISIBILITY, RELEASE_VISIBILITY_ORDER } from './releaseVisibility';
 
-const OPTIONS = [
-    { isListed: true, label: 'Listed', detail: 'Shows in Community and search' },
-    { isListed: false, label: 'Link only', detail: 'Anyone with the link, not listed' },
-] as const;
-
-type SharingField = 'is_listed' | 'allow_remix' | 'is_wip';
+type SharingField = 'visibility' | 'allow_remix' | 'is_wip';
+type SharingValue = ReleaseVisibility | boolean;
 
 type ReleaseSharingSettingsProps = {
     release: Release;
@@ -19,15 +16,16 @@ type ReleaseSharingSettingsProps = {
     onReleaseUpdated: (release: Release) => void;
 };
 
-/** Listed or link-only, whether others may remix it, and its WIP tag. Saved to the release right away (like its
- *  description), so both can be picked before publishing and switched at any time after, and the
- *  link stays the same either way. Turning remixes off keeps the remixes already made. */
+/** Who can find it (listed, link-only or only the owner), whether others may remix it, and its WIP tag. Saved
+ *  to the release right away (like its description), so all can be picked before publishing and switched at
+ *  any time after, and the link stays the same either way. Turning remixes off keeps the remixes already
+ *  made; going private keeps others' saves, which come back if it's shared again. */
 export function ReleaseSharingSettings({ release, token, onReleaseUpdated }: ReleaseSharingSettingsProps) {
     // The field being saved, and the value it's being saved as
-    const [saving, setSaving] = useState<{ field: SharingField; value: boolean } | null>(null);
+    const [saving, setSaving] = useState<{ field: SharingField; value: SharingValue } | null>(null);
     const [error, setError] = useState<string | null>(null);
 
-    async function save(field: SharingField, value: boolean) {
+    async function save(field: SharingField, value: SharingValue) {
         if (value === release[field] || saving !== null) return;
         setSaving({ field, value });
         setError(null);
@@ -45,25 +43,28 @@ export function ReleaseSharingSettings({ release, token, onReleaseUpdated }: Rel
     return (
         <div className="flex flex-col gap-1.5">
             <span className={FIELD_LABEL_CLASS}>Who can find it</span>
-            <div className="grid grid-cols-2 gap-2" role="radiogroup" aria-label="Who can find it">
-                {OPTIONS.map(option => (
+            <div className="grid grid-cols-3 gap-2" role="radiogroup" aria-label="Who can find it">
+                {RELEASE_VISIBILITY_ORDER.map(visibility => (
                     <button
-                        key={option.label}
+                        key={visibility}
                         type="button"
                         role="radio"
-                        aria-checked={release.is_listed === option.isListed}
-                        onClick={() => save('is_listed', option.isListed)}
+                        aria-checked={release.visibility === visibility}
+                        onClick={() => save('visibility', visibility)}
                         disabled={saving !== null}
-                        className={choiceClass(release.is_listed === option.isListed, 'md', 'flex-col items-start! text-left h-auto min-w-0 py-2 whitespace-normal!')}
+                        className={choiceClass(release.visibility === visibility, 'md', 'flex-col items-start! justify-start! text-left h-auto min-w-0 py-2 whitespace-normal!')}
                     >
                         <span className="flex items-center gap-1.5">
-                            {saving?.field === 'is_listed' && saving.value === option.isListed && <FaSpinner className="animate-spin text-[10px]" />}
-                            {option.label}
+                            {saving?.field === 'visibility' && saving.value === visibility && <FaSpinner className="animate-spin text-[10px]" />}
+                            {RELEASE_VISIBILITY[visibility].label}
                         </span>
-                        <span className="text-[11px] font-normal text-(--text-tertiary)">{option.detail}</span>
+                        <span className="text-[11px] font-normal text-(--text-tertiary)">{RELEASE_VISIBILITY[visibility].detail}</span>
                     </button>
                 ))}
             </div>
+            {/* Nobody else can open a private release, so remixing and the WIP tag don't apply */}
+            {release.visibility !== 'private' && (
+            <>
             <FormEnabler
                 label={<span className="flex items-center gap-1.5">{saving?.field === 'allow_remix' && <FaSpinner className="animate-spin text-[10px]" />}Allow remixes</span>}
                 description="Others can start their own release from this one. Theirs credits yours."
@@ -78,6 +79,8 @@ export function ReleaseSharingSettings({ release, token, onReleaseUpdated }: Rel
                 onChange={enabled => save('is_wip', !enabled)}
                 isDisabled={saving !== null}
             />
+            </>
+            )}
             {error && <InlineError size="sm">{error}</InlineError>}
         </div>
     );

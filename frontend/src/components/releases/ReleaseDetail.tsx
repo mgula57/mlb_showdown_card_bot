@@ -22,6 +22,7 @@ import { Heading } from '../shared/Heading';
 import { buttonClass } from '../shared/buttonStyles';
 import { Plate } from '../shared/Plate';
 import { EmptyState } from '../shared/EmptyState';
+import { isPrivateRelease, releaseAudience } from './releaseVisibility';
 type ReleaseDetailProps = {
     release: Release;
     readOnly: boolean;
@@ -187,8 +188,8 @@ export function ReleaseDetail({ release, readOnly, editionSlug, onEditionChange,
         changeMode('browse');
         setPublishedVersion(updated.published_version);
         onboarding.finish();
-        // The first publish is when there's a link to send for the first time
-        if (updated.published_version === 1) setShareSheet({ eyebrow: 'Published · v1' });
+        // The first publish is when there's a link to send for the first time (a private release has no one to send it to)
+        if (updated.published_version === 1 && !isPrivateRelease(updated)) setShareSheet({ eyebrow: 'Published · v1' });
     }
 
     async function handleDiscard() {
@@ -500,10 +501,12 @@ export function ReleaseDetail({ release, readOnly, editionSlug, onEditionChange,
                 </div>
 
                 {isOwner && !isEditing && publishedVersion !== null && (
-                    <ModeBanner tone="navy" label="PUBLISHED" detail={`— v${publishedVersion} is live. Anyone can browse it.`}>
-                        <ModeBannerButton onClick={() => setShareSheet({})}>
-                            <FaShareNodes /> Share
-                        </ModeBannerButton>
+                    <ModeBanner tone="navy" label="PUBLISHED" detail={`— v${publishedVersion} is live. ${releaseAudience(release.visibility)}`}>
+                        {!isPrivateRelease(release) && (
+                            <ModeBannerButton onClick={() => setShareSheet({})}>
+                                <FaShareNodes /> Share
+                            </ModeBannerButton>
+                        )}
                         <ModeBannerButton onClick={() => setPublishedVersion(null)}>
                             <FaXmark /> Dismiss
                         </ModeBannerButton>

@@ -10,6 +10,7 @@ import { ReleaseHeaderButton } from './ReleaseHeaderButton';
 import { ReleaseVersionHistory } from './ReleaseVersionHistory';
 import { ReleaseRemixModal } from './ReleaseRemixModal';
 import { ReleaseCardFan } from './ReleaseItem';
+import { ReleaseVisibilityPlate } from './ReleaseVisibilityPlate';
 
 type ReleasePublicHeaderProps = {
     release: Release;
@@ -89,7 +90,7 @@ export function ReleasePublicHeader({ release, cardCount, editionCount, isOwner,
                         <Heading level="page" as="h1" fit>{release.name}</Heading>
                         {release.is_official && <Plate variant="navy" size="sm">Official</Plate>}
                         {release.is_wip && <Plate variant="outline" size="sm" title="Work in progress: more cards or changes are coming">WIP</Plate>}
-                        {isOwner && !release.is_listed && <Plate variant="outline" size="sm" title="Opens from its link but isn't listed in Community or search">Link only</Plate>}
+                        <ReleaseVisibilityPlate release={release} show={isOwner} />
                     </div>
                     <div className="flex flex-wrap items-center gap-x-1.5 text-[13px] text-(--text-secondary)">
                         {release.creator_username && (

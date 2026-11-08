@@ -51,6 +51,8 @@ import {
 } from './poolGrouping';
 import { PoolFilterPanel } from './PoolFilterPanel';
 import { ReleaseTip } from './ReleaseOnboarding';
+import { ReleaseGuide, ReleaseGuideButton } from './ReleaseGuide';
+import type { ReleaseGuideSectionId } from './releaseGuideContent';
 import { TeamSearchInput } from '../team_builder/TeamSearchInput';
 import { FaGripVertical } from 'react-icons/fa';
 import { FaCheck, FaLink, FaPlus, FaXmark, FaSpinner, FaWandMagicSparkles, FaCircleCheck, FaMagnifyingGlass, FaArrowsRotate, FaGear, FaArrowUp, FaArrowDown, FaTriangleExclamation, FaTableCellsLarge, FaList, FaAnglesLeft, FaAnglesRight, FaListCheck, FaChartColumn, FaPalette, FaFilter, FaScissors, FaPenRuler } from 'react-icons/fa6';
@@ -1273,6 +1275,9 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
     const [previewSaveActions, setPreviewSaveActions] = useState<HTMLDivElement | null>(null);
     const [styleButton, setStyleButton] = useState<HTMLButtonElement | null>(null);
     const [imagesStepButton, setImagesStepButton] = useState<HTMLButtonElement | null>(null);
+    // The guide opens on the step on screen, and follows it while open
+    const [isGuideOpen, setIsGuideOpen] = useState(false);
+    const guideSection: ReleaseGuideSectionId = reviewOpen ? 'publish' : step;
     const buildMethodAnchor = isDesktop
         ? (buildPanelHidden ? buildPanelRail : buildMethodTabs)
         : (activePoolTab === 'build' ? buildMethodTabs : phoneBuildTab);
@@ -1319,6 +1324,7 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
 
                 {!readOnly && (
                     <div className="flex items-center gap-1.5 sm:gap-2 ml-auto">
+                        <ReleaseGuideButton onClick={() => setIsGuideOpen(true)} className="min-h-5" />
                         <ImageLibrariesButton onClose={liveImageMatches.refresh} tipMoment={!reviewOpen && step === 'images' && cards.length > 0} />
                         <button
                             ref={setStyleButton}
@@ -1346,6 +1352,7 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
             <ReleaseTip id="savePreview" show={!!activePreview && !isAlgorithmRunning} anchor={previewSaveActions} placement="bottom-start" />
             <ReleaseTip id="cardStyle" show={cards.length > 0 && !showStyleModal} anchor={styleButton} placement="bottom-end" />
             <ReleaseTip id="imagesStep" show={cards.length > 0 && step === 'pool'} anchor={imagesStepButton} placement="bottom-start" />
+            {!readOnly && <ReleaseGuide section={isGuideOpen ? guideSection : null} onClose={() => setIsGuideOpen(false)} />}
 
             {!readOnly && !isDriveNoticeDismissed && (
                 <ReleaseDriveNotice

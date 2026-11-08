@@ -31,7 +31,7 @@ export const RELEASE_TIP_COPY: Record<Exclude<ReleaseTipId, 'welcome'>, { title:
     },
     publish: {
         title: 'Ready to go public?',
-        body: 'Publish opens the Review step, which checks the release for problems before anything goes live. Until you publish, only you can see it.',
+        body: 'Publish opens the Review step, which checks the release for problems before anything goes live and lets you pick who can find it. Until you publish, only you can see it.',
     },
 };
 
@@ -69,6 +69,10 @@ export type ReleaseOnboarding = {
     markSeen: (id: ReleaseTipId) => void;
     /** Ends the tour for good: "Skip tips", or the first publish. */
     finish: () => void;
+    /** Clears what was seen so the tour runs again from the welcome modal. */
+    restart: () => void;
+    /** Whether this release could run the tour at all (an owner's never-published release), finished or not. */
+    canRestart: boolean;
 };
 
 export const ReleaseOnboardingContext = createContext<ReleaseOnboarding | null>(null);
@@ -89,6 +93,7 @@ export function useReleaseOnboardingState(enabled: boolean): ReleaseOnboarding {
         update(prev => prev.seen.includes(id) ? prev : { ...prev, seen: [...prev.seen, id] });
     }, [update]);
     const finish = useCallback(() => update(prev => ({ ...prev, done: true })), [update]);
+    const restart = useCallback(() => update(() => ({ seen: [], done: false })), [update]);
     const register = useCallback((id: ReleaseTipId) => {
         setEligibleCounts(prev => ({ ...prev, [id]: (prev[id] ?? 0) + 1 }));
         return () => setEligibleCounts(prev => ({ ...prev, [id]: (prev[id] ?? 1) - 1 }));
@@ -99,8 +104,8 @@ export function useReleaseOnboardingState(enabled: boolean): ReleaseOnboarding {
     const hasSeen = useCallback((id: ReleaseTipId) => stored.seen.includes(id), [stored.seen]);
 
     return useMemo(
-        () => ({ enabled: isOn, current, hasSeen, register, markSeen, finish }),
-        [isOn, current, hasSeen, register, markSeen, finish]
+        () => ({ enabled: isOn, current, hasSeen, register, markSeen, finish, restart, canRestart: enabled }),
+        [isOn, current, hasSeen, register, markSeen, finish, restart, enabled]
     );
 }
 
