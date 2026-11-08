@@ -7,9 +7,12 @@ export const COMMUNITY_PAGE_SIZE = 24;
 const SEARCH_DEBOUNCE_MS = 300;
 
 /** Every listed community release for the Community list, the viewer's own included, sorted and searched on the server,
- *  a page at a time. A new sort, search or viewer starts over from the first page; coming back to the list (re-enabling)
- *  keeps the pages already loaded. Keyed on the user id, not the token, so routine token refreshes don't reload it. */
-export function useCommunityReleases(sort: PublicReleaseSort, search: string, enabled: boolean, token?: string, userId?: string) {
+ *  a page at a time. Holds the list's sort and search. A new sort, search or viewer starts over from the first page;
+ *  coming back to the list (re-enabling) keeps the pages already loaded. Keyed on the user id, not the token, so routine
+ *  token refreshes don't reload it. */
+export function useCommunityReleases(enabled: boolean, token?: string, userId?: string) {
+    const [sort, setSort] = useState<PublicReleaseSort>('popular');
+    const [search, setSearch] = useState('');
     const [releases, setReleases] = useState<Release[] | null>(null);
     const [loading, setLoading] = useState(false);
     const [hasMore, setHasMore] = useState(false);
@@ -68,5 +71,10 @@ export function useCommunityReleases(sort: PublicReleaseSort, search: string, en
      *  apply in place (a release that should now join the list). */
     const invalidate = useCallback(() => { loadedQueryRef.current = null; }, []);
 
-    return { releases, loading, hasMore, error, loadMore, mapReleases, invalidate, searching: debouncedSearch.trim() !== '' };
+    return {
+        releases, loading, hasMore, error, loadMore, mapReleases, invalidate,
+        sort, setSort, search, setSearch, searching: debouncedSearch.trim() !== '',
+    };
 }
+
+export type CommunityReleases = ReturnType<typeof useCommunityReleases>;
