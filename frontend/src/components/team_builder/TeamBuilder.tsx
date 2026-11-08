@@ -36,6 +36,7 @@ import { RecentSimsShelf } from './sim/RecentSimsShelf';
 import { ChallengeDetail } from './sim/ChallengeDetail';
 import { FaceoffView } from './faceoff/FaceoffView';
 import { RecentFaceoffsShelf } from './faceoff/RecentFaceoffsShelf';
+import { FACEOFFS_ENABLED } from '../../api/faceoff';
 import { AdminChallengesView } from './sim/admin/AdminChallengesView';
 import { Tabs, type TabItem } from '../shared/Tabs';
 import BackButton from '../shared/BackButton';
@@ -94,6 +95,7 @@ function parseChallengeInstanceId(pathname: string): string | null {
 // A Faceoff's replay has its own shareable URL (/teams/faceoffs/:faceoffId), independent of the team
 // editor/list state below, just like a challenge.
 function parseFaceoffId(pathname: string): string | null {
+    if (!FACEOFFS_ENABLED) return null;
     const parts = pathname.split('/').filter(Boolean);
     return parts[0] === 'teams' && parts[1] === 'faceoffs' && parts[2] ? parts[2] : null;
 }
@@ -837,7 +839,7 @@ export default function TeamBuilder() {
                             <RecentSimsShelf token={token} onOpenSeason={openSeason} />
                         </div>
                     )}
-                    {!loading && token && (
+                    {FACEOFFS_ENABLED && !loading && token && (
                         <div className={px}>
                             <RecentFaceoffsShelf token={token} onOpenFaceoff={id => navigate('/teams/faceoffs/' + id)} />
                         </div>

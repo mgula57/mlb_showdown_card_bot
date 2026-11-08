@@ -42,7 +42,7 @@ import { fetchTeamSimSeasons, cancelSimJob, fetchActiveSimJob, type SimSeasonLis
 import { PlayModal } from './sim/PlayModal';
 import { FaceoffModal } from './faceoff/FaceoffModal';
 import { FaceoffRow } from './faceoff/FaceoffRow';
-import { fetchTeamFaceoffs, type FaceoffSummary } from '../../api/faceoff';
+import { FACEOFFS_ENABLED, fetchTeamFaceoffs, type FaceoffSummary } from '../../api/faceoff';
 import { SimSeasonRow } from './sim/SimSeasonRow';
 import { CardItemFromCardDatabaseRecord } from '../cards/CardItem';
 import PointsEstimateComparison from '../cards/card_elements/PointsEstimateComparison';
@@ -479,7 +479,7 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
 
     // Faceoffs this team has played against other users' teams. Only saved teams can play one.
     useEffect(() => {
-        if (!team.team_id || (team.source !== 'user' && team.source !== 'official')) return;
+        if (!FACEOFFS_ENABLED || !team.team_id || (team.source !== 'user' && team.source !== 'official')) return;
         let stale = false;
         fetchTeamFaceoffs(team.team_id, token)
             .then(faceoffs => { if (!stale) setTeamFaceoffs(faceoffs); })
@@ -778,7 +778,7 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
     // shouldn't see a Sim action they're not allowed to use.
     const canSimulate = !!token && !isMlbTeam && !isDrafting && team.source === 'user' && !!team.team_id && isMyOwnTeam;
     // Unlike a season, a Faceoff can start from someone else's team: their public team is the opponent.
-    const canFaceoff = !!token && !isDrafting && !!team.team_id
+    const canFaceoff = FACEOFFS_ENABLED && !!token && !isDrafting && !!team.team_id
         && (team.source === 'user' || team.source === 'official') && (isMyOwnTeam || team.is_public);
     const hasFaceoffs = teamFaceoffs.length > 0;
     // Scoped to this team so a job started from a different team's page doesn't show up here.

@@ -10,6 +10,10 @@ import type { ShowdownBotCardAPIResponse } from "./showdownBotCard";
 import type { ManagerPreference } from "./manager";
 import type { CardSource } from "../types/cardSource";
 
+/** Faceoffs are hidden in the UI for now (the backend stays live). Flip to true to bring back the
+ * Faceoff button, the team Faceoffs tab, the Recent Faceoffs shelf and the /teams/faceoffs/:id page. */
+export const FACEOFFS_ENABLED = false;
+
 const API_BASE = import.meta.env.PROD ? "/api" : "http://127.0.0.1:5000/api";
 
 export type FaceoffSide = "challenger" | "opponent";
