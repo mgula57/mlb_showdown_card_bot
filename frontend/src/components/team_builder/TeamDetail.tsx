@@ -4,6 +4,7 @@ import * as Tabs from '@radix-ui/react-tabs';
 import type { Team, TeamUpdatePayload, LineupSlot, PitcherAssignment, TeamRosterSlot, AutofillStrategy, AutofillResult, PickSource, GuidedOption, GuidedFillOrder } from '../../api/userTeams';
 import { fetchTeam, autofillTeam, isTeamDrafting, isTeamSetupValid, uploadTeamLogo, deleteTeamLogo, adminDeleteTeam, validateTeamLogoFile, recordTeamView, ROTATION_ROLES, BULLPEN_ROLES, MAX_STARTERS, DEFAULT_LINEUP_NAME } from '../../api/userTeams';
 import { useAuth } from '../auth/AuthContext';
+import { CommentsPanel } from '../shared/comments/CommentsPanel';
 import { PublishToFeaturedModal } from './PublishToFeaturedModal';
 import { AutofillPanel } from './AutofillPanel';
 import { GuidedDraftPanel, GUIDED_DOCK_HEIGHT_CLASS } from './GuidedDraftPanel';
@@ -31,7 +32,7 @@ import { tabButtonClass, radixTabTriggerClass } from '../shared/tabStyles';
 import ShowdownCardSearch, { type FilterSelections } from '../cards/ShowdownCardSearch';
 import {
     FaSpinner, FaArrowLeft, FaPlus, FaXmark, FaCircleCheck, FaWandMagicSparkles,
-    FaShuffle, FaPenToSquare, FaStar, FaRegStar, FaGear, FaUsers,
+    FaShuffle, FaPenToSquare, FaStar, FaRegStar, FaRegComment, FaGear, FaUsers,
     FaList, FaRing, FaClipboardList, FaListOl, FaCodeFork, FaPlay, FaChartLine,
     FaRobot, FaBaseball, FaBaseballBatBall, FaHatWizard, FaMagnifyingGlass, FaArrowRight, FaTrash,
     FaHandPointer, FaFileImport, FaHeart, FaRegHeart, FaEye, FaGaugeHigh, FaCompass
@@ -305,6 +306,15 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
     const { isAdmin, user } = useAuth();
     const [showPublishModal, setShowPublishModal] = useState(false);
     const [unpublishing, setUnpublishing] = useState(false);
+    const [showComments, setShowComments] = useState(false);
+    // Kept here, since saves replace `team` with a copy that has no count. Reset for a different team
+    const [commentCount, setCommentCount] = useState(team.comment_count ?? 0);
+    const [commentCountTeamId, setCommentCountTeamId] = useState(team.team_id);
+    if (commentCountTeamId !== team.team_id) {
+        setCommentCountTeamId(team.team_id);
+        setCommentCount(team.comment_count ?? 0);
+        setShowComments(false);
+    }
     // Setup flow: a freshly created (or still-empty) team opens on the "Team Settings" step;
     // otherwise straight into "Drafting". Steps are freely navigable via the banner chips.
     // Challenge-created teams skip Settings entirely — the challenge already supplied every
@@ -796,6 +806,9 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
     const canPublish = adminCanCurate && isMyOwnTeam;
     // Views/likes are only meaningful for teams reachable from Browse.
     const showSocialStats = (team.is_public || isOfficialTeam) && !isMyOwnTeam;
+    // Comments go on saved teams reachable from Browse, the owner's own included. Synthetic MLB rosters
+    // have no saved id to hang them on (the server's `TeamCommentSubject` is the source of truth)
+    const hasComments = !!team.team_id && !embedded && ((team.source === 'user' && team.is_public) || isOfficialTeam);
     /** What kind of team this is, above the name (like a release's Official / Community line). */
     const headerEyebrow = teamMode === 'drafting' ? 'Drafting'
         : isOfficialTeam ? 'Featured team'
@@ -1568,7 +1581,7 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
 
                 {/* Action toolbar: one filled Sim CTA plus a uniform strip of tinted actions. Sized for a
                     thumb on mobile, wrapping onto a second line rather than shrinking. */}
-                {((onToggleStar || onFork || onToggleLike || !readOnly || canSimulate || canFaceoff || adminCanCurate) && teamMode === 'complete') && (
+                {((onToggleStar || onFork || onToggleLike || !readOnly || canSimulate || canFaceoff || adminCanCurate || hasComments) && teamMode === 'complete') && (
                     <div className="flex flex-wrap items-center gap-2 basis-full md:basis-auto shrink-0 self-end split:short:self-center px-4 pb-3.5 split:short:pb-0">
 
                         {onToggleStar && (
@@ -1596,6 +1609,15 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                                     }
                                 }}
                                 title={team.liked_by_me ? `Unlike ${draft.name}` : `Like ${draft.name}`}
+                            />
+                        )}
+                        {hasComments && (
+                            <HeaderAction
+                                icon={FaRegComment}
+                                label="Comments"
+                                count={commentCount}
+                                onClick={() => setShowComments(open => !open)}
+                                title={`Comments on ${draft.name}`}
                             />
                         )}
                         {!readOnly && teamMode === 'complete' && (
@@ -2072,6 +2094,19 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                 </Modal>
             )}
 
+            {hasComments && (
+                <CommentsPanel
+                    isOpen={showComments}
+                    onClose={() => setShowComments(false)}
+                    subtitle={draft.name}
+                    subject={{ type: 'team', id: team.team_id }}
+                    token={token}
+                    viewerId={user?.id}
+                    ownerId={team.user_id}
+                    isAdmin={isAdmin}
+                    onTotalChange={setCommentCount}
+                />
+            )}
             {showPublishModal && token && (
                 <PublishToFeaturedModal
                     token={token}

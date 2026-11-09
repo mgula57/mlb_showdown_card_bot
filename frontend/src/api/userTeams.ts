@@ -88,6 +88,8 @@ export type Team = {
     fork_count: number;
     /** Whether the current viewer has liked this team. Always false when signed out. */
     liked_by_me: boolean;
+    /** Live comments and replies. Single-team fetches only (`GET /user/teams/:id`). */
+    comment_count?: number;
     /** Curation fields — set only on admin-published (`source: 'official'`) teams. */
     collection_slug?: string | null;
     subtitle?: string | null;
@@ -235,7 +237,7 @@ export function isTeamSetupValid(team: Partial<Team>): boolean {
 }
 
 // Denormalized stat counters are server-only — never accepted on create or update.
-type TeamStatFields = 'view_count' | 'like_count' | 'fork_count' | 'liked_by_me';
+type TeamStatFields = 'view_count' | 'like_count' | 'fork_count' | 'liked_by_me' | 'comment_count';
 
 export type TeamCreatePayload = Partial<Omit<Team, 'team_id' | 'user_id' | 'created_at' | 'updated_at' | TeamStatFields>> & {
     name: string;

@@ -8522,6 +8522,29 @@ class PostgresDB:
             # Owner's toggle for comments on a release (see `ReleaseCommentSubject`). Turning it off hides
             # them; they come back if it's turned on again
             cur.execute("ALTER TABLE internal.releases ADD COLUMN IF NOT EXISTS allow_comments BOOLEAN NOT NULL DEFAULT TRUE;")
+            # `subject_id` can't be a foreign key to several tables, so deleting a subject's row deletes its
+            # comments here, whichever code path deletes it (teams are hard-deleted from the app, admin and
+            # CLI; releases are normally retired instead). Args: the subject type and its id column
+            cur.execute("""
+                CREATE OR REPLACE FUNCTION internal.delete_subject_comments() RETURNS trigger AS $$
+                BEGIN
+                    DELETE FROM internal.comments
+                     WHERE subject_type = TG_ARGV[0]
+                       AND subject_id = (to_jsonb(OLD) ->> TG_ARGV[1])::uuid;
+                    RETURN OLD;
+                END;
+                $$ LANGUAGE plpgsql;
+            """)
+            for table, subject_type, id_column in (
+                ('internal.user_teams', 'team', 'team_id'),
+                ('internal.releases', 'release', 'id'),
+            ):
+                trigger = f"trg_{subject_type}_delete_comments"
+                cur.execute(f"DROP TRIGGER IF EXISTS {trigger} ON {table};")
+                cur.execute(f"""
+                    CREATE TRIGGER {trigger} AFTER DELETE ON {table}
+                    FOR EACH ROW EXECUTE FUNCTION internal.delete_subject_comments('{subject_type}', '{id_column}');
+                """)
 
     # The author's name and avatar ride along on every comment. A deleted comment keeps its place (and
     # id, for its replies) but none of its content
@@ -8615,12 +8638,8 @@ class PostgresDB:
                     reply.pop('position', None)
                     replies_by_parent.setdefault(str(reply['parent_id']), []).append(self._serialize_comment_row(reply))
 
-            cur.execute("""
-                SELECT COUNT(*) AS total FROM internal.comments
-                 WHERE subject_type = %s AND subject_id = %s AND deleted_at IS NULL
-            """, (subject_type, subject_id))
-            total = cur.fetchone()['total']
 
+        total = self.count_comments(subject_type, subject_id)
         comments = []
         for row in rows:
             row = self._serialize_comment_row(row)
@@ -8632,6 +8651,17 @@ class PostgresDB:
             'next_cursor': f"{last['created_at']}|{last['id']}" if last else None,
             'total': total,
         }
+
+    def count_comments(self, subject_type: str, subject_id: str) -> int:
+        """Live comments and replies on a subject (the release list carries its own `comment_count`)."""
+        if not self.connection:
+            return 0
+        with self.connection.cursor() as cur:
+            cur.execute("""
+                SELECT COUNT(*) FROM internal.comments
+                 WHERE subject_type = %s AND subject_id = %s AND deleted_at IS NULL
+            """, (subject_type, subject_id))
+            return cur.fetchone()[0]
 
     def get_comment_replies(self, parent_id: str, after: tuple[str, str] | None = None, limit: int = 50) -> dict:
         """A page of a thread's live replies, oldest first, after the (created_at, id) `after`.
