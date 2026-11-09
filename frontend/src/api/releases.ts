@@ -62,6 +62,10 @@ export type Release = {
     fork_parent: ReleaseForkParent | null;
     /** The owner lets others remix it (start their own release from it). On by default. */
     allow_remix: boolean;
+    /** The owner lets people comment on it once it's published and not private. On by default. */
+    allow_comments: boolean;
+    /** Live comments and replies (comments are kept, just hidden, while they're turned off). */
+    comment_count: number;
     /** Owner-set "work in progress" label. */
     is_wip: boolean;
     slug: string;
@@ -157,6 +161,7 @@ export type ReleaseCreatePayload = {
 export type ReleaseUpdatePayload = Partial<ReleaseCreatePayload> & {
     visibility?: ReleaseVisibility;
     allow_remix?: boolean;
+    allow_comments?: boolean;
     is_wip?: boolean;
 };
 

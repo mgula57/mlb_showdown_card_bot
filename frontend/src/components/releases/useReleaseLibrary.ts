@@ -4,7 +4,7 @@ import { fetchMyReleases, fetchPublicReleases, fetchSavedReleases, type Release 
 /** A list tile with the like/save state from a fuller copy of the release. Only those, since the
  *  owner's copy also carries unpublished editions a public tile mustn't show. */
 export function withEngagement(tile: Release, updated: Release): Release {
-    return { ...tile, like_count: updated.like_count, liked_by_me: updated.liked_by_me, saved_by_me: updated.saved_by_me };
+    return { ...tile, like_count: updated.like_count, liked_by_me: updated.liked_by_me, saved_by_me: updated.saved_by_me, comment_count: updated.comment_count };
 }
 
 /** The sections above Community: the viewer's own releases, the ones they saved, and the official

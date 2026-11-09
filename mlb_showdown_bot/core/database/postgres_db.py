@@ -4889,6 +4889,7 @@ class PostgresDB:
             ("sim_game",                  self.build_sim_game_table),
             ("sim_faceoff",               self.build_sim_faceoff_tables),
             ("releases",                  self.build_releases_table),
+            ("comments",                  self.build_comments_table),
             ("historical team tables",   self.build_historical_team_tables),
             ("era team tables",           self.build_era_team_tables),
             ("card_bot indexes",          self.build_card_bot_indexes),
@@ -7097,7 +7098,9 @@ class PostgresDB:
         SELECT
             r.id, r.name, r.description, r.created_by, r.is_official,
             r.fork_parent_id, r.slug, r.default_showdown_set, r.created_at, r.updated_at,
-            r.published_at, r.published_version, r.share_image_path, r.view_count, r.like_count, r.visibility, r.allow_remix, r.is_wip,
+            r.published_at, r.published_version, r.share_image_path, r.view_count, r.like_count, r.visibility, r.allow_remix, r.is_wip, r.allow_comments,
+            (SELECT COUNT(*) FROM internal.comments cm
+              WHERE cm.subject_type = 'release' AND cm.subject_id = r.id AND cm.deleted_at IS NULL) AS comment_count,
             -- The release this one was remixed from, for its credit. Linked only while anyone can find it
             -- (published, listed, not retired), so a remix never exposes a link-only or private release
             (SELECT json_build_object(
@@ -8407,7 +8410,7 @@ class PostgresDB:
                 return slug
             slug = f"{base_slug}-{secrets.token_hex(3)}"
 
-    _RELEASE_ALLOWED_FIELDS = frozenset({'name', 'description', 'default_showdown_set', 'visibility', 'allow_remix', 'is_wip'})
+    _RELEASE_ALLOWED_FIELDS = frozenset({'name', 'description', 'default_showdown_set', 'visibility', 'allow_remix', 'allow_comments', 'is_wip'})
     RELEASE_VISIBILITIES = ('listed', 'link', 'private')
 
     @staticmethod
@@ -8467,6 +8470,240 @@ class PostgresDB:
         if row.get('updated_at'):
             row['updated_at'] = row['updated_at'].isoformat()
         return row
+
+# ------------------------------------------------------------------------
+# COMMENTS
+# ------------------------------------------------------------------------
+
+    # What can be commented on. Who may read and post is decided per subject in `api/comments.py`
+    COMMENT_SUBJECT_TYPES = ('release', 'team')
+
+    def build_comments_table(self) -> None:
+        """Comments on anything in `COMMENT_SUBJECT_TYPES`, one level deep: a reply's `parent_id` is always a
+        top-level comment, and `reply_to_user_id` names whose reply it answered. Deleting soft-deletes, so a
+        deleted comment with replies can stay as a placeholder. Also adds the releases' owner toggle."""
+        if not self.connection:
+            return
+        with self.connection.cursor() as cur:
+            cur.execute("CREATE SCHEMA IF NOT EXISTS internal;")
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS internal.comments (
+                    id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                    subject_type     TEXT NOT NULL,
+                    subject_id       UUID NOT NULL,
+                    parent_id        UUID REFERENCES internal.comments(id) ON DELETE CASCADE,
+                    user_id          TEXT NOT NULL,
+                    reply_to_user_id TEXT,
+                    body             TEXT NOT NULL,
+                    created_at       TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+                    edited_at        TIMESTAMP WITH TIME ZONE,
+                    deleted_at       TIMESTAMP WITH TIME ZONE,
+                    deleted_by       TEXT
+                );
+            """)
+            cur.execute("""
+                DO $$ BEGIN
+                    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'comments_subject_type_check') THEN
+                        ALTER TABLE internal.comments ADD CONSTRAINT comments_subject_type_check
+                            CHECK (subject_type IN ('release', 'team'));
+                    END IF;
+                END $$;
+            """)
+            # A subject's top-level comments, newest first (and its `comment_count`)
+            cur.execute("""
+                CREATE INDEX IF NOT EXISTS idx_comments_subject_created_at
+                    ON internal.comments (subject_type, subject_id, created_at DESC);
+            """)
+            # A thread's replies, oldest first
+            cur.execute("""
+                CREATE INDEX IF NOT EXISTS idx_comments_parent_id_created_at
+                    ON internal.comments (parent_id, created_at) WHERE parent_id IS NOT NULL;
+            """)
+            # Owner's toggle for comments on a release (see `ReleaseCommentSubject`). Turning it off hides
+            # them; they come back if it's turned on again
+            cur.execute("ALTER TABLE internal.releases ADD COLUMN IF NOT EXISTS allow_comments BOOLEAN NOT NULL DEFAULT TRUE;")
+
+    # The author's name and avatar ride along on every comment. A deleted comment keeps its place (and
+    # id, for its replies) but none of its content
+    _COMMENT_COLUMNS = """
+        c.id, c.subject_type, c.subject_id, c.parent_id, c.created_at, c.edited_at,
+        c.deleted_at IS NOT NULL AS is_deleted,
+        CASE WHEN c.deleted_at IS NULL THEN c.user_id END AS user_id,
+        CASE WHEN c.deleted_at IS NULL THEN c.body END AS body,
+        CASE WHEN c.deleted_at IS NULL THEN p.username END AS username,
+        CASE WHEN c.deleted_at IS NULL THEN us.avatar_url END AS avatar_url,
+        CASE WHEN c.deleted_at IS NULL THEN us.default_primary_color END AS primary_color,
+        CASE WHEN c.deleted_at IS NULL THEN rp.username END AS reply_to_username
+    """
+    _COMMENT_JOINS = """
+        LEFT JOIN public.profiles p ON p.id::text = c.user_id
+        LEFT JOIN internal.user_settings us ON us.user_id = c.user_id
+        LEFT JOIN public.profiles rp ON rp.id::text = c.reply_to_user_id
+    """
+    # Live replies to the top-level comment `c`
+    _COMMENT_REPLY_COUNT = """
+        (SELECT COUNT(*) FROM internal.comments r WHERE r.parent_id = c.id AND r.deleted_at IS NULL)
+    """
+
+    @staticmethod
+    def _serialize_comment_row(row: dict) -> dict:
+        for key in ('id', 'subject_id', 'parent_id'):
+            if row.get(key):
+                row[key] = str(row[key])
+        for key in ('created_at', 'edited_at'):
+            if row.get(key):
+                row[key] = row[key].isoformat()
+        return row
+
+    def get_comment(self, comment_id: str, include_deleted: bool = False) -> dict | None:
+        """One comment's raw row (for permission checks), or None if it's gone. `include_deleted` also finds
+        deleted ones, e.g. a deleted top-level comment whose thread still has live replies."""
+        if not self.connection:
+            return None
+        deleted_clause = "" if include_deleted else "AND deleted_at IS NULL"
+        with self.connection.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute(f"""
+                SELECT id, subject_type, subject_id, parent_id, user_id, deleted_at IS NOT NULL AS is_deleted
+                  FROM internal.comments WHERE id = %s {deleted_clause}
+            """, (comment_id,))
+            row = cur.fetchone()
+            return self._serialize_comment_row(dict(row)) if row else None
+
+    def get_comments(self, subject_type: str, subject_id: str, limit: int = 20, before: tuple[str, str] | None = None,
+                     reply_preview: int = 3) -> dict:
+        """A page of a subject's top-level comments, newest first, each with its first `reply_preview` replies
+        (oldest first) and `reply_count`. A deleted comment only shows while it has live replies. `before` is
+        the (created_at, id) of the last comment on the previous page. Returns `comments`, `next_cursor`, `total`."""
+        if not self.connection:
+            return {'comments': [], 'next_cursor': None, 'total': 0}
+        cursor_clause = "AND (c.created_at, c.id) < (%(before_at)s::timestamptz, %(before_id)s::uuid)" if before else ""
+        params = {
+            'subject_type': subject_type, 'subject_id': subject_id, 'limit': limit + 1,
+            'before_at': before[0] if before else None, 'before_id': before[1] if before else None,
+        }
+        with self.connection.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute(f"""
+                SELECT {self._COMMENT_COLUMNS}, {self._COMMENT_REPLY_COUNT} AS reply_count
+                  FROM internal.comments c
+                  {self._COMMENT_JOINS}
+                 WHERE c.subject_type = %(subject_type)s AND c.subject_id = %(subject_id)s AND c.parent_id IS NULL
+                   AND (c.deleted_at IS NULL OR {self._COMMENT_REPLY_COUNT} > 0)
+                   {cursor_clause}
+                 ORDER BY c.created_at DESC, c.id DESC
+                 LIMIT %(limit)s
+            """, params)
+            rows = [dict(r) for r in cur.fetchall()]
+            has_more = len(rows) > limit
+            rows = rows[:limit]
+
+            replies_by_parent: dict[str, list[dict]] = {}
+            parent_ids = [r['id'] for r in rows if r['reply_count']]
+            if parent_ids and reply_preview > 0:
+                cur.execute(f"""
+                    SELECT * FROM (
+                        SELECT {self._COMMENT_COLUMNS},
+                               ROW_NUMBER() OVER (PARTITION BY c.parent_id ORDER BY c.created_at, c.id) AS position
+                          FROM internal.comments c
+                          {self._COMMENT_JOINS}
+                         WHERE c.parent_id = ANY(%s::uuid[]) AND c.deleted_at IS NULL
+                    ) ranked
+                     WHERE position <= %s
+                     ORDER BY created_at, id
+                """, ([str(pid) for pid in parent_ids], reply_preview))
+                for reply in cur.fetchall():
+                    reply = dict(reply)
+                    reply.pop('position', None)
+                    replies_by_parent.setdefault(str(reply['parent_id']), []).append(self._serialize_comment_row(reply))
+
+            cur.execute("""
+                SELECT COUNT(*) AS total FROM internal.comments
+                 WHERE subject_type = %s AND subject_id = %s AND deleted_at IS NULL
+            """, (subject_type, subject_id))
+            total = cur.fetchone()['total']
+
+        comments = []
+        for row in rows:
+            row = self._serialize_comment_row(row)
+            row['replies'] = replies_by_parent.get(row['id'], [])
+            comments.append(row)
+        last = comments[-1] if has_more and comments else None
+        return {
+            'comments': comments,
+            'next_cursor': f"{last['created_at']}|{last['id']}" if last else None,
+            'total': total,
+        }
+
+    def get_comment_replies(self, parent_id: str, after: tuple[str, str] | None = None, limit: int = 50) -> dict:
+        """A page of a thread's live replies, oldest first, after the (created_at, id) `after`.
+        Returns `replies` and `next_cursor`."""
+        if not self.connection:
+            return {'replies': [], 'next_cursor': None}
+        cursor_clause = "AND (c.created_at, c.id) > (%(after_at)s::timestamptz, %(after_id)s::uuid)" if after else ""
+        with self.connection.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute(f"""
+                SELECT {self._COMMENT_COLUMNS}
+                  FROM internal.comments c
+                  {self._COMMENT_JOINS}
+                 WHERE c.parent_id = %(parent_id)s AND c.deleted_at IS NULL
+                   {cursor_clause}
+                 ORDER BY c.created_at, c.id
+                 LIMIT %(limit)s
+            """, {
+                'parent_id': parent_id, 'limit': limit + 1,
+                'after_at': after[0] if after else None, 'after_id': after[1] if after else None,
+            })
+            rows = [self._serialize_comment_row(dict(r)) for r in cur.fetchall()]
+        has_more = len(rows) > limit
+        rows = rows[:limit]
+        last = rows[-1] if has_more and rows else None
+        return {'replies': rows, 'next_cursor': f"{last['created_at']}|{last['id']}" if last else None}
+
+    def create_comment(self, subject_type: str, subject_id: str, user_id: str, body: str, parent_id: str | None = None) -> dict | None:
+        """Add a comment, or a reply when `parent_id` is set. Replying to a reply attaches to its thread's
+        top-level comment and records whose reply it answered. Returns the new comment as `get_comments`
+        shows it, or None if the parent isn't a live comment on the same subject."""
+        if not self.connection:
+            return None
+        reply_to_user_id = None
+        with self.connection.cursor(cursor_factory=RealDictCursor) as cur:
+            if parent_id:
+                cur.execute("""
+                    SELECT id, parent_id, user_id FROM internal.comments
+                     WHERE id = %s AND subject_type = %s AND subject_id = %s AND deleted_at IS NULL
+                """, (parent_id, subject_type, subject_id))
+                parent = cur.fetchone()
+                if parent is None:
+                    return None
+                if parent['parent_id']:
+                    # A reply to a reply: same thread, aimed at that reply's author
+                    reply_to_user_id = parent['user_id']
+                    parent_id = str(parent['parent_id'])
+            cur.execute("""
+                INSERT INTO internal.comments (subject_type, subject_id, parent_id, user_id, reply_to_user_id, body)
+                VALUES (%s, %s, %s, %s, %s, %s)
+                RETURNING id
+            """, (subject_type, subject_id, parent_id, user_id, reply_to_user_id, body))
+            new_id = cur.fetchone()['id']
+            cur.execute(f"""
+                SELECT {self._COMMENT_COLUMNS}, 0 AS reply_count
+                  FROM internal.comments c
+                  {self._COMMENT_JOINS}
+                 WHERE c.id = %s
+            """, (new_id,))
+            row = self._serialize_comment_row(dict(cur.fetchone()))
+        row['replies'] = []
+        return row
+
+    def delete_comment(self, comment_id: str, deleted_by: str) -> bool:
+        """Soft-delete a live comment. Its replies stay (under a placeholder) until they're deleted too."""
+        if not self.connection:
+            return False
+        with self.connection.cursor() as cur:
+            cur.execute("""
+                UPDATE internal.comments SET deleted_at = NOW(), deleted_by = %s
+                 WHERE id = %s AND deleted_at IS NULL
+            """, (deleted_by, comment_id))
+            return cur.rowcount > 0
 
 # -----------------------------------------------------------------------
 # LOGGING TABLES

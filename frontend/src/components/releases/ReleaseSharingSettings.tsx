@@ -7,7 +7,7 @@ import { FIELD_LABEL_CLASS } from '../shared/fieldStyles';
 import { InlineError } from '../shared/InlineError';
 import { RELEASE_VISIBILITY, RELEASE_VISIBILITY_ORDER } from './releaseVisibility';
 
-type SharingField = 'visibility' | 'allow_remix' | 'is_wip';
+type SharingField = 'visibility' | 'allow_remix' | 'allow_comments' | 'is_wip';
 type SharingValue = ReleaseVisibility | boolean;
 
 type ReleaseSharingSettingsProps = {
@@ -16,10 +16,10 @@ type ReleaseSharingSettingsProps = {
     onReleaseUpdated: (release: Release) => void;
 };
 
-/** Who can find it (listed, link-only or only the owner), whether others may remix it, and its WIP tag. Saved
+/** Who can find it (listed, link-only or only the owner), whether others may remix it or comment on it, and its WIP tag. Saved
  *  to the release right away (like its description), so all can be picked before publishing and switched at
  *  any time after, and the link stays the same either way. Turning remixes off keeps the remixes already
- *  made; going private keeps others' saves, which come back if it's shared again. */
+ *  made; turning comments off hides them until they're turned back on; going private keeps others' saves, which come back if it's shared again. */
 export function ReleaseSharingSettings({ release, token, onReleaseUpdated }: ReleaseSharingSettingsProps) {
     // The field being saved, and the value it's being saved as
     const [saving, setSaving] = useState<{ field: SharingField; value: SharingValue } | null>(null);
@@ -62,7 +62,7 @@ export function ReleaseSharingSettings({ release, token, onReleaseUpdated }: Rel
                     </button>
                 ))}
             </div>
-            {/* Nobody else can open a private release, so remixing and the WIP tag don't apply */}
+            {/* Nobody else can open a private release, so remixing, comments and the WIP tag don't apply */}
             {release.visibility !== 'private' && (
             <>
             <FormEnabler
@@ -70,6 +70,13 @@ export function ReleaseSharingSettings({ release, token, onReleaseUpdated }: Rel
                 description="Others can start their own release from this one. Theirs credits yours."
                 isEnabled={release.allow_remix}
                 onChange={enabled => save('allow_remix', !enabled)}
+                isDisabled={saving !== null}
+            />
+            <FormEnabler
+                label={<span className="flex items-center gap-1.5">{saving?.field === 'allow_comments' && <FaSpinner className="animate-spin text-[10px]" />}Allow comments</span>}
+                description="People can comment on it and reply to each other. You can delete any comment on it."
+                isEnabled={release.allow_comments}
+                onChange={enabled => save('allow_comments', !enabled)}
                 isDisabled={saving !== null}
             />
             <FormEnabler
