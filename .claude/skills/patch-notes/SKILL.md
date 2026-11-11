@@ -1,14 +1,14 @@
 ---
 name: patch-notes
-description: Draft user-facing patch notes / release notes / "what's new" summaries as a Markdown file, written in plain language for non-technical hobbyist users of the app rather than developers. Use this whenever the user asks to write, draft, or generate patch notes, release notes, a changelog, or a "what's new" summary — including requests like "write up what changed for users", "summarize this release for the app", or "draft notes for the 4.4 release" — even if they don't say "patch notes" explicitly. Pulls the underlying changes from git history and translates them into short, benefit-first bullets a card-collecting hobbyist would actually want to read, not a technical diff.
+description: Draft user-facing patch notes / release notes / "what's new" summaries as a Markdown file, written in plain language for non-technical hobbyist users of the app rather than developers. Use this whenever the user asks to write, draft, or generate patch notes, release notes, a changelog, or a "what's new" summary — including requests like "write up what changed for users", "summarize this release for the app", or "draft notes for the 4.4 release" — even if they don't say "patch notes" explicitly. Pulls the underlying changes from git history and translates them into short, benefit-first bullets a card-collecting hobbyist would actually want to read, not a technical diff. Also builds the release's one-page dark-mode socials graphic (feature tiles plus an app screenshot, for Twitter/Facebook/Reddit) when asked for a release graphic, image, or socials post.
 ---
 
 # Patch Notes
 
 Turn a range of commits into a short, plain-language Markdown summary of what changed —
 written for the people who use the app to build cards and run simulations, not for other
-developers. The output is a Markdown document, not code. Don't edit any frontend
-components as part of this skill.
+developers. The output is a Markdown document, not code, plus (step 8) an optional socials
+graphic summarizing it. Don't edit any frontend components as part of this skill.
 
 ## Why this needs its own pass
 
@@ -157,6 +157,52 @@ them the section's text (without the status line) to paste into the GitHub relea
 This is a writing task — surface the drafted bullets for review before or right after writing
 the file, since wording is exactly the kind of thing worth a quick pass. If the user asks for
 direct output without review, skip this and just write it.
+
+**8. Socials graphic (when asked, or offer once the notes are settled).**
+One 1080x1350 dark-mode slide for Twitter/Facebook/Reddit: headline, short subhead, 6-8 numbered
+feature tiles, an "Also new" strip, and an app screenshot bleeding off the top-right corner.
+Rendered by `scripts/release_social.py` through the same `SocialSheetReport` machinery as the
+challenges post (layout: `mlb_showdown_bot/core/simulation/templates/release_notes_social.html.j2`).
+
+1. **Write the content JSON** in the scratchpad, starting from `examples/social_4.5.json`. Keys:
+   `version`, `eyebrow`, `headline_lead` + `headline_accent` (white line, then red line),
+   `subhead`, `status_plates`, `features` (each `title`, `text`, optional `tags`, `accent`,
+   `wide`), `also`, `tagline`, `url`. This is even more distilled than the notes: one tile per
+   headline idea, a title of 2-4 words, one or two short sentences, no UI jargon (say "new
+   parallels", not `Parallel Coloring`). 8 tiles fills the sheet; fewer leaves empty space unless
+   the text runs longer. Group tile accents by theme (`var(--showdown-blue)`,
+   `var(--showdown-red)`, gold `#e0b352`). Only include `Out now` in `status_plates` once the
+   release is live.
+2. **Take the screenshot** of the release's headline screen in dark mode with headless Chrome
+   against the user's running dev server (never start it yourself). An 800px-wide window at 2x
+   keeps the UI readable once it's shrunk into the corner:
+
+   ```bash
+   "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" --headless=new --disable-gpu \
+     --hide-scrollbars --force-dark-mode --blink-settings=preferredColorScheme=0 \
+     --force-device-scale-factor=2 --window-size=800,900 --virtual-time-budget=20000 \
+     --screenshot=<scratch>/shot.png "http://localhost:5173/<page>"
+   ```
+
+   Headless Chrome is signed out, so pick a public page (e.g. a published release). Then crop
+   off the left nav (128px at 2x) with Pillow: `crop((128, 0, width, 1250))`. Look at it before
+   using it: it shows real data (view/like counts, WIP labels), so point out anything the user
+   might not want posted. The user can also hand you their own screenshot.
+3. **Render:**
+
+   ```bash
+   .venv/bin/python .claude/skills/patch-notes/scripts/release_social.py \
+     --content <scratch>/content.json --screenshot <scratch>/shot_crop.png --out-dir <scratch>/out
+   ```
+
+   Writes `release_notes.html` and `release_notes_1.png`.
+4. **Review the PNG yourself** (Read the image) before handing it over: text wrapping to an
+   orphan word, tiles of very uneven height, a big empty band above the footer, or a screenshot
+   too small to read. Fix the wording first and the template only if the layout itself is off.
+   The page shrinks content that overflows the sheet, so padding the tiles to close a gap can
+   instead scale everything down (a smaller logo is the tell); a band of ~80px above the footer
+   with 8 tiles is normal.
+   Then give the user the PNG and HTML paths.
 
 ## A quick nudge, not a requirement
 

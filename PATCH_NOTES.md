@@ -40,7 +40,7 @@ Fill an edition with the `Algorithm`, `Manual` search, or `Customs` you made in 
 - Images are flagged as out of date when you change a card or the style later
 - See which players have a matching image in your connected Google Drive folder before you render
 - Download an edition's images as a zip
-- Printable borders are hidden by default when browsing, with a `Show Border` toggle to see them
+- Card borders are hidden by default when browsing, with a `Show Border` toggle to see them
 
 #### Publishing & Sharing
 - The `Review & Publish` step checks the release before it goes live, sorting issues into must fix, check, and polish, each with a link to fix it
