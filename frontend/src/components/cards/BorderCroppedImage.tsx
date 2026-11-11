@@ -25,6 +25,9 @@ const BORDER_CROP_STYLE = {
 type BorderCroppedImageProps = Omit<ImgHTMLAttributes<HTMLImageElement>, 'style'> & {
     /** Whether the image includes the border. Detected from the loaded image when omitted. */
     isBordered?: boolean;
+    /** Called once the image loads with whether it includes the border (by its aspect ratio),
+     * whatever `isBordered` says — e.g. to offer a "Show Border" toggle only for bordered renders. */
+    onBorderDetected?: (isBordered: boolean) => void;
 };
 
 /**
@@ -32,13 +35,15 @@ type BorderCroppedImageProps = Omit<ImgHTMLAttributes<HTMLImageElement>, 'style'
  * The parent must be `relative overflow-hidden` with the card's 5:7 aspect ratio. `className` styles
  * the plain (unbordered) image; a bordered one is positioned by the crop instead.
  */
-export function BorderCroppedImage({ isBordered, className = '', onLoad, ...props }: BorderCroppedImageProps) {
+export function BorderCroppedImage({ isBordered, onBorderDetected, className = '', onLoad, ...props }: BorderCroppedImageProps) {
     const [detected, setDetected] = useState(false);
     const cropped = isBordered ?? detected;
 
     function handleLoad(event: SyntheticEvent<HTMLImageElement>) {
         const { naturalWidth, naturalHeight } = event.currentTarget;
-        setDetected(isBorderedAspect(naturalWidth, naturalHeight));
+        const bordered = isBorderedAspect(naturalWidth, naturalHeight);
+        setDetected(bordered);
+        onBorderDetected?.(bordered);
         onLoad?.(event);
     }
 

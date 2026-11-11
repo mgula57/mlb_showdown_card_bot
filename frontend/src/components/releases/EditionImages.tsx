@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo, useRef, memo, type PointerEvent } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef, memo, type ComponentProps, type PointerEvent } from 'react';
 import type { ReleaseEdition, ReleaseCardImage, ReleaseCardImageStatus, EditionImages as EditionImagesData, LiveImageMatch } from '../../api/releases';
 import { fetchEditionImages, renderEditionImages, cancelEditionImageRender, isImageJobActive } from '../../api/releases';
 import { IMAGE_MATCH_TYPE_OPTIONS, type CardDatabaseRecord, type ImageMatchType } from '../../api/card_db/cardDatabase';
@@ -18,6 +18,7 @@ import { InlineError } from '../shared/InlineError';
 import { buttonClass } from '../shared/buttonStyles';
 import { fieldClass } from '../shared/fieldStyles';
 import { Plate } from '../shared/Plate';
+import FormEnabler from '../customs/FormEnabler';
 import { EmptyState } from '../shared/EmptyState';
 import { useStableCallback } from '../../hooks/useStableCallback';
 /** How often to refresh statuses while a render job runs (each card takes a few seconds). */
@@ -538,7 +539,9 @@ function StatusBadge({ status }: { status: ReleaseCardImageStatus }) {
 }
 
 /** Card image that shows a skeleton of the same shape until it loads. */
-function CardImageWithSkeleton({ src, alt, dimmed = false, className = '' }: { src: string; alt: string; dimmed?: boolean; className?: string }) {
+function CardImageWithSkeleton({ src, alt, dimmed = false, className = '', isBordered, onBorderDetected }: {
+    src: string; alt: string; dimmed?: boolean; className?: string;
+} & Pick<ComponentProps<typeof BorderCroppedImage>, 'isBordered' | 'onBorderDetected'>) {
     const [loaded, setLoaded] = useState(false);
     return (
         <>
@@ -548,6 +551,8 @@ function CardImageWithSkeleton({ src, alt, dimmed = false, className = '' }: { s
                 alt={alt}
                 loading="lazy"
                 onLoad={() => setLoaded(true)}
+                isBordered={isBordered}
+                onBorderDetected={onBorderDetected}
                 className={`${className} transition-opacity ${loaded ? (dimmed ? 'opacity-50' : 'opacity-100') : 'opacity-0'}`}
             />
         </>
@@ -627,6 +632,11 @@ type ReleaseImageDetailModalProps = {
 function ReleaseImageDetailModal({ image, snapshot, canRender, isRendering, onRender, previewRank, canEditPreviewRank, onPreviewRankChange, onClose }: ReleaseImageDetailModalProps) {
     const fullSrc = image.storage_path ? cardImagePublicUrl(image.storage_path) : null;
     const title = [image.set_number, snapshot?.name ?? image.source_card_id].filter(Boolean).join(' · ');
+    // The image last detected as a bordered render (keyed by src, so switching cards resets it), and
+    // whether the viewer wants that border shown — hidden by default, matching the card everywhere else
+    const [borderedSrc, setBorderedSrc] = useState<string | null>(null);
+    const [showBorder, setShowBorder] = useState(false);
+    const hasBorder = !!fullSrc && borderedSrc === fullSrc;
     return (
         <Modal
             title={title}
@@ -665,6 +675,9 @@ function ReleaseImageDetailModal({ image, snapshot, canRender, isRendering, onRe
                 {snapshot && <CardItemFromCardDatabaseRecord card={snapshot} className="w-full max-w-sm" />}
                 <div className="flex items-center gap-2">
                     <StatusBadge status={image.status} />
+                    {hasBorder && (
+                        <FormEnabler size="sm" label="Show Border" isEnabled={showBorder} onChange={() => setShowBorder(!showBorder)} />
+                    )}
                     {isRendering && (
                         <span className="flex items-center gap-1 text-[11px] text-(--text-tertiary)">
                             <FaSpinner className="animate-spin text-[10px]" /> Rendering…
@@ -680,9 +693,26 @@ function ReleaseImageDetailModal({ image, snapshot, canRender, isRendering, onRe
                     <p className="text-[12px] text-(--red) text-center wrap-anywhere">{image.error}</p>
                 )}
                 {fullSrc ? (
-                    <div className="relative w-full max-w-sm aspect-5/7 rounded-card overflow-hidden">
-                        <CardImageWithSkeleton key={fullSrc} src={fullSrc} alt={title} className="w-full h-full object-contain" />
-                    </div>
+                    <>
+                        <div className={`relative w-full max-w-sm aspect-5/7 overflow-hidden ${hasBorder && showBorder ? '' : 'rounded-card'}`}>
+                            <CardImageWithSkeleton
+                                key={fullSrc}
+                                src={fullSrc}
+                                alt={title}
+                                className="w-full h-full object-contain"
+                                isBordered={hasBorder && showBorder ? false : undefined}
+                                onBorderDetected={bordered => setBorderedSrc(bordered ? fullSrc : null)}
+                            />
+                        </div>
+                        {/* Bordered renders are cropped to the card here; the downloaded image keeps its printable border */}
+                        {hasBorder && (
+                            <p className="text-[11px] text-(--text-tertiary) text-center">
+                                {showBorder
+                                    ? 'Showing the printable border included in this image.'
+                                    : 'This image includes a printable border, hidden in this preview.'}
+                            </p>
+                        )}
+                    </>
                 ) : (
                     <div className="flex flex-col items-center justify-center gap-2 w-full max-w-sm aspect-5/7 rounded-card border border-dashed border-(--divider) text-(--text-tertiary)">
                         <FaImage className="text-3xl opacity-40" />
