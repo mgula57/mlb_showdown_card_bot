@@ -8123,7 +8123,11 @@ class ShowdownPlayerCard(BaseModel):
         speed_value, speed_letter = speed.get('speed'), speed.get('letter')
         variant = self.variable_speed_variant
         variant_speed = variant.speed if variant else None
+        # The view's team is the player's full-season team (where a traded player finished). A
+        # half-season card takes the team from its own stats, e.g. before a deadline trade.
+        period_team = {'team': self.team.value} if self.stats_period.season_half and self.team else {}
         return {
+            **period_team,
             'card_year': (data.get('stats_period') or {}).get('year'),
             'showdown_bot_version': data.get('version'),
             'points': data.get('points'),
