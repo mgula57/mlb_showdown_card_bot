@@ -6,6 +6,7 @@ from flask import Blueprint, g, jsonify, request
 from pydantic import ValidationError
 from config import Config
 from ..core.card.images import ImageLibrary
+from ..core.card.utils.shared_functions import convert_year_string_to_list
 from ..core.database.postgres_db import PostgresDB, StaleEditionError
 from ..core.set_builder.foil_selection import FoilSetType, FoilSuggester
 from ..core.set_builder.image_match_classifier import ImageMatchCard, ImageMatchClassifier
@@ -598,6 +599,24 @@ def get_wotc_set_profiles():
     try:
         profiles = WotcSetProfile.load_all()
         return jsonify([profile.model_dump() for profile in profiles.values()]), 200
+    except Exception as exc:
+        traceback.print_exc()
+        return jsonify({'error': str(exc)}), 500
+
+
+@releases_bp.route('/releases/algorithm/all_star_count', methods=['GET'])
+def get_all_star_count():
+    """Players with an All-Star selection in `years` (a year string), optionally limited to
+    comma-separated `teams`. Sizes the All-Stars template's set to the full All-Star roster."""
+    try:
+        years = convert_year_string_to_list(request.args.get('years', ''))
+    except ValueError:
+        return jsonify({'error': 'Invalid years'}), 400
+    teams = [team for team in request.args.get('teams', '').split(',') if team]
+    try:
+        with PostgresDB() as db:
+            count = db.count_all_stars(years, teams or None)
+        return jsonify({'count': count}), 200
     except Exception as exc:
         traceback.print_exc()
         return jsonify({'error': str(exc)}), 500

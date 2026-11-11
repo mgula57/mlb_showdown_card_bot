@@ -939,6 +939,27 @@ class PostgresDB:
 
         return {row['bref_id']: row['career_war'] or 0.0 for row in raw_data}
 
+    def count_all_stars(self, years: List[int], teams: Optional[List[str]] = None) -> int:
+        """Distinct All-Star cards in `years` (optionally on `teams`) - the size of an All-Star Game
+        set's pool. A player counts once across showdown sets and years, but a two-way player
+        (ex: Ohtani) with both a hitter and a pitcher card counts once per player type."""
+
+        if not years:
+            return 0
+
+        team_clause = sql.SQL("AND team::text = ANY(%s)") if teams else sql.SQL("")
+        query = sql.SQL("""
+            SELECT COUNT(DISTINCT (bref_id, player_type))::int AS all_star_count
+            FROM card_bot
+            WHERE
+                year::int = ANY(%s)
+                AND 'AS' = ANY(awards_list)
+                {team_clause}
+        """).format(team_clause=team_clause)
+        filter_values = (list(years), list(teams)) if teams else (list(years),)
+        raw_data = self.execute_query(query=query, filter_values=filter_values)
+        return raw_data[0]['all_star_count'] if raw_data else 0
+
     def fetch_cards_bot(self, filters: dict = {}) -> list[ExploreDataRecord]:
         """Fetch all explore data from the database with support for lists and min/max filtering."""
 

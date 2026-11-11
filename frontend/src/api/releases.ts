@@ -1008,6 +1008,18 @@ export function fetchWotcSetProfiles(): Promise<WotcSetProfile[]> {
     return _wotcSetProfilesRequest;
 }
 
+/** Players with an All-Star selection in `years` (a year string), optionally limited to `teams`. */
+export async function fetchAllStarCount(years: string, teams: string[] = []): Promise<number> {
+    const params = new URLSearchParams({ years });
+    if (teams.length > 0) params.set('teams', teams.join(','));
+    const res = await fetch(`${API_BASE}/releases/algorithm/all_star_count?${params}`);
+    if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || `Failed to count All-Stars: ${res.status}`);
+    }
+    return (await res.json()).count;
+}
+
 /** Every card in a WOTC base set (expansion `BS` — excludes promos, Pennant Run, Trading Deadline, etc.). */
 export function fetchWotcBaseSet(showdownSet: WotcBaseSet): Promise<CardDatabaseRecord[]> {
     let request = _wotcBaseSetCache.get(showdownSet);

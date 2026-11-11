@@ -63,6 +63,13 @@ export function serializeYears(draft: YearsDraft): string {
     return draft.list.join('+');
 }
 
+/** Whether a years string is one season. Blank or still being typed counts, so nothing disappears mid-entry. */
+export function isSingleYear(years: string): boolean {
+    const draft = parseYearsValue(years);
+    if (validateYears(draft).error) return true;
+    return draft.mode === 'range' ? draft.from === draft.to : draft.list.length <= 1;
+}
+
 /** Whether `year` falls in a years string. A blank or unreadable string covers every year, so nothing reads as out of scope. */
 export function yearsInclude(years: string, year: number | string): boolean {
     const draft = parseYearsValue(years);
