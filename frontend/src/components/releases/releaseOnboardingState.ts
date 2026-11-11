@@ -19,7 +19,7 @@ export const RELEASE_TIP_COPY: Record<Exclude<ReleaseTipId, 'welcome'>, { title:
     },
     imagesStep: {
         title: 'Next: card images',
-        body: 'When the pool looks right, render an image for every card in step 3.',
+        body: 'When the pool looks right, render an image for every card in the Images tab.',
     },
     imageLibraries: {
         title: 'Bring your own player images',

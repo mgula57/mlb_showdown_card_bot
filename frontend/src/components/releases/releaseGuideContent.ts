@@ -1,14 +1,17 @@
 import { RELEASE_TIP_COPY } from './releaseOnboardingState';
 
-/** The guide's sections, in build order. The edition steps share their ids with EditionBuilder's steps. */
+/** The guide's sections, in build order. `setup` and `pool` share their ids with EditionBuilder's steps;
+ *  `images` is the Player Pool's Images tab. */
 export const RELEASE_GUIDE_SECTIONS = ['plan', 'setup', 'pool', 'images', 'publish'] as const;
 export type ReleaseGuideSectionId = typeof RELEASE_GUIDE_SECTIONS[number];
 
 export type ReleaseGuideTip = { title: string; body: string };
 
-export const RELEASE_GUIDE: Record<ReleaseGuideSectionId, { label: string; title: string; tips: ReleaseGuideTip[] }> = {
+/** `step` is the Edition Builder step bar's number for the section (Images is a tab inside step 2); null for Plan. */
+export const RELEASE_GUIDE: Record<ReleaseGuideSectionId, { label: string; title: string; step: number | null; tips: ReleaseGuideTip[] }> = {
     plan: {
         label: 'Plan',
+        step: null,
         title: 'Plan your release',
         tips: [
             {
@@ -27,6 +30,7 @@ export const RELEASE_GUIDE: Record<ReleaseGuideSectionId, { label: string; title
     },
     setup: {
         label: 'Setup',
+        step: 1,
         title: 'Setup',
         tips: [
             {
@@ -41,6 +45,7 @@ export const RELEASE_GUIDE: Record<ReleaseGuideSectionId, { label: string; title
     },
     pool: {
         label: 'Pool',
+        step: 2,
         title: 'Player Pool',
         tips: [
             RELEASE_TIP_COPY.buildMethod,
@@ -61,6 +66,7 @@ export const RELEASE_GUIDE: Record<ReleaseGuideSectionId, { label: string; title
     },
     images: {
         label: 'Images',
+        step: 2,
         title: 'Images',
         tips: [
             RELEASE_TIP_COPY.imageLibraries,
@@ -74,6 +80,7 @@ export const RELEASE_GUIDE: Record<ReleaseGuideSectionId, { label: string; title
     },
     publish: {
         label: 'Publish',
+        step: 3,
         title: 'Review & Publish',
         tips: [
             RELEASE_TIP_COPY.publish,

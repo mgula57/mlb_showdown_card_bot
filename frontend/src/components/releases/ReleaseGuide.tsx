@@ -11,6 +11,9 @@ import { buttonClass } from '../shared/buttonStyles';
 import { headingClass } from '../shared/headingStyles';
 import { useMediaQuery } from '../../hooks/useMediaQuery';
 
+/** The step bar's last number (Review), for the guide's "Step n of N". */
+const GUIDE_STEP_COUNT = Math.max(...RELEASE_GUIDE_SECTIONS.map(id => RELEASE_GUIDE[id].step ?? 0));
+
 type ReleaseGuideProps = {
     /** The section to show, or null while closed. A new value (e.g. from the current step) switches to it. */
     section: ReleaseGuideSectionId | null;
@@ -50,7 +53,10 @@ export function ReleaseGuide({ section, onClose }: ReleaseGuideProps) {
                     onClick={() => setShown(id)}
                     className={choiceClass(shown === id, 'sm', 'max-sm:min-h-11')}
                 >
-                    {i > 0 && <span className="tabular-nums text-(--text-tertiary)">{i}</span>}
+                    {/* A tab within a step (Images) shares its step's number, so only the step's first section shows it */}
+                    {RELEASE_GUIDE[id].step !== null && RELEASE_GUIDE[id].step !== RELEASE_GUIDE[RELEASE_GUIDE_SECTIONS[i - 1]]?.step && (
+                        <span className="tabular-nums text-(--text-tertiary)">{RELEASE_GUIDE[id].step}</span>
+                    )}
                     {RELEASE_GUIDE[id].label}
                 </button>
             ))}
@@ -58,11 +64,10 @@ export function ReleaseGuide({ section, onClose }: ReleaseGuideProps) {
     );
 
     const guide = RELEASE_GUIDE[shown];
-    const stepNumber = RELEASE_GUIDE_SECTIONS.indexOf(shown);
     const body = (
         <div className="flex flex-col gap-4 px-4 py-4">
             <div className="flex flex-col gap-1">
-                {stepNumber > 0 && <Eyebrow>Step {stepNumber} of {RELEASE_GUIDE_SECTIONS.length - 1}</Eyebrow>}
+                {guide.step !== null && <Eyebrow>Step {guide.step} of {GUIDE_STEP_COUNT}</Eyebrow>}
                 <Heading level="section" as="h3">{guide.title}</Heading>
             </div>
             <ul className="flex flex-col gap-3.5">

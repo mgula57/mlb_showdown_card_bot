@@ -80,7 +80,7 @@ export function ReleaseDetail({ release, readOnly, editionSlug, onEditionChange,
     // published release) keeps the compact builder header
     const showPublicHeader = !isEditing && isPublished;
 
-    /** Step 4 is release-wide, so it lives here rather than in each edition's builder. */
+    /** Step 3 (Review) is release-wide, so it lives here rather than in each edition's builder. */
     const [reviewOpen, setReviewOpen] = useState(false);
     const isReviewing = isEditing && reviewOpen && !!token;
     const review = useReleaseReview(release.id, token, isReviewing);

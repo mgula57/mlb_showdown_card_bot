@@ -58,7 +58,7 @@ type EditionImagesProps = {
     liveImageMatches?: Record<string, LiveImageMatch>;
 };
 
-/** Step 3 of the Edition Builder: renders every card in the edition (with its edition style and set
+/** The Player Pool's Images tab: renders every card in the edition (with its edition style and set
  * number) to Supabase in a background job, and shows each card's image as it lands. */
 export function EditionImages({ releaseId, releaseName, edition, readOnly, token, previewRanks, onPreviewRankChange, statusFilterRequest, liveImageMatches }: EditionImagesProps) {
     const [data, setData] = useState<EditionImagesData | null>(null);
