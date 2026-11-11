@@ -10,7 +10,7 @@ type CommentsPanelProps = Omit<CommentsSectionProps, 'active'> & {
     subtitle?: string;
 };
 
-/** Comments beside the page: a docked `SideDrawer` on desktop, a `SlideOver` below lg. Stays mounted while
+/** Comments beside the page: a docked `SideDrawer` on desktop, a `SlideOver` from the right below lg. Stays mounted while
  *  closed, so reopening it is instant; it loads the first time it opens. */
 export function CommentsPanel({ isOpen, onClose, subtitle, ...section }: CommentsPanelProps) {
     const isDesktop = useMediaQuery('(min-width: 1024px)');
@@ -24,7 +24,7 @@ export function CommentsPanel({ isOpen, onClose, subtitle, ...section }: Comment
         );
     }
     return (
-        <SlideOver isOpen={isOpen} onClose={onClose} title="Comments">
+        <SlideOver isOpen={isOpen} onClose={onClose} title="Comments" side="right">
             {/* Room at the bottom for the floating close button */}
             <div className="px-4 pt-2 pb-28">{body}</div>
         </SlideOver>
