@@ -98,13 +98,17 @@ function HomeNavTile({ tile, className = '' }: { tile: HomeNavTileData; classNam
         <Link
             to={to}
             onClick={() => markNavItemSeen(to)}
-            className={`relative isolate overflow-hidden rounded-card p-4 flex flex-col gap-1 border border-(--divider) bg-(--background-secondary) hover:border-(--rule-strong) transition-[transform,border-color] duration-200 hover:scale-[1.03] active:scale-95 cursor-pointer ${className}`}
+            className={`relative isolate overflow-hidden rounded-card p-3 sm:p-4 flex flex-col gap-1.5 sm:gap-1 border border-(--divider) bg-(--background-secondary) hover:border-(--rule-strong) transition-[transform,border-color] duration-200 hover:scale-[1.03] active:scale-95 cursor-pointer ${className}`}
         >
             {/* Behind the tile's content (z-index -1 inside the isolated tile) */}
             {isNew && tile.spotlight && <span aria-hidden className="nav-spotlight" />}
-            <Icon className="absolute -bottom-2 -right-2 text-7xl opacity-5" />
-            <Icon className={`text-3xl mb-1 ${iconColor}`} />
-            <span className="font-display uppercase text-[17px] leading-none text-(--text-primary)">{label}</span>
+            <Icon className="absolute -bottom-2 -right-2 text-6xl sm:text-7xl opacity-5" />
+            {/* Mobile: icon beside the title to keep the tile short (right padding clears the NEW badge).
+                sm+: icon stacked above the title */}
+            <div className={`flex items-center gap-2 sm:flex-col sm:items-start sm:gap-1 ${isNew ? 'pr-9 sm:pr-0' : ''}`}>
+                <Icon className={`shrink-0 text-xl sm:text-3xl sm:mb-1 ${iconColor}`} />
+                <span className="font-display uppercase text-[15px] sm:text-[17px] leading-none text-(--text-primary)">{label}</span>
+            </div>
             <span className="text-xs leading-snug text-(--text-tertiary)">{desc}</span>
             {isNew && <NewBadge className="absolute top-2 right-2" />}
         </Link>
