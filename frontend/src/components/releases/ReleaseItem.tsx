@@ -185,8 +185,10 @@ function FannedCardImage({ image, index, cardCount }: { image: ReleasePreviewIma
     return (
         <div
             className="
-                absolute left-1/2 top-[10%] w-[48%] aspect-5/7 overflow-hidden rounded-card select-none drop-shadow-[0_2px_0_rgb(0_0_0/0.25)]
-                transform-(--fan-rest) transition-transform duration-300 ease-out motion-reduce:transition-none
+                absolute left-1/2 top-[10%] w-[48%] aspect-5/7 overflow-hidden rounded-card select-none
+                shadow-[0_4px_10px_rgb(0_0_0/0.35),0_1px_2px_rgb(0_0_0/0.4)]
+                [@media(hover:hover)]:group-hover:shadow-[0_8px_16px_rgb(0_0_0/0.4),0_2px_3px_rgb(0_0_0/0.4)]
+                transform-(--fan-rest) transition-[transform,box-shadow] duration-300 ease-out motion-reduce:transition-none
                 [@media(hover:hover)]:motion-safe:group-hover:transform-(--fan-hover)
                 motion-safe:group-data-fanned:transform-(--fan-hover)
             "
