@@ -704,12 +704,12 @@ function ReleaseImageDetailModal({ image, snapshot, canRender, isRendering, onRe
                                 onBorderDetected={bordered => setBorderedSrc(bordered ? fullSrc : null)}
                             />
                         </div>
-                        {/* Bordered renders are cropped to the card here; the downloaded image keeps its printable border */}
+                        {/* Bordered renders are cropped to the card here; the downloaded image keeps its border */}
                         {hasBorder && (
                             <p className="text-[11px] text-(--text-tertiary) text-center">
                                 {showBorder
-                                    ? 'Showing the printable border included in this image.'
-                                    : 'This image includes a printable border, hidden in this preview.'}
+                                    ? 'Showing the border included in this image.'
+                                    : 'This image includes a border, hidden in this preview.'}
                             </p>
                         )}
                     </>

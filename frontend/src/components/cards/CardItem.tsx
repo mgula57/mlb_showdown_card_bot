@@ -561,7 +561,7 @@ type CardItemFromCardDatabaseRecordProps = {
      * sim result screens, since a card's real awards have nothing to do with what it did in a
      * simulated season and showing them alongside `statHighlightsOverride` would be misleading. */
     awardListOverride?: string[];
-    /** Shows the card as it will print with this styling (e.g. a Release edition's edition/expansion
+    /** Shows the card as it appears with this styling (e.g. a Release edition's edition/expansion
      * and set number) instead of its own — same overrides CardDetail takes. */
     styleOverrides?: CardStyleOverrides;
 };

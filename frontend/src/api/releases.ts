@@ -123,7 +123,7 @@ export type ReleaseCard = {
     source_card_type: string | null;
     /** Cards saved from an Algorithm run also carry how they were picked (see `AlgorithmPickFields`) */
     card_snapshot: CardDatabaseRecord & Partial<AlgorithmPickFields>;
-    /** User labels, e.g. "FOIL" to track which cards will be printed as foils. Stored uppercase. */
+    /** User labels, e.g. "FOIL" to track which cards are foils. Stored uppercase. */
     tags: string[];
     /** User-chosen slot (1-3, 1 = front) on the release's list tile; null leaves it to the default pick. */
     preview_rank: number | null;

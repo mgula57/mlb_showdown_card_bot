@@ -1054,7 +1054,7 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
     const detailCardPreviewRank = detailCardCurrent?.preview_rank ?? null;
     const editionTags = useMemo(() => [...new Set(cards.flatMap(c => c.tags))].sort(), [cards]);
 
-    // The detail modal renders the release card as it will print: edition style, matching rules and
+    // The detail modal renders the release card as it appears in the release: edition style, matching rules and
     // the card's own overrides, plus the formatted set number. BOT snapshots don't embed card_data,
     // so CardDetail hydrates those by card_id. Keyed on the styles' content: every save returns fresh
     // card objects (and a tag edit can change which rules match), and a new style object would
@@ -2197,7 +2197,7 @@ type PoolCardRowProps = {
 /** One pool grid card. Memoized (with stable callbacks from the builder) because the pool can be
  * hundreds of cards, and loading another page or opening a card shouldn't re-render all of them. */
 const PoolCardRow = memo(function PoolCardRow({ card, showFullCards, editionStyle, styleRules, numberLabel, setNumber, numberInputValue, numberPrefix, numberIssue, showMatchBadge, onOpen, onRemove, onNumberChange, onNumberBlur, foilSuggestion, onSkipFoilSuggestion }: PoolCardRowProps) {
-    // Full cards show the style (edition, rules, overrides) and set number they'll print with
+    // Full cards show the style (edition, rules, overrides) and set number they'll have in the release
     const styleOverrides = useMemo<CardStyleOverrides>(
         () => ({ style: releaseCardStyle(editionStyle, styleRules, card), setNumber }),
         [editionStyle, styleRules, card, setNumber]

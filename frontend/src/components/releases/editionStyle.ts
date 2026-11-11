@@ -29,7 +29,7 @@ export function editionStyleSummary(style: CardStyleSettings) {
 // MARK: - Style Rules
 // ----------------------------------
 
-/** Style fields a rule can set. Edition-wide print settings (border, set year) and per-player
+/** Style fields a rule can set. Edition-wide card settings (border, set year) and per-player
  * ones (nickname) stay out. Mirrored by `RULE_STYLE_KEYS` in `core/set_builder/release_style_rules.py`. */
 export const RULE_STYLE_KEYS = [
     'image_parallel', 'image_parallel_coloring', 'edition', 'image_coloring', 'show_year_text', 'is_dark_mode', 'hide_team_logo',

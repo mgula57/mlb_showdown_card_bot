@@ -566,7 +566,7 @@ export const CardDetail = memo(function CardDetail({ showdownBotCardData: showdo
 
     const cardImageMaxHeight = '@xl:max-h-[600px] @xl:overflow-hidden @3xl:max-h-[700px]';
     const hasBorder = cardImagePath != null && !!activeCardData?.card?.image?.is_bordered;
-    // Release renders hide their printable border by default; other bordered cards show theirs
+    // Release renders hide their border by default; other bordered cards show theirs
     const showBorder = showBorderChoice ?? !styleOverrides?.storagePath;
     const cropBorder = hasBorder && !showBorder;
     const cardImageStyle: CSSProperties = activeCardData?.card?.image ? {
@@ -885,7 +885,7 @@ export const CardDetail = memo(function CardDetail({ showdownBotCardData: showdo
                         card's actual edges rather than the full grid column. */}
                     <div className="relative w-fit @2xl:mx-auto">
                         {cropBorder ? (
-                            // Release renders include the printable border; the viewer shows just the card
+                            // Release renders include the border; the viewer shows just the card
                             <div
                                 key={activeCardData?.card?.image.output_file_name}
                                 className={`relative block @2xl:mx-auto ${cardImageMaxHeight} ${CARD_IMAGE_RADIUS} overflow-hidden fade-in ${isLoadingOverall ? 'blur-xs' : ''} card-glow-pulse`}

@@ -1,6 +1,6 @@
 import { useState, type ImgHTMLAttributes, type SyntheticEvent } from 'react';
 
-/** Printable border around a bordered render (`Set.card_border_padding`), and the card inside it. */
+/** Border around a bordered render (`Set.card_border_padding`), and the card inside it. */
 const CARD_BORDER_PX = 72;
 const CARD_SIZE_PX = { width: 1500, height: 2100 };
 
@@ -31,7 +31,7 @@ type BorderCroppedImageProps = Omit<ImgHTMLAttributes<HTMLImageElement>, 'style'
 };
 
 /**
- * A card image that hides the printable border of bordered renders, showing just the 1500x2100 card.
+ * A card image that hides the border of bordered renders, showing just the 1500x2100 card.
  * The parent must be `relative overflow-hidden` with the card's 5:7 aspect ratio. `className` styles
  * the plain (unbordered) image; a bordered one is positioned by the crop instead.
  */
