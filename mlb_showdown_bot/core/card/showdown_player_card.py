@@ -6238,6 +6238,11 @@ class ShowdownPlayerCard(BaseModel):
             if self.player_type_override.override_string.upper() in img_name_upper:
                 match_score += 1
 
+        # IMAGE TAGGED FOR A DIFFERENT TYPE (EX: OHTANI "(PITCHER)" IMAGE ON A HITTER OR NON-OVERRIDE CARD), REDUCE ACCURACY
+        # WITHOUT THIS, AN UNTAGGED AND A MISMATCHED IMAGE TIE AND THE NAME SORT CAN PICK THE WRONG ONE
+        if any(player_type.override_string.upper() in img_name_upper for player_type in PlayerType if player_type != self.player_type_override):
+            match_score -= 2
+
         # IF POSTSEASON IMAGE BUT NOT POSTSEASON CARD, REDUCE ACCURACY
         if '(POST)' in img_name_upper and self.stats_period.type != StatsPeriodType.POSTSEASON:
             match_score -= 2
