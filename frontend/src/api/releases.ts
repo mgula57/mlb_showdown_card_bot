@@ -17,6 +17,8 @@ export type ReleaseEditionSummary = {
     is_published: boolean;
     /** When the edition first went public. Once set, the owner edits it through a working copy. */
     published_at: string | null;
+    /** Went live with an update to an already-published release, not with its first publish. */
+    added_in_update: boolean;
     card_count: number;
     /** The owner's private working copy of this published edition, while they edit it. */
     draft: ReleaseEditionDraftSummary | null;
@@ -89,6 +91,10 @@ export type Release = {
     share_image_path: string | null;
     /** When the current version was published (null for releases published before versions were kept). */
     version_published_at: string | null;
+    /** What the current version changed, per edition (null before versions were kept; empty for v1). */
+    latest_version_changes: ReleaseVersionChange[] | null;
+    /** The last time an update added cards (a new edition or cards in one). Null until an update adds some. */
+    cards_added_at: string | null;
     view_count: number;
     like_count: number;
     /** Who can open it once published (see `RELEASE_VISIBILITY`). */
@@ -147,6 +153,7 @@ export const editionSummaryOf = (edition: ReleaseEdition): ReleaseEditionSummary
     slug: edition.slug,
     is_published: edition.is_published,
     published_at: edition.published_at,
+    added_in_update: false,
     card_count: edition.cards.length,
     draft: null,
     pending_removal: false,
@@ -468,12 +475,24 @@ export async function fetchRelease(releaseId: string, token?: string): Promise<R
     return res.json();
 }
 
+/** What one version changed in one edition: counts of added / removed / changed cards (see `EditionChanges.summary`). */
+export type ReleaseVersionChange = {
+    name: string;
+    renamed_from: string | null;
+    is_new: boolean;
+    is_removed?: boolean;
+    added: number;
+    removed: number;
+    changed: number;
+    renumbered: number;
+};
+
 /** One published version, from `internal.release_versions`. */
 export type ReleaseVersion = {
     version: number;
     note: string | null;
-    /** Per edition that changed: counts of added / removed / changed cards (see `EditionChanges.summary`). */
-    changes: Array<{ name: string; renamed_from: string | null; is_new: boolean; is_removed?: boolean; added: number; removed: number; changed: number; renumbered: number }>;
+    /** Per edition that changed. */
+    changes: ReleaseVersionChange[];
     published_at: string | null;
 };
 

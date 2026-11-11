@@ -11,6 +11,7 @@ import { ReleaseVersionHistory } from './ReleaseVersionHistory';
 import { ReleaseRemixModal } from './ReleaseRemixModal';
 import { ReleaseCardFan } from './ReleaseItem';
 import { ReleaseVisibilityPlate } from './ReleaseVisibilityPlate';
+import { describeEditionChange } from './releaseUpdates';
 import { CommentsPanel } from '../shared/comments/CommentsPanel';
 import { useAuth } from '../auth/AuthContext';
 
@@ -56,6 +57,8 @@ export function ReleasePublicHeader({ release, cardCount, editionCount, isOwner,
     const forkParent = release.fork_parent;
     const versionDate = release.version_published_at ?? release.published_at;
     const previewImages = release.preview_images ?? [];
+    // An update's changes up front, so a returning visitor sees what's new without opening History
+    const latestChanges = release.published_version > 1 ? release.latest_version_changes ?? [] : [];
 
     async function handleToggleLike() {
         if (!token || liking) return;
@@ -119,6 +122,15 @@ export function ReleasePublicHeader({ release, cardCount, editionCount, isOwner,
                             History
                         </button>
                     </div>
+                    {latestChanges.length > 0 && (
+                        <p className="text-[13px] text-(--text-secondary) min-w-0">
+                            <span className="font-semibold text-(--text-primary)">New in v{release.published_version}:</span>{' '}
+                            {latestChanges.map(change => {
+                                const parts = describeEditionChange(change);
+                                return `${change.name} (${parts.length > 0 ? parts.join(', ') : 'style or card details'})`;
+                            }).join(' · ')}
+                        </p>
+                    )}
                     {forkParent && (
                         <div className="flex items-center gap-1.5 text-[13px] text-(--text-secondary) min-w-0">
                             <FaCodeFork aria-hidden className="shrink-0 text-[11px] text-(--text-tertiary)" />

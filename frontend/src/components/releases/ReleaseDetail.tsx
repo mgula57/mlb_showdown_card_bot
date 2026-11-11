@@ -23,6 +23,8 @@ import { buttonClass } from '../shared/buttonStyles';
 import { Plate } from '../shared/Plate';
 import { EmptyState } from '../shared/EmptyState';
 import { isPrivateRelease, isReleasePublished, releaseAudience } from './releaseVisibility';
+import { isNewEdition } from './releaseUpdates';
+
 type ReleaseDetailProps = {
     release: Release;
     readOnly: boolean;
@@ -436,6 +438,10 @@ export function ReleaseDetail({ release, readOnly, editionSlug, onEditionChange,
                                 {/* Only worth flagging per edition when the rest of the release is already public */}
                                 {isOwner && isPublished && !edition.is_published && (
                                     <Plate variant="outline" size="sm" className="ml-1.5">Draft</Plate>
+                                )}
+                                {/* Added by a recent update, so returning visitors spot it among the editions they've seen */}
+                                {isNewEdition(edition) && !(isEditing && edition.pending_removal) && (
+                                    <Plate variant="red" size="sm" className="ml-1.5">New</Plate>
                                 )}
                                 {isEditing && edition.pending_removal && (
                                     <Plate variant="red" size="sm" className="ml-1.5">Removing</Plate>

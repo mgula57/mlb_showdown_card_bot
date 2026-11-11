@@ -7111,6 +7111,10 @@ class PostgresDB:
                     )
                FROM internal.releases fp WHERE fp.id = r.fork_parent_id) AS fork_parent,
             (SELECT MAX(v.published_at) FROM internal.release_versions v WHERE v.release_id = r.id) AS version_published_at,
+            -- What the current version changed, for the header's "what's new" line
+            (SELECT v.changes FROM internal.release_versions v WHERE v.release_id = r.id
+              ORDER BY v.version DESC LIMIT 1) AS latest_version_changes,
+            {cards_added_at} AS cards_added_at,
             -- Unpublished work the owner hasn't published yet: an edited working copy, or a new edition
             -- of an already-published release
             EXISTS (
@@ -7132,6 +7136,12 @@ class PostgresDB:
                         'slug',          e.slug,
                         'is_published',  e.is_published,
                         'published_at',  e.published_at,
+                        -- Went live with an update rather than the first publish: a version is stamped in the
+                        -- same transaction (same NOW()) as the editions it publishes
+                        'added_in_update', EXISTS (
+                            SELECT 1 FROM internal.release_versions v
+                             WHERE v.release_id = r.id AND v.version > 1 AND v.published_at = e.published_at
+                        ),
                         'card_count',    (SELECT COUNT(*) FROM internal.release_cards rc WHERE rc.edition_id = e.id AND rc.retired_at IS NULL),
                         -- The owner deleted it; it stays live until they publish (see `remove_edition`)
                         'pending_removal', e.pending_removal,
@@ -7150,6 +7160,17 @@ class PostgresDB:
         FROM internal.releases r
         LEFT JOIN internal.release_editions e ON e.release_id = r.id AND e.draft_of IS NULL AND e.retired_at IS NULL
     """
+    # When an update last added cards (a new edition or cards added to one). The first publish records no
+    # changes, so this is null until a later version adds something; a republish that only edits doesn't count
+    _RELEASE_CARDS_ADDED_AT = """(
+        SELECT MAX(v.published_at) FROM internal.release_versions v
+         WHERE v.release_id = r.id
+           AND EXISTS (
+               SELECT 1 FROM jsonb_array_elements(v.changes) c
+                WHERE COALESCE((c->>'is_new')::boolean, FALSE) OR COALESCE((c->>'added')::int, 0) > 0
+           )
+    )"""
+    _RELEASE_SELECT_TEMPLATE = _RELEASE_SELECT_TEMPLATE.replace('{cards_added_at}', _RELEASE_CARDS_ADDED_AT)
     _RELEASE_BASE_SELECT = _RELEASE_SELECT_TEMPLATE.format(extra_columns='')
 
     @classmethod
@@ -7188,7 +7209,8 @@ class PostgresDB:
             (SELECT COUNT(*) FROM internal.release_likes l
               WHERE l.release_id = r.id AND l.created_at > NOW() - INTERVAL '30 days') DESC,
             r.like_count DESC, r.view_count DESC, r.published_at DESC NULLS LAST""",
-        'new': "r.published_at DESC NULLS LAST, r.updated_at DESC",
+        # A release comes back to the top when an update adds cards, not for edits alone
+        'new': f"COALESCE({_RELEASE_CARDS_ADDED_AT}, r.published_at) DESC NULLS LAST, r.updated_at DESC",
         'updated': "r.updated_at DESC",
     }
 
@@ -8444,6 +8466,8 @@ class PostgresDB:
             row['published_at'] = row['published_at'].isoformat()
         if row.get('version_published_at'):
             row['version_published_at'] = row['version_published_at'].isoformat()
+        if row.get('cards_added_at'):
+            row['cards_added_at'] = row['cards_added_at'].isoformat()
         return row
 
     @staticmethod

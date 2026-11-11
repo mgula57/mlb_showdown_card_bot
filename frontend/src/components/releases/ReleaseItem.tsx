@@ -10,6 +10,7 @@ import { FrameCorners } from '../shared/FrameCorners';
 import { CAPS_LABEL_CLASS } from '../shared/fieldStyles';
 import { ReleaseVisibilityPlate } from './ReleaseVisibilityPlate';
 import { isReleasePublished } from './releaseVisibility';
+import { releaseUpdateLabel } from './releaseUpdates';
 
 /** Tile frame shared by ReleaseItem and its skeleton — sized like TeamPreviewCard's 'md' tile on
  *  wider screens, filling a 2-column grid cell on phones. */
@@ -55,6 +56,7 @@ export function ReleaseItem({ release, onClick, showPublishStatus = false }: Rel
     const editionCount = release.editions.length;
     const isPublished = isReleasePublished(release);
     const images = (release.preview_images ?? []).slice(0, 3);
+    const updateLabel = releaseUpdateLabel(release);
     // Sets actually in the release's cards; before any cards are added, the default set it was created with
     const sets = release.showdown_sets?.length ? release.showdown_sets : [release.default_showdown_set];
 
@@ -80,6 +82,7 @@ export function ReleaseItem({ release, onClick, showPublishStatus = false }: Rel
                     <div className="flex flex-wrap items-start gap-1">
                         {release.is_official && <Plate variant="navy" size="sm">Official</Plate>}
                         {release.is_wip && <Plate variant="outline" size="sm" className="bg-(--background-secondary)">WIP</Plate>}
+                        {updateLabel && <Plate variant="red" size="sm">{updateLabel}</Plate>}
                     </div>
                     <SetBadgeRow
                         sets={sets}

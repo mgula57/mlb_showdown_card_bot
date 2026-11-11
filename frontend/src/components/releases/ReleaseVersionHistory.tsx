@@ -6,6 +6,7 @@ import { Plate } from '../shared/Plate';
 import { InlineError } from '../shared/InlineError';
 import { EmptyState } from '../shared/EmptyState';
 import { headingClass } from '../shared/headingStyles';
+import { describeEditionChange } from './releaseUpdates';
 
 type ReleaseVersionHistoryProps = {
     release: Release;
@@ -64,17 +65,7 @@ function VersionChanges({ version }: { version: ReleaseVersion }) {
     return (
         <ul className="flex flex-col gap-1">
             {version.changes.map(change => {
-                const parts = change.is_new
-                    ? [`new edition, ${change.added} card${change.added === 1 ? '' : 's'}`]
-                    : change.is_removed
-                    ? [`edition removed, ${change.removed} card${change.removed === 1 ? '' : 's'} retired`]
-                    : [
-                        change.renamed_from && `renamed from ${change.renamed_from}`,
-                        change.added > 0 && `+${change.added} added`,
-                        change.removed > 0 && `−${change.removed} removed`,
-                        change.changed > 0 && `${change.changed} changed`,
-                        change.renumbered > 0 && `${change.renumbered} renumbered`,
-                    ].filter(Boolean);
+                const parts = describeEditionChange(change);
                 return (
                     <li key={change.name} className="text-[12px] text-(--text-secondary)">
                         <span className="font-semibold text-(--text-primary)">{change.name}</span>
