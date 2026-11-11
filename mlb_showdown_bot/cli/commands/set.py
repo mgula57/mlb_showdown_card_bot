@@ -130,6 +130,34 @@ def import_release(
     print(f"\n✅ Release ready: /release-builder/{release_id}")
 
 
+@app.command("migrate_release")
+def migrate_release(
+    slug: str = typer.Argument(..., help="Slug of the release in DEV (the /releases/<slug> part of its link)."),
+    apply: bool = typer.Option(False, "--apply", "-a", help="Write to PROD. Without it, only prints the plan."),
+):
+    """Copy a release built in DEV (DATABASE_URL_LOGS) into PROD (DATABASE_URL_ARCHIVE) as an
+    unpublished release owned by the same email's PROD account. Images are not copied or rendered."""
+    from ...core.set_builder.release_migrator import ReleaseMigrator, ReleaseMigrationError
+
+    print("Source DEV (DATABASE_URL_LOGS) -> target PROD (DATABASE_URL_ARCHIVE)")
+    with PostgresDB() as source_db, PostgresDB(is_archive=True) as target_db:
+        try:
+            migrator = ReleaseMigrator(source_db=source_db, target_db=target_db, slug=slug)
+            plan = migrator.plan()
+        except ReleaseMigrationError as exc:
+            print(f"❌ {exc}")
+            raise typer.Exit(code=1)
+        print(plan.summary())
+        if not apply:
+            print("\nDry run. Re-run with --apply to write to PROD.")
+            return
+        release_id, orphaned_paths = migrator.apply(plan)
+    if orphaned_paths:
+        print(f"\n{len(orphaned_paths)} image file(s) from removed editions are no longer referenced (left in storage):")
+        print('\n'.join(f"  {path}" for path in orphaned_paths))
+    print(f"\n✅ Migrated to PROD as unpublished release {release_id}: /release-builder/{release_id}")
+
+
 @app.command("clean_release_images")
 def clean_release_images(
     dry_run: bool = typer.Option(False, "--dry_run", "-d", help="Only report how many files would be deleted."),
