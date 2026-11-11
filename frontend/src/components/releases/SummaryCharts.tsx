@@ -9,6 +9,7 @@ import { headingClass } from '../shared/headingStyles';
 import { CAPS_LABEL_CLASS } from '../shared/fieldStyles';
 import { choiceClass } from '../shared/choiceStyles';
 import { EmptyState } from '../shared/EmptyState';
+import { FOIL_TAG } from './ReleaseCardTags';
 import { DEFENSE_POSITION_ORDER, FRANCHISE_CODE, HAND_ORDER, PARENT_POSITION_ORDER, POSITION_ORDER, handLabel, parentPositionGroup, type ParentPositionGroup } from './cardGroups';
 
 type SummaryChartsProps = {
@@ -307,7 +308,42 @@ const SPECS = {
             return index(a) - index(b);
         },
     },
+    // DH doesn't count as a fielding position; 0 means the hitter is a DH only.
+    positionCount: {
+        keyFn: c => c.is_pitcher ? null : Math.min(Object.keys(c.positions_and_defense ?? {}).filter(p => p !== 'DH').length, MAX_POSITION_COUNT),
+        labelFn: key => key === 0 ? 'DH only' : `${key}${key === MAX_POSITION_COUNT ? '+' : ''} position${key === 1 ? '' : 's'}`,
+        sort: 'key',
+    },
 } satisfies Record<string, BreakdownSpec>;
+
+/** Hitters with this many fielding positions or more share one column. */
+const MAX_POSITION_COUNT = 3;
+
+/** More distinct years than this and the Years chart counts by decade instead. */
+const MAX_YEAR_COLUMNS = 15;
+
+/** Leading year of a card's year string ("2006+2014" → 2006); null for non-numeric years like "CAREER". */
+function cardYear(snapshot: CardDatabaseRecord): number | null {
+    const year = parseInt(String(snapshot.year), 10);
+    return Number.isNaN(year) ? null : year;
+}
+
+/** Cards by player year, or by decade when the years spread wide. Null when every card shares one year,
+ * since a single bar says nothing. */
+function yearSpec(snapshots: CardDatabaseRecord[]): BreakdownSpec | null {
+    const years = new Set(snapshots.map(c => cardYear(c) ?? String(c.year)));
+    if (years.size <= 1) return null;
+    const byDecade = years.size > MAX_YEAR_COLUMNS;
+    return {
+        keyFn: c => {
+            const year = cardYear(c);
+            if (year === null) return String(c.year);
+            return byDecade ? Math.floor(year / 10) * 10 : year;
+        },
+        labelFn: key => byDecade && typeof key === 'number' ? `${key}s` : String(key),
+        sort: 'key',
+    };
+}
 
 function average(
     snapshots: CardDatabaseRecord[],
@@ -953,12 +989,29 @@ export function SummaryCharts({ cards, editionId }: SummaryChartsProps) {
             defense: build(SPECS.defense),
             hand: build(SPECS.hand),
             icons: build(SPECS.icons),
+            positionCount: build(SPECS.positionCount),
             pointsByPosition: buildAverageBreakdown(filteredSnapshots, AVERAGE_SPECS.pointsByPosition, comparison),
             // A result neither set's charts use (e.g. PU for hitters) gets no column.
             chartResults: buildAverageBreakdown(filteredSnapshots, AVERAGE_SPECS.chartResults, comparison)
                 .filter(row => row.count > 0 || (row.compare ?? 0) > 0),
         };
     }, [filteredSnapshots, comparison]);
+
+    // Years and foils are this set's own choices, so they're charted without a WOTC comparison.
+    const yearBreakdown = useMemo(() => {
+        const spec = yearSpec(filteredSnapshots);
+        return spec ? buildBreakdown(filteredSnapshots, spec, null) : null;
+    }, [filteredSnapshots]);
+
+    const hasFoils = cards.some(c => c.tags.includes(FOIL_TAG));
+    const foilBreakdowns = useMemo(() => {
+        const foils = filterToSubset(cards.filter(c => c.tags.includes(FOIL_TAG)).map(c => c.card_snapshot), subsetFilter);
+        return {
+            count: foils.length,
+            position: buildBreakdown(foils, SPECS.position, null),
+            points: buildBreakdown(foils, SPECS.points, null),
+        };
+    }, [cards, subsetFilter]);
 
     const averages = buildAverages(filteredSnapshots);
     const compareAverages = comparison ? buildAverages(comparison.snapshots) : null;
@@ -988,6 +1041,7 @@ export function SummaryCharts({ cards, editionId }: SummaryChartsProps) {
         hand: worstCheck(CHART_GROUP_ORDER.map(group => distributionCheck(
             breakdowns.hand.filter(row => row.group === group), MIN_PANEL_CARDS_TO_SCORE, DISTRIBUTION_TOLERANCE, group,
         ))),
+        positionCount: combineChecks(distributionCheck(breakdowns.positionCount)),
         icons: combineChecks(distributionCheck(breakdowns.icons),
             averageCheck('Icons per card', averages.icons, compareAverages.icons, ICONS_AVERAGE_TOLERANCE)),
     } : null;
@@ -1123,6 +1177,12 @@ export function SummaryCharts({ cards, editionId }: SummaryChartsProps) {
                         <VerticalBarChart data={breakdowns.team} emptyMessage="No team data yet." scrollable {...chartProps} />
                     </Section>
 
+                    {yearBreakdown && (
+                        <Section title="Player Years">
+                            <VerticalBarChart data={yearBreakdown} emptyMessage="No year data yet." scrollable compareLabel={null} compareLoading={false} />
+                        </Section>
+                    )}
+
                     <Section title="Speed" fit={fits?.speed} action={<ChartAverage value={String(averages.speed)} compareValue={compareAverages && String(compareAverages.speed)} />}>
                         <VerticalBarChart data={breakdowns.speed} emptyMessage="No hitters with speed yet." {...chartProps} />
                     </Section>
@@ -1134,6 +1194,33 @@ export function SummaryCharts({ cards, editionId }: SummaryChartsProps) {
                     <Section title="Defense">
                         <GroupedColumnCharts data={breakdowns.defense} emptyMessage="No defensive ratings yet." formatValue={formatRating} distributionTolerance={DEFENSE_DISTRIBUTION_TOLERANCE} {...chartProps} />
                     </Section>
+
+                    <Section title="Positions per Hitter" fit={fits?.positionCount}>
+                        <VerticalBarChart data={breakdowns.positionCount} emptyMessage="No hitters in this subset." {...chartProps} />
+                    </Section>
+
+                    {hasFoils && (
+                        <Section
+                            title="Foils"
+                            action={<ChartAverage
+                                label="Foils"
+                                value={`${foilBreakdowns.count} (${Math.round(foilBreakdowns.count / filteredSnapshots.length * 100)}% of cards)`}
+                            />}
+                        >
+                            {foilBreakdowns.count === 0 ? (
+                                <EmptyChartState message="No foils in this subset." />
+                            ) : (
+                                <div className="flex flex-wrap gap-4">
+                                    <ChartPanel title="By Position" className="flex-1 basis-64">
+                                        <VerticalBarChart data={foilBreakdowns.position} emptyMessage="No foils yet." compareLabel={null} compareLoading={false} />
+                                    </ChartPanel>
+                                    <ChartPanel title="By Points" className="flex-1 basis-64">
+                                        <VerticalBarChart data={foilBreakdowns.points} emptyMessage="No foils yet." compareLabel={null} compareLoading={false} />
+                                    </ChartPanel>
+                                </div>
+                            )}
+                        </Section>
+                    )}
                 </>
             )}
         </div>
