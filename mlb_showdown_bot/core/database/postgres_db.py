@@ -9732,7 +9732,11 @@ class PostgresDB:
 
     def fetch_latest_spotlight_cards(self, set:str, limit:int=4) -> list[dict]:
         """Fetch latest spotlight cards from the card_spotlight table.
-        
+
+        Only rows from the newest publish are returned, so a spotlight with fewer
+        cards than `limit` never backfills with cards from an older spotlight.
+        Every row in one publish shares a timestamp (one insert transaction).
+
         Args:
             set: The showdown set to filter spotlight cards by.
             limit: Number of spotlight cards to fetch.
@@ -9745,10 +9749,15 @@ class PostgresDB:
             SELECT *
             FROM public.card_spotlight
             WHERE showdown_set = %s
-            ORDER BY spotlight_published_date DESC, sort_index
+              AND spotlight_published_date = (
+                  SELECT MAX(spotlight_published_date)
+                  FROM public.card_spotlight
+                  WHERE showdown_set = %s
+              )
+            ORDER BY sort_index
             LIMIT %s
         """)
-        raw_data = self.execute_query(query=sql_query, filter_values=(set, limit))
+        raw_data = self.execute_query(query=sql_query, filter_values=(set, set, limit))
         return raw_data
 
     def fetch_card_of_the_day(self, set:str) -> dict[str, any]:
