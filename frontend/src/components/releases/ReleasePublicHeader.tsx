@@ -12,6 +12,7 @@ import { ReleaseRemixModal } from './ReleaseRemixModal';
 import { ReleaseCardFan } from './ReleaseItem';
 import { ReleaseVisibilityPlate } from './ReleaseVisibilityPlate';
 import { describeEditionChange } from './releaseUpdates';
+import { UserAvatar } from '../shared/UserAvatar';
 import { CommentsPanel } from '../shared/comments/CommentsPanel';
 import { useAuth } from '../auth/AuthContext';
 
@@ -110,7 +111,15 @@ export function ReleasePublicHeader({ release, cardCount, editionCount, isOwner,
                     <div className="flex flex-wrap items-center gap-x-1.5 text-[13px] text-(--text-secondary)">
                         {release.creator_username && (
                             <>
-                                <span>by <span className="font-semibold text-(--text-primary)">{release.creator_username}</span></span>
+                                <span className="flex items-center gap-1.5">
+                                    <UserAvatar
+                                        name={release.creator_username}
+                                        avatarUrl={release.creator_avatar_url}
+                                        primaryColor={release.creator_primary_color}
+                                        size={18}
+                                    />
+                                    <span>by <span className="font-semibold text-(--text-primary)">{release.creator_username}</span></span>
+                                </span>
                                 <span aria-hidden className="text-(--text-tertiary)">·</span>
                             </>
                         )}

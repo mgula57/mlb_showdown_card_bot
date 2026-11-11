@@ -7126,6 +7126,9 @@ class PostgresDB:
                         OR (pe.draft_of IS NULL AND pe.pending_removal))
             ) AS has_pending_changes,
             (SELECT p.username FROM public.profiles p WHERE p.id::text = r.created_by) AS creator_username,
+            -- The creator's avatar, or the color behind their initials when they haven't uploaded one
+            (SELECT us.avatar_url FROM internal.user_settings us WHERE us.user_id = r.created_by) AS creator_avatar_url,
+            (SELECT us.default_primary_color FROM internal.user_settings us WHERE us.user_id = r.created_by) AS creator_primary_color,
             {extra_columns}
             COALESCE(
                 json_agg(

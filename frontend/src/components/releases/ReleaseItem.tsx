@@ -11,6 +11,7 @@ import { CAPS_LABEL_CLASS } from '../shared/fieldStyles';
 import { ReleaseVisibilityPlate } from './ReleaseVisibilityPlate';
 import { isReleasePublished } from './releaseVisibility';
 import { releaseUpdateLabel } from './releaseUpdates';
+import { UserAvatar } from '../shared/UserAvatar';
 
 /** Tile frame shared by ReleaseItem and its skeleton — sized like TeamPreviewCard's 'md' tile on
  *  wider screens, filling a 2-column grid cell on phones. */
@@ -116,7 +117,17 @@ export function ReleaseItem({ release, onClick, showPublishStatus = false }: Rel
                     {/* Counts drop to their own line when the creator name is too long to sit beside them */}
                     <div className="flex flex-wrap items-center justify-between gap-x-1.5 gap-y-0.5 min-w-0">
                         <span className="flex items-center gap-1 min-w-0 max-w-full text-[11px] font-medium text-(--text-tertiary)">
-                            <span className="truncate">{release.creator_username ? `by ${release.creator_username}` : ''}</span>
+                            {release.creator_username && (
+                                <>
+                                    <UserAvatar
+                                        name={release.creator_username}
+                                        avatarUrl={release.creator_avatar_url}
+                                        primaryColor={release.creator_primary_color}
+                                        size={14}
+                                    />
+                                    <span className="truncate">by {release.creator_username}</span>
+                                </>
+                            )}
                             {release.like_count > 0 && (
                                 <span
                                     className="flex items-center gap-0.5 shrink-0 tabular-nums"

@@ -78,6 +78,9 @@ export type Release = {
     preview_images?: ReleasePreviewImage[];
     /** Creator's profile username (null if they haven't set one). */
     creator_username?: string | null;
+    /** Creator's uploaded avatar; null when they haven't set one (show initials on `creator_primary_color`). */
+    creator_avatar_url?: string | null;
+    creator_primary_color?: string | null;
     /** Distinct Showdown sets across the release's cards (published editions only in public lists).
      * List endpoints only. */
     showdown_sets?: string[];
