@@ -132,3 +132,5 @@ Supabase is used for auth and for uploading card images.
 ### Testing
 
 Do NOT run the flask server yourself for testing. Assume the user always has one running themselves
+
+On macOS there is no `timeout` command (it's GNU coreutils), so `timeout 600 python tests/...` fails with exit code 127 and the test never runs. Run the command directly, without `timeout`, and use your tool's own timeout setting to cap it.
