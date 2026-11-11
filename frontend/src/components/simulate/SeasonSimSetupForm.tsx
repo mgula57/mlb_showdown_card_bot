@@ -15,6 +15,7 @@ import {
 
 import { Heading } from '../shared/Heading';
 import { buttonClass } from '../shared/buttonStyles';
+import { PageSubtitle } from '../shared/PageSubtitle';
 /** Exact text of the backend's global-capacity 429 (`sim.py`'s `_sim_slots` semaphore) — every
  *  worker process only runs so many sims at once, shared across all users, so this isn't a real
  *  error so much as a "someone else is using it, try again shortly" — shown as a lighter warning
@@ -272,11 +273,11 @@ export function SeasonSimSetupForm(props: Props) {
                     {isLobby ? 'Create a Lobby' : 'Simulate a Season'}
                     <BetaBadge />
                 </Heading>
-                <p className="text-[13px] text-(--text-secondary) mt-1">
+                <PageSubtitle className="mt-1">
                     {isLobby
                         ? "Set the season and rules — once everyone's joined, each person picks a club to follow or take over."
                         : "Every club plays out a full season — pick one to follow, or take it over with a team you've built."}
-                </p>
+                </PageSubtitle>
             </div>
 
             <div className={`grid grid-cols-1 gap-3 ${isLobby ? 'sm:grid-cols-2' : 'sm:grid-cols-3'}`}>

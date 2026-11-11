@@ -48,6 +48,7 @@ import { Heading } from '../shared/Heading';
 import { buttonClass } from '../shared/buttonStyles';
 import { EmptyState } from '../shared/EmptyState';
 import { PinstripeBackdrop } from '../shared/PinstripeBackdrop';
+import { PageSubtitle } from '../shared/PageSubtitle';
 // A team can be addressed by URL four ways: a saved UUID, a historical MLB team, an All-Star
 // team, or an Era Roster (all-time or all-decade).
 type TeamRef =
@@ -651,10 +652,10 @@ export default function TeamBuilder() {
                     <BackButton onBack={() => { setTeamSearch(''); navigate('/teams'); }} />
                     <div>
                         <Heading level="page">My Teams</Heading>
-                        <p className="text-[12px] text-(--text-secondary)">
+                        <PageSubtitle size="sm">
                             {sortedUserTeams.length} team{sortedUserTeams.length === 1 ? '' : 's'}
                             {archivedCount > 0 && ` · ${archivedCount} archived`}
-                        </p>
+                        </PageSubtitle>
                     </div>
                 </div>
 
@@ -798,9 +799,9 @@ export default function TeamBuilder() {
             <div className={`flex items-center ${px} justify-between`}>
                 <div>
                     <Heading level="page">Team Builder</Heading>
-                    <p className="text-[12px] text-(--text-secondary)">
+                    <PageSubtitle size="sm">
                         Build your team, compete in challenges, and explore community creations.
-                    </p>
+                    </PageSubtitle>
                 </div>
                 {token && (
                     <button

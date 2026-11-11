@@ -15,6 +15,7 @@ import { buttonClass } from '../shared/buttonStyles';
 import { EmptyState } from '../shared/EmptyState';
 import { SignInPrompt } from '../shared/SignInPrompt';
 import { PinstripeBackdrop } from '../shared/PinstripeBackdrop';
+import { PageSubtitle } from '../shared/PageSubtitle';
 
 /** Phones get a 44px minimum touch target on small controls; wider screens keep their normal size. */
 const TOUCH_TARGET = 'max-sm:min-h-11';
@@ -53,13 +54,14 @@ export function ReleaseList({ listRef, signedIn, library, community, notice, onO
             <div className="flex flex-col gap-6 py-4 max-w-4xl lg:max-w-7xl mx-auto w-full">
                 <div className={`flex items-center gap-3 ${PX} justify-between`}>
                     <div className="min-w-0">
-                        <Heading level="page" className="flex items-center gap-2">
-                            Release Builder
-                            <BetaBadge />
-                        </Heading>
-                        <p className="text-[13px] text-(--text-secondary)">
+                        {/* One line on phones: the title shrinks to fit beside the buttons instead of wrapping */}
+                        <div className="flex items-center gap-2 min-w-0">
+                            <Heading level="page" fit>Release Builder</Heading>
+                            <BetaBadge className="shrink-0" />
+                        </div>
+                        <PageSubtitle>
                             Browse official card sets or build your own
-                        </p>
+                        </PageSubtitle>
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
                         <ReleaseGuideButton onClick={onOpenGuide} className={TOUCH_TARGET} />

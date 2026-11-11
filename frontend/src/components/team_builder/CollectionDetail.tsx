@@ -5,6 +5,7 @@ import BackButton from '../shared/BackButton';
 
 import { Heading } from '../shared/Heading';
 import { EmptyState } from '../shared/EmptyState';
+import { PageSubtitle } from '../shared/PageSubtitle';
 type CollectionDetailProps = {
     slug: string;
     onOpenTeam: (team: TeamSummary) => void;
@@ -43,7 +44,7 @@ export function CollectionDetail({ slug, onOpenTeam, onBack, horizontalPadding }
                         {collection ? `${collection.cover_emoji ? collection.cover_emoji + ' ' : ''}${collection.title}` : 'Collection not found'}
                     </Heading>
                     {collection?.description && (
-                        <p className="text-[12px] text-(--text-secondary)">{collection.description}</p>
+                        <PageSubtitle size="sm">{collection.description}</PageSubtitle>
                     )}
                 </div>
             </div>

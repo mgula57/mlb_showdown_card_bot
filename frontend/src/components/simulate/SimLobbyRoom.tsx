@@ -10,6 +10,7 @@ import { fetchUserTeams, type TeamSummary } from '../../api/userTeams';
 import { InlineError } from '../shared/InlineError';
 import { Heading } from '../shared/Heading';
 import { buttonClass } from '../shared/buttonStyles';
+import { PageSubtitle } from '../shared/PageSubtitle';
 // Matches the cadence the plan settled on for lobby state - fast enough to feel live, no new
 // infrastructure (no websockets/Realtime) needed.
 const POLL_INTERVAL_MS = 2000;
@@ -194,7 +195,7 @@ export function SimLobbyRoom({ lobbyId, initialState, token, userId, onRunning, 
             <div className="flex items-center justify-between gap-3">
                 <div>
                     <Heading level="page">{lobby.year} Lobby</Heading>
-                    <p className="text-[13px] text-(--text-secondary)">Set {lobby.showdown_set} · waiting for the host to start</p>
+                    <PageSubtitle>Set {lobby.showdown_set} · waiting for the host to start</PageSubtitle>
                 </div>
                 <button
                     type="button"
