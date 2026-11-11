@@ -7,7 +7,7 @@
  * comprehensive player information and statistics.
  */
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useId } from 'react';
 import { FaSearch } from 'react-icons/fa';
 import { FaXmark } from 'react-icons/fa6';
 import { createPortal } from 'react-dom';
@@ -74,6 +74,9 @@ interface PlayerSearchInputProps {
 const MENU_MIN_WIDTH = 380;
 /** Minimum gap in px between the dropdown and the viewport edges */
 const MENU_VIEWPORT_MARGIN = 8;
+
+/** Mouse/trackpad devices, where typing then Enter picks the top result. Touch devices get no auto-highlight. */
+const isFinePointer = () => typeof window !== 'undefined' && !!window.matchMedia?.('(pointer: fine)').matches;
 
 /**
  * Example search queries to cycle through in placeholder text
@@ -172,6 +175,11 @@ export function PlayerSearchInput({
     const programmaticChange = useRef(false);
     /** Timer for cycling placeholder text examples */
     const placeholderInterval = useRef<ReturnType<typeof setInterval> | null>(null);
+    /** True from a keystroke until its search resolves, so Enter can't fall through to a page-level handler mid-search */
+    const isSearchPending = useRef(false);
+
+    /** Listbox id for combobox ARIA wiring; each row's id is `${listboxId}-${index}` */
+    const listboxId = useId();
 
     /**
      * Calculate and set dropdown positioning relative to input field
@@ -249,10 +257,12 @@ export function PlayerSearchInput({
         }
 
         if (query.length < 2) {
+            isSearchPending.current = false;
             setOptions([]);
             setIsOpen(false);
             return;
         }
+        isSearchPending.current = true;
         debounceRef.current = setTimeout(async () => {
             setIsLoading(true);
             try {
@@ -280,12 +290,14 @@ export function PlayerSearchInput({
                 
                 setOptions(results);
                 setIsOpen(results.length > 0);
-                setSelectedIndex(-1);
+                // On desktop, pre-highlight the top hit so type → Enter selects it
+                setSelectedIndex(results.length > 0 && isFinePointer() ? 0 : -1);
             } catch (error) {
                 console.error('Error searching players:', error);
                 setOptions([]);
                 setIsOpen(false);
             } finally {
+                isSearchPending.current = false;
                 setIsLoading(false);
             }
         }, 800); // Debounce delay of 800ms
@@ -319,25 +331,55 @@ export function PlayerSearchInput({
         };
     }, [isFocused, query]);
 
-    const handleKeyDown = (e: React.KeyboardEvent) => {
-        if (!isOpen) return;
+    // Keep the highlighted row visible as the keyboard moves through a scrolling list
+    useEffect(() => {
+        if (!isOpen || selectedIndex < 0) return;
+        dropdownRef.current?.children[selectedIndex]?.scrollIntoView({ block: 'nearest' });
+    }, [isOpen, selectedIndex]);
 
+    /** Swallow a key so page-level listeners (e.g. the builder's Enter-to-build) never see it */
+    const consumeKey = (e: React.KeyboardEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+        e.nativeEvent.stopImmediatePropagation();
+    };
+
+    const handleKeyDown = (e: React.KeyboardEvent) => {
+        const hasMenu = isOpen && options.length > 0;
+
+        // Enter picks the highlighted row. While results are open or a search is still pending it
+        // never falls through, so it can't build a card from the previous selection.
+        if (e.key === 'Enter') {
+            if (hasMenu) {
+                consumeKey(e);
+                if (selectedIndex >= 0 && selectedIndex < options.length) {
+                    handleSelect(options[selectedIndex]);
+                }
+            } else if (isSearchPending.current) {
+                consumeKey(e);
+            }
+            return;
+        }
+
+        if (!hasMenu) return;
+
+        const last = options.length - 1;
         switch (e.key) {
             case 'ArrowDown':
                 e.preventDefault();
-                setSelectedIndex(prev => 
-                    prev < options.length - 1 ? prev + 1 : prev
-                );
+                setSelectedIndex(prev => Math.min(prev + 1, last));
                 break;
             case 'ArrowUp':
                 e.preventDefault();
                 setSelectedIndex(prev => prev > 0 ? prev - 1 : -1);
                 break;
-            case 'Enter':
+            case 'Tab':
+                // Tab / Shift+Tab step through results (wrapping) instead of leaving the field
                 e.preventDefault();
-                if (selectedIndex >= 0 && selectedIndex < options.length) {
-                    handleSelect(options[selectedIndex]);
-                }
+                setSelectedIndex(prev => e.shiftKey
+                    ? (prev <= 0 ? last : prev - 1)
+                    : (prev >= last ? 0 : prev + 1)
+                );
                 break;
             case 'Escape':
                 setIsOpen(false);
@@ -392,6 +434,11 @@ export function PlayerSearchInput({
                     <input
                         ref={inputRef}
                         type="text"
+                        role="combobox"
+                        aria-autocomplete="list"
+                        aria-expanded={isOpen && options.length > 0}
+                        aria-controls={listboxId}
+                        aria-activedescendant={isOpen && selectedIndex >= 0 ? `${listboxId}-${selectedIndex}` : undefined}
                         style={{ textTransform: 'capitalize' }}
                         value={query}
                         onChange={(e) => setQuery(e.target.value)}
@@ -402,6 +449,8 @@ export function PlayerSearchInput({
                         }}
                         onBlur={() => {
                             setIsFocused(false);
+                            // Rows keep focus on the input (see the menu's onMouseDown), so any blur means focus left the search
+                            setIsOpen(false);
                         }}
                         placeholder={currentPlaceholder}
                         autoComplete="off"
@@ -449,6 +498,10 @@ export function PlayerSearchInput({
                 createPortal(
                     <div 
                         ref={dropdownRef}
+                        id={listboxId}
+                        role="listbox"
+                        // Keep focus on the input so clicking a row doesn't blur-close the menu before the click lands
+                        onMouseDown={(e) => e.preventDefault()}
                         className="
                             fixed z-5
                             transform
@@ -461,10 +514,15 @@ export function PlayerSearchInput({
                         {options.map((option, index) => (
                             <div
                                 key={`${option.year.toString()}-${option.player_id}`}
+                                id={`${listboxId}-${index}`}
+                                role="option"
+                                aria-selected={index === selectedIndex}
                                 onClick={() => handleSelect(option)}
+                                // mousemove (not mouseenter) so keyboard scrolling under a still pointer doesn't steal the highlight
+                                onMouseMove={() => { if (index !== selectedIndex) setSelectedIndex(index); }}
                                 className={`
                                     pl-3 py-3 cursor-pointer border-b border-form-element last:border-b-0
-                                    hover:bg-(--background-tertiary)
+                                    ${index === selectedIndex ? 'bg-(--background-tertiary)' : ''}
                                     ${index === 0 ? 'rounded-t-card' : ''}
                                     ${index === options.length - 1 ? 'rounded-b-card' : ''}
                                 `}
