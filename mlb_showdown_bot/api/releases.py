@@ -17,6 +17,7 @@ from ..core.set_builder.release_images import EditionImagePlan, EditionImageRend
 from ..core.set_builder.release_custom_card import ReleaseCustomCard, ReleaseCustomCardError
 from ..core.set_builder.release_card_patch import ReleaseCardNumbers, ReleaseCardPatch
 from ..core.set_builder.release_draft import ReleaseDraft
+from ..core.set_builder.release_edition_duplicate import ReleaseEditionDuplicateError, ReleaseEditionDuplicator
 from ..core.set_builder.release_review import ReleaseReview
 from ..core.set_builder.release_share import ReleaseShareImage
 from ..core.set_builder.selection import OtherEditionsRule
@@ -588,6 +589,34 @@ def restore_edition(release_id: str, edition_id: str):
                 return jsonify({'error': 'Edition not found or not owned by user'}), 404
             release = db.get_release(release_id, g.user_id)
         return jsonify(release), 200
+    except Exception as exc:
+        traceback.print_exc()
+        return jsonify({'error': str(exc)}), 500
+
+
+@releases_bp.route('/releases/<release_id>/editions/<edition_id>/duplicate', methods=['POST'])
+@require_auth
+def duplicate_edition(release_id: str, edition_id: str):
+    """A new edition with this one's player list in another Showdown set (see `ReleaseEditionDuplicator`).
+    Body: `name` and `showdown_set`. Returns the new `edition` and the `skipped` cards with no card in that set."""
+    try:
+        payload = request.get_json(silent=True) or {}
+        name = str(payload.get('name') or '').strip()
+        if not name:
+            return jsonify({'error': 'name is required'}), 400
+        with PostgresDB() as db:
+            source = _owned_edition(db, release_id, edition_id, g.user_id)
+            if source is None:
+                return jsonify({'error': 'Edition not found or not owned by user'}), 404
+            try:
+                duplicated = ReleaseEditionDuplicator(db).duplicate(source, str(payload.get('showdown_set') or ''), name)
+            except ReleaseEditionDuplicateError as exc:
+                return jsonify({'error': str(exc)}), 400
+            new_edition_id = db.create_edition(release_id, g.user_id, duplicated.payload)
+            if new_edition_id is None:
+                return jsonify({'error': 'Release not found or not owned by user'}), 404
+            edition = db.get_edition(new_edition_id, g.user_id)
+        return jsonify({'edition': edition, 'skipped': duplicated.skipped}), 201
     except Exception as exc:
         traceback.print_exc()
         return jsonify({'error': str(exc)}), 500

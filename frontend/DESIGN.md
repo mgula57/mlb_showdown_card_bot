@@ -122,7 +122,7 @@ Use these before writing new styles. All live in `src/components/shared/` unless
 | `InlineError` | Small red notice inline with a form or panel (validation, failed upload, a sim that couldn't start). `sm` in forms, `md` in modals; `icon` adds a warning triangle for field validation |
 | `RetryableError` | An `InlineError` (with `icon`) for something that failed to load, with a secondary Try again button under it and optional extra `actions` (e.g. a way back). Use it instead of hand-placing a retry button next to an error |
 | `SettingsGroup` (`releases/`) | Collapsible titled group for the Release Builder's narrow build panel, with a one-line summary while collapsed. Used by the Edition Scope panel and every Algorithm section. Edition-wide settings don't live in the build panel: they get their own step (`EditionSetup`, a centered `max-w-3xl` form with a primary Continue button), and the pool shows them back as a one-line read-only `ScopeSummary` with an Edit button, editable only for set size |
-| Soft-scope notice (`OutsideScopeNotice`) | A neutral bordered note with a `--warning` triangle, for something allowed but worth knowing (saved cards outside the edition scope). Use `InlineError` only when something is wrong or blocked |
+| `SoftNotice` | A neutral bordered note with a `--warning` triangle, for something allowed but worth knowing (saved cards outside the edition scope in `OutsideScopeNotice`, players a duplicated edition left out). Use `InlineError` only when something is wrong or blocked |
 
 Reference implementations: `CardItem`, `CardItemCompact`, `TeamPreviewCard`, `ReleaseItem`.
 

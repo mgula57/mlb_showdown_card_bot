@@ -1,5 +1,6 @@
-import { FaPen, FaTriangleExclamation } from 'react-icons/fa6';
+import { FaPen } from 'react-icons/fa6';
 import FormInput from '../customs/FormInput';
+import { SoftNotice } from '../shared/SoftNotice';
 import { buttonClass } from '../shared/buttonStyles';
 import { FIELD_LABEL_CLASS } from '../shared/fieldStyles';
 import { parseSetSize, scopeSummary } from './editionScope';
@@ -17,12 +18,9 @@ export function OutsideScopeNotice({ outside }: { outside: OutsideScopeCounts })
     ];
     if (parts.length === 0) return null;
     return (
-        <div role="status" className="flex items-start gap-1.5 rounded-control border border-(--divider) px-2.5 py-1.5 text-[11px] text-(--text-secondary)">
-            <FaTriangleExclamation className="shrink-0 mt-0.5 text-(--warning)" />
-            <span>
-                {parts.join(' and ')} in the pool fall outside the edition scope. They stay in the pool, but running the Algorithm with Replace will drop them.
-            </span>
-        </div>
+        <SoftNotice>
+            {parts.join(' and ')} in the pool fall outside the edition scope. They stay in the pool, but running the Algorithm with Replace will drop them.
+        </SoftNotice>
     );
 }
 

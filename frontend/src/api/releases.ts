@@ -694,6 +694,27 @@ export async function createEdition(releaseId: string, payload: ReleaseEditionCr
     return res.json();
 }
 
+/** A new edition with an edition's players in another Showdown set: V1 cards in the same stats period
+ *  (half-season cards are rebuilt for that half), its card style and style rules and card numbers,
+ *  nothing rendered. `skipped` names the cards with no card in that set or that couldn't be rebuilt. */
+export async function duplicateEdition(
+    releaseId: string, editionId: string, payload: { name: string; showdown_set: string }, token: string,
+): Promise<{ edition: ReleaseEdition; skipped: string[] }> {
+    const res = await fetch(`${API_BASE}/releases/${releaseId}/editions/${editionId}/duplicate`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(payload),
+    });
+    if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || `Failed to duplicate edition: ${res.status}`);
+    }
+    return res.json();
+}
+
 export async function updateEdition(releaseId: string, editionId: string, payload: ReleaseEditionUpdatePayload, token: string): Promise<ReleaseEdition> {
     const res = await fetch(`${API_BASE}/releases/${releaseId}/editions/${editionId}`, {
         method: 'PUT',

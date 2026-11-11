@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import * as Tabs from '@radix-ui/react-tabs';
 import type { Release, ReleaseEdition, ReleaseEditionSummary, ReleaseReviewItem } from '../../api/releases';
 import { recordReleaseView } from '../../api/releases';
-import { fetchEdition, createEdition, updateEdition, updateRelease, editionSummaryOf, releaseDraftRequest, deleteRelease, deleteEdition, restoreEdition } from '../../api/releases';
+import { fetchEdition, createEdition, duplicateEdition, updateEdition, updateRelease, editionSummaryOf, releaseDraftRequest, deleteRelease, deleteEdition, restoreEdition } from '../../api/releases';
 import { ReleaseDeleteModal } from './ReleaseDeleteModal';
 import { EditionBuilder, EditionBuilderSkeleton, type EditionNavRequest } from './EditionBuilder';
 import { ReleaseReviewPanel } from './ReleaseReviewPanel';
@@ -15,7 +15,7 @@ import { ReleaseOnboardingContext, useReleaseOnboardingState } from './releaseOn
 import { ReleaseOnboardingScope, ReleaseOnboardingWelcome, ReleaseTip } from './ReleaseOnboarding';
 import FormInput from '../customs/FormInput';
 import { ModeBanner, ModeBannerButton } from '../shared/ModeBanner';
-import { FaArrowLeft, FaCheck, FaEye, FaGlobe, FaPen, FaPlus, FaRotateLeft, FaShareNodes, FaSpinner, FaTrashCan, FaXmark } from 'react-icons/fa6';
+import { FaArrowLeft, FaCheck, FaCopy, FaEye, FaGlobe, FaPen, FaPlus, FaRotateLeft, FaShareNodes, FaSpinner, FaTrashCan, FaXmark } from 'react-icons/fa6';
 
 import { InlineError } from '../shared/InlineError';
 import { Heading } from '../shared/Heading';
@@ -24,6 +24,10 @@ import { Plate } from '../shared/Plate';
 import { EmptyState } from '../shared/EmptyState';
 import { isPrivateRelease, isReleasePublished, releaseAudience } from './releaseVisibility';
 import { isNewEdition } from './releaseUpdates';
+import { parseEditionScope } from './editionScope';
+import CustomSelect from '../shared/CustomSelect';
+import { SET_SELECT_OPTIONS } from '../shared/SetBadge';
+import { SoftNotice } from '../shared/SoftNotice';
 
 type ReleaseDetailProps = {
     release: Release;
@@ -46,6 +50,7 @@ type ReleaseDetailProps = {
 /** Owners land in `browse` once a release is published (the view everyone else gets) and in
  *  `edit` while it's still a draft. Browsing a draft is the pre-publish preview. */
 type ViewMode = 'browse' | 'edit';
+type EditionFormMode = 'create' | 'duplicate' | 'rename' | 'renameRelease';
 
 // The tab strip's red active bar, in the body face rather than the display italic because each tab
 // carries upright count and Draft plates (same reasoning as radixVerticalTabTriggerClass).
@@ -136,8 +141,12 @@ export function ReleaseDetail({ release, readOnly, editionSlug, onEditionChange,
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [needsDraft, token, release.id]);
 
-    /** Inline name form above the builder — creates a new edition, renames the active one, or renames the release. */
-    const [editionForm, setEditionForm] = useState<'create' | 'rename' | 'renameRelease' | null>(null);
+    /** Inline name form above the builder — creates a new edition, duplicates or renames the active one, or renames the release. */
+    const [editionForm, setEditionForm] = useState<EditionFormMode | null>(null);
+    /** The showdown set a duplicate is built in. */
+    const [duplicateSet, setDuplicateSet] = useState('');
+    /** Players the last duplicate left out (no card in its set), shown on the new edition. */
+    const [duplicateSkipped, setDuplicateSkipped] = useState<{ editionId: string; names: string[] } | null>(null);
     const [editionFormName, setEditionFormName] = useState('');
     const [savingEditionForm, setSavingEditionForm] = useState(false);
     const activeEditionName = activeEdition ? shownOf(activeEdition).name : '';
@@ -248,8 +257,16 @@ export function ReleaseDetail({ release, readOnly, editionSlug, onEditionChange,
         }
     }
 
-    function openEditionForm(mode: 'create' | 'rename' | 'renameRelease') {
+    function openEditionForm(mode: EditionFormMode) {
         setEditionForm(mode);
+        if (mode === 'duplicate') {
+            // Start on a set other than the edition's own, since that's the point of a duplicate
+            const currentSet = activeEdition ? parseEditionScope(activeEdition.attributes, release.default_showdown_set).showdown_sets[0] : null;
+            const targetSet = SET_SELECT_OPTIONS.find(o => o.value !== currentSet)?.value ?? '';
+            setDuplicateSet(targetSet);
+            setEditionFormName(`${activeEditionName} ${targetSet}`.trim());
+            return;
+        }
         setEditionFormName(mode === 'rename' ? activeEditionName : mode === 'renameRelease' ? release.name : '');
     }
 
@@ -293,10 +310,18 @@ export function ReleaseDetail({ release, readOnly, editionSlug, onEditionChange,
             }
             return;
         }
+        if (editionForm === 'duplicate' && (!activeLoadedId || !duplicateSet)) return;
         setSavingEditionForm(true);
         setError(null);
         try {
-            const edition = await createEdition(release.id, { name }, token);
+            let edition: ReleaseEdition;
+            if (editionForm === 'duplicate') {
+                const result = await duplicateEdition(release.id, activeLoadedId!, { name, showdown_set: duplicateSet }, token);
+                edition = result.edition;
+                setDuplicateSkipped(result.skipped.length > 0 ? { editionId: edition.id, names: result.skipped } : null);
+            } else {
+                edition = await createEdition(release.id, { name }, token);
+            }
             setEditionCache(prev => ({ ...prev, [edition.id]: edition }));
             onReleaseUpdated({
                 ...release,
@@ -309,7 +334,7 @@ export function ReleaseDetail({ release, readOnly, editionSlug, onEditionChange,
             onEditionChange(edition.slug);
             closeEditionForm();
         } catch (err: any) {
-            setError(err.message ?? 'Failed to create edition.');
+            setError(err.message ?? (editionForm === 'duplicate' ? 'Failed to duplicate edition.' : 'Failed to create edition.'));
         } finally {
             setSavingEditionForm(false);
         }
@@ -461,6 +486,14 @@ export function ReleaseDetail({ release, readOnly, editionSlug, onEditionChange,
                             <>
                                 <button
                                     type="button"
+                                    onClick={() => openEditionForm('duplicate')}
+                                    title="Copy this edition's players and card style into another Showdown set"
+                                    className="flex items-center gap-1 px-2 py-2.5 text-[13px] font-semibold text-(--text-tertiary) hover:text-(--text-secondary) transition-colors shrink-0 cursor-pointer"
+                                >
+                                    <FaCopy className="text-[10px]" /> Duplicate
+                                </button>
+                                <button
+                                    type="button"
                                     onClick={() => openEditionForm('rename')}
                                     title="Rename edition"
                                     className="flex items-center gap-1 px-2 py-2.5 text-[13px] font-semibold text-(--text-tertiary) hover:text-(--text-secondary) transition-colors shrink-0 cursor-pointer"
@@ -599,6 +632,11 @@ export function ReleaseDetail({ release, readOnly, editionSlug, onEditionChange,
                                 placeholder={editionForm === 'renameRelease' ? 'Release name' : 'Edition name (e.g. 2001, Rainbow Foil)'}
                             />
                         </div>
+                        {editionForm === 'duplicate' && (
+                            <div className="w-36 shrink-0">
+                                <CustomSelect value={duplicateSet} onChange={setDuplicateSet} options={SET_SELECT_OPTIONS} />
+                            </div>
+                        )}
                         <button
                             type="button"
                             onClick={handleSubmitEditionForm}
@@ -607,8 +645,8 @@ export function ReleaseDetail({ release, readOnly, editionSlug, onEditionChange,
                         >
                             {savingEditionForm
                                 ? <FaSpinner className="animate-spin text-[10px]" />
-                                : editionForm === 'create' ? <FaPlus className="text-[10px]" /> : <FaCheck className="text-[10px]" />}
-                            {editionForm === 'create' ? 'Create' : 'Save'}
+                                : editionForm === 'create' ? <FaPlus className="text-[10px]" /> : editionForm === 'duplicate' ? <FaCopy className="text-[10px]" /> : <FaCheck className="text-[10px]" />}
+                            {editionForm === 'create' ? 'Create' : editionForm === 'duplicate' ? 'Duplicate' : 'Save'}
                         </button>
                         <button
                             type="button"
@@ -618,6 +656,19 @@ export function ReleaseDetail({ release, readOnly, editionSlug, onEditionChange,
                             <FaXmark className="text-[14px]" />
                         </button>
                     </div>
+                )}
+
+                {isEditing && duplicateSkipped && duplicateSkipped.editionId === activeEditionId && (
+                    <SoftNotice className="mx-4 mt-2 shrink-0">
+                        <div className="flex items-start gap-2">
+                            <span className="flex-1">
+                                {duplicateSkipped.names.length} {duplicateSkipped.names.length === 1 ? 'player has' : 'players have'} no card in this set and {duplicateSkipped.names.length === 1 ? 'was' : 'were'} left out: {duplicateSkipped.names.join(', ')}
+                            </span>
+                            <button type="button" onClick={() => setDuplicateSkipped(null)} aria-label="Dismiss" className="text-(--text-tertiary) hover:text-(--text-primary) transition-colors cursor-pointer">
+                                <FaXmark />
+                            </button>
+                        </div>
+                    </SoftNotice>
                 )}
 
                 {editions.length === 0 && !(isEditing && editionForm) ? (
