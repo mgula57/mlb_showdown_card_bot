@@ -96,7 +96,8 @@ type EditionBuilderProps = {
     /** A card link's release card id to open on arrival; `onCardLinkOpened` fires once handled. */
     openCardRef?: string | null;
     onCardLinkOpened?: () => void;
-    /** Slugs for a card's short link; null hides "Copy card link" (e.g. in a working copy, whose cards aren't live). */
+    /** For a card's short link: the release's `share_path` and the edition's slug; null hides "Copy card link"
+     *  (e.g. in a working copy, whose cards aren't live). */
     cardLinkSlugs?: { release: string; edition: string } | null;
 };
 

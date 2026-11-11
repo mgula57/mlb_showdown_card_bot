@@ -6,6 +6,7 @@ from psycopg2 import extras
 from psycopg2.extras import RealDictCursor
 
 from ..database.postgres_db import PostgresDB
+from .release_link import ReleaseLink
 
 
 class ReleaseMigrationError(ValueError):
@@ -71,17 +72,21 @@ class ReleaseMigrator:
     - Ids: the target gets fresh release/edition ids. Image files live under
       `releases/{release_id}/{edition_id}/`, so sharing ids could let one side's cleanup delete the
       other's renders. Card ids come from `_upsert_release_cards`, stable per (edition, source card).
+    - Release: named by its link path in the source, `<owner>/<slug>` (see `ReleaseLink`), or a bare
+      slug when only one release has it.
     - Re-runs: the target release is found by slug + owner and synced in place (editions matched by
       slug), but only while it has never been published there. After that it's edited in PROD.
     - Not copied: image rows/files, publish state and versions, likes/saves/views/comments, remix parent.
     """
 
-    def __init__(self, source_db: PostgresDB, target_db: PostgresDB, slug: str) -> None:
+    def __init__(self, source_db: PostgresDB, target_db: PostgresDB, release_path: str) -> None:
         if not source_db.connection or not target_db.connection:
             raise ReleaseMigrationError("Both databases must be connected.")
         self.source_db = source_db
         self.target_db = target_db
-        self.slug = slug
+        self.release_path = release_path.strip('/').removeprefix('r/')
+        # Set from the source release by `plan`; slugs are only unique per owner
+        self.slug = ''
 
     # ---------------------------------------------------------------------
     # MARK: - PLAN (READ-ONLY)
@@ -90,6 +95,7 @@ class ReleaseMigrator:
     def plan(self) -> ReleaseMigrationPlan:
         self._check_target_schema()
         release = self._source_release()
+        self.slug = release['slug']
         owner_email = self._source_owner_email(release['created_by'])
         target_owner_id = self._target_user_id(owner_email)
         plan = ReleaseMigrationPlan(
@@ -122,12 +128,23 @@ class ReleaseMigrator:
                 )
 
     def _source_release(self) -> dict:
+        """The live source release at `<owner>/<slug>`, or the only live one with a bare slug."""
+        if '/' in self.release_path:
+            link = ReleaseLink.resolve(self.source_db, self.release_path)
+            where, params = "id::text = %s", (link.release_id if link else None,)
+        else:
+            # A bare slug may also come from a link shared before slugs were per owner
+            where, params = "(slug = %s OR legacy_slug = %s)", (self.release_path, self.release_path)
         with self.source_db.connection.cursor(cursor_factory=RealDictCursor) as cur:
-            cur.execute("SELECT * FROM internal.releases WHERE slug = %s AND retired_at IS NULL", (self.slug,))
-            row = cur.fetchone()
-        if not row:
-            raise ReleaseMigrationError(f"No live release with slug '{self.slug}' in the source database.")
-        return dict(row)
+            cur.execute(f"SELECT * FROM internal.releases WHERE {where} AND retired_at IS NULL", params)
+            rows = cur.fetchall()
+        if not rows:
+            raise ReleaseMigrationError(f"No live release at '{self.release_path}' in the source database.")
+        if len(rows) > 1:
+            raise ReleaseMigrationError(
+                f"{len(rows)} users have a release with slug '{self.release_path}'. Pass its link path, `<owner>/<slug>`."
+            )
+        return dict(rows[0])
 
     def _source_owner_email(self, user_id: str) -> str:
         with self.source_db.connection.cursor() as cur:
@@ -174,21 +191,19 @@ class ReleaseMigrator:
         ]
 
     def _existing_target_release_id(self, target_owner_id: str) -> Optional[str]:
-        """The target release a previous run created, or None if the slug is free. Raises when the
-        slug belongs to someone else, or when the earlier copy has since been published or retired."""
+        """The target release a previous run created (same owner and slug), or None if the owner has
+        none with this slug. Raises when the earlier copy has since been published or retired."""
         with self.target_db.connection.cursor(cursor_factory=RealDictCursor) as cur:
             cur.execute("""
                 SELECT r.id::text, r.created_by, r.retired_at IS NOT NULL AS retired,
                        r.published_version > 0 OR EXISTS (
                            SELECT 1 FROM internal.release_editions e WHERE e.release_id = r.id AND e.published_at IS NOT NULL
                        ) AS published
-                  FROM internal.releases r WHERE r.slug = %s
-            """, (self.slug,))
+                  FROM internal.releases r WHERE r.slug = %s AND r.created_by = %s
+            """, (self.slug, target_owner_id))
             row = cur.fetchone()
         if not row:
             return None
-        if row['created_by'] != target_owner_id:
-            raise ReleaseMigrationError(f"Slug '{self.slug}' is already taken in the target by another user's release.")
         if row['retired']:
             raise ReleaseMigrationError(f"The target release '{self.slug}' was deleted (retired); its slug stays reserved.")
         if row['published']:

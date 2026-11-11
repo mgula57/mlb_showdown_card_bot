@@ -13,6 +13,7 @@ from ..core.set_builder.image_match_classifier import ImageMatchCard, ImageMatch
 from ..core.set_builder.release_card_rebuilder import ReleaseCardRebuilder, ReleaseCardRebuildError
 from ..core.card.stats.stats_period import SeasonHalf
 from ..core.set_builder.release_card_period import ReleaseCardPeriod, ReleaseCardPeriodError
+from ..core.set_builder.release_link import ReleaseLink
 from ..core.set_builder.release_images import EditionImagePlan, EditionImageRenderer, ReleaseImageJobCancelled, ReleaseImageStorage
 from ..core.set_builder.release_custom_card import ReleaseCustomCard, ReleaseCustomCardError
 from ..core.set_builder.release_card_patch import ReleaseCardNumbers, ReleaseCardPatch
@@ -71,16 +72,17 @@ def create_release():
         return jsonify({'error': str(exc)}), 500
 
 
-@releases_bp.route('/releases/by-slug/<slug>', methods=['GET'])
-def get_release_by_slug(slug: str):
-    """The release behind a short link (`/r/<slug>`), if the caller can see it."""
+@releases_bp.route('/releases/by-link/<path:link_path>', methods=['GET'])
+def get_release_by_link(link_path: str):
+    """The release behind a short link (the part after `/r/`, see `ReleaseLink`), if the caller can
+    see it, with the edition slug and card the link points into."""
     try:
         with PostgresDB() as db:
-            release_id = db.get_release_id_by_slug(slug)
-            release = db.get_release(release_id, optional_user_id()) if release_id else None
+            link = ReleaseLink.resolve(db, link_path)
+            release = db.get_release(link.release_id, optional_user_id()) if link else None
         if release is None:
             return jsonify({'error': 'Release not found'}), 404
-        return jsonify(release), 200
+        return jsonify({'release': release, 'edition_slug': link.edition_slug, 'card_ref': link.card_ref}), 200
     except Exception as exc:
         traceback.print_exc()
         return jsonify({'error': str(exc)}), 500

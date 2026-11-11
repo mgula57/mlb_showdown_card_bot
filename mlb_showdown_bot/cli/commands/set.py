@@ -132,7 +132,7 @@ def import_release(
 
 @app.command("migrate_release")
 def migrate_release(
-    slug: str = typer.Argument(..., help="Slug of the release in DEV (the /releases/<slug> part of its link)."),
+    release_path: str = typer.Argument(..., help="The release in DEV: the <owner>/<slug> part of its /r/ link, or a bare slug if only one user has it."),
     apply: bool = typer.Option(False, "--apply", "-a", help="Write to PROD. Without it, only prints the plan."),
 ):
     """Copy a release built in DEV (DATABASE_URL_LOGS) into PROD (DATABASE_URL_ARCHIVE) as an
@@ -142,7 +142,7 @@ def migrate_release(
     print("Source DEV (DATABASE_URL_LOGS) -> target PROD (DATABASE_URL_ARCHIVE)")
     with PostgresDB() as source_db, PostgresDB(is_archive=True) as target_db:
         try:
-            migrator = ReleaseMigrator(source_db=source_db, target_db=target_db, slug=slug)
+            migrator = ReleaseMigrator(source_db=source_db, target_db=target_db, release_path=release_path)
             plan = migrator.plan()
         except ReleaseMigrationError as exc:
             print(f"❌ {exc}")

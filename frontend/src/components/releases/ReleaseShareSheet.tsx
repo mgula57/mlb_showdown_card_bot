@@ -50,7 +50,7 @@ function useShareImage(release: Release, enabled: boolean) {
 /** Everything for sending a release to someone: its short link (copied, or handed to the phone's
  *  share sheet) and the preview image chat apps show for it, which can also be saved. */
 export function ReleaseShareSheet({ release, onClose, eyebrow, ownerToken, onReleaseUpdated }: ReleaseShareSheetProps) {
-    const link = useCopyReleaseLink(release.slug);
+    const link = useCopyReleaseLink(release.share_path);
     const [downloading, setDownloading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const isPrivate = isPrivateRelease(release);

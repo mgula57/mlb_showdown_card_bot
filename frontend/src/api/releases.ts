@@ -70,7 +70,10 @@ export type Release = {
     comment_count: number;
     /** Owner-set "work in progress" label. */
     is_wip: boolean;
+    /** Unique among its owner's releases only; links use `share_path`. */
     slug: string;
+    /** Its short link's path after `/r/`: `<owner username>/<slug>` (the owner's id when they have no username). */
+    share_path: string;
     default_showdown_set: string | null;
     editions: ReleaseEditionSummary[];
     /** Up to 3 rendered card images — user-ranked cards (`preview_rank`) first, then first edition
@@ -539,11 +542,19 @@ export async function recordReleaseView(releaseId: string, token?: string): Prom
     await fetch(`${API_BASE}/releases/${releaseId}/view`, { method: 'POST', headers });
 }
 
-/** The release behind a short link (`/r/<slug>`). */
-export async function fetchReleaseBySlug(slug: string, token?: string): Promise<Release> {
+/** Where a short link points: its release, and the edition and card it opens, if any. */
+export type ReleaseLinkTarget = {
+    release: Release;
+    edition_slug: string | null;
+    card_ref: string | null;
+};
+
+/** The release behind a short link. `linkPath` is the path after `/r/`, as it appears in the URL
+ *  (still percent-encoded): `<owner>/<release>[/<edition>[/<card>]]`, or the older `<release>[/...]`. */
+export async function fetchReleaseByLink(linkPath: string, token?: string): Promise<ReleaseLinkTarget> {
     const headers: Record<string, string> = {};
     if (token) headers['Authorization'] = `Bearer ${token}`;
-    const res = await fetch(`${API_BASE}/releases/by-slug/${encodeURIComponent(slug)}`, { headers });
+    const res = await fetch(`${API_BASE}/releases/by-link/${linkPath}`, { headers });
     if (!res.ok) throw new Error(res.status === 404 ? 'Release not found' : `Failed to fetch release: ${res.status}`);
     return res.json();
 }
@@ -559,9 +570,9 @@ export async function ensureReleaseShareImage(releaseId: string): Promise<string
 }
 
 /** The short link to share a release by, or one of its editions, or one card (by release card id,
- *  which stays the same through renumbering and republishing). */
-export const releaseShareUrl = (slug: string, editionSlug?: string | null, releaseCardId?: string | null): string =>
-    `${window.location.origin}/r/${slug}${editionSlug ? `/${editionSlug}${releaseCardId ? `/${releaseCardId}` : ''}` : ''}`;
+ *  which stays the same through renumbering and republishing). `sharePath` is the release's `share_path`. */
+export const releaseShareUrl = (sharePath: string, editionSlug?: string | null, releaseCardId?: string | null): string =>
+    `${window.location.origin}/r/${sharePath}${editionSlug ? `/${editionSlug}${releaseCardId ? `/${releaseCardId}` : ''}` : ''}`;
 
 export async function createRelease(payload: ReleaseCreatePayload, token: string): Promise<Release> {
     const res = await fetch(`${API_BASE}/releases`, {

@@ -3,8 +3,8 @@ import os
 import threading
 import uuid
 import re
-import secrets
 from contextlib import contextmanager
+from urllib.parse import quote
 from pprint import pprint
 import psycopg2
 import traceback
@@ -6749,7 +6749,8 @@ class PostgresDB:
                     created_by      TEXT NOT NULL,
                     is_official     BOOLEAN NOT NULL DEFAULT FALSE,
                     fork_parent_id  UUID REFERENCES internal.releases(id) ON DELETE SET NULL,
-                    slug            TEXT UNIQUE NOT NULL,
+                    -- Unique per owner (uq_releases_owner_slug), see `_generate_release_slug`
+                    slug            TEXT NOT NULL,
                     default_showdown_set TEXT,
                     created_at      TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
                     updated_at      TIMESTAMP WITH TIME ZONE DEFAULT NOW()
@@ -7041,6 +7042,75 @@ class PostgresDB:
                     ON internal.release_image_jobs (edition_id, created_at DESC);
             """)
         self._migrate_edition_slugs_per_release()
+        self._migrate_release_slugs_per_owner()
+        self._build_username_history()
+
+    def _migrate_release_slugs_per_owner(self) -> None:
+        """One-time: release slugs used to be unique across every user's releases (so a second
+        "2026 Base" got `2026-base-3fa9c1`). Links are now `/r/<owner>/<slug>`, so slugs only need to be
+        unique per owner: rewrites them from each release's name, oldest first (so it keeps the plain
+        slug), and keeps the old one in `legacy_slug` so links shared before (`/r/<slug>`) still resolve.
+        Runs only while the old constraint exists, in one transaction so a failure changes nothing."""
+        with self.transaction() as cur:
+            cur.execute("ALTER TABLE internal.releases ADD COLUMN IF NOT EXISTS legacy_slug TEXT;")
+            cur.execute("""
+                SELECT 1 FROM pg_constraint
+                 WHERE conname = 'releases_slug_key' AND conrelid = 'internal.releases'::regclass
+            """)
+            if cur.fetchone():
+                cur.execute("UPDATE internal.releases SET legacy_slug = slug;")
+                cur.execute("ALTER TABLE internal.releases DROP CONSTRAINT releases_slug_key;")
+                cur.execute("""
+                    SELECT id, created_by, name FROM internal.releases
+                     ORDER BY created_by, retired_at NULLS FIRST, created_at
+                """)
+                taken: dict = {}
+                for release_id, owner_id, name in cur.fetchall():
+                    # Retired releases keep a slug too (their rows stay for rosters), after the live ones
+                    slug = self._next_free_slug(self._slugify(name, 'release'), taken.setdefault(owner_id, set()))
+                    taken[owner_id].add(slug)
+                    cur.execute("UPDATE internal.releases SET slug = %s WHERE id = %s", (slug, release_id))
+            cur.execute("""
+                CREATE UNIQUE INDEX IF NOT EXISTS uq_releases_owner_slug
+                    ON internal.releases (created_by, slug);
+            """)
+            cur.execute("""
+                CREATE UNIQUE INDEX IF NOT EXISTS uq_releases_legacy_slug
+                    ON internal.releases (legacy_slug) WHERE legacy_slug IS NOT NULL;
+            """)
+
+    def _build_username_history(self) -> None:
+        """Usernames a user had before, so release links made under an old one (`/r/<old>/<slug>`)
+        still resolve after a rename (see `get_release_id_by_owner_slug`). Usernames are changed from
+        the app straight through Supabase, so a trigger on `public.profiles` records them. It runs as
+        the app's own role (SECURITY DEFINER), since the user's role can't write to `internal`. If an
+        old username is later taken by someone else, the new owner's releases win."""
+        with self.connection.cursor() as cur:
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS internal.username_history (
+                    username    TEXT PRIMARY KEY,
+                    user_id     TEXT NOT NULL,
+                    changed_at  TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+                );
+            """)
+            cur.execute("""
+                CREATE OR REPLACE FUNCTION internal.record_username_change() RETURNS trigger
+                LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $$
+                BEGIN
+                    IF OLD.username IS NOT NULL AND OLD.username IS DISTINCT FROM NEW.username THEN
+                        INSERT INTO internal.username_history (username, user_id)
+                        VALUES (OLD.username, OLD.id::text)
+                        ON CONFLICT (username) DO UPDATE SET user_id = EXCLUDED.user_id, changed_at = NOW();
+                    END IF;
+                    RETURN NEW;
+                END;
+                $$;
+            """)
+            cur.execute("DROP TRIGGER IF EXISTS trg_profiles_username_history ON public.profiles;")
+            cur.execute("""
+                CREATE TRIGGER trg_profiles_username_history AFTER UPDATE OF username ON public.profiles
+                FOR EACH ROW EXECUTE FUNCTION internal.record_username_change();
+            """)
 
     def _migrate_edition_slugs_per_release(self) -> None:
         """One-time: edition slugs used to be unique across every release (so most were `main-3fa9c1`).
@@ -7330,7 +7400,7 @@ class PostgresDB:
             raise RuntimeError("No database connection")
         fields = self._release_payload_fields(payload)
         with self.transaction() as cur:
-            slug = self._generate_unique_slug(cur, 'internal.releases', payload.get('name', ''))
+            slug = self._generate_release_slug(cur, user_id, payload.get('name', ''))
             cols = ', '.join(['created_by', 'slug'] + list(fields.keys()))
             placeholders = ', '.join(['%s'] * (2 + len(fields)))
             values = [user_id, slug] + list(fields.values())
@@ -7367,7 +7437,7 @@ class PostgresDB:
             """, (source_release_id, user_id))
             if not cur.fetchone():
                 return None
-            slug = self._generate_unique_slug(cur, 'internal.releases', payload.get('name', ''))
+            slug = self._generate_release_slug(cur, user_id, payload.get('name', ''))
             cols = ', '.join(['created_by', 'slug', 'fork_parent_id'] + list(fields.keys()))
             placeholders = ', '.join(['%s'] * (3 + len(fields)))
             cur.execute(
@@ -7483,11 +7553,30 @@ class PostgresDB:
         """, (release_id,))
         return [{**dict(row), 'published_at': row['published_at'].isoformat() if row.get('published_at') else None} for row in rows or []]
 
-    def get_release_id_by_slug(self, slug: str) -> str | None:
-        """The id behind a release's short link (`/r/<slug>`). Visibility is checked by `get_release`."""
+    def get_release_id_by_owner_slug(self, owner: str, slug: str) -> str | None:
+        """The id behind a release link, `/r/<owner>/<slug>`. `owner` is the creator's username, a
+        username they had before (`internal.username_history`), or their user id when they have no
+        username. A current username wins over an old one someone else has since taken. Visibility is
+        checked by `get_release`."""
         if not self.connection:
             return None
-        rows = self.execute_query("SELECT id::text AS id FROM internal.releases WHERE slug = %s", (slug,))
+        rows = self.execute_query("""
+            WITH owners AS (
+                SELECT p.id::text AS user_id, 0 AS rank FROM public.profiles p WHERE p.username = %(owner)s
+                UNION ALL SELECT %(owner)s, 1
+                UNION ALL SELECT h.user_id, 2 FROM internal.username_history h WHERE h.username = %(owner)s
+            )
+            SELECT r.id::text AS id FROM internal.releases r JOIN owners o ON o.user_id = r.created_by
+             WHERE r.slug = %(slug)s
+             ORDER BY o.rank LIMIT 1
+        """, {'owner': owner, 'slug': slug})
+        return rows[0]['id'] if rows else None
+
+    def get_release_id_by_legacy_slug(self, slug: str) -> str | None:
+        """The id behind a link shared before slugs were per owner (`/r/<slug>`)."""
+        if not self.connection:
+            return None
+        rows = self.execute_query("SELECT id::text AS id FROM internal.releases WHERE legacy_slug = %s", (slug,))
         return rows[0]['id'] if rows else None
 
     def get_public_release_tile(self, release_id: str) -> dict | None:
@@ -8444,17 +8533,16 @@ class PostgresDB:
         """, (release_id, edition_id, base_slug, f"{base_slug}-%"))
         return cls._next_free_slug(base_slug, {row[0] for row in cur.fetchall()})
 
-    @staticmethod
-    def _generate_unique_slug(cur, table: str, name: str) -> str:
-        """Slugify name, appending a short random suffix on collision. `table` must be a
-        trusted internal identifier (never user input) — it's interpolated into the query."""
-        base_slug = PostgresDB._slugify(name, 'release')
-        slug = base_slug
-        while True:
-            cur.execute(f"SELECT 1 FROM {table} WHERE slug = %s", (slug,))
-            if not cur.fetchone():
-                return slug
-            slug = f"{base_slug}-{secrets.token_hex(3)}"
+    @classmethod
+    def _generate_release_slug(cls, cur, owner_id: str, name: str) -> str:
+        """A readable slug for a release, unique among its owner's releases (`2026-base`, then
+        `2026-base-2`): links are `/r/<owner>/<slug>`, so other users' releases don't count.
+        Retired releases count too, so an old link never lands on a different release."""
+        base_slug = cls._slugify(name, 'release')
+        cur.execute("""
+            SELECT slug FROM internal.releases WHERE created_by = %s AND (slug = %s OR slug LIKE %s)
+        """, (owner_id, base_slug, f"{base_slug}-%"))
+        return cls._next_free_slug(base_slug, {row[0] for row in cur.fetchall()})
 
     _RELEASE_ALLOWED_FIELDS = frozenset({'name', 'description', 'default_showdown_set', 'visibility', 'allow_remix', 'allow_comments', 'is_wip'})
     RELEASE_VISIBILITIES = ('listed', 'link', 'private')
@@ -8480,6 +8568,9 @@ class PostgresDB:
     @staticmethod
     def _serialize_release_row(row: dict) -> dict:
         row['id'] = str(row['id'])
+        if row.get('slug') and row.get('created_by'):
+            # The release's link is `/r/<share_path>`; the owner's id stands in when they have no username
+            row['share_path'] = f"{quote(row.get('creator_username') or row['created_by'], safe='')}/{row['slug']}"
         if row.get('fork_parent_id'):
             row['fork_parent_id'] = str(row['fork_parent_id'])
         if row.get('created_at'):

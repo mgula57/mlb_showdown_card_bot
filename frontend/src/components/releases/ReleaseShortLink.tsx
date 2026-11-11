@@ -1,33 +1,34 @@
 import { useEffect, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
-import { fetchReleaseBySlug } from '../../api/releases';
+import { fetchReleaseByLink } from '../../api/releases';
 import { EmptyState } from '../shared/EmptyState';
 import { EditionBuilderSkeleton } from './EditionBuilder';
 import { buttonClass } from '../shared/buttonStyles';
 
-/** A release's short link, `/r/<slug>[/<edition slug>[/<card>]]`: looks the release up by slug and replaces
- *  the URL with its Release Builder page. Link previews for these paths are served by Flask. */
+/** A release's short link, `/r/<owner>/<release>[/<edition slug>[/<card>]]` (or the older
+ *  `/r/<release>[/...]`): the server works out which release, edition and card it means, and this
+ *  replaces the URL with its Release Builder page. Link previews for these paths are served by Flask. */
 export default function ReleaseShortLink() {
     const { session, loading: authLoading } = useAuth();
     const location = useLocation();
     const navigate = useNavigate();
-    const [, , slug = '', editionSlug = '', cardRef = ''] = location.pathname.split('/');
+    const linkPath = location.pathname.replace(/^\/r\//, '').replace(/\/+$/, '');
     const [missing, setMissing] = useState(false);
 
     useEffect(() => {
         // Wait for the session so an owner's unpublished release resolves too
-        if (authLoading || !slug) return;
+        if (authLoading || !linkPath) return;
         let cancelled = false;
-        fetchReleaseBySlug(slug, session?.access_token)
-            .then(release => {
+        fetchReleaseByLink(linkPath, session?.access_token)
+            .then(({ release, edition_slug, card_ref }) => {
                 if (cancelled) return;
-                const editionPath = editionSlug ? `/${editionSlug}${cardRef ? `/${cardRef}` : ''}` : '';
+                const editionPath = edition_slug ? `/${edition_slug}${card_ref ? `/${card_ref}` : ''}` : '';
                 navigate(`/release-builder/${release.id}${editionPath}`, { replace: true });
             })
             .catch(() => { if (!cancelled) setMissing(true); });
         return () => { cancelled = true; };
-    }, [authLoading, slug, editionSlug, cardRef, session?.access_token, navigate]);
+    }, [authLoading, linkPath, session?.access_token, navigate]);
 
     if (missing) {
         return (

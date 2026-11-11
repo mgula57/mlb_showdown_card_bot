@@ -5,7 +5,7 @@ description: Migrate (copy, promote, push, move) a Release Builder release built
 
 # Migrate Release
 
-A wrapper around `showdown_bot set migrate_release <slug>`. The logic lives in
+A wrapper around `showdown_bot set migrate_release <owner>/<slug>`. The logic lives in
 `mlb_showdown_bot/core/set_builder/release_migrator.py` (`ReleaseMigrator`). Always go through the
 CLI rather than writing SQL.
 
@@ -26,13 +26,14 @@ Python lives in the repo `.venv`. Run from the repo root and export `.env` first
 
 ## Steps
 
-1. **Find the slug.** It's the `/releases/<slug>` part of the DEV link. If the user only gives a name,
-   ask for the link, or look it up read-only in DEV (`SELECT slug, name, created_by FROM
-   internal.releases WHERE name ILIKE ...`). Use plain autocommit SELECTs only. Never `SET` or
-   `set_session` on these pooler connections.
+1. **Find the release path.** It's the `<owner>/<slug>` part of the DEV link (`/r/<owner>/<slug>`;
+   `<owner>` is the creator's username). Slugs are only unique per owner, so a bare slug works only
+   when one user has it. If the user only gives a name, ask for the link, or look it up read-only in
+   DEV (`SELECT slug, name, created_by FROM internal.releases WHERE name ILIKE ...`). Use plain
+   autocommit SELECTs only. Never `SET` or `set_session` on these pooler connections.
 2. **Dry run** (the default, read-only):
    ```bash
-   .venv/bin/showdown_bot set migrate_release <slug>
+   .venv/bin/showdown_bot set migrate_release <owner>/<slug>
    ```
    Show the user the plan: owner email → PROD user id, create vs. update, each edition's card count,
    which came from a working copy, and any warnings. Call out:
@@ -42,7 +43,7 @@ Python lives in the repo `.venv`. Run from the repo root and export `.env` first
 3. **Get an explicit go-ahead for this release before `--apply`.** Writing to PROD is outward-facing.
    Approval for a dry run, or for an earlier release, doesn't carry over.
    ```bash
-   .venv/bin/showdown_bot set migrate_release <slug> --apply
+   .venv/bin/showdown_bot set migrate_release <owner>/<slug> --apply
    ```
 4. **Report back:** the PROD release id and link (`/release-builder/<id>`), that it's unpublished
    with no images yet, and any orphaned image paths the command printed. A re-sync that removed
@@ -55,6 +56,6 @@ Python lives in the repo `.venv`. Run from the repo root and export `.env` first
 |---|---|
 | No release tables in the target | PROD hasn't run `build_releases_table`. Deploying 4.5 creates them, or `showdown_bot database build_releases_tables --env prod` does. That's DDL on PROD, so ask first. |
 | No account / several accounts for `<email>` | The owner has to sign up in PROD (or the duplicate needs sorting out). Don't pick an account yourself. |
-| Slug taken by another user's release | Ask the user. Renaming the DEV release changes its slug only if the app regenerates it, so check before suggesting that. |
 | Target release has been published | By design. Make further edits in PROD. Re-syncing could pull cards out from under teams holding them. |
+| Several users have a release with that slug | Re-run with the `<owner>/<slug>` path from the release's link. |
 | Target release was deleted (retired) | Its slug stays reserved in PROD. Ask the user how they want to proceed. |

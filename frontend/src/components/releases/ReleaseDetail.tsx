@@ -725,7 +725,7 @@ export function ReleaseDetail({ release, readOnly, editionSlug, onEditionChange,
                                     openCardRef={edition.id === activeEditionId ? cardRef : null}
                                     onCardLinkOpened={onCardLinkOpened}
                                     // Card links point at live cards, so only while browsing what's published
-                                    cardLinkSlugs={showPublicHeader ? { release: release.slug, edition: edition.slug } : null}
+                                    cardLinkSlugs={showPublicHeader ? { release: release.share_path, edition: edition.slug } : null}
                                 />
                                 </ReleaseOnboardingScope>
                             )}
