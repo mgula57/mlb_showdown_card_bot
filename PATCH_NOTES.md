@@ -2,6 +2,101 @@
 
 What's new in each Showdown Bot release, newest first.
 
+## 4.5 Release — Release Builder
+_Unreleased_
+
+This release focuses on the new Release Builder, new image parallels, comments, and a full visual refresh of Showdown Bot.
+
+### Release Builder
+Design your own MLB Showdown set from start to finish, then render every card, publish it, and share it. A release is your set, and editions are the sub-sets inside it, like a Base Set plus a Trading Deadline follow-up.
+- Start from a WOTC base set template (2000–2005) that matches the original set's position mix, average points, and share of low-point cards, or start from `Custom`
+- Build each edition in three steps: `Setup`, `Player Pool`, and `Review & Publish`
+- A short tour walks you through your first build, and a built-in guide has tips for every step
+- `Duplicate` an edition to reuse its setup and cards, including into a different Showdown set
+
+#### Setup
+- Choose the seasons, Showdown sets, and number of cards each edition draws from
+- Use `Different Sets for Pitchers` to pull hitters and pitchers from separate Showdown sets
+- Limit an edition to certain `Teams`, set a minimum number of cards per team, and keep players who are already in your other editions out
+- Pick a `Stats Period` for the whole edition, with 1st and 2nd half shortcuts for trade deadline or second-half style sets
+- Turn on `Variable Speed` for 2000 and 2001 hitters
+- Set numbers are easier to assign by hand, with warnings for duplicate numbers and for cards from a different year than the rest of the edition
+
+#### Player Pool
+Fill an edition with the `Algorithm`, `Manual` search, or `Customs` you made in the Card Builder.
+- The Algorithm builds a balanced set from point buckets and position targets you can adjust
+- Priority weights (`Quality`, `Volume`, `Teams`, `PTS Fit`, `Career`) shift which players get picked first
+- Force a player in or out with Manual Picks, and every run respects them
+- Preview the Algorithm's picks before saving them, with a time estimate while it runs
+- The `Summary` tab charts the pool by points, positions, command, speed, teams, and defense, and compares it against a WOTC base set
+- The `Cutoff` tab shows the last players in, the closest calls left out, and why each one landed where they did
+- Group, sort, and filter the pool by position, team, command, and more
+- Tag cards, and use `Suggest foils` to pick about 15% of the set for foil treatment (you approve each pick)
+
+#### Card Style & Images
+- Set one `Card Style` for a whole edition, and still restyle single cards from their detail view
+- Style rules restyle every card that matches a condition (like all Hall of Famers or one team) without editing each card
+- Render every card image in the background with a progress bar, and keep working while they come in
+- Images are flagged as out of date when you change a card or the style later
+- See which players have a matching image in your connected Google Drive folder before you render
+- Download an edition's images as a zip
+- Printable borders are hidden by default when browsing, with a `Show Border` toggle to see them
+
+#### Publishing & Sharing
+- The `Review & Publish` step checks the release before it goes live, sorting issues into must fix, check, and polish, each with a link to fix it
+- Choose who can find a release: `Listed`, `Link only`, or `Only me`
+- Editing a published release saves changes privately until you publish them as a new version with notes
+- Visitors see version history, a "New in v2" summary, and `New` labels on recently added editions
+- Cards you remove from a published edition stay on any teams that already use them
+- Share a release or a single card with a short link that shows a preview image when posted
+- `Remix` someone else's release to start your own from it, with credit back to the original (owners can turn this off)
+- Mark a release `WIP` so people know more cards are coming
+- Releases from Showdown Bot are marked `Official`
+
+#### Browsing Releases
+- The `Releases` page shows your releases, Official releases, and Community releases, with search and `Popular` and `New` sorting
+- Like and save releases, and see view counts
+- New releases now appear on the Home page
+- Search published release cards in Explore with the `Release Cards` source
+
+### Image Parallels
+- New `Breakout` and `Booster` parallels, in the Card Builder and the Release Builder
+- New `Parallel Coloring` option to color team-colored parallels separately from the rest of the image
+
+### Comments
+- Comment on releases and saved teams, with replies
+- Owners can turn comments off
+
+### Card Builder
+- New `Normalizer` option blends a small sample (like a September call-up) toward a baseline such as replacement level, league average, or the player's career
+- Postseason cards can be isolated to one `Round`: Wild Card, Division Series, LCS, or World Series
+- World Series cards show that year's World Series logo
+- New `Set Year` and `Set Number` options
+- Bordered card images have a `Show Border` toggle in the card details
+
+### New Look
+Showdown Bot has a new look inspired by the original late-90s and early-2000s cards.
+- New fonts, with bold condensed headlines and a cleaner body font
+- Plate-style labels, pinstripe backdrops, and a home plate command badge throughout the app
+- A silver light mode with better contrast in charts and card details
+- Redesigned side menu and mobile nav bar
+- Loading skeletons in place of spinners, and new empty-state messages
+- Layouts fit better on short screens, iPad, and phones
+- Animations respect your device's reduced motion setting
+- An animated game reel on the Home page
+
+### Also New
+- Set a closer and rank your bullpen in a saved team's depth chart
+- `Next Inning` button when replaying a simulated game
+
+### Bug Fixes
+- Fixed the set dropdown in Explore
+- Fixed scrolling in the `Images` tab and the zip download popup on mobile
+- Fixed text cut off on release tiles and card details
+- Fixed the Discord link
+
+---
+
 ## 4.43 Release — 2026 Card Balancing, Phase 4
 _Released 2026-10-21 · [GitHub release](https://github.com/mgula57/mlb_showdown_card_bot/releases/tag/v4.43)_
 
