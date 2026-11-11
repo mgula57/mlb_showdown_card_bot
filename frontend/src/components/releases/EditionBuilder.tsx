@@ -1270,12 +1270,15 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
     }
 
     // First-build tour anchors (see ReleaseOnboarding)
+    const [setupStepButton, setSetupStepButton] = useState<HTMLButtonElement | null>(null);
     const [buildMethodTabs, setBuildMethodTabs] = useState<HTMLDivElement | null>(null);
     const [buildPanelRail, setBuildPanelRail] = useState<HTMLButtonElement | null>(null);
     const [phoneBuildTab, setPhoneBuildTab] = useState<HTMLButtonElement | null>(null);
     const [previewSaveActions, setPreviewSaveActions] = useState<HTMLDivElement | null>(null);
     const [styleButton, setStyleButton] = useState<HTMLButtonElement | null>(null);
     const [imagesTab, setImagesTab] = useState<HTMLButtonElement | null>(null);
+    const [summaryTab, setSummaryTab] = useState<HTMLButtonElement | null>(null);
+    const [cutoffTab, setCutoffTab] = useState<HTMLButtonElement | null>(null);
     // The guide opens on the step on screen, and follows it while open
     const [isGuideOpen, setIsGuideOpen] = useState(false);
     const guideSection: ReleaseGuideSectionId = reviewOpen ? 'publish' : step === 'pool' && activePoolTab === 'images' ? 'images' : step;
@@ -1299,11 +1302,19 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
             >
                 <FaImage className="text-[10px]" /> Images
             </Tabs.Trigger>
-            <Tabs.Trigger value="summary" className={TAB_TRIGGER_CLASS}>
+            <Tabs.Trigger
+                ref={isPhoneStrip === (!isDesktop && !readOnly) ? setSummaryTab : undefined}
+                value="summary"
+                className={TAB_TRIGGER_CLASS}
+            >
                 <FaChartColumn className="text-[10px]" /> Summary
             </Tabs.Trigger>
             {!readOnly && (
-                <Tabs.Trigger value="cutoff" className={TAB_TRIGGER_CLASS}>
+                <Tabs.Trigger
+                    ref={isPhoneStrip === (!isDesktop && !readOnly) ? setCutoffTab : undefined}
+                    value="cutoff"
+                    className={TAB_TRIGGER_CLASS}
+                >
                     <FaScissors className="text-[10px]" /> Cutoff
                 </Tabs.Trigger>
             )}
@@ -1315,7 +1326,7 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
             {/* Step indicator. Browsing has nothing to step through (Images is a pool tab), so it's editing only */}
             {!readOnly && (
             <div className={`flex items-center gap-x-2 sm:flex-wrap sm:gap-x-3 gap-y-2 px-3 sm:px-4 py-3 border-b border-(--divider) shrink-0 ${CHROME_SURFACE_CLASS}`}>
-                <StepButton number={1} label="Setup" isActive={!reviewOpen && step === 'setup'} onClick={handleOpenSetupStep} />
+                <StepButton ref={setSetupStepButton} number={1} label="Setup" isActive={!reviewOpen && step === 'setup'} onClick={handleOpenSetupStep} />
                 <div className="w-3 sm:w-8 h-px bg-(--divider) shrink-0" />
                 <StepButton number={2} label="Player Pool" mobileLabel="Pool" isActive={!reviewOpen && step === 'pool'} onClick={handleOpenPoolStep} />
                 {onReviewOpenChange && (
@@ -1350,7 +1361,11 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
             </div>
             )}
 
+            <ReleaseTip id="setup" show={!readOnly && !reviewOpen && step === 'setup'} anchor={setupStepButton} placement="bottom-start" />
             <ReleaseTip id="buildMethod" show={cards.length === 0 && !activePreview && !isAlgorithmRunning} anchor={buildMethodAnchor} placement={isDesktop ? 'right-start' : 'bottom-start'} />
+            {/* While a preview is up: check it before saving. Each counts as seen once its tab is opened */}
+            <ReleaseTip id="summaryTab" show={!!activePreview && !isAlgorithmRunning && step === 'pool' && activePoolTab !== 'summary'} anchor={summaryTab} placement="bottom" />
+            <ReleaseTip id="cutoffTab" show={!!activePreview && !isAlgorithmRunning && step === 'pool' && activePoolTab !== 'cutoff'} anchor={cutoffTab} placement="bottom" />
             <ReleaseTip id="savePreview" show={!!activePreview && !isAlgorithmRunning} anchor={previewSaveActions} placement="bottom-start" />
             <ReleaseTip id="cardStyle" show={cards.length > 0 && !showStyleModal} anchor={styleButton} placement="bottom-end" />
             <ReleaseTip id="imagesStep" show={cards.length > 0 && step === 'pool' && activePoolTab !== 'images'} anchor={imagesTab} placement="bottom-start" />
@@ -2117,9 +2132,9 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
     );
 }
 
-function StepButton({ number, label, mobileLabel, isActive, onClick }: { number: number; label: string; mobileLabel?: string; isActive: boolean; onClick: () => void }) {
+function StepButton({ number, label, mobileLabel, isActive, onClick, ref }: { number: number; label: string; mobileLabel?: string; isActive: boolean; onClick: () => void; ref?: React.Ref<HTMLButtonElement> }) {
     return (
-        <button type="button" onClick={onClick} aria-label={label} aria-current={isActive ? 'step' : undefined} className="group flex items-center gap-1.5 sm:gap-2 cursor-pointer">
+        <button ref={ref} type="button" onClick={onClick} aria-label={label} aria-current={isActive ? 'step' : undefined} className="group flex items-center gap-1.5 sm:gap-2 cursor-pointer">
             <span className={`flex items-center justify-center w-5 h-5 rounded-full text-[11px] font-semibold tabular-nums shrink-0 transition-colors
                 ${isActive ? 'bg-(--showdown-blue-fill) text-white' : 'border border-(--text-tertiary) text-(--text-tertiary) group-hover:border-(--text-secondary) group-hover:text-(--text-secondary)'}`}>
                 {number}

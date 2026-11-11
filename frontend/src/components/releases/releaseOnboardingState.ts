@@ -1,13 +1,25 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 
 /** The first-build tour, in the order tips get their turn. `welcome` is the opening modal. */
-export const RELEASE_TIP_ORDER = ['welcome', 'buildMethod', 'savePreview', 'cardStyle', 'imagesStep', 'imageLibraries', 'render', 'publish'] as const;
+export const RELEASE_TIP_ORDER = ['welcome', 'setup', 'buildMethod', 'summaryTab', 'cutoffTab', 'savePreview', 'cardStyle', 'imagesStep', 'imageLibraries', 'render', 'publish'] as const;
 export type ReleaseTipId = typeof RELEASE_TIP_ORDER[number];
 
 export const RELEASE_TIP_COPY: Record<Exclude<ReleaseTipId, 'welcome'>, { title: string; body: string }> = {
+    setup: {
+        title: 'Start with the setup',
+        body: 'Choose the seasons, showdown sets and size this edition draws from. Changes save as you go. Continue to the Player Pool when you are ready, and come back here any time from this bar.',
+    },
     buildMethod: {
-        title: 'Start with the player pool',
+        title: 'Fill the player pool',
         body: 'Pick how to fill this edition. Algorithm builds a balanced set from points and position targets, Manual searches for players one at a time, and Customs adds cards you made in the Card Builder.',
+    },
+    summaryTab: {
+        title: 'See the set at a glance',
+        body: 'Summary charts the pool by points, positions, command, speed, teams and defense, and can compare it against a WOTC base set. Use it to spot gaps before you save.',
+    },
+    cutoffTab: {
+        title: 'See who just missed',
+        body: "Cutoff shows where the algorithm drew the line in each group: the last players in, the closest calls left out, and why each one scored where it did. To force someone in or out, use Manual Picks in the Algorithm settings.",
     },
     savePreview: {
         title: "Nothing's saved yet",
