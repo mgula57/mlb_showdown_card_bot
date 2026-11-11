@@ -1696,6 +1696,10 @@ class ShowdownPlayerCard(BaseModel):
         if len(icons) >= 5 and self.is_hitter and Icon.R in icons and Icon.RY in icons:
             icons.remove(Icon.R)
 
+        # HALF-SEASON CARDS ONLY KEEP ROOKIE: AWARDS, LEADERS AND THRESHOLDS ARE FULL-SEASON
+        if self.stats_period.season_half:
+            icons = [icon for icon in icons if icon == Icon.R]
+
         return icons
 
     def parse_accolades(self, maximum:int = None) -> list[str]:
