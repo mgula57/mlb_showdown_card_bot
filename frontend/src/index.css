@@ -6,8 +6,8 @@
    short screens (foldable inner screens, landscape tablets, small laptop windows) pass the width
    breakpoint but leave too little room under a pinned header, so the lock also requires `tall`;
    on `short` the header scrolls away and the pane area alone takes the viewport. See DESIGN.md. */
-@custom-variant tall (@media (height >= 40rem));
-@custom-variant short (@media (height < 40rem)); /* mirrored by SHORT_SCREEN_QUERY in hooks/useMediaQuery.ts */
+@custom-variant tall (@media (height >= 45rem));
+@custom-variant short (@media (height < 45rem)); /* mirrored by SHORT_SCREEN_QUERY in hooks/useMediaQuery.ts */
 
 @theme {
     --container-field-split: 600px;
