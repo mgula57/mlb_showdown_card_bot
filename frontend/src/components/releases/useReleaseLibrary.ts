@@ -7,6 +7,14 @@ export function withEngagement(tile: Release, updated: Release): Release {
     return { ...tile, like_count: updated.like_count, liked_by_me: updated.liked_by_me, saved_by_me: updated.saved_by_me, comment_count: updated.comment_count };
 }
 
+const COLLECTIONS_CHANGED_EVENT = 'release-collections-changed';
+
+/** Tells the list its official shelves are out of date (an admin edited a collection or moved a release
+ *  between them), so it reloads them the next time it's shown. */
+export function notifyReleaseCollectionsChanged() {
+    window.dispatchEvent(new Event(COLLECTIONS_CHANGED_EVENT));
+}
+
 /** The sections above Community: the viewer's own releases, the ones they saved, and the official
  *  ones (less the viewer's own), with the collections the official ones are grouped into. Loaded lazily, the first time `enabled` (the list is on screen), so a
  *  direct visit to a release URL opens the release without first loading every release. Signing in,
@@ -35,6 +43,12 @@ export function useReleaseLibrary(enabled: boolean, token?: string, userId?: str
         setMine([]);
         setSaved([]);
     }, [userId]);
+
+    useEffect(() => {
+        const markStale = () => setLoaded(false);
+        window.addEventListener(COLLECTIONS_CHANGED_EVENT, markStale);
+        return () => window.removeEventListener(COLLECTIONS_CHANGED_EVENT, markStale);
+    }, []);
 
     useEffect(() => {
         if (enabled && !loaded) load();
