@@ -5,6 +5,8 @@ import FormEnabler from '../customs/FormEnabler';
 import { choiceClass } from '../shared/choiceStyles';
 import { FIELD_LABEL_CLASS } from '../shared/fieldStyles';
 import { InlineError } from '../shared/InlineError';
+import { useAuth } from '../auth/AuthContext';
+import { ReleaseCollectionPicker } from './ReleaseCollectionPicker';
 import { RELEASE_VISIBILITY, RELEASE_VISIBILITY_ORDER } from './releaseVisibility';
 
 type SharingField = 'visibility' | 'allow_remix' | 'allow_comments' | 'is_wip';
@@ -22,6 +24,7 @@ type ReleaseSharingSettingsProps = {
  *  made; turning comments off hides them until they're turned back on; going private keeps others' saves, which come back if it's shared again. */
 export function ReleaseSharingSettings({ release, token, onReleaseUpdated }: ReleaseSharingSettingsProps) {
     // The field being saved, and the value it's being saved as
+    const { isAdmin } = useAuth();
     const [saving, setSaving] = useState<{ field: SharingField; value: SharingValue } | null>(null);
     const [error, setError] = useState<string | null>(null);
 
@@ -87,6 +90,9 @@ export function ReleaseSharingSettings({ release, token, onReleaseUpdated }: Rel
                 isDisabled={saving !== null}
             />
             </>
+            )}
+            {isAdmin && release.is_official && (
+                <ReleaseCollectionPicker release={release} token={token} onReleaseUpdated={onReleaseUpdated} />
             )}
             {error && <InlineError size="sm">{error}</InlineError>}
         </div>

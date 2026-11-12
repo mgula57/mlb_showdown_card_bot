@@ -447,7 +447,8 @@ class ShowdownBotSet(BaseModel):
                     row['is_variable_speed_00_01'] = True
 
         recomputed_count = len(target_rows) - len(failed_names)
-        actions = [label for label, enabled in [('Re-ran', rerun_cards and not season_half), (f'built the {season_half.card_text.lower()} of', season_half), ('applied variable speed to', variable_speed)] if enabled]
+        half_label = f'built the {season_half.card_text.lower()} of' if season_half else ''
+        actions = [label for label, enabled in [('Re-ran', rerun_cards and not season_half), (half_label, season_half), ('applied variable speed to', variable_speed)] if enabled]
         warnings = [f"{' and '.join(actions).capitalize()} {recomputed_count} cards ({changed_count} changed points)."]
         if failed_names:
             warnings.append(f"Could not recompute {len(failed_names)} cards, kept archived versions: {', '.join(failed_names)}")

@@ -13,7 +13,7 @@ import { HistoricalTeams, type HistoricalNavState } from './HistoricalTeams';
 import { EraTeams } from './EraTeams';
 import CustomSelect, { type SelectOption } from '../shared/CustomSelect';
 
-import { Heading } from '../shared/Heading';
+import { SectionBand } from '../shared/SectionBand';
 import { headingClass } from '../shared/headingStyles';
 import { EmptyState } from '../shared/EmptyState';
 type BrowseType = 'all' | 'featured' | 'community' | 'historical' | 'era';
@@ -109,40 +109,12 @@ const SECTION_META: Record<'featured' | 'community' | 'era' | 'historical', {
     },
 };
 
-/** Full-bleed colored band around one browse section, with a large title + description and a
- *  faint oversized icon watermark tied to the section's accent color. Breaks out to the true
- *  edge of the nearest `@container` ancestor (ignoring the page's centered max-width), then
- *  re-centers its content with the same max-width so it still lines up with the header/tabs. */
 function BrowseSection({ meta, horizontalPadding, children }: {
     meta: typeof SECTION_META[keyof typeof SECTION_META];
     horizontalPadding: string;
     children: ReactNode;
 }) {
-    const { tone, accent, icon, title, description } = meta;
-    return (
-        <div
-            className={`relative overflow-hidden ${tone}`}
-            style={{ marginLeft: 'calc((100% - 100cqw) / 2)', marginRight: 'calc((100% - 100cqw) / 2)' }}
-        >
-            <div
-                aria-hidden
-                className="pointer-events-none absolute -top-8 -right-8 text-[160px] leading-none opacity-[0.06] select-none"
-                style={{ color: `var(${accent})` }}
-            >
-                {icon}
-            </div>
-            <div className="relative max-w-4xl lg:max-w-7xl mx-auto w-full flex flex-col gap-3 py-6">
-                <div className={horizontalPadding}>
-                    <div className="flex items-center gap-2">
-                        <span className="text-[18px]" style={{ color: `var(${accent})` }}>{icon}</span>
-                        <Heading level="section">{title}</Heading>
-                    </div>
-                    <p className="text-[12px] text-(--text-secondary) mt-0.5 max-w-2xl">{description}</p>
-                </div>
-                {children}
-            </div>
-        </div>
-    );
+    return <SectionBand {...meta} horizontalPadding={horizontalPadding}>{children}</SectionBand>;
 }
 
 type BrowseTeamsProps = {

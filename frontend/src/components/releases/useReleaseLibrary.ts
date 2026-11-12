@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { fetchMyReleases, fetchPublicReleases, fetchSavedReleases, type Release } from '../../api/releases';
+import { fetchMyReleases, fetchPublicReleases, fetchReleaseCollections, fetchSavedReleases, type Release, type ReleaseCollection } from '../../api/releases';
 
 /** A list tile with the like/save state from a fuller copy of the release. Only those, since the
  *  owner's copy also carries unpublished editions a public tile mustn't show. */
@@ -8,7 +8,7 @@ export function withEngagement(tile: Release, updated: Release): Release {
 }
 
 /** The sections above Community: the viewer's own releases, the ones they saved, and the official
- *  ones (less the viewer's own). Loaded lazily, the first time `enabled` (the list is on screen), so a
+ *  ones (less the viewer's own), with the collections the official ones are grouped into. Loaded lazily, the first time `enabled` (the list is on screen), so a
  *  direct visit to a release URL opens the release without first loading every release. Signing in,
  *  out, or as someone else starts over. Keyed on the user id (not the token) so routine token
  *  refreshes don't reload it. */
@@ -16,6 +16,7 @@ export function useReleaseLibrary(enabled: boolean, token?: string, userId?: str
     const [mine, setMine] = useState<Release[]>([]);
     const [saved, setSaved] = useState<Release[]>([]);
     const [official, setOfficial] = useState<Release[]>([]);
+    const [collections, setCollections] = useState<ReleaseCollection[]>([]);
     const [loading, setLoading] = useState(true);
     /** Every section loaded, so showing the list again doesn't refetch. */
     const [loaded, setLoaded] = useState(false);
@@ -51,13 +52,15 @@ export function useReleaseLibrary(enabled: boolean, token?: string, userId?: str
             fetchPublicReleases(100, 0, { section: 'official', sort: 'new' }, token),
             token ? fetchMyReleases(token) : Promise.resolve([]),
             token ? fetchSavedReleases(token) : Promise.resolve([]),
+            fetchReleaseCollections(),
         ]);
         if (seq !== loadSeq.current) return;
-        const [officialResult, mineResult, savedResult] = results;
+        const [officialResult, mineResult, savedResult, collectionsResult] = results;
         setReady(true);
         if (officialResult.status === 'fulfilled') setOfficial(officialResult.value.filter(r => r.created_by !== userId));
         if (mineResult.status === 'fulfilled') setMine(mineResult.value);
         if (savedResult.status === 'fulfilled') setSaved(savedResult.value);
+        if (collectionsResult.status === 'fulfilled') setCollections(collectionsResult.value);
         const failed = results.filter(result => result.status === 'rejected');
         if (failed.length === 0) {
             setLoaded(true);
@@ -95,7 +98,7 @@ export function useReleaseLibrary(enabled: boolean, token?: string, userId?: str
         setMine(prev => [created, ...prev]);
     }
 
-    return { mine, saved, official, loading, ready, error, reload: load, applyUpdate, remove, addMine };
+    return { mine, saved, official, collections, loading, ready, error, reload: load, applyUpdate, remove, addMine };
 }
 
 export type ReleaseLibrary = ReturnType<typeof useReleaseLibrary>;

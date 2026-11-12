@@ -59,6 +59,10 @@ export type Release = {
     description: string | null;
     created_by: string;
     is_official: boolean;
+    /** Official releases only: the shelf it's grouped under on the Release Builder list. */
+    collection_slug: string | null;
+    /** Its place within that shelf (lowest first). */
+    collection_sort_index: number | null;
     /** Set on a remix: the release it was started from. */
     fork_parent_id: string | null;
     fork_parent: ReleaseForkParent | null;
@@ -471,6 +475,51 @@ export async function fetchPublicReleases(limit = 50, offset = 0, query: PublicR
     if (!res.ok) throw new Error(`Failed to fetch public releases: ${res.status}`);
     return res.json();
 }
+
+/** An admin-curated shelf of official releases on the Release Builder list. */
+export type ReleaseCollection = {
+    slug: string;
+    title: string;
+    description: string | null;
+    sort_index: number;
+    is_visible: boolean;
+    /** Listed, published official releases in it. */
+    release_count: number;
+};
+
+async function adminJson<T>(path: string, method: string, token: string, body?: unknown): Promise<T> {
+    const res = await fetch(`${API_BASE}${path}`, {
+        method,
+        headers: { Authorization: `Bearer ${token}`, ...(body !== undefined ? { 'Content-Type': 'application/json' } : {}) },
+        body: body !== undefined ? JSON.stringify(body) : undefined,
+    });
+    if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || `Request failed: ${res.status}`);
+    }
+    return res.json();
+}
+
+/** The visible shelves, in display order. */
+export async function fetchReleaseCollections(): Promise<ReleaseCollection[]> {
+    const res = await fetch(`${API_BASE}/releases/collections`);
+    if (!res.ok) throw new Error(`Failed to fetch release collections: ${res.status}`);
+    return res.json();
+}
+
+/** Admin: every collection, hidden ones included. */
+export const fetchAllReleaseCollections = (token: string) =>
+    adminJson<ReleaseCollection[]>('/admin/release-collections', 'GET', token);
+
+/** Admin: create a collection, or update the one with this slug. */
+export const saveReleaseCollection = (
+    collection: Pick<ReleaseCollection, 'slug' | 'title'> & Partial<Pick<ReleaseCollection, 'description' | 'sort_index' | 'is_visible'>>,
+    token: string,
+) => adminJson<ReleaseCollection>('/admin/release-collections', 'POST', token, collection);
+
+/** Admin: put an official release in a collection, or take it out (`null`). Returns the release. */
+export const setReleaseCollection = (releaseId: string, collectionSlug: string | null, token: string, sortIndex?: number) =>
+    adminJson<Release>(`/admin/releases/${releaseId}/collection`, 'PUT', token, { collection_slug: collectionSlug, sort_index: sortIndex });
 
 export async function fetchRelease(releaseId: string, token?: string): Promise<Release> {
     const headers: Record<string, string> = {};

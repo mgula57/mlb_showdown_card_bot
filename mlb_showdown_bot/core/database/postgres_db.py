@@ -399,14 +399,27 @@ class PostgresDB:
         if pool is not None:
             conn = None
             try:
-                conn = pool.getconn()
-                # Validate the connection is still alive (catches stale connections after dyno sleep)
-                try:
-                    conn.cursor().execute("SELECT 1")
-                except Exception:
-                    pool.putconn(conn, close=True)
-                    conn = None
+                # Validate the connection is still alive (catches stale connections after dyno
+                # sleep or the pooler dropping idle SSL connections). Several pooled connections
+                # can be dead at once, so keep validating replacements instead of trusting the
+                # second one.
+                last_probe_error: Exception | None = None
+                for _ in range(pool.maxconn + 1):
                     conn = pool.getconn()
+                    try:
+                        if conn.closed:
+                            raise psycopg2.OperationalError("connection closed")
+                        with conn.cursor() as probe:
+                            probe.execute("SELECT 1")
+                        break
+                    except Exception as probe_error:
+                        last_probe_error = probe_error
+                        pool.putconn(conn, close=True)
+                        conn = None
+                if conn is None:
+                    raise psycopg2.OperationalError(
+                        f"no live pooled connection available (last probe error: {last_probe_error!r})"
+                    )
                 # Roll back any open transaction before setting autocommit
                 # (psycopg2 starts a transaction implicitly; setting autocommit inside one raises ProgrammingError)
                 if not conn.autocommit:
@@ -6775,6 +6788,25 @@ class PostgresDB:
                 CREATE INDEX IF NOT EXISTS idx_releases_fork_parent_id
                     ON internal.releases (fork_parent_id);
             """)
+            # Admin-curated groupings of official releases, shown as their own shelf on the Release Builder
+            # list (like team collections). A release joins one through `collection_slug`; `collection_sort_index`
+            # orders its tile within the shelf.
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS internal.release_collection (
+                    slug         TEXT PRIMARY KEY,
+                    title        TEXT NOT NULL,
+                    description  TEXT,
+                    sort_index   INT NOT NULL DEFAULT 0,
+                    is_visible   BOOLEAN NOT NULL DEFAULT TRUE,
+                    created_at   TIMESTAMP WITHOUT TIME ZONE DEFAULT NOW(),
+                    updated_at   TIMESTAMP WITHOUT TIME ZONE DEFAULT NOW()
+                );
+            """)
+            cur.execute("""
+                ALTER TABLE internal.releases
+                    ADD COLUMN IF NOT EXISTS collection_slug       TEXT,
+                    ADD COLUMN IF NOT EXISTS collection_sort_index INT;
+            """)
             cur.execute("""
                 CREATE TABLE IF NOT EXISTS internal.release_editions (
                     id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -7187,7 +7219,7 @@ class PostgresDB:
     # Profiles are keyed by the auth user id as text; a subquery keeps it out of the GROUP BY
     _RELEASE_SELECT_TEMPLATE = """
         SELECT
-            r.id, r.name, r.description, r.created_by, r.is_official,
+            r.id, r.name, r.description, r.created_by, r.is_official, r.collection_slug, r.collection_sort_index,
             r.fork_parent_id, r.slug, r.default_showdown_set, r.created_at, r.updated_at,
             r.published_at, r.published_version, r.share_image_path, r.view_count, r.like_count, r.visibility, r.allow_remix, r.is_wip, r.allow_comments,
             (SELECT COUNT(*) FROM internal.comments cm
@@ -7307,6 +7339,75 @@ class PostgresDB:
         'new': f"COALESCE({_RELEASE_CARDS_ADDED_AT}, r.published_at) DESC NULLS LAST, r.updated_at DESC",
         'updated': "r.updated_at DESC",
     }
+
+    def get_release_collections(self, include_hidden: bool = False) -> list[dict]:
+        """Release collections ordered by sort_index, each with a `release_count` of the listed, published,
+        official releases in it. `include_hidden=False` (the public path) drops hidden collections."""
+        if not self.connection:
+            return []
+        where = "" if include_hidden else "WHERE c.is_visible = TRUE"
+        with self.connection.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute(f"""
+                SELECT c.slug, c.title, c.description, c.sort_index, c.is_visible,
+                       COUNT(r.id) FILTER (
+                           WHERE r.is_official AND r.visibility = 'listed' AND r.retired_at IS NULL
+                             AND EXISTS (SELECT 1 FROM internal.release_editions pe WHERE pe.release_id = r.id AND pe.is_published)
+                       ) AS release_count
+                  FROM internal.release_collection c
+                  LEFT JOIN internal.releases r ON r.collection_slug = c.slug
+                {where}
+                 GROUP BY c.slug
+                 ORDER BY c.sort_index ASC, c.title ASC
+            """)
+            rows = [dict(r) for r in cur.fetchall()]
+        for row in rows:
+            row['release_count'] = int(row.get('release_count') or 0)
+        return rows
+
+    def upsert_release_collection(self, slug: str, **fields) -> dict:
+        """Insert or update a collection. `fields` may include title, description, sort_index, is_visible."""
+        if not self.connection:
+            raise RuntimeError("No database connection")
+        data = {k: v for k, v in fields.items() if k in {'title', 'description', 'sort_index', 'is_visible'} and v is not None}
+        cols = ['slug'] + list(data.keys())
+        updates = ', '.join(f"{k} = EXCLUDED.{k}" for k in data) or "slug = EXCLUDED.slug"
+        with self.connection.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute(
+                f"""INSERT INTO internal.release_collection ({', '.join(cols)})
+                    VALUES ({', '.join(['%s'] * len(cols))})
+                    ON CONFLICT (slug) DO UPDATE SET {updates}, updated_at = NOW()
+                    RETURNING slug, title, description, sort_index, is_visible""",
+                [slug] + list(data.values()),
+            )
+            return dict(cur.fetchone())
+
+    def delete_release_collection(self, slug: str) -> str | None:
+        """'in_use' while any release is in it, 'deleted', or None if there's no such collection."""
+        if not self.connection:
+            return None
+        with self.connection.cursor() as cur:
+            cur.execute("SELECT 1 FROM internal.releases WHERE collection_slug = %s LIMIT 1", (slug,))
+            if cur.fetchone():
+                return 'in_use'
+            cur.execute("DELETE FROM internal.release_collection WHERE slug = %s", (slug,))
+            return 'deleted' if cur.rowcount > 0 else None
+
+    def set_release_collection(self, release_id: str, slug: Optional[str], sort_index: Optional[int] = None) -> Optional[bool]:
+        """Put an official release in a collection (or take it out with `slug` None). Doesn't touch
+        `updated_at`, so it never reorders the lists. False if the release isn't official, None if the
+        collection doesn't exist."""
+        if not self.connection:
+            return False
+        with self.connection.cursor() as cur:
+            if slug is not None:
+                cur.execute("SELECT 1 FROM internal.release_collection WHERE slug = %s", (slug,))
+                if not cur.fetchone():
+                    return None
+            cur.execute("""
+                UPDATE internal.releases SET collection_slug = %s, collection_sort_index = %s
+                 WHERE id = %s AND is_official AND retired_at IS NULL
+            """, (slug, sort_index if slug is not None else None, release_id))
+            return cur.rowcount > 0
 
     def get_public_releases(self, limit: int = 50, offset: int = 0, section: Optional[str] = None, sort: str = 'updated',
                             search: Optional[str] = None, viewer_id: Optional[str] = None) -> list[dict]:

@@ -31,8 +31,8 @@ _CATEGORY_ORDER = list(_CATEGORY_META)
 
 _FIELDING_GROUP_LABELS = {'if': 'IF', 'of': 'OF', 'ca': 'C'}
 _TEAM_DEFENSE_PATTERN = re.compile(r'^min_team_defense_(if|of)$')
-_SCOPE_LABELS = {'hitters': 'Hitters', 'catchers': 'Catchers'}
-_SCOPED_FILTER_PATTERN = re.compile(r'^(min|max)_(.+)_(hitters|catchers)$')
+_SCOPE_LABELS = {'hitters': 'Hitters', 'pitchers': 'Pitchers', 'catchers': 'Catchers'}
+_SCOPED_FILTER_PATTERN = re.compile(r'^(min|max)_(.+)_(hitters|pitchers|catchers)$')
 
 # CARD ART IS EMBEDDED IN THE PAGE AT 2x ITS 220px DISPLAY WIDTH - SHARP ON A SCREENSHOT
 # WITHOUT CARRYING THREE FULL 1500x2100 RENDERS AS BASE64.

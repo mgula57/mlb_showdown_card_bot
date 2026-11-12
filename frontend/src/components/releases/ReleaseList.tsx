@@ -1,11 +1,12 @@
 import type { ReactNode, RefObject } from 'react';
-import { FaPlus, FaSpinner } from 'react-icons/fa6';
-import type { PublicReleaseSort, Release } from '../../api/releases';
+import { FaPlus, FaSpinner, FaStar } from 'react-icons/fa6';
+import type { PublicReleaseSort, Release, ReleaseCollection } from '../../api/releases';
 import type { CommunityReleases } from './useCommunityReleases';
 import type { ReleaseLibrary } from './useReleaseLibrary';
 import { ReleaseItem, ReleaseItemSkeleton, NewReleaseTile } from './ReleaseItem';
 import { ReleaseGuideButton } from './ReleaseGuide';
 import { TeamSearchInput } from '../team_builder/TeamSearchInput';
+import { TeamShelf } from '../team_builder/TeamShelf';
 import { choiceClass } from '../shared/choiceStyles';
 import { InlineError } from '../shared/InlineError';
 import { RetryableError } from '../shared/RetryableError';
@@ -16,6 +17,7 @@ import { EmptyState } from '../shared/EmptyState';
 import { SignInPrompt } from '../shared/SignInPrompt';
 import { PinstripeBackdrop } from '../shared/PinstripeBackdrop';
 import { PageSubtitle } from '../shared/PageSubtitle';
+import { SectionBand } from '../shared/SectionBand';
 
 /** Phones get a 44px minimum touch target on small controls; wider screens keep their normal size. */
 const TOUCH_TARGET = 'max-sm:min-h-11';
@@ -47,6 +49,7 @@ type ReleaseListProps = {
 /** The Release Builder's landing page: the viewer's library (their own, saved and official
  *  releases) over every community release. */
 export function ReleaseList({ listRef, signedIn, library, community, notice, onOpen, onOpenCommunity, onCreate, onOpenGuide }: ReleaseListProps) {
+    const officialShelves = officialShelvesFor(library.official, library.collections);
     return (
         <div ref={listRef} className="@container w-full relative isolate">
             {/* Card-back pinstripes behind the page header, echoing the release tiles' card fields */}
@@ -117,10 +120,38 @@ export function ReleaseList({ listRef, signedIn, library, community, notice, onO
                             {library.saved.length > 0 && (
                                 <ReleaseSection title="Saved" releases={library.saved} onOpen={r => onOpen(r, true)} />
                             )}
-                            {library.official.length > 0 && (
-                                <ReleaseSection title="Official" releases={library.official} onOpen={r => onOpen(r, true)} />
-                            )}
                         </div>
+
+                        {/* Official releases on a band of their own, every group a carousel: one per collection with the
+                            description the admin wrote under its title, then any the admin hasn't grouped */}
+                        {officialShelves.length > 0 && (
+                            <SectionBand
+                                tone="bg-(--background-secondary)"
+                                accent="--challenge-legendary"
+                                icon={<FaStar />}
+                                title="Official"
+                                description="Card sets from the creator of Showdown Bot."
+                                horizontalPadding={PX}
+                            >
+                                {officialShelves.map(({ key, title, description, releases }) => (
+                                    <TeamShelf
+                                        key={key}
+                                        title={title}
+                                        subtitle={description ?? undefined}
+                                        wrapSubtitle
+                                        headingLevel="panel"
+                                        className={PX}
+                                        bleed
+                                    >
+                                        {releases.map(release => (
+                                            <div key={release.id} className="shrink-0 w-44 sm:w-52">
+                                                <ReleaseItem release={release} onClick={() => onOpen(release, true)} />
+                                            </div>
+                                        ))}
+                                    </TeamShelf>
+                                ))}
+                            </SectionBand>
+                        )}
                     </>
                 )}
 
@@ -128,6 +159,30 @@ export function ReleaseList({ listRef, signedIn, library, community, notice, onO
             </div>
         </div>
     );
+}
+
+type OfficialShelf = { key: string; title: string; description: string | null; releases: Release[] };
+
+/** The official releases as shelves: one per visible collection that has any (collections in their admin
+ *  order, releases by their place in it, then newest first as loaded), then a last shelf of the ones in no
+ *  collection, called plain "Releases" when there are no collections at all. */
+function officialShelvesFor(official: Release[], collections: ReleaseCollection[]): OfficialShelf[] {
+    const shelves: OfficialShelf[] = collections
+        .map(collection => ({
+            key: collection.slug,
+            title: collection.title,
+            description: collection.description,
+            releases: official
+                .filter(r => r.collection_slug === collection.slug)
+                .sort((a, b) => (a.collection_sort_index ?? 1e9) - (b.collection_sort_index ?? 1e9)),
+        }))
+        .filter(shelf => shelf.releases.length > 0);
+    const grouped = new Set(shelves.map(shelf => shelf.key));
+    const rest = official.filter(r => !r.collection_slug || !grouped.has(r.collection_slug));
+    if (rest.length > 0) {
+        shelves.push({ key: '__ungrouped', title: shelves.length > 0 ? 'More releases' : 'Releases', description: null, releases: rest });
+    }
+    return shelves;
 }
 
 type ReleaseSectionProps = {

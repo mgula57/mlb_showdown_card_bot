@@ -25,7 +25,7 @@ from ..core.set_builder.selection import OtherEditionsRule
 from ..core.set_builder.showdown_bot_set import AlgorithmPreviewRequest
 from ..core.set_builder.wotc_set_profile import WotcSetProfile
 from .image_libraries import UserImageLibraries
-from .user_settings import require_auth, optional_user_id
+from .user_settings import require_auth, require_admin, optional_user_id
 from .utils.view_counter import RecentViews
 
 releases_bp = Blueprint('releases', __name__)
@@ -444,6 +444,95 @@ def get_public_releases():
         )
         db.close_connection()
         return jsonify(releases), 200
+    except Exception as exc:
+        traceback.print_exc()
+        return jsonify({'error': str(exc)}), 500
+
+
+@releases_bp.route('/releases/collections', methods=['GET'])
+def get_release_collections():
+    """The shelves official releases are grouped into on the Release Builder list (visible ones only)."""
+    try:
+        with PostgresDB() as db:
+            return jsonify(db.get_release_collections()), 200
+    except Exception as exc:
+        traceback.print_exc()
+        return jsonify({'error': str(exc)}), 500
+
+
+@releases_bp.route('/admin/release-collections', methods=['GET'])
+@require_admin
+def list_release_collections_admin():
+    """Every collection, hidden ones included."""
+    try:
+        with PostgresDB() as db:
+            return jsonify(db.get_release_collections(include_hidden=True)), 200
+    except Exception as exc:
+        traceback.print_exc()
+        return jsonify({'error': str(exc)}), 500
+
+
+@releases_bp.route('/admin/release-collections', methods=['POST'])
+@require_admin
+def upsert_release_collection():
+    """Create or update a collection. Body: {slug, title, description?, sort_index?, is_visible?}."""
+    try:
+        payload = request.get_json(silent=True) or {}
+        slug = (payload.get('slug') or '').strip().lower()
+        title = (payload.get('title') or '').strip()
+        if not slug or not title:
+            return jsonify({'error': 'slug and title are required'}), 400
+        if not slug.replace('-', '').replace('_', '').isalnum():
+            return jsonify({'error': 'slug must be alphanumeric with dashes/underscores'}), 400
+        description = payload.get('description')
+        with PostgresDB() as db:
+            collection = db.upsert_release_collection(
+                slug, title=title,
+                description=description.strip() if isinstance(description, str) else None,
+                sort_index=payload.get('sort_index'), is_visible=payload.get('is_visible'),
+            )
+        return jsonify(collection), 200
+    except Exception as exc:
+        traceback.print_exc()
+        return jsonify({'error': str(exc)}), 500
+
+
+@releases_bp.route('/admin/release-collections/<slug>', methods=['DELETE'])
+@require_admin
+def delete_release_collection(slug: str):
+    try:
+        with PostgresDB() as db:
+            result = db.delete_release_collection(slug)
+        if result == 'in_use':
+            return jsonify({'error': 'Collection still has releases. Move them out first.'}), 409
+        if result is None:
+            return jsonify({'error': 'Collection not found'}), 404
+        return jsonify({'success': True}), 200
+    except Exception as exc:
+        traceback.print_exc()
+        return jsonify({'error': str(exc)}), 500
+
+
+@releases_bp.route('/admin/releases/<release_id>/collection', methods=['PUT'])
+@require_admin
+def set_release_collection(release_id: str):
+    """Put an official release in a collection, or take it out. Body: {collection_slug: str | null, sort_index?: int}."""
+    try:
+        payload = request.get_json(silent=True) or {}
+        slug = payload.get('collection_slug')
+        if slug is not None and not isinstance(slug, str):
+            return jsonify({'error': 'collection_slug must be a string or null'}), 400
+        sort_index = payload.get('sort_index')
+        if sort_index is not None and (isinstance(sort_index, bool) or not isinstance(sort_index, int)):
+            return jsonify({'error': 'sort_index must be a whole number'}), 400
+        with PostgresDB() as db:
+            result = db.set_release_collection(release_id, (slug or '').strip().lower() or None, sort_index)
+            if result is None:
+                return jsonify({'error': 'Unknown collection'}), 400
+            if not result:
+                return jsonify({'error': 'Only official releases can join a collection'}), 404
+            release = db.get_release(release_id, g.user_id)
+        return jsonify(release), 200
     except Exception as exc:
         traceback.print_exc()
         return jsonify({'error': str(exc)}), 500
