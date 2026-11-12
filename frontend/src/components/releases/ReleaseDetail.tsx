@@ -151,14 +151,17 @@ export function ReleaseDetail({ release, readOnly, editionSlug, onEditionChange,
     const [savingEditionForm, setSavingEditionForm] = useState(false);
     const activeEditionName = activeEdition ? shownOf(activeEdition).name : '';
 
+    // Tracked so a cache clear refetches even when the id is unchanged (a first publish has no
+    // working copy, so the edition keeps its id and nothing else would re-run this)
+    const activeIsCached = !!activeLoadedId && !!editionCache[activeLoadedId];
     useEffect(() => {
-        if (!activeLoadedId || editionCache[activeLoadedId]) return;
+        if (!activeLoadedId || activeIsCached) return;
         setError(null);
         fetchEdition(release.id, activeLoadedId, token)
             .then(edition => setEditionCache(prev => ({ ...prev, [edition.id]: edition })))
             .catch(err => setError(err.message ?? 'Failed to load edition.'));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [activeLoadedId, release.id, token]);
+    }, [activeLoadedId, activeIsCached, release.id, token]);
 
     function changeMode(next: ViewMode) {
         setMode(next);
