@@ -1115,7 +1115,7 @@ export function SummaryCharts({ cards, editionId }: SummaryChartsProps) {
                             action={<ChartAverage value={String(averages.points)} compareValue={compareAverages && String(compareAverages.points)} />}
                             className="flex-[2_1_0%] min-w-[min(20rem,100%)]"
                         >
-                            <VerticalBarChart data={breakdowns.points} emptyMessage="No point data yet." {...chartProps} />
+                            <VerticalBarChart data={breakdowns.points} emptyMessage="No point data yet." scrollable {...chartProps} />
                         </Section>
                     </div>
 
