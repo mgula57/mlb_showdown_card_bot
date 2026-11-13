@@ -701,6 +701,7 @@ export function ReleaseDetail({ release, readOnly, editionSlug, onEditionChange,
                                     key={`${loadedEdition.id}:${reloadCounts[loadedEdition.id] ?? 0}`}
                                     releaseId={release.id}
                                     releaseName={release.name}
+                                    isWip={release.is_wip}
                                     edition={loadedEdition}
                                     // An edition staged for removal is frozen until it's kept or published away
                                     readOnly={!isEditing || !!edition.pending_removal}

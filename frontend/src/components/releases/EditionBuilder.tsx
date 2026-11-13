@@ -77,6 +77,8 @@ const DEFAULT_BUILD_PANEL_WIDTH = { algorithm: 480, manual: 560, custom: 560 } a
 type EditionBuilderProps = {
     releaseId: string;
     releaseName: string;
+    /** The release is marked work in progress; image exports warn that it may change. */
+    isWip?: boolean;
     edition: ReleaseEdition;
     readOnly: boolean;
     token?: string;
@@ -437,7 +439,7 @@ type PendingCardSave = {
     waiters: ((saved: boolean) => void)[];
 };
 
-export function EditionBuilder({ releaseId, releaseName, edition, readOnly, token, defaultShowdownSet, onEditionUpdated, reviewOpen = false, onReviewOpenChange, review, navRequest, onUnsavedPreviewChange, onReloadRequested, openCardRef, onCardLinkOpened, cardLinkSlugs }: EditionBuilderProps) {
+export function EditionBuilder({ releaseId, releaseName, isWip, edition, readOnly, token, defaultShowdownSet, onEditionUpdated, reviewOpen = false, onReviewOpenChange, review, navRequest, onUnsavedPreviewChange, onReloadRequested, openCardRef, onCardLinkOpened, cardLinkSlugs }: EditionBuilderProps) {
     const [cards, setCards] = useState<ReleaseCard[]>(edition.cards);
     // Latest cards, for saves that land after an await (e.g. a chart rebuild)
     const cardsRef = useRef(cards);
@@ -2029,6 +2031,7 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
                                 <EditionImages
                                     releaseId={releaseId}
                                     releaseName={releaseName}
+                                    isWip={isWip}
                                     edition={edition}
                                     readOnly={readOnly}
                                     token={token}

@@ -25,6 +25,7 @@ import { useStableCallback } from '../../hooks/useStableCallback';
 const POLL_INTERVAL_MS = 2500;
 /** Skeleton tiles shown while statuses load. */
 const MAX_SKELETON_TILES = 24;
+const WIP_EXPORT_WARNING = 'This release is marked as a work in progress. Cards and images may still change, so what you download now might be out of date later.';
 const TILE_GRID_CLASS = 'grid grid-cols-[repeat(auto-fill,minmax(140px,1fr))] gap-4';
 
 const STATUS_META: Record<ReleaseCardImageStatus, { label: string; badgeClass: string }> = {
@@ -47,6 +48,8 @@ type EditionImagesProps = {
     releaseId: string;
     /** Used to name the ZIP download. */
     releaseName: string;
+    /** Work-in-progress release: downloads ask for confirmation first. */
+    isWip?: boolean;
     edition: ReleaseEdition;
     readOnly: boolean;
     token?: string;
@@ -61,7 +64,7 @@ type EditionImagesProps = {
 
 /** The Player Pool's Images tab: renders every card in the edition (with its edition style and set
  * number) to Supabase in a background job, and shows each card's image as it lands. */
-export function EditionImages({ releaseId, releaseName, edition, readOnly, token, previewRanks, onPreviewRankChange, statusFilterRequest, liveImageMatches }: EditionImagesProps) {
+export function EditionImages({ releaseId, releaseName, isWip, edition, readOnly, token, previewRanks, onPreviewRankChange, statusFilterRequest, liveImageMatches }: EditionImagesProps) {
     const [data, setData] = useState<EditionImagesData | null>(null);
     const [error, setError] = useState<string | null>(null);
     const [requesting, setRequesting] = useState(false);
@@ -127,11 +130,12 @@ export function EditionImages({ releaseId, releaseName, edition, readOnly, token
     const detail = detailImage ? images.find(image => image.source_card_id === detailImage.source_card_id) ?? detailImage : null;
     const openDetail = useStableCallback((sourceCardId: string) => setDetailImage(images.find(image => image.source_card_id === sourceCardId) ?? null));
 
-    const [pendingZip, setPendingZip] = useState<{ entries: ZipEntry[]; suffix?: string; warning: string } | null>(null);
+    const [pendingZip, setPendingZip] = useState<{ entries: ZipEntry[]; suffix?: string; warnings: string[] } | null>(null);
 
     function handleZipDownload(entries: ZipEntry[], fileNameSuffix?: string) {
-        const warning = zipSizeWarning(entries.length);
-        if (warning) setPendingZip({ entries, suffix: fileNameSuffix, warning });
+        const warnings = [isWip ? WIP_EXPORT_WARNING : null, zipSizeWarning(entries.length)]
+            .filter((warning): warning is string => !!warning);
+        if (warnings.length > 0) setPendingZip({ entries, suffix: fileNameSuffix, warnings });
         else runZipDownload(entries, fileNameSuffix);
     }
 
@@ -309,7 +313,7 @@ export function EditionImages({ releaseId, releaseName, edition, readOnly, token
 
             {pendingZip && (
                 <Modal
-                    title="Large download"
+                    title={isWip ? 'Work in progress' : 'Large download'}
                     size="sm"
                     onClose={() => setPendingZip(null)}
                     footer={
@@ -325,7 +329,9 @@ export function EditionImages({ releaseId, releaseName, edition, readOnly, token
                         </div>
                     }
                 >
-                    <p className="text-sm text-(--text-secondary) p-2">{pendingZip.warning}</p>
+                    <div className="flex flex-col gap-2 text-sm text-(--text-secondary) p-2">
+                        {pendingZip.warnings.map(warning => <p key={warning}>{warning}</p>)}
+                    </div>
                 </Modal>
             )}
 
