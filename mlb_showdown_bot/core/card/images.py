@@ -1,7 +1,13 @@
+import ipaddress
+import os
 import re
+import socket
+import requests
 from enum import Enum
+from io import BytesIO
+from urllib.parse import urljoin, urlparse
 from pydantic import BaseModel, PrivateAttr, ValidationInfo, field_validator
-from typing import ClassVar, Optional
+from typing import ClassVar, Optional, Union
 
 from ...core.shared.nationality import WBCTeam
 
@@ -357,6 +363,8 @@ class ImageParallel(str, Enum):
     WHITE_SMOKE = "WS"
     FLAMES = "FLAMES"
     TEAM_COLOR_BLAST = "TCB"
+    BREAKOUT = "BREAKOUT"
+    BOOSTER = "BOOSTER"
     MYSTERY = "MYSTERY"
     MOONLIGHT = "MOONLIGHT"
     GALAXY = "GALAXY"
@@ -381,6 +389,7 @@ class ImageParallel(str, Enum):
             case "GOLD_FRAME": return { PlayerImageComponent.GOLD_FRAME: PlayerImageComponent.GOLD_FRAME.name, PlayerImageComponent.BACKGROUND: None }
             case "WHITE_SMOKE": return { PlayerImageComponent.WHITE_SMOKE: PlayerImageComponent.WHITE_SMOKE.name, PlayerImageComponent.BACKGROUND: None }
             case "FLAMES": return { PlayerImageComponent.FLAMES: PlayerImageComponent.FLAMES.name }
+            case "BREAKOUT" | "BOOSTER": return { PlayerImageComponent.BACKGROUND: None }
             case "TEAM_COLOR_BLAST": return { PlayerImageComponent.WHITE_CIRCLE: PlayerImageComponent.WHITE_CIRCLE.name, PlayerImageComponent.TEAM_LOGO: None, PlayerImageComponent.TEAM_COLOR: None, PlayerImageComponent.BACKGROUND: None }
             case "MOONLIGHT":
                 comps_dict = { PlayerImageComponent.MOONLIGHT: PlayerImageComponent.MOONLIGHT.name, PlayerImageComponent.BACKGROUND: None }
@@ -393,7 +402,7 @@ class ImageParallel(str, Enum):
     @property
     def special_components_replacements(self) -> dict[str,str]:
         match self.name:
-            case "SAPPHIRE" | "WHITE_SMOKE" | "FLAMES" | "TEAM_COLOR_BLAST" | "GOLD_RUSH" | "GOLD" | "GOLD_FRAME" | "MOONLIGHT" | "GALAXY": return { PlayerImageComponent.GLOW: PlayerImageComponent.SHADOW }
+            case "SAPPHIRE" | "WHITE_SMOKE" | "FLAMES" | "TEAM_COLOR_BLAST" | "GOLD_RUSH" | "GOLD" | "GOLD_FRAME" | "MOONLIGHT" | "GALAXY" | "BREAKOUT" | "BOOSTER": return { PlayerImageComponent.GLOW: PlayerImageComponent.SHADOW }
             case _: return {}
     
     @property
@@ -417,10 +426,30 @@ class ImageParallel(str, Enum):
             case _: return None
     
     @property
+    def hides_name_container_2000(self) -> bool:
+        return self.name in ['BREAKOUT', 'BOOSTER']
+
+    @property
+    def name_x_shift_2000(self) -> int:
+        """How far the 2000 player name moves horizontally, for parallels that put it somewhere other than the name container."""
+        match self.name:
+            case 'BOOSTER': return -70 # INTO THE LEFT SIDE OF THE BACKGROUND, OUTSIDE THE LINE
+            case _: return 0
+
+    @property
     def name_container_suffix_2000(self) -> str:
         match self.name:
             case 'GOLD' | 'GOLD_RUSH' | 'GOLD_FRAME': return '-GOLD'
             case _: return ''
+
+    @property
+    def is_team_colored(self) -> bool:
+        """Parallels that are built from the card's team color, so primary vs. secondary coloring changes how they look."""
+        return self.name in ['TEAM_COLOR_BLAST', 'BREAKOUT', 'BOOSTER']
+
+    @property
+    def has_team_color_template_04_05(self) -> bool:
+        return self.name in ['TEAM_COLOR_BLAST', 'BREAKOUT']
 
     @property
     def template_color_04_05(self) -> str:
@@ -535,6 +564,95 @@ class ImageLibrary(BaseModel):
         return bool(cls.FILE_NAME_PATTERN.match(file_name or ''))
 
 
+class ImageMatchType(str, Enum):
+    """How well a library's auto images fit a card, best first"""
+    EXACT = "exact"
+    TEAM_MATCH = "team match"
+    YEAR_MATCH = "year match"
+    NO_MATCH = "no match"
+
+    @property
+    def rank(self) -> int:
+        return list(ImageMatchType).index(self)
+
+
+class AutoImageFile(BaseModel):
+    """Attributes parsed from an auto image file name.
+
+    ex: BG-2025-Raleigh-(raleica01)-(SEA).png
+      - component: BG
+      - year: 2025
+      - player_name: Raleigh
+      - player_id: raleica01
+      - team_id: SEA
+    """
+
+    component: Optional[str] = None
+    year: str
+    player_name: str = ''
+    player_id: str
+    team_id: Optional[str] = None
+    player_type_override: Optional[str] = None
+    is_postseason: bool = False
+    is_wbc: bool = False
+
+    @classmethod
+    def from_file_name(cls, file_name: str) -> Optional['AutoImageFile']:
+        """Parse a {COMPONENT}-{YEAR}-{NAME}-({PLAYER ID})-(...) file name. None if it has no player id."""
+        component, _, name = (file_name or '').partition('-')
+        if not name:
+            return None
+        return cls.from_name_without_component(name, component=component.upper())
+
+    @classmethod
+    def from_name_without_component(cls, name: str, component: Optional[str] = None) -> Optional['AutoImageFile']:
+        """Parse a {YEAR}-{NAME}-({PLAYER ID})-(...) name (component prefix already removed)."""
+        attributes: dict = {'component': component, 'is_wbc': '(WBC_' in name}
+        name_parts = name.rsplit('.', 1)[0].split('-')
+        player_name_parts: list[str] = []
+        for index, text in enumerate(name_parts):
+            has_parenthesis = text.startswith('(') and text.endswith(')')
+            value = text[1:-1] if has_parenthesis else text
+
+            if index == 0:
+                attributes['year'] = text
+                continue
+
+            if 'player_id' not in attributes:
+                if has_parenthesis:
+                    attributes['player_id'] = value
+                else:
+                    player_name_parts.append(text)
+                # PLAYER ID CAN ALSO BE SHORT ENOUGH TO LOOK LIKE A TEAM, SO DON'T FALL THROUGH
+                continue
+
+            if has_parenthesis and len(text) <= 5:
+                attributes['team_id'] = value
+            if text == '(POST)':
+                attributes['is_postseason'] = True
+            if has_parenthesis and ('Hitter' in text or 'Pitcher' in text):
+                # KEEP PARENTHESIS AND LOWERCASE TO MATCH STATS ARCHIVE (e.g., (hitter), (pitcher))
+                attributes['player_type_override'] = text.lower()
+
+        if not attributes.get('player_id') or not attributes.get('year'):
+            return None
+        return cls(player_name=' '.join(player_name_parts), **attributes)
+
+    def match_type(self, year: str, team_id: Optional[str], player_type_override: Optional[str]) -> ImageMatchType:
+        """How well this image fits a card. Postseason/WBC images never count, matching the card_bot classification."""
+        if self.is_postseason or self.is_wbc or (self.player_type_override or None) != (player_type_override or None):
+            return ImageMatchType.NO_MATCH
+        is_year_match = self.year == str(year)
+        is_team_match = team_id is not None and self.team_id == team_id
+        if is_year_match and is_team_match:
+            return ImageMatchType.EXACT
+        if is_team_match:
+            return ImageMatchType.TEAM_MATCH
+        if is_year_match:
+            return ImageMatchType.YEAR_MATCH
+        return ImageMatchType.NO_MATCH
+
+
 class ImageSource(BaseModel):
 
     type: ImageSourceType = ImageSourceType.EMPTY
@@ -552,6 +670,17 @@ class ImageSource(BaseModel):
     def set_libraries(self, libraries: Optional[list[ImageLibrary]]) -> None:
         self._libraries = list(libraries or [])
 
+    # SET BY THE WEB APP AT STARTUP SO REQUEST/CARD JSON CAN'T POINT `path` AT ARBITRARY SERVER FILES.
+    # NONE = UNRESTRICTED (CLI, WHERE `path` IS A FILE ON THE USER'S OWN MACHINE)
+    _allowed_path_root: ClassVar[Optional[str]] = None
+
+    # DECODERS PILLOW MAY USE FOR USER IMAGES. PILLOW SNIFFS FORMAT FROM CONTENT, NOT THE EXTENSION,
+    # SO WITHOUT THIS A ".png" UPLOAD COULD REACH THE BMP/TIFF/JPEG2000/ETC DECODERS
+    ALLOWED_FORMATS: ClassVar[tuple[str, ...]] = ('PNG', 'JPEG', 'GIF', 'WEBP')
+    MAX_DOWNLOAD_BYTES: ClassVar[int] = 16 * 1024 * 1024
+    MAX_REDIRECTS: ClassVar[int] = 3
+    DOWNLOAD_TIMEOUT_SECONDS: ClassVar[int] = 10
+
     def model_post_init(self, __context):
         """Post init to update the source type if empty"""
         if self.type == ImageSourceType.EMPTY:
@@ -563,6 +692,61 @@ class ImageSource(BaseModel):
     @property
     def is_automated(self) -> bool:
         return self.type.is_automated
+
+    @classmethod
+    def restrict_paths_to(cls, root: str) -> None:
+        """Only allow `path` to reference files inside `root` (the web server's temp upload folder)."""
+        cls._allowed_path_root = os.path.realpath(root)
+
+    def open_source(self) -> Union[str, BytesIO]:
+        """Resolve the user's image to something PIL can open: the local path, or the downloaded url bytes.
+
+        Raises:
+          ValueError: If the path is outside the allowed root, or the url is not a public http(s) address.
+        """
+        if self.path:
+            root = self._allowed_path_root
+            if root and os.path.commonpath([root, os.path.realpath(self.path)]) != root:
+                raise ValueError("Image path is not allowed")
+            return self.path
+        return self._download_url(self.url)
+
+    def _download_url(self, url: str) -> BytesIO:
+        """Download a user image url, refusing non-public hosts (SSRF) and capping time and size.
+
+        Redirects are followed manually so each hop's host is checked too.
+        """
+        for _ in range(self.MAX_REDIRECTS + 1):
+            self._validate_public_url(url)
+            with requests.get(url, timeout=self.DOWNLOAD_TIMEOUT_SECONDS, stream=True, allow_redirects=False) as response:
+                if response.is_redirect:
+                    url = urljoin(url, response.headers['Location'])
+                    continue
+                response.raise_for_status()
+                content = BytesIO()
+                for chunk in response.iter_content(chunk_size=64 * 1024):
+                    content.write(chunk)
+                    if content.tell() > self.MAX_DOWNLOAD_BYTES:
+                        raise ValueError("Image is too large")
+                content.seek(0)
+                return content
+        raise ValueError("Image url redirected too many times")
+
+    @staticmethod
+    def _validate_public_url(url: str) -> None:
+        """Raise unless the url is http(s) and its host resolves only to public internet addresses."""
+        parsed = urlparse(url)
+        if parsed.scheme not in ('http', 'https') or not parsed.hostname:
+            raise ValueError("Image url must be http or https")
+        try:
+            addresses = socket.getaddrinfo(parsed.hostname, parsed.port or (443 if parsed.scheme == 'https' else 80))
+        except socket.gaierror:
+            raise ValueError("Image url host could not be resolved")
+        for address in addresses:
+            ip = ipaddress.ip_address(address[4][0])
+            ip = getattr(ip, 'ipv4_mapped', None) or ip
+            if not ip.is_global:
+                raise ValueError("Image url must point to a public address")
     
 # ---------------------------------------
 # MARK: IMAGE COLORING
@@ -572,6 +756,18 @@ class ImageColoring(str, Enum):
     PRIMARY = "PRIMARY"
     SECONDARY = "SECONDARY"
     MULTI = "MULTI"
+
+class ParallelColoring(str, Enum):
+    """Coloring for a team colored parallel's art, which can differ from the rest of the card's."""
+
+    DEFAULT = "DEFAULT" # MATCH THE CARD'S IMAGE COLORING
+    PRIMARY = "PRIMARY"
+    SECONDARY = "SECONDARY"
+    MULTI = "MULTI"
+
+    @classmethod
+    def _missing_(cls, value):
+        return cls.DEFAULT
 
 # ---------------------------------------
 # MARK: IMAGE FILE FORMAT
@@ -641,6 +837,7 @@ class ShowdownImage(BaseModel):
     color_primary: str = "#000000"
     color_secondary: str = "#ffffff"
     coloring: ImageColoring = ImageColoring.PRIMARY
+    parallel_coloring: ParallelColoring = ParallelColoring.DEFAULT
 
     # STATS
     stat_highlights_type: StatHighlightsType = StatHighlightsType.NONE
@@ -716,6 +913,15 @@ class ShowdownImage(BaseModel):
             secondary_color_tuple = wbc_team.secondary_color
             self.color_secondary = f"rgb({secondary_color_tuple[0]}, {secondary_color_tuple[1]}, {secondary_color_tuple[2]})"
 
+    @field_validator('set_year', mode='before')
+    def clean_set_year(cls, set_year) -> Optional[int]:
+        """A full 4 digit year, or None to use the card's own year."""
+        try:
+            as_int = int(set_year)
+        except (TypeError, ValueError):
+            return None
+        return as_int if 1000 <= as_int <= 9999 else None
+
     @field_validator('nickname_index', mode='before')
     def clean_nickname_index(cls, nickname_index:int) -> int:
         if nickname_index is None:
@@ -740,3 +946,20 @@ class ShowdownImage(BaseModel):
     def is_multi_colored(self) -> bool:
         """Check if the image is multi-colored."""
         return self.coloring == ImageColoring.MULTI
+
+    @property
+    def parallel_art_coloring(self) -> ImageColoring:
+        """Coloring for the parallel's own art. Only team colored parallels can differ from the card's coloring."""
+        if self.parallel.is_team_colored and self.parallel_coloring != ParallelColoring.DEFAULT:
+            return ImageColoring(self.parallel_coloring.value)
+        return self.coloring
+
+    @property
+    def parallel_uses_secondary_color(self) -> bool:
+        """Check if the parallel's art is secondary-colored."""
+        return self.parallel_art_coloring == ImageColoring.SECONDARY
+
+    @property
+    def is_parallel_multi_colored(self) -> bool:
+        """Check if the parallel's art is multi-colored."""
+        return self.parallel_art_coloring == ImageColoring.MULTI

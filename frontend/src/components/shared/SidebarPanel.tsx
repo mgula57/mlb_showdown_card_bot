@@ -1,6 +1,8 @@
 import { type ReactNode } from "react";
 import { FaChevronDown } from "react-icons/fa6";
 
+import { Heading } from './Heading';
+import { CAPS_LABEL_CLASS } from './fieldStyles';
 export type SidebarSection = {
     id: string;
     title: string;
@@ -22,13 +24,13 @@ type SidebarPanelProps = {
 export default function SidebarPanel({ title, subtitle, sections, className = "", headerAction }: SidebarPanelProps) {
     return (
         <aside className={`w-full ${className}`}>
-            <div className="rounded-2xl border border-(--divider) bg-(--background-secondary) overflow-hidden">
+            <div className="rounded-card border border-(--divider) bg-(--background-secondary) overflow-hidden">
                 <div className="px-4 py-4 border-b border-(--divider) gap-2">
                     <div className="flex items-start justify-between gap-2">
                         <div>
-                            <h2 className="flex text-lg font-bold text-(--text-primary) items-center">
+                            <Heading level="section" className="flex items-center">
                                 {title}
-                            </h2>
+                            </Heading>
                         </div>
                         {headerAction && <div className="shrink-0">{headerAction}</div>}
                     </div>
@@ -43,7 +45,7 @@ export default function SidebarPanel({ title, subtitle, sections, className = ""
                         if (!isCollapsible) {
                             return (
                                 <section key={section.id} className={`pb-1 border-b border-(--divider) last:border-b-0 last:pb-0 ${section.isHidden ? "hidden" : ""}`}>
-                                    <div className="px-1 pb-2 text-[11px] font-semibold uppercase tracking-wide text-(--text-secondary)">
+                                    <div className={`px-1 pb-2 ${CAPS_LABEL_CLASS} text-(--text-tertiary)`}>
                                         {section.title}
                                     </div>
                                     <div>{section.content}</div>
@@ -58,7 +60,7 @@ export default function SidebarPanel({ title, subtitle, sections, className = ""
                                 open={isOpen}
                             >
                                 <summary className="list-none flex items-center justify-between px-1 pb-2 cursor-pointer">
-                                    <span className="text-[11px] font-semibold uppercase tracking-wide text-(--text-secondary)">{section.title}</span>
+                                    <span className={`${CAPS_LABEL_CLASS} text-(--text-tertiary)`}>{section.title}</span>
                                     <FaChevronDown className="h-3 w-3 text-(--text-secondary) transition-transform group-open:rotate-180" />
                                 </summary>
                                 <div>{section.content}</div>

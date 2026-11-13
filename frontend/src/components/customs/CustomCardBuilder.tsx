@@ -35,11 +35,13 @@ import { PlayerSearchInput } from './PlayerSearchInput';
 import CustomSelect from '../shared/CustomSelect';
 import type { SelectOption } from '../shared/CustomSelect';
 import { useSiteSettings, showdownSets } from '../shared/SiteSettingsContext';
-import { WhatsNewBanner } from '../shared/WhatsNewBanner';
+import { hasVariableSpeedSet } from '../../functions/showdownSets';
+import { setSelectOption } from '../shared/SetBadge';
 import { InfoTooltip } from '../shared/InfoTooltip';
 
 // Popovers
-import { ToastMessage } from '../shared/ToastMessage';
+import { ToastMessage, type ToastStatus } from '../shared/ToastMessage';
+import { Plate } from '../shared/Plate';
 import { CardDetail } from '../cards/CardDetail';
 import { GalleryTabContent } from '../gallery/GalleryTabContent';
 
@@ -50,16 +52,24 @@ import { fetchSplits } from '../../api/mlbAPI';
 import {
     FaTable, FaImage, FaLayerGroup, FaUser, FaBaseballBall, FaExclamationCircle,
     FaChevronCircleRight, FaChevronCircleLeft, FaChevronCircleUp, FaChevronCircleDown,
-    FaImages, FaGoogleDrive, FaListOl
+    FaImages
 } from 'react-icons/fa';
 import {
     FaShuffle, FaXmark, FaRotateLeft, FaCircleCheck, FaArrowDown
 } from 'react-icons/fa6';
 import CardBuildIcon from './CardBuildIcon';
 import ImageLibraryOrderHint from './ImageLibraryOrderHint';
-import Set2026Notice from './Set2026Notice';
+import { SetStyleFields, ImageStyleFields } from './CardStyleFields';
+import { NewBadge } from '../shared/NewBadge';
+import { setStyleSummary, imageStyleSummary, chartVersionOptions, statNormalizerOptions, isFieldChanged } from './cardStyle';
+import { formSectionSummary, optionSummaryItem } from './FormSectionSummary';
 import { formInputsFromCard, type CustomizeCardRouteState } from './customizeCard';
 
+import { Heading } from '../shared/Heading';
+import { FIELD_LABEL_CLASS } from '../shared/fieldStyles';
+import { Tabs, type TabItem } from '../shared/Tabs';
+import { PinstripeBackdrop } from '../shared/PinstripeBackdrop';
+import { smoothScrollBehavior } from '../../hooks/usePrefersReducedMotion';
 // ----------------------------------
 // MARK: - Form Interface
 // ----------------------------------
@@ -74,7 +84,7 @@ export interface CustomCardFormState {
     stats_period_type: string; // e.g. "REGULAR"
     start_date?: string | null; // e.g. "2023-05-01"
     end_date?: string | null; // e.g. "2023-10-01"
-    split?: string | null; // e.g. "First Half"
+    split?: string | null; // e.g. "First Half". For POST periods, the postseason round code (e.g. "W")
     league: string; // e.g. "MLB" or "MILB"
     team_selection?: string; // e.g. "GAMES_PLAYED". Only applies to multi-year stats periods (CAREER, ranges, combos)
 
@@ -83,12 +93,14 @@ export interface CustomCardFormState {
     set_number?: string | null; // e.g. "001"
     edition: string; // e.g. "Cooperstown"
     add_one_to_set_year: boolean; // Whether to show the year + 1 in the set section
+    set_year: string | null; // Year printed in the set section instead of the card's own, e.g. "2026"
     show_year_text: boolean; // Whether to show the year text as a label on the card
     disable_display_text_on_card?: boolean; // Whether to hide the stats period display text (e.g. split/date range) banner on the card. Only applicable for non-Base Set expansions or All-Star Game/Postseason editions
 
     // Image
     image_source: string; // e.g. "Auto"
     image_parallel: string; // e.g. "Rainbow Foil"
+    image_parallel_coloring: string; // e.g. "DEFAULT". Only used by team colored parallels
     image_coloring: string; // e.g. "Primary"
     image_glow_multiplier: string; // e.g. "Glow 1x"
     image_url?: string | null; // e.g. "https://example.com/image.png"
@@ -105,7 +117,7 @@ export interface CustomCardFormState {
     chart_version?: string; // e.g. "1"
     era?: string; // e.g. "Dynamic"
     is_variable_speed_00_01?: boolean; // Whether to use variable speed for 00-01
-    regress_small_sample_to_replacement?: boolean; // Whether to regress small sample stats toward replacement level
+    stat_normalizer?: string; // e.g. "REPLACEMENT_LEVEL", what a small real sample is regressed toward
 
     // Added in post-processing, not user inputs
     randomize?: boolean; // Tags if user randomly generated the card
@@ -129,11 +141,13 @@ export const FORM_DEFAULTS: CustomCardFormState = {
     set_number: null, 
     edition: "NONE",
     add_one_to_set_year: false,
+    set_year: null,
     show_year_text: false,
     disable_display_text_on_card: false,
 
     image_source: "AUTO", 
     image_parallel: "NONE", 
+    image_parallel_coloring: "DEFAULT",
     image_coloring: "PRIMARY", 
     image_glow_multiplier: "1",
     image_url: null, 
@@ -148,7 +162,21 @@ export const FORM_DEFAULTS: CustomCardFormState = {
     chart_version: "1",
     era: "DYNAMIC",
     is_variable_speed_00_01: false,
-    regress_small_sample_to_replacement: false
+    stat_normalizer: "NONE"
+};
+
+/** Form sections in the Card Settings panel */
+type FormSectionName = 'Player' | 'Set' | 'Image' | 'Chart';
+
+/** The form fields each section's reset button restores to `FORM_DEFAULTS` */
+const FORM_SECTION_FIELDS: Record<FormSectionName, (keyof CustomCardFormState)[]> = {
+    Player: ['name', 'player_id', 'player_type_override', 'year', 'stats_period_type', 'start_date', 'end_date', 'split', 'league', 'team_selection'],
+    Set: ['expansion', 'set_number', 'edition', 'add_one_to_set_year', 'set_year', 'show_year_text', 'disable_display_text_on_card'],
+    Image: [
+        'image_source', 'image_parallel', 'image_parallel_coloring', 'image_coloring', 'image_glow_multiplier', 'image_url', 'image_upload',
+        'is_bordered', 'is_dark_mode', 'hide_team_logo', 'stat_highlights_type', 'nickname_index',
+    ],
+    Chart: ['chart_version', 'era', 'is_variable_speed_00_01', 'stat_normalizer'],
 };
 
 /** Whether a year string spans multiple seasons (CAREER, ranges like "2000-2004", or combos like "2006+2014") */
@@ -158,28 +186,12 @@ const isMultiYearInput = (year: string): boolean => {
     return trimmed.toUpperCase() === 'CAREER' || trimmed.includes('-') || trimmed.includes('+');
 };
 
-/** Small pill badge used to flag newly added options/fields */
-const NewBadge = () => (
-    <span className="text-[9px] font-bold leading-none px-1.5 py-0.5 rounded-full bg-(--red) text-white uppercase tracking-wide">
-        New
-    </span>
-);
-
-type loadingStatusContent = {
-    message: string;
-    subMessage?: string;
-    icon?: React.ReactNode;
-    backgroundColor?: string;
-    removeAfterSeconds?: number;
-}
-
 // ----------------------------------
 // MARK: - Local Storage
 // ----------------------------------
 
 const STORAGE_KEY = 'customCardFormSettings-V2';
 /** Bump when the 2026 notice content changes so previously dismissed users see it again. */
-const SET_2026_NOTICE_KEY = 'customCardBuilder2026Phase4Notice';
 
 /** Save form settings to localStorage */
 const saveFormSettings = (formData: CustomCardFormState) => {
@@ -197,9 +209,12 @@ const loadFormSettings = (): CustomCardFormState => {
     try {
         const saved = localStorage.getItem(STORAGE_KEY);
         if (saved) {
-            const parsedSettings = JSON.parse(saved);
-            // Merge with defaults to ensure all required fields exist
-            return { ...FORM_DEFAULTS, ...parsedSettings };
+            const { regress_small_sample_to_replacement, ...parsedSettings } = JSON.parse(saved);
+            // Legacy toggle (pre-Normalizer) carries over as the Replacement Level normalizer
+            if (regress_small_sample_to_replacement && !parsedSettings.stat_normalizer) parsedSettings.stat_normalizer = 'REPLACEMENT_LEVEL';
+            // Merge with defaults to ensure all required fields exist. Set Year stays out: this storage
+            // is shared with the standalone builder, which has no field to clear it.
+            return { ...FORM_DEFAULTS, ...parsedSettings, set_year: null };
         }
     } catch (error) {
         console.warn('Failed to load form settings:', error);
@@ -214,18 +229,40 @@ const loadFormSettings = (): CustomCardFormState => {
 type CustomCardBuilderProps = {
     // Mark as hidden, disables actions
     isHidden?: boolean;
+    /** Runs the builder inside another screen (e.g. a Release Builder modal) instead of as its own page */
+    embed?: CustomCardBuilderEmbed;
 }
+
+/** The embedded builder drops the page chrome (Gallery tab, What's New, page-height layout) and offers
+ * `actionLabel` on each card it builds, handing the card's custom card id to `onAction`. */
+export type CustomCardBuilderEmbed = {
+    /** Showdown set the builder starts on, and resets to */
+    showdownSet?: string | null;
+    actionLabel: string;
+    /** Custom card ids `onAction` already ran for; their action shows as done */
+    completedIds?: string[];
+    onAction: (customCardId: string) => Promise<void>;
+};
+
+type PreviewTab = 'preview' | 'gallery';
+
+/** The preview / gallery switch, shared by the mobile and desktop tab bars. */
+const PREVIEW_TABS: TabItem<PreviewTab>[] = [
+    { id: 'preview', label: 'Preview', shortLabel: 'Card', icon: <CardBuildIcon size="1.5em" /> },
+    { id: 'gallery', label: 'Gallery', icon: <FaImages /> },
+];
 
 /** 
  * Card Creation Page for users to create and customize their own cards. 
 */
-function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
+function CustomCardBuilder({ isHidden, embed }: CustomCardBuilderProps) {
 
     // Card States
     const { userShowdownSet } = useSiteSettings();
-    const [showdownSetOverride, setShowdownSetOverride] = useState<string | null>(null);
+    const defaultShowdownSetOverride = embed?.showdownSet && embed.showdownSet !== userShowdownSet ? embed.showdownSet : null;
+    const [showdownSetOverride, setShowdownSetOverride] = useState<string | null>(defaultShowdownSetOverride);
     const effectiveShowdownSet = showdownSetOverride ?? userShowdownSet;
-    const isSet00_01 = ['2000', '2001'].includes(effectiveShowdownSet);
+    const isSet00_01 = hasVariableSpeedSet([effectiveShowdownSet]);
     const [showdownBotCardData, setShowdownBotCardData] = useState<ShowdownBotCardAPIResponse | null>(null);
     const [isProcessingCard, setIsProcessingCard] = useState(false);
     const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -237,26 +274,20 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
         setIsFormSettled(false);
         setIsFormCollapsed(!isFormCollapsed);
     };
-    type PreviewTab = 'preview' | 'gallery';
     const [activePreviewTab, setActivePreviewTab] = useState<PreviewTab>('preview');
     const [galleryRefreshKey, setGalleryRefreshKey] = useState(0);
     const [splitOptions, setSplitOptions] = useState<SelectOption[]>([]);
-    const [is2026NoticeDismissed, setIs2026NoticeDismissed] = useState(
-        () => localStorage.getItem(SET_2026_NOTICE_KEY) === 'true'
-    );
     const previewSectionRef = useRef<HTMLDivElement>(null);
-    const userDefaultSetImage = showdownSets.find(set => set.value === userShowdownSet)?.image;
-    const userDefaultSetImageAbbr = showdownSets.find(set => set.value === userShowdownSet)?.imageAbbr;
 
     // User Context
     const { user, session } = useAuth();
 
-    // Routing (used to receive cards handed over via "Customize")
+    // Routing (used to receive cards handed over via "Open in Builder")
     const location = useLocation();
     const navigate = useNavigate();
 
     // Loading Status
-    const [loadingStatus, setLoadingStatus] = useState<loadingStatusContent | null>(null);
+    const [loadingStatus, setLoadingStatus] = useState<ToastStatus | null>(null);
     const [, setIsLoadingStatusVisible] = useState(false);
     const [isLoadingStatusExiting, setIsLoadingStatusExiting] = useState(false);
 
@@ -273,11 +304,14 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
         || isProcessingCard
     )
     const isMultiYear = isMultiYearInput(form.year);
-    // Hiding the split/date text banner only applies to non-Base Set expansions (Trading Deadline, Pennant Run)
-    // or the All-Star Game / Postseason editions.
-    const canHideSplitDateText = form.expansion !== 'BS' || form.edition === 'ASG' || form.edition === 'POST';
 
     const [imageUploadPreview, setImageUploadPreview] = useState<string | null>(null);
+    // The native file input keeps its own selection, so resets remount it to clear the filename
+    const [imageUploadInputKey, setImageUploadInputKey] = useState(0);
+    const clearImageUpload = () => {
+        setImageUploadPreview(null);
+        setImageUploadInputKey(key => key + 1);
+    };
     const getImagePreview = (): string | null => {
         switch (form.image_source) {
             case "UPLOAD":
@@ -288,9 +322,6 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
                 return null;
         }
     };
-    const publicImagePath = (imageName:string): string => {
-        return `/images/card/${imageName}.png`;
-    };
 
 
 
@@ -298,19 +329,21 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
     // MARK: Form Options
     // ---------------------------------
 
-    // Expansion options
-    const expansionOptions: SelectOption[] = [
-        { label: "Base Set", value: "BS", image: publicImagePath('expansion-bs') },
-        { label: "Trading Deadline", value: "TD", image: publicImagePath('expansion-td'), 'borderColor': 'border-red-600' },
-        { label: "Pennant Run", value: "PR", image: publicImagePath('expansion-pr'), 'borderColor': 'border-blue-900' },
-    ]
-
     // Stats Period Options
     const statsPeriodOptions: SelectOption[] = [
         { 'value': 'REGULAR', 'label': 'Regular Season', 'symbol': '⚾' },
-        { 'value': 'POST', 'label': 'Postseason', 'symbol': '🏆', 'borderColor': 'border-yellow-500'},
-        { 'value': 'DATES', 'label': 'Date Range', 'symbol': '📅', 'borderColor': 'border-red-600' },
-        { 'value': 'SPLIT', 'label': 'Split', 'symbol': '🔀', 'borderColor': 'border-blue-700' },
+        { 'value': 'POST', 'label': 'Postseason', 'symbol': '🏆', 'borderColor': 'border-(--gold)'},
+        { 'value': 'DATES', 'label': 'Date Range', 'symbol': '📅', 'borderColor': 'border-(--showdown-red)' },
+        { 'value': 'SPLIT', 'label': 'Split', 'symbol': '🔀', 'borderColor': 'border-(--showdown-blue)' },
+    ]
+
+    // Postseason rounds (values are the MLB API game type codes the backend stores in `split`). Empty = all rounds
+    const postseasonRoundOptions: SelectOption[] = [
+        { 'value': '', 'label': 'All Rounds' },
+        { 'value': 'F', 'label': 'Wild Card' },
+        { 'value': 'D', 'label': 'Division Series' },
+        { 'value': 'L', 'label': 'League Championship Series' },
+        { 'value': 'W', 'label': 'World Series' },
     ]
 
     const leagueOptions: SelectOption[] = [
@@ -325,57 +358,11 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
         { 'value': 'FIRST_TEAM', 'label': 'First Team' },
     ]
 
-    // Edition Options
-    const editionOptions: SelectOption[] = [
-        { 'value': 'NONE', 'label': 'None', 'symbol': '―' },
-        { 'value': 'CC', 'label': 'Cooperstown Collection', 'image': publicImagePath('edition-cc'), 'borderColor': 'border-amber-800' },
-        { 'value': 'SS', 'label': 'Super Season', 'image': publicImagePath('edition-ss'), 'borderColor': 'border-red-500' },
-        { 'value': 'ASG', 'label': 'All-Star Game', 'symbol': '⭐', 'borderColor': 'border-yellow-400' },
-        { 'value': 'RS', 'label': 'Rookie Season', 'image': publicImagePath('edition-rs'), 'borderColor': 'border-red-800' },
-        { 'value': 'HOL', 'label': 'Holiday', 'symbol': '🎄', 'borderColor': 'border-green-600' },
-        { 'value': 'NAT', 'label': 'Nationality', 'symbol': '🌍', 'borderColor': 'border-blue-500' },
-        { 'value': 'WBC', 'label': 'WBC', 'image': publicImagePath('edition-wbc'), 'borderColor': 'border-red-700' },
-        { 'value': 'POST', 'label': 'Postseason', 'image': publicImagePath('edition-post'), 'borderColor': 'border-blue-800' },
-    ]
-
     // Image Source Options
     const imageSourceOptions: SelectOption[] = [
         { 'value': 'AUTO', 'label': 'Auto', 'symbol': '⚙️' },
         { 'value': 'LINK', 'label': 'Link', 'symbol': '🔗' },
         { 'value': 'UPLOAD', 'label': 'Upload', 'symbol': '📤' },
-    ]
-
-    // Image Parallel Options
-    const imageParallelOptions: SelectOption[] = [
-        { "label": "Base", "value": "NONE", 'symbol': '―' },
-        { "label": "Rainbow Foil", "value": "RF", 'symbol': '🌈' },
-        { "label": "Team Color Blast", "value": "TCB", 'symbol': '💥' },
-        { "label": "Galaxy", "value": "GALAXY", 'symbol': '🌌' },
-        { "label": "Gold", "value": "GOLD", "borderColor": "border-yellow-300", 'symbol': '🟡' },
-        { "label": "Gold Rush", "value": "GOLDRUSH", 'symbol': '✨' },
-        { "label": "Gold Frame", "value": "GF", 'symbol': '🖼️' },
-        { "label": "Sapphire", "value": "SPH", 'symbol': '💎' },
-        { "label": "Black and White", "value": "B&W", 'symbol': '📰' },
-        { "label": "Radial", "value": "RAD", 'symbol': '☀' },
-        { "label": "Comic Book Hero", "value": "CB", 'symbol': '🦸' },
-        { "label": "White Smoke", "value": "WS", 'symbol': '💨' },
-        { "label": "Flames", "value": "FLAMES", 'symbol': '🔥' },
-        { "label": "Mystery", "value": "MYSTERY", 'symbol': '❓' },
-        { "label": "Moonlight", "value": "MOONLIGHT", 'symbol': '🌙' },
-    ]
-
-    const imageColoringOptions: SelectOption[] = [
-        { "label": "Primary Color", "value": "PRIMARY" },
-        { "label": "Secondary Color", "value": "SECONDARY" },
-        { "label": "Multi-Color", "value": "MULTI" },
-    ]
-
-    const chartVersionOptions: SelectOption[] = [
-        { 'value': '1', 'label': 'Version 1' },
-        { 'value': '2', 'label': 'Version 2' },
-        { 'value': '3', 'label': 'Version 3' },
-        { 'value': '4', 'label': 'Version 4' },
-        { 'value': '5', 'label': 'Version 5' },
     ]
 
     const eraOptions: SelectOption[] = [
@@ -390,26 +377,6 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
         { "value": "POST STEROID ERA", "label": "Post-Steroid (2010-2014)" },
         { "value": "STATCAST ERA", "label": "Statcast (2015-2022)" },
         { "value": "PITCH CLOCK ERA", "label": "Pitch Clock (2023+)" },
-    ]
-
-    const statHighlightsTypeOptions: SelectOption[] = [
-        { "label": "None", "value": "NONE" },
-        { "label": "Classic", "value": "CLASSIC" },
-        { "label": "Modern", "value": "MODERN" },
-        { "label": "All", "value": "ALL" },
-    ]
-
-    const nicknameIndexOptions: SelectOption[] = [
-        { "label": "None", "value": "NONE" },
-        { "label": "Nickname 1", "value": "1" },
-        { "label": "Nickname 2", "value": "2" },
-        { "label": "Nickname 3", "value": "3" },
-    ]
-
-    const outerGlowOptions: SelectOption[] = [
-        { "label": "Glow 1x", "value": "1" },
-        { "label": "Glow 2x", "value": "2" },
-        { "label": "Glow 3x", "value": "3" },
     ]
 
     // ----------------------------------
@@ -464,12 +431,13 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
                 if (form.name) summaries.push({ label: 'Name', value: form.name });
                 if (form.year) summaries.push({ label: 'Year', value: form.year });
                 if (form.stats_period_type !== FORM_DEFAULTS.stats_period_type) {
-                    const periodOption = statsPeriodOptions.find(opt => opt.value === form.stats_period_type);
-                    summaries.push(periodOption || { label: 'Period', value: form.stats_period_type });
+                    summaries.push(optionSummaryItem(statsPeriodOptions, form.stats_period_type));
                 }
                 if (form.start_date) summaries.push({ label: 'Start', value: form.start_date });
                 if (form.end_date) summaries.push({ label: 'End', value: form.end_date });
-                if (form.split) {
+                if (form.split && form.stats_period_type === 'POST') {
+                    summaries.push(optionSummaryItem(postseasonRoundOptions, form.split, 'Round'));
+                } else if (form.split) {
                     const yearNum = parseInt(form.year, 10);
                     const splitLabel = (!isNaN(yearNum) && yearNum >= 2026)
                         ? (splitOptions.find(o => o.value === form.split)?.label ?? form.split)
@@ -477,126 +445,39 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
                     summaries.push({ label: 'Split', value: splitLabel });
                 }
                 if (form.league !== FORM_DEFAULTS.league) {
-                    const leagueOption = leagueOptions.find(opt => opt.value === form.league);
-                    summaries.push(leagueOption || { label: 'League', value: form.league });
+                    summaries.push(optionSummaryItem(leagueOptions, form.league, 'League'));
                 }
                 if (isMultiYearInput(form.year) && form.team_selection && form.team_selection !== FORM_DEFAULTS.team_selection) {
-                    const teamSelectionOption = teamSelectionOptions.find(opt => opt.value === form.team_selection);
-                    summaries.push({ ...(teamSelectionOption || { value: form.team_selection }), label: 'Team' });
+                    summaries.push(optionSummaryItem(teamSelectionOptions, form.team_selection, 'Team'));
                 }
                 break;
 
             case 'set':
-                if (form.expansion !== FORM_DEFAULTS.expansion) {
-                    const expansionOption = expansionOptions.find(opt => opt.value === form.expansion);
-                    summaries.push(expansionOption || { label: 'Expansion', value: form.expansion });
-                }
-                if (form.edition !== FORM_DEFAULTS.edition) {
-                    const editionOption = editionOptions.find(opt => opt.value === form.edition);
-                    summaries.push(editionOption || { label: 'Edition', value: form.edition });
-                }
-                if (form.set_number) summaries.push({ label: 'Set Number', value: form.set_number });
-
-                if (form.add_one_to_set_year) summaries.push({ value: "Set Year +1", borderColor: 'border-green-500' });
-                if (form.show_year_text) summaries.push({ value: "Show Year Text", borderColor: 'border-green-500' });
-                if (form.disable_display_text_on_card) summaries.push({ value: "Hide Date Text", borderColor: 'border-green-500' });
+                summaries.push(...setStyleSummary(form, FORM_DEFAULTS, form.set_number));
                 break;
-                
+
             case 'image':
                 if (form.image_source !== FORM_DEFAULTS.image_source) {
-                    const sourceOption = imageSourceOptions.find(opt => opt.value === form.image_source);
-                    summaries.push(sourceOption || { label: 'Source', value: form.image_source });
+                    summaries.push(optionSummaryItem(imageSourceOptions, form.image_source, 'Source'));
                 }
-                if (form.image_source === FORM_DEFAULTS.image_source && form.image_parallel !== FORM_DEFAULTS.image_parallel) {
-                    const parallelOption = imageParallelOptions.find(opt => opt.value === form.image_parallel);
-                    summaries.push(parallelOption || { label: 'Parallel', value: form.image_parallel });
-                }
-                if (form.image_coloring !== FORM_DEFAULTS.image_coloring) {
-                    const coloringOption = imageColoringOptions.find(opt => opt.value === form.image_coloring);
-                    summaries.push({ ...(coloringOption || { value: form.image_coloring }), label: 'Coloring' });
-                }
-                if (form.image_glow_multiplier !== FORM_DEFAULTS.image_glow_multiplier) {
-                    const glowOption = outerGlowOptions.find(opt => opt.value === form.image_glow_multiplier);
-                    summaries.push({ ...(glowOption || { value: form.image_glow_multiplier }), label: 'Glow' });
-                }
-                if (form.stat_highlights_type && form.stat_highlights_type !== FORM_DEFAULTS.stat_highlights_type) {
-                    const statsOption = statHighlightsTypeOptions.find(opt => opt.value === form.stat_highlights_type);
-                    summaries.push({ ...(statsOption || { value: form.stat_highlights_type }), label: 'Real Stats' });
-                }
-                if (form.nickname_index && form.nickname_index !== FORM_DEFAULTS.nickname_index) {
-                    const nicknameOption = nicknameIndexOptions.find(opt => opt.value === form.nickname_index);
-                    summaries.push({ ...(nicknameOption || { value: form.nickname_index }), label: 'Nickname' });
-                }
-                if (form.is_bordered !== FORM_DEFAULTS.is_bordered) summaries.push({ value: 'ADD BORDER', borderColor: 'border-green-500' });
-                if (form.is_dark_mode !== FORM_DEFAULTS.is_dark_mode) summaries.push({ value: 'DARK MODE', borderColor: 'border-green-500' });
-                if (form.hide_team_logo !== FORM_DEFAULTS.hide_team_logo) summaries.push({ value: 'REMOVE TEAM BRANDING', borderColor: 'border-green-500' });
+                summaries.push(...imageStyleSummary(form, FORM_DEFAULTS, form.image_source === FORM_DEFAULTS.image_source));
                 break;
-                
+
             case 'chart':
                 if (form.chart_version !== FORM_DEFAULTS.chart_version) {
-                    const chartOption = chartVersionOptions.find(opt => opt.value === form.chart_version);
-                    summaries.push({ ...(chartOption || { value: form.chart_version || "1" }), label: 'Chart Version' });
+                    summaries.push(optionSummaryItem(chartVersionOptions, form.chart_version || '1', 'Chart Version'));
                 }
                 if (form.era !== FORM_DEFAULTS.era) {
-                    const eraOption = eraOptions.find(opt => opt.value === form.era);
-                    summaries.push({ ...(eraOption || { value: form.era || "DYNAMIC" }), label: 'Era' });
-
-                }
-                if (isSet00_01 && form.is_variable_speed_00_01 !== FORM_DEFAULTS.is_variable_speed_00_01) summaries.push({ value: 'VARIABLE SPEED', borderColor: 'border-green-500' });
-                if (form.regress_small_sample_to_replacement !== FORM_DEFAULTS.regress_small_sample_to_replacement) summaries.push({ value: 'REGRESS SMALL SAMPLE', borderColor: 'border-green-500' });
+                    summaries.push(optionSummaryItem(eraOptions, form.era || 'DYNAMIC', 'Era'));                }
+                if (isSet00_01 && form.is_variable_speed_00_01 !== FORM_DEFAULTS.is_variable_speed_00_01) summaries.push({ value: 'Variable Speed' });
+                if (form.stat_normalizer && form.stat_normalizer !== FORM_DEFAULTS.stat_normalizer) summaries.push(optionSummaryItem(statNormalizerOptions, form.stat_normalizer, 'Normalizer'));
                 break;
         }
         
         return summaries;
     };
 
-    const sectionWhenClosed = (sectionName: string) => {
-
-        const summaryItems = getSectionSummary(sectionName);
-
-        if (summaryItems.length === 0) {
-            return undefined;
-        }
-        return (
-            <div className="text-xs font-bold flex flex-wrap items-center gap-x-1.5 gap-y-1 text-(--tertiary)">
-                {summaryItems.map(item => (
-                    <div key={item.label} className={`flex shrink-0 items-center whitespace-nowrap rounded-md px-1 border ${item.borderColor || 'border-(--tertiary)/65'}`}>
-                        <span className="font-semibold">{item.icon}</span>
-                        {(() => {
-                            const label = item.label?.toLowerCase()
-                            var prefix = "";
-                            var suffix = "";
-                            var value = item.value || "";
-                            if (label === "name") {
-                                return <span style={{ textTransform: 'capitalize' }}>{item.value}</span>;
-                            }
-                            if (item.image && item.label === "Showdown Set") {
-                                return <img src={item.image} alt={item.label} className="w-12 object-contain h-5" />;
-                            }
-                            if (item.image) {
-                                return <img src={item.image} alt={item.label} className="w-5 h-5" />;
-                            }
-                            if (item.icon) {
-                                return <span className="w-5 h-5" >{item.icon}</span>;
-                            }
-                            if (item.symbol) {
-                                return <span className="w-5 h-5" >{item.symbol}</span>;
-                            }
-                            switch (label) {
-                                case "set number": prefix = "#"; break;
-                                case "coloring": suffix = " COLOR"; break;
-                                case "glow": suffix = "X"; prefix = "GLOW "; break;
-                                case "nickname": prefix = "NICKNAME "; break;
-                                case "chart version": prefix = "CHART "; break;
-                                case "real stats": prefix = "SHOW "; suffix = " STATS"; break;
-                            }
-                            return <span className={`${item.borderColor || 'text-(--tertiary)'}`}>{prefix}{value}{suffix}</span>;
-                        })()}
-                    </div>
-                ))}
-            </div>
-        );
-    };
+    const sectionWhenClosed = (sectionName: string) => formSectionSummary(getSectionSummary(sectionName));
 
     // ---------------------------------
     // MARK: Build Processing
@@ -651,7 +532,7 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
             }
 
             // For 2026+ splits the stored value is a situation code — resolve to description + code
-            if (isMlbApiYear && finalPayload.split) {
+            if (isMlbApiYear && finalPayload.split && finalPayload.stats_period_type === 'SPLIT') {
                 const matched = splitOptions.find(o => o.value === finalPayload.split);
                 if (matched) {
                     finalPayload.situation_code = matched.value;
@@ -679,7 +560,7 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
                     message: "Error",
                     subMessage: cardData.error_for_user,
                     icon: <FaExclamationCircle className="text-sm"/>,
-                    backgroundColor: "rgb(255, 155, 155)", // Red
+                    tone: "error",
                     removeAfterSeconds: 5,
                 });
                 return;
@@ -694,9 +575,9 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
 
             setLoadingStatus(prevStatus => ({
                 ...prevStatus, // Keep all existing values
-                message: "Done!",
+                message: "Card built",
                 icon: <FaCircleCheck className="text-sm"/>,
-                backgroundColor: "var(--success)",
+                tone: "success",
                 removeAfterSeconds: 2,
             }));
             setIsProcessingCard(false);
@@ -721,7 +602,7 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
 
         const subMessage = `${form.name} | ${form.year}`;
         setLoadingStatus({
-            message: "Building...",
+            message: "Building…",
             subMessage: subMessage,
             icon: <FaBaseballBall
                         className="text-sm animate-bounce"
@@ -730,7 +611,7 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
                             animationIterationCount: 'infinite'
                         }}
                     />,
-            backgroundColor: "rgb(255, 193, 7)", // Amber
+            tone: "loading",
         });
 
         // Scroll to preview on mobile after a short delay to allow loading status to appear
@@ -766,7 +647,7 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
         const subMessage = elements.join(", ");
 
         setLoadingStatus({
-            message: "Shuffling...",
+            message: "Shuffling…",
             subMessage: subMessage,
             icon: <FaShuffle
                         className="text-sm animate-bounce"
@@ -775,7 +656,7 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
                             animationIterationCount: 'infinite'
                         }}
                     />,
-            backgroundColor: "rgb(255, 193, 7)", // Amber
+            tone: "loading",
         });
 
         // Use form data but replace name with shuffle key
@@ -794,7 +675,25 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
 
         // Reset form to initial state
         setForm(FORM_DEFAULTS);
-        setShowdownSetOverride(null);
+        setShowdownSetOverride(defaultShowdownSetOverride);
+        clearImageUpload();
+    };
+
+    // Reset a single section's fields, leaving the rest of the form alone
+    const resetSection = (section: FormSectionName) => {
+        const sectionDefaults = Object.fromEntries(FORM_SECTION_FIELDS[section].map(key => [key, FORM_DEFAULTS[key]]));
+        setForm(prevForm => ({ ...prevForm, ...sectionDefaults }));
+        if (section === 'Image') clearImageUpload();
+    };
+
+    /** Whether a field differs from its default. Required or auto-filled inputs with no default of their
+     * own (Name, Year, dates, Split) count toward a section's reset but aren't highlighted. */
+    const isChanged = (key: keyof CustomCardFormState) => isFieldChanged(form, FORM_DEFAULTS, key);
+
+    /** Reset handler for a section's header, undefined while the section is already at its defaults. */
+    const sectionResetHandler = (section: FormSectionName) => {
+        const hasChanges = FORM_SECTION_FIELDS[section].some(isChanged);
+        return hasChanges ? () => resetSection(section) : undefined;
     };
 
     // Handle Enter key press
@@ -804,7 +703,8 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
 
         const handleKeyDown = (event: KeyboardEvent) => {
             // Dont run if the tab is not active
-            if (document.hidden || isHidden) return;
+            // Skip keys a focused control already handled (e.g. Enter picking a player search result)
+            if (document.hidden || isHidden || event.defaultPrevented) return;
 
             if (event.key === 'Enter' && !event.shiftKey) {
                 // Don't trigger if user is typing in a textarea or input that should allow Enter
@@ -818,6 +718,7 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
 
         document.addEventListener('keydown', handleKeyDown);
         return () => document.removeEventListener('keydown', handleKeyDown);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [form, isHidden]); // Re-bind when form changes so handleBuild has latest state
 
     // Handle loading status removal after a delay
@@ -868,13 +769,13 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
         // First try to find the preview section by ID
         const previewElement = document.getElementById('preview-section');
         if (previewElement) {
-            previewElement.scrollIntoView({ behavior: 'smooth' });
+            previewElement.scrollIntoView({ behavior: smoothScrollBehavior() });
             return;
         }
         
         // Fallback to ref method
         if (previewSectionRef.current) {
-            previewSectionRef.current.scrollIntoView({ behavior: 'smooth' });
+            previewSectionRef.current.scrollIntoView({ behavior: smoothScrollBehavior() });
         }
     };
 
@@ -908,8 +809,8 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
     // Dynamic stats period handling
     useEffect(() => {
 
-        // Remove split value if not in SPLIT mode to prevent invalid combinations
-        if (form.stats_period_type !== 'SPLIT' && form.split) {
+        // Remove split value if not in a mode that uses it (SPLIT, or POST for the round) to prevent invalid combinations
+        if (!['SPLIT', 'POST'].includes(form.stats_period_type) && form.split) {
             setForm(prevForm => ({
                 ...prevForm,
                 split: null
@@ -953,6 +854,7 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
                 end_date: null
             }));
         }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [form.year, form.stats_period_type]);
 
 
@@ -992,7 +894,7 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
             message: statusMessage,
             subMessage: `${userInputs.name} | ${userInputs.year}`,
             icon: <FaRotateLeft className="text-sm" />,
-            backgroundColor: "var(--success)",
+            tone: "success",
             removeAfterSeconds: 3,
         });
     };
@@ -1001,7 +903,24 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
         handleSelectHistoryCard(userInputs as unknown as CustomCardFormState, cardResult);
     };
 
-    // Prefill from a card handed over via the "Customize" button on CardDetail. The builder stays
+    // Embedded action (e.g. "Add to Edition") on the card just built. Cards loaded back into the
+    // form from history carry no id, so they don't get one.
+    const builtCustomCardId = showdownBotCardData?.custom_card_id ?? null;
+    const [isRunningEmbedAction, setIsRunningEmbedAction] = useState(false);
+    const isEmbedActionDone = !!builtCustomCardId && !!embed?.completedIds?.includes(builtCustomCardId);
+    const handleEmbedAction = async () => {
+        if (!embed || !builtCustomCardId || isRunningEmbedAction) return;
+        setIsRunningEmbedAction(true);
+        try {
+            await embed.onAction(builtCustomCardId);
+        } catch (err) {
+            setErrorMessage(err instanceof Error ? err.message : String(err));
+        } finally {
+            setIsRunningEmbedAction(false);
+        }
+    };
+
+    // Prefill from a card handed over via the "Open in Builder" button on CardDetail. The builder stays
     // mounted (hidden) between visits, so this watches location state rather than reading it on mount.
     useEffect(() => {
         const customizeCard = (location.state as CustomizeCardRouteState | null)?.customizeCard;
@@ -1014,6 +933,7 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
 
         // Clear the state so a refresh or back/forward doesn't re-apply it over later edits
         navigate(location.pathname, { replace: true, state: null });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [location.state]);
 
     // Fetch MLB situation codes when the user is in SPLIT mode for 2026+ seasons
@@ -1030,8 +950,8 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
                     group: c.navigation_menu,
                     trailing: (c.batting || c.pitching) ? (
                         <span className="flex gap-1 shrink-0">
-                            {c.batting  && <span className="text-[10px] leading-none px-1.5 py-0.5 rounded bg-blue-900/60 text-blue-300 font-semibold">Hitting</span>}
-                            {c.pitching && <span className="text-[10px] leading-none px-1.5 py-0.5 rounded bg-amber-900/60 text-amber-300 font-semibold">Pitching</span>}
+                            {c.batting  && <Plate variant="navy" size="sm">Hitting</Plate>}
+                            {c.pitching && <Plate variant="red" size="sm">Pitching</Plate>}
                         </span>
                     ) : undefined,
                 })))
@@ -1067,6 +987,17 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
                         />
                     </>
                 );
+            case 'POST':
+                return (
+                    <FormDropdown
+                        label="Round"
+                        isChanged={isChanged('split')}
+                        options={postseasonRoundOptions}
+                        selectedOption={form.split || ''}
+                        onChange={(value) => setForm({ ...form, split: value || null })}
+                        className='col-span-full'
+                    />
+                );
             case 'SPLIT': {
                 const yearNum = parseInt(form.year, 10);
                 const isMlbApiYear = !isNaN(yearNum) && yearNum >= 2026;
@@ -1079,7 +1010,7 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
                             onChange={(value) => setForm({ ...form, split: value || null })}
                             className='col-span-full'
                             disabled={splitOptions.length === 0}
-                            placeholder={splitOptions.length === 0 ? 'Loading...' : 'Select a Split'}
+                            placeholder={splitOptions.length === 0 ? 'Loading…' : 'Select a split'}
                         />
                     );
                 }
@@ -1109,44 +1040,18 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
         // In larger screens, it will be split into two sections
         <div className='@container'>
 
-            <WhatsNewBanner
-                storageKey="customCardBuilderWhatsNew_v4.42"
-                version="4.42"
-                features={[
-                    { icon: <FaGoogleDrive />, text: 'Image Libraries: connect your own Google Drive folder of player images' },
-                    { icon: <FaListOl />, text: 'Choose whether Auto images check your folders or Showdown Bot first in Account settings' },
-                    { icon: <FaImage />, text: "Cards now show where their player image came from" },
-                ]}
-            />
+            {/* Mobile tab bar — fixed below the app header, hidden on @2xl. Embedded builders have no Gallery tab. */}
+            {!embed && (
+                <div className="flex @2xl:hidden fixed top-10 inset-x-0 z-30 px-2 bg-(--background-secondary)">
+                    <Tabs tabs={PREVIEW_TABS} value={activePreviewTab} onChange={handleTabChange} fullWidth className="w-full" />
+                </div>
+            )}
 
-            {/* Mobile tab bar — fixed below the app header, hidden on @2xl */}
-            <div className={`flex @2xl:hidden fixed top-10 inset-x-0 z-30 border-b border-form-element bg-background-secondary/95 backdrop-blur`}>
-                {([
-                    { tab: 'preview' as PreviewTab, icon: <CardBuildIcon size="1.5em" />, label: 'Card' },
-                    { tab: 'gallery' as PreviewTab, icon: <FaImages />, label: 'Gallery' },
-                ]).map(({ tab, icon, label }) => (
-                    <button
-                        key={tab}
-                        onClick={() => handleTabChange(tab)}
-                        className={`
-                            flex-1 flex items-center justify-center gap-2 py-2.5 text-sm font-semibold
-                            border-b-2 transition-colors cursor-pointer
-                            ${activePreviewTab === tab
-                                ? 'border-(--showdown-blue) text-primary'
-                                : 'border-transparent text-secondary hover:text-primary'}
-                        `}
-                    >
-                        {icon} {label}
-                    </button>
-                ))}
-            </div>
-
-            <div className="
+            <div className={`
                 @container flex flex-col @2xl:flex-row
                 @2xl:overflow-hidden
-                @2xl:h-[calc(100dvh-2.5rem)]
-                pt-11 @2xl:pt-0
-            ">
+                ${embed ? '@2xl:h-[calc(85vh-3.5rem)]' : '@2xl:h-[calc(100dvh-2.5rem)] pt-11 @2xl:pt-0'}
+            `}>
                 {/* Loading Indicator */}
                 <ToastMessage
                     loadingStatus={loadingStatus}
@@ -1159,7 +1064,7 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
                     ${isFormCollapsed ? '@2xl:w-16' : '@2xl:w-84'}
                     ${isFormSettled ? '' : '@2xl:overflow-hidden'}
                     border-b-2 @2xl:border-r border-form-element
-                    bg-background-secondary
+                    bg-(--background-secondary)
                     ${activePreviewTab === 'gallery' ? 'hidden @2xl:flex @2xl:flex-col' : 'flex flex-col'}
                     h-full
                     ${formPanelTransitionTw} transition-[width]
@@ -1171,16 +1076,16 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
                         {/* Reset and collapse buttons */}
                         <div className='flex gap-1 text-lg items-center'>
 
-                            <h4 className={`mr-2 font-bold text-(--primary) ${isFormCollapsed ? 'hidden' : 'block'}`}>
+                            <Heading level="section" className={`mr-2 ${isFormCollapsed ? 'hidden' : 'block'}`}>
                                 Card Settings
-                            </h4>
+                            </Heading>
 
                             {/* Reset and shuffle buttons */}
                             <div className={`flex items-center gap-1 text-xl ${isFormCollapsed ? 'hidden' : 'flex'}`}>
                                 <button
                                     type="button"
                                     className={`
-                                        p-2 rounded-lg hover:bg-(--background-tertiary) transition-colors cursor-pointer
+                                        p-2 rounded-control hover:bg-(--background-tertiary) transition-colors cursor-pointer
                                     `}
                                     title="Reset Form"
                                     onClick={handleReset}
@@ -1191,7 +1096,7 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
                                 <button
                                     type="button"
                                     className={`
-                                        p-2 rounded-lg hover:bg-(--background-tertiary) transition-colors cursor-pointer
+                                        p-2 rounded-control hover:bg-(--background-tertiary) transition-colors cursor-pointer
                                     `}
                                     title='Shuffle'
                                     onClick={handleShuffle}
@@ -1204,7 +1109,7 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
 
                         <button
                             className={`
-                                text-lg p-2 rounded-lg hover:bg-(--background-tertiary) transition-colors cursor-pointer
+                                text-lg p-2 rounded-control hover:bg-(--background-tertiary) transition-colors cursor-pointer
                                 @2xl:order-first @2xl:mr-1
                                 ${isFormCollapsed ? 'flex flex-row-reverse @2xl:flex-col items-center gap-2 @2xl:gap-3 px-4 @2xl:px-2 @2xl:mr-0 w-full justify-center ' : ''}
                             `}
@@ -1225,12 +1130,12 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
                             {isFormCollapsed && (
                                 <>
                                     {/* Normal horizontal text for small screens */}
-                                    <span className="text-nowrap font-semibold text-(--tertiary) @2xl:hidden">
+                                    <span className="text-nowrap font-display uppercase text-sm leading-none text-(--text-tertiary) @2xl:hidden">
                                         Card Settings
                                     </span>
                                     {/* Vertical text for large screens */}
                                     <span 
-                                        className='text-nowrap font-semibold text-(--tertiary) hidden @2xl:block'
+                                        className='text-nowrap font-display uppercase text-sm leading-none text-(--text-tertiary) hidden @2xl:block'
                                         style={{ 
                                             writingMode: 'vertical-lr',
                                             textOrientation: 'sideways',
@@ -1269,14 +1174,6 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
 
                                 <div className="space-y-4 pb-6 @2xl:pb-96 @2xl:w-76">
                                     <>
-                                        {!is2026NoticeDismissed && (
-                                            <Set2026Notice
-                                                onDismiss={() => {
-                                                    localStorage.setItem(SET_2026_NOTICE_KEY, 'true');
-                                                    setIs2026NoticeDismissed(true);
-                                                }}
-                                            />
-                                        )}
 
                                         <div className="@container flex flex-row items-end gap-1">
                                             <PlayerSearchInput
@@ -1296,15 +1193,14 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
                                             <div className="@container shrink-0 w-18">
                                                 <CustomSelect
                                                     className="text-sm"
-                                                    buttonClassName="w-full pl-1 py-2 hover:bg-(--background-secondary) cursor-pointer rounded-full"
-                                                    imageClassName="object-contain object-center w-16 mr-2 h-7"
-                                                    compactImageClassName="object-contain object-center w-10 h-7"
+                                                    // design-ok: set-badge picker, not a form field
+                                                    buttonClassName="w-full pl-1 py-2 flex items-center hover:bg-(--background-secondary) cursor-pointer rounded-control"
                                                     value={showdownSetOverride ?? ''}
                                                     align="right"
                                                     onChange={(v) => setShowdownSetOverride(v === '' ? null : v)}
                                                     options={[
-                                                        { value: '', label: ``, image: userDefaultSetImage, imageCompact: userDefaultSetImageAbbr },
-                                                        ...showdownSets.map(set => ({ ...set, imageCompact: set.imageAbbr })),
+                                                        { ...setSelectOption(userShowdownSet, { compact: true, size: 'lg' }), value: '' },
+                                                        ...showdownSets.map(set => setSelectOption(set.value, { compact: true, size: 'lg' })),
                                                     ]}
                                                     showDropdownArrow={true}
                                                 />
@@ -1313,17 +1209,17 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
 
                                         {/* Display Error (If Applicable) */}
                                         {errorMessage && (
-                                            <div className='w-full border-3 bg-red-500/10 text-red-500 border-red-500 rounded-xl p-2'>
+                                            <div className='w-full border-2 bg-(--red)/10 text-(--red) border-(--red) rounded-card p-2'>
                                                 <div className='flex flex-row justify-between items-center mb-1 text-xl'>
-                                                    <div className='font-black flex flex-row gap-2 items-center'> 
+                                                    <div className='font-display uppercase leading-none flex flex-row gap-2 items-center'> 
                                                         <FaExclamationCircle /> 
                                                         Error
                                                     </div>
-                                                    <button className='text-red-500 underline' onClick={() => setErrorMessage('')}>
+                                                    <button className='text-(--red) cursor-pointer hover:opacity-70' aria-label='Dismiss error' onClick={() => setErrorMessage('')}>
                                                         <FaXmark />
                                                     </button>
                                                 </div>
-                                                <div className="text-md font-bold overflow-scroll scrollbar-hide">
+                                                <div className="text-sm font-bold overflow-scroll scrollbar-hide">
                                                     {errorMessage}
                                                 </div>
                                             </div>
@@ -1336,6 +1232,7 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
                                             isOpenByDefault={sectionStates['Player']}
                                             onToggle={() => toggleSection('Player')}
                                             childrenWhenClosed={sectionWhenClosed('Player')}
+                                            onReset={sectionResetHandler('Player')}
                                         >
 
                                             <FormInput
@@ -1358,6 +1255,7 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
                                             {isMultiYear && (
                                                 <FormDropdown
                                                     label="Team Selection"
+                                                    isChanged={isChanged('team_selection')}
                                                     options={teamSelectionOptions}
                                                     selectedOption={form.team_selection || 'GAMES_PLAYED'}
                                                     onChange={(value) => setForm({ ...form, team_selection: value })}
@@ -1367,14 +1265,16 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
 
                                             <FormDropdown
                                                 label="Period"
+                                                isChanged={isChanged('stats_period_type')}
                                                 options={statsPeriodOptions}
                                                 selectedOption={form.stats_period_type}
-                                                onChange={(value) => setForm({ ...form, stats_period_type: value })}
+                                                onChange={(value) => setForm({ ...form, stats_period_type: value, split: null })}
                                                 disabled={form.league === 'MILB'}
                                             />
 
                                             <FormDropdown
                                                 label="League"
+                                                isChanged={isChanged('league')}
                                                 options={leagueOptions}
                                                 selectedOption={form.league}
                                                 onChange={(value) => {
@@ -1403,56 +1303,23 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
                                             isOpenByDefault={sectionStates['Set']}
                                             onToggle={() => toggleSection('Set')}
                                             childrenWhenClosed={sectionWhenClosed('Set')}
+                                            onReset={sectionResetHandler('Set')}
                                         >
-                                            <FormDropdown
-                                                label="Expansion"
-                                                options={expansionOptions}
-                                                selectedOption={form.expansion}
-                                                onChange={(value) => setForm({
-                                                    ...form,
-                                                    expansion: value,
-                                                    // Disable display text is only applicable to non-Base Set expansions or ASG/Postseason editions.
-                                                    // Don't carry a TRUE value forward if it's no longer applicable.
-                                                    ...(!(value !== 'BS' || form.edition === 'ASG' || form.edition === 'POST') && { disable_display_text_on_card: false }),
-                                                })}
-                                            />
-
-                                            <FormDropdown
-                                                label="Edition"
-                                                options={editionOptions}
-                                                selectedOption={form.edition}
-                                                onChange={(value) => setForm({
-                                                    ...form,
-                                                    edition: value,
-                                                    // Disable display text is only applicable to non-Base Set expansions or ASG/Postseason editions.
-                                                    // Don't carry a TRUE value forward if it's no longer applicable.
-                                                    ...(!(form.expansion !== 'BS' || value === 'ASG' || value === 'POST') && { disable_display_text_on_card: false }),
-                                                })}
-                                            />
-
-                                            <FormInput
-                                                label="Set Number"
-                                                className='col-span-full'
-                                                value={form.set_number || ''}
-                                                onChange={(value) => setForm({ ...form, set_number: value || '' })}
-                                                isClearable={true}
-                                            />
-
-                                            <FormEnabler label='Show Year as Text' isEnabled={form.show_year_text} onChange={(isEnabled) => setForm({ ...form, show_year_text: !isEnabled })} />
-                                            <FormEnabler label='Add 1 to Set Year' isEnabled={form.add_one_to_set_year} onChange={(isEnabled) => setForm({ ...form, add_one_to_set_year: !isEnabled })} />
-
-                                            <FormEnabler
-                                                label={
-                                                    <span className="inline-flex items-center gap-1.5">
-                                                        Hide Date Text <NewBadge />
-                                                        <InfoTooltip text="Removes the banner that normally shows the split or date range used for this card's stats (e.g. 'First Half' or '2023-05-01 to 2023-10-01'). Only available with a Trading Deadline/Pennant Run expansion or an All-Star Game/Postseason edition, since those already communicate the card's context without it." />
-                                                    </span>
+                                            <SetStyleFields
+                                                values={form}
+                                                defaults={FORM_DEFAULTS}
+                                                onChange={(patch) => setForm({ ...form, ...patch })}
+                                                showSetYear={!!embed}
+                                                afterEdition={
+                                                    <FormInput
+                                                        label="Set Number"
+                                                        isChanged={isChanged('set_number')}
+                                                        className='col-span-full'
+                                                        value={form.set_number || ''}
+                                                        onChange={(value) => setForm({ ...form, set_number: value || '' })}
+                                                        isClearable={true}
+                                                    />
                                                 }
-                                                className='col-span-full'
-                                                isEnabled={form.disable_display_text_on_card || false}
-                                                onChange={(isEnabled) => setForm({ ...form, disable_display_text_on_card: !isEnabled })}
-                                                isDisabled={!canHideSplitDateText}
-                                                disabledReason='Only available with a Trading Deadline/Pennant Run expansion or an All-Star Game/Postseason edition'
                                             />
 
                                         </FormSection>
@@ -1465,10 +1332,12 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
                                             isOpenByDefault={sectionStates['Image']}
                                             onToggle={() => toggleSection('Image')}
                                             childrenWhenClosed={sectionWhenClosed('Image')}
+                                            onReset={sectionResetHandler('Image')}
                                         >
 
                                             <FormDropdown
                                                 label="Player Image"
+                                                isChanged={isChanged('image_source')}
                                                 className='col-span-full'
                                                 options={imageSourceOptions}
                                                 selectedOption={form.image_source}
@@ -1477,15 +1346,9 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
                                             {form.image_source === 'AUTO' && <ImageLibraryOrderHint className="col-span-full -mt-1" />}
 
                                             {/* Source Specific Options */}
-                                            <FormDropdown
-                                                label="Image Parallel"
-                                                className={`col-span-full ${form.image_source === 'AUTO' ? '' : 'hidden'}`}
-                                                options={imageParallelOptions}
-                                                selectedOption={form.image_parallel}
-                                                onChange={(value) => setForm({ ...form, image_parallel: value })}
-                                            />
                                             <FormInput
                                                 label="Image URL"
+                                                isChanged={isChanged('image_url')}
                                                 className={`col-span-full ${form.image_source === 'LINK' ? '' : 'hidden'}`}
                                                 value={form.image_url || ''}
                                                 onChange={(value) => setForm({ ...form, image_url: value || null })}
@@ -1493,7 +1356,9 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
                                                 placeholder="https://example.com/image.png"
                                             />
                                             <FormInput
+                                                key={imageUploadInputKey}
                                                 label="Upload Image"
+                                                isChanged={isChanged('image_upload')}
                                                 className={`col-span-full ${form.image_source === 'UPLOAD' ? '' : 'hidden'}`}
                                                 value={form.image_upload?.name || ''}
                                                 isClearable={true}
@@ -1506,19 +1371,20 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
                                             {getImagePreview() && (
                                                 <div className="col-span-full grid grid-cols-[12fr_8fr] gap-2 items-center">
                                                     <div>
-                                                        <label className="block text-sm font-medium text-(--tertiary) mb-1">
+                                                        <label className={`${FIELD_LABEL_CLASS} mb-1`}>
                                                             Preview
                                                         </label>
                                                         <img
                                                             src={getImagePreview() || ''}
                                                             alt="Invalid Image"
+                                                            // design-ok: card art keeps its printed corner radius
                                                             className="max-w-full h-38 object-contain rounded-lg border-2 border-form-element"
                                                         />
                                                     </div>
 
                                                     <button type="button" className="flex flex-col items-center space-x-2 cursor-pointer hover:opacity-50">
                                                         <FaXmark
-                                                            className="text-3xl text-red-500 hover:text-red-300 transition-colors"
+                                                            className="text-3xl text-(--red) hover:opacity-70 transition-opacity"
                                                             onClick={() => handleFileChange(null)}
                                                         />
                                                         <span>Remove Image</span>
@@ -1526,39 +1392,12 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
                                                 </div>
                                             )}
 
-                                            <FormDropdown
-                                                label="Image Coloring"
-                                                options={imageColoringOptions}
-                                                selectedOption={form.image_coloring}
-                                                onChange={(value) => setForm({ ...form, image_coloring: value })}
-                                                className='text-nowrap'
+                                            <ImageStyleFields
+                                                values={form}
+                                                defaults={FORM_DEFAULTS}
+                                                onChange={(patch) => setForm({ ...form, ...patch })}
+                                                hideParallel={form.image_source !== 'AUTO'}
                                             />
-
-                                            <FormDropdown
-                                                label="Outer Glow"
-                                                options={outerGlowOptions}
-                                                selectedOption={form.image_glow_multiplier}
-                                                onChange={(value) => setForm({ ...form, image_glow_multiplier: value })}
-                                            />
-
-                                            {/* Extras */}
-                                            <h1 className="col-span-full text-md font-semibold text-secondary mt-2">Extras</h1>
-                                            <FormDropdown
-                                                label="Show Real Stats?"
-                                                options={statHighlightsTypeOptions}
-                                                selectedOption={form.stat_highlights_type || 'NONE'}
-                                                onChange={(value) => setForm({ ...form, stat_highlights_type: value })}
-                                            />
-                                            <FormDropdown
-                                                label="Show Nickname?"
-                                                options={nicknameIndexOptions}
-                                                selectedOption={form.nickname_index || 'NONE'}
-                                                onChange={(value) => setForm({ ...form, nickname_index: value })}
-                                            />
-                                            <FormEnabler label='Add Border' isEnabled={form.is_bordered} onChange={(isEnabled) => setForm({ ...form, is_bordered: !isEnabled })} />
-                                            <FormEnabler label='Dark Mode' isEnabled={form.is_dark_mode} onChange={(isEnabled) => setForm({ ...form, is_dark_mode: !isEnabled })} />
-                                            <FormEnabler label='Remove Team' className='col-span-full' isEnabled={form.hide_team_logo} onChange={(isEnabled) => setForm({ ...form, hide_team_logo: !isEnabled })} />
-
 
                                         </FormSection>
 
@@ -1569,10 +1408,12 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
                                             isOpenByDefault={sectionStates['Chart']}
                                             onToggle={() => toggleSection('Chart')}
                                             childrenWhenClosed={sectionWhenClosed('Chart')}
+                                            onReset={sectionResetHandler('Chart')}
                                         >
 
                                             <FormDropdown
                                                 label="Chart Version"
+                                                isChanged={isChanged('chart_version')}
                                                 options={chartVersionOptions}
                                                 selectedOption={form.chart_version || '1'}
                                                 onChange={(value) => setForm({ ...form, chart_version: value })}
@@ -1580,6 +1421,7 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
 
                                             <FormDropdown
                                                 label="Era"
+                                                isChanged={isChanged('era')}
                                                 options={eraOptions}
                                                 selectedOption={form.era || 'DYNAMIC'}
                                                 onChange={(value) => setForm({ ...form, era: value })}
@@ -1588,21 +1430,26 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
                                             {isSet00_01 && (
                                                 <FormEnabler
                                                     label="Variable Speed"
+                                                    isChanged={isChanged('is_variable_speed_00_01')}
                                                     className="col-span-2"
                                                     isEnabled={form.is_variable_speed_00_01 || false}
                                                     onChange={(isEnabled) => setForm({ ...form, is_variable_speed_00_01: !isEnabled })}
                                                 />
                                             )}
 
-                                            <div className="col-span-2 flex items-center gap-1.5">
-                                                <FormEnabler
-                                                    label={<span className="inline-flex items-center gap-1.5">Regress to Replacement Level <NewBadge /></span>}
-                                                    className="flex-1"
-                                                    isEnabled={form.regress_small_sample_to_replacement || false}
-                                                    onChange={(isEnabled) => setForm({ ...form, regress_small_sample_to_replacement: !isEnabled })}
-                                                />
-                                                <InfoTooltip iconSize="text-[16px]" text="Blends a player's real stats toward that year's replacement level, weighted by how few plate appearances/innings they actually have. A callup's hot 40-PA stretch gets pulled toward replacement level instead of standing in as his true talent; players with a full season are unaffected." />
-                                            </div>
+                                            <FormDropdown
+                                                label={
+                                                    <span className="inline-flex items-center gap-1.5">
+                                                        Normalizer <NewBadge />
+                                                        <InfoTooltip iconSize="text-[16px]" text="Blends a player's real stats toward a baseline, weighted by how few plate appearances/innings they actually have. A callup's hot 40-PA stretch gets pulled toward the baseline instead of standing in as his true talent; full seasons (600 PA, or ~60 IP for relievers) are unaffected. Player options use his other seasons (Last Year/Trailing use the most recent seasons played before this one) and fall back to Replacement Level if there are none." />
+                                                    </span>
+                                                }
+                                                className="col-span-2"
+                                                options={statNormalizerOptions}
+                                                selectedOption={form.stat_normalizer || 'NONE'}
+                                                isChanged={isChanged('stat_normalizer')}
+                                                onChange={(value) => setForm({ ...form, stat_normalizer: value })}
+                                            />
 
                                         </FormSection>
                                     </>
@@ -1620,9 +1467,8 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
                             @2xl:sticky @2xl:inset-x-0 @2xl:bottom-0 @2xl:z-20
                             @2xl:-mx-4 @2xl:px-10 @2xl:py-3 @2xl:pb-3
                             @2xl:pointer-events-auto
-                            @2xl:bg-background-secondary/95 @2xl:backdrop-blur
-                            @2xl:border-t @2xl:border-form-element
-                            @2xl:shadow-md
+                            @2xl:bg-(--background-secondary)
+                            @2xl:border-t @2xl:border-(--divider)
                             ${isFormCollapsed ? '@2xl:hidden' : ''}
                         `}>
 
@@ -1639,8 +1485,8 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
                                         fixed left-4 bottom-[calc(1rem+var(--safe-bottom))]
                                         pointer-events-auto @2xl:hidden
                                         flex items-center justify-center
-                                        h-12 w-12 rounded-full shadow-xl shadow-black/25
-                                        bg-background-secondary border border-form-element text-(--primary) text-lg
+                                        h-12 w-12 rounded-full shadow-overlay
+                                        bg-(--background-secondary) border border-form-element text-(--primary) text-lg
                                         cursor-pointer hover:brightness-110 active:scale-95 transition-transform
                                     "
                                     onClick={scrollToPreview}
@@ -1652,15 +1498,15 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
                                 <button
                                     type="button"
                                     aria-label="Build Card"
-                                    title={disableBuildButton ? "Please enter player name and year" : "Build Card"}
+                                    title={disableBuildButton ? "Enter a player name and year" : "Build Card"}
                                     className={`
                                         pointer-events-auto
-                                        ${disableBuildButton ? 'bg-(--showdown-blue)' : 'animated-showdown-gradient'}
+                                        bg-(--showdown-blue-fill)
                                         flex items-center justify-center gap-x-2
-                                        text-white font-black
-                                        h-16 w-16 rounded-full shadow-xl shadow-black/25
-                                        @2xl:h-auto @2xl:w-full @2xl:flex-1 @2xl:gap-x-1
-                                        @2xl:rounded-xl @2xl:py-4 @2xl:shadow-none
+                                        text-white
+                                        h-16 w-16 rounded-full shadow-feature-float active:translate-y-0.5 active:shadow-overlay
+                                        @2xl:h-auto @2xl:w-full @2xl:flex-1 @2xl:gap-x-1.5
+                                        @2xl:rounded-control @2xl:py-3.5 @2xl:shadow-feature @2xl:active:shadow-none
                                         transition-transform
                                         ${disableBuildButton
                                             ? 'cursor-not-allowed opacity-25'
@@ -1670,7 +1516,7 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
                                     onClick={handleBuild}
                                 >
                                     <CardBuildIcon size="2rem" className='mr-0.5' />
-                                    <span className="hidden @2xl:inline">Build Card</span>
+                                    <span className="hidden @2xl:inline font-display uppercase text-2xl leading-none">Build Card</span>
                                 </button>
 
                             </div>
@@ -1690,50 +1536,42 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
                         ${activePreviewTab === 'gallery' ? 'pb-0 min-h-[calc(100dvh-2.75rem)]' : 'pb-64'} @2xl:pb-0 @2xl:min-h-0
                         scroll-mt-21
                         @2xl:scroll-mt-0
-                        gradient-page
+                        bg-(--background-primary)
                     `}
                 >
                     <div className="flex flex-col h-full">
 
                         {/* Tab bar — desktop only */}
-                        <div className="hidden @2xl:flex shrink-0 border-b border-form-element bg-background-secondary/80 backdrop-blur sticky top-0 z-10">
-                            {([
-                                { tab: 'preview' as PreviewTab, icon: <CardBuildIcon size="1.5em" />, label: 'Preview' },
-                                { tab: 'gallery' as PreviewTab, icon: <FaImages />, label: 'Gallery' },
-                            ]).map(({ tab, icon, label }) => (
-                                <button
-                                    key={tab}
-                                    onClick={() => handleTabChange(tab)}
-                                    className={`
-                                        flex items-center gap-1.5 px-4 py-3 text-sm font-semibold
-                                        border-b-2 transition-colors cursor-pointer
-                                        ${activePreviewTab === tab
-                                            ? 'border-(--showdown-blue) text-primary'
-                                            : 'border-transparent text-secondary hover:text-primary'}
-                                    `}
-                                >
-                                    {icon} {label}
-                                </button>
-                            ))}
-                        </div>
+                        {!embed && (
+                            <div className="hidden @2xl:block shrink-0 px-2 bg-(--background-secondary) sticky top-0 z-10">
+                                <Tabs tabs={PREVIEW_TABS} value={activePreviewTab} onChange={handleTabChange} fullWidth />
+                            </div>
+                        )}
 
                         {/* Tab content */}
                         <div className="flex-1 @2xl:overflow-y-auto scrollbar-hide">
-                            <div className={activePreviewTab === 'preview' ? 'block' : 'hidden'}>
+                            <div className={activePreviewTab === 'preview' ? 'block relative isolate' : 'hidden'}>
+                                {/* Card-back pinstripes behind the card preview */}
+                                <PinstripeBackdrop heightClass="h-96" />
                                 <CardDetail
                                     showdownBotCardData={showdownBotCardData}
                                     showdownSetForPlaceholder={showdownSetOverride || undefined}
                                     isLoading={isProcessingCard}
+                                    onDraft={embed && builtCustomCardId && !isProcessingCard ? handleEmbedAction : undefined}
+                                    draftLabel={isEmbedActionDone ? 'Added' : embed?.actionLabel}
+                                    draftDisabled={isEmbedActionDone || isRunningEmbedAction}
                                 />
                             </div>
-                            <div className={activePreviewTab === 'gallery' ? 'block h-full' : 'hidden'}>
-                                <GalleryTabContent
-                                    user={user}
-                                    token={session?.access_token ?? null}
-                                    onReload={user ? handleGalleryReload : undefined}
-                                    refreshKey={galleryRefreshKey}
-                                />
-                            </div>
+                            {!embed && (
+                                <div className={activePreviewTab === 'gallery' ? 'block h-full' : 'hidden'}>
+                                    <GalleryTabContent
+                                        user={user}
+                                        token={session?.access_token ?? null}
+                                        onReload={user ? handleGalleryReload : undefined}
+                                        refreshKey={galleryRefreshKey}
+                                    />
+                                </div>
+                            )}
                         </div>
 
                     </div>

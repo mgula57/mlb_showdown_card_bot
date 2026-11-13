@@ -56,9 +56,9 @@ function useCountUp(from: number, to: number, durationMs: number, isStatic: bool
 
 function StatChip({ label, children, className = "", style }: { label: string; children: ReactNode; className?: string; style?: CSSProperties }) {
     return (
-        <span className={`relative flex flex-col items-center gap-0.5 rounded-md bg-(--background-primary)/60 px-1.5 py-1 ${className}`} style={style}>
+        <span className={`relative flex flex-col items-center gap-0.5 rounded-card bg-(--background-primary)/60 px-1.5 py-1 ${className}`} style={style}>
             <span className="text-[7px] font-bold uppercase leading-none tracking-wider text-(--tertiary)">{label}</span>
-            <span className="text-xs font-black leading-none tabular-nums text-(--text-primary)">{children}</span>
+            <span className="text-xs font-bold leading-none tabular-nums text-(--text-primary)">{children}</span>
         </span>
     );
 }
@@ -111,7 +111,7 @@ function RunnerRollRow({ attempt, index, beatId, phase, speed, cardMap, onCardSe
                 <span className="text-[9px] font-bold uppercase leading-none tracking-wider text-(--text-secondary)">{titleFor(attempt)}</span>
                 <span
                     className={`
-                        rounded px-1.5 py-0.5 text-[9px] font-black uppercase leading-none tracking-wider text-white
+                        rounded-plate px-1.5 py-0.5 text-[9px] font-bold uppercase leading-none tracking-wider text-white
                         ${attempt.isSafe ? "bg-(--green)" : "bg-(--red)"}
                         ${isRevealed ? animate("result-pop") : "invisible"}
                     `}
@@ -127,7 +127,7 @@ function RunnerRollRow({ attempt, index, beatId, phase, speed, cardMap, onCardSe
                         <StatChip label={DEFENSE_LABELS[attempt.kind]} className={isFolded ? animate("roll-fold-left") || "opacity-45" : ""}>
                             {attempt.defense}
                         </StatChip>
-                        <span className={`text-xs font-black leading-none text-(--tertiary) ${isFolded ? "opacity-45" : ""}`}>+</span>
+                        <span className={`text-xs font-bold leading-none text-(--tertiary) ${isFolded ? "opacity-45" : ""}`}>+</span>
                     </>
                 )}
                 <span className={isFolded ? animate("roll-fold-right") || "opacity-45" : ""}>
@@ -136,7 +136,7 @@ function RunnerRollRow({ attempt, index, beatId, phase, speed, cardMap, onCardSe
 
                 {hasOdds && (
                     <>
-                        <span className={`text-xs font-black leading-none text-(--tertiary) ${isFolded ? "" : "invisible"}`}>=</span>
+                        <span className={`text-xs font-bold leading-none text-(--tertiary) ${isFolded ? "" : "invisible"}`}>=</span>
                         {/* Holds the total's width while the die is in the air, so nothing shifts when it lands. */}
                         {isFolded ? (
                             <RollTotal from={attempt.defense!} to={total} isStatic={isStatic} speed={speed} verdictClass={totalVerdict} accent={isRevealed && !attempt.isSafe ? accent : undefined} />
@@ -149,13 +149,13 @@ function RunnerRollRow({ attempt, index, beatId, phase, speed, cardMap, onCardSe
                 {/* "vs" until the reveal, then the comparator that decided it: out when total > speed. */}
                 <span
                     key={isRevealed ? "cmp" : "vs"}
-                    className={`min-w-4 text-center leading-none ${isRevealed && hasOdds ? `text-sm font-black ${animate("result-pop")}` : "text-[9px] font-bold uppercase tracking-wider text-(--tertiary)"}`}
+                    className={`min-w-4 text-center leading-none ${isRevealed && hasOdds ? `text-sm font-bold ${animate("result-pop")}` : "text-[9px] font-bold uppercase tracking-wider text-(--tertiary)"}`}
                     style={isRevealed && hasOdds ? { color: accent } : undefined}
                 >
                     {isRevealed && hasOdds ? (attempt.isSafe ? "≤" : ">") : "vs"}
                 </span>
 
-                <span className={`rounded-lg ${runnerVerdict}`} style={isRevealed && attempt.isSafe ? { "--roll-accent": accent } as CSSProperties : undefined}>
+                <span className={`rounded-card ${runnerVerdict}`} style={isRevealed && attempt.isSafe ? { "--roll-accent": accent } as CSSProperties : undefined}>
                     <FieldMarker
                         player={attempt.runner}
                         role="H"
@@ -184,7 +184,7 @@ export default function SimRunnerRolls({ rolls, beatId, phase, speed = 1, cardMa
     if (!rolls?.length) return null;
 
     return (
-        <div className="flex flex-col divide-y divide-(--divider) rounded-lg border border-(--divider) bg-(--background-secondary)/80 shadow-lg backdrop-blur-sm">
+        <div className="flex flex-col divide-y divide-(--divider) rounded-card border border-(--divider) bg-(--background-secondary) shadow-overlay">
             {rolls.map((attempt, index) => (
                 <RunnerRollRow
                     // Keyed on the beat too, so a new beat remounts the row and replays the whole sequence.

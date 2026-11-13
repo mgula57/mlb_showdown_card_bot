@@ -7,6 +7,7 @@ import sys
 import threading
 import time
 import traceback
+import uuid
 from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta
 from pathlib import Path
@@ -20,6 +21,7 @@ from ..core.card.team_builder.player_filters import PlayerFilterSet
 from ..core.card.team_builder.team import BULLPEN_ROLES, FIELD_POSITIONS, ROTATION_ROLES, Team as BuilderTeam
 from ..core.database.postgres_db import PostgresDB
 from ..core.simulation.challenge_generator import BeatTarget
+from ..core.simulation.faceoff import SUPPORTED_BEST_OF, FaceoffEntrant, FaceoffError, TeamMatchupSimulator
 from ..core.simulation.mlb_game import MLBGameLineupSlot, MLBGameSetup, MLBGameSimulator, MLBGameTeamSetup
 from ..core.simulation.models import GameStuckError, ManagerPreference, PostseasonFormat, PostseasonRound, SeasonSimulationConfig
 from ..core.simulation.season import Season
@@ -1742,6 +1744,169 @@ def get_sim_game_count(game_pk: int):
         with PostgresDB() as db:
             count = db.count_sim_games_for_game(game_pk)
         return jsonify({'count': count}), 200
+    except Exception as exc:
+        traceback.print_exc()
+        return jsonify({'error': str(exc)}), 500
+
+
+# GAMES A USER MAY PLAY IN AN HOUR. SKIPS `_sim_slots` ON PURPOSE: A SEASON SIM HOLDS THAT PERMIT FOR
+# ITS WHOLE RUN, AND A GAME LASTS MILLISECONDS, SO THIS LIMIT IS THE ONE THAT MATTERS HERE.
+_FACEOFF_GAMES_PER_HOUR = int(os.environ.get('FACEOFF_GAMES_PER_HOUR', 60))
+_FACEOFF_OPPONENT_SOURCES = ('user', 'official')
+
+
+def _is_uuid(value: str) -> bool:
+    try:
+        uuid.UUID(str(value))
+        return True
+    except ValueError:
+        return False
+
+
+def _faceoff_team_row(db: PostgresDB, team_id, user_id: str) -> dict:
+    """A team this user may use in a Faceoff: their own, or one that's public. Raises
+    `_RequestError` otherwise, and for a roster the sim can't field."""
+    unavailable = _RequestError("That team isn't available.", 404)
+    if not _is_uuid(team_id):
+        raise unavailable
+    row = db.get_team(str(team_id), user_id)
+    is_own = row is not None and row.get('user_id') == user_id
+    if row is None or row.get('source') not in _FACEOFF_OPPONENT_SOURCES or (row.get('is_archived') and not is_own):
+        raise unavailable
+    roster_error = _roster_error(BuilderTeam.from_db_row(row))
+    if roster_error:
+        raise _RequestError(f"{row['name']}: {roster_error}", 422)
+    return row
+
+
+@sim_bp.route('/sim/faceoff', methods=['POST'])
+@require_auth
+def start_faceoff():
+    """Play the user's team against another and store the result.
+
+    Synchronous, like `start_game_sim`: the games run in milliseconds. `best_of` is part of the
+    contract already, so a series adds a value here rather than a new shape.
+    """
+    try:
+        payload = request.get_json(silent=True) or {}
+        team_id, opponent_team_id = payload.get('team_id'), payload.get('opponent_team_id')
+        if not team_id or not opponent_team_id:
+            return jsonify({'error': 'team_id and opponent_team_id are required'}), 400
+        if str(team_id) == str(opponent_team_id):
+            return jsonify({'error': 'Pick a different team to face.'}), 400
+
+        best_of = payload.get('best_of', 1)
+        if best_of not in SUPPORTED_BEST_OF:
+            return jsonify({'error': f"best_of must be one of {list(SUPPORTED_BEST_OF)}"}), 400
+
+        try:
+            manager = _parse_manager_preference(payload.get('manager'))
+            opponent_manager = _parse_manager_preference(payload.get('opponent_manager'))
+        except ValueError as exc:
+            return jsonify({'error': str(exc)}), 400
+
+        with PostgresDB() as db:
+            if db.count_recent_faceoff_games(g.user_id) >= _FACEOFF_GAMES_PER_HOUR:
+                return jsonify({'error': "You've played a lot of Faceoffs this hour. Try again soon."}), 429
+            team_row = _faceoff_team_row(db, team_id, g.user_id)
+            opponent_row = _faceoff_team_row(db, opponent_team_id, g.user_id)
+
+        if team_row.get('user_id') != g.user_id:
+            return jsonify({'error': 'You can only start a Faceoff with your own team.'}), 403
+
+        # BOTH SIDES ARE THIS USER'S TO MANAGE ONLY WHEN THEY OWN BOTH. A PUBLIC OPPONENT ISN'T HERE
+        # TO CHOOSE, SO IT PLAYS ITS SAVED ROSTER: ITS FIRST STARTER AND A NEUTRAL MANAGER.
+        is_own_matchup = opponent_row.get('user_id') == g.user_id
+        result = TeamMatchupSimulator(
+            challenger=FaceoffEntrant(
+                team=BuilderTeam.from_db_row(team_row), total_points=int(team_row.get('total_points') or 0),
+                starter_card_id=payload.get('starter_card_id'), manager=manager,
+            ),
+            opponent=FaceoffEntrant(
+                team=BuilderTeam.from_db_row(opponent_row), total_points=int(opponent_row.get('total_points') or 0),
+                starter_card_id=payload.get('opponent_starter_card_id') if is_own_matchup else None,
+                manager=opponent_manager if is_own_matchup else None,
+            ),
+            seed=random.randrange(2 ** 31),
+            best_of=best_of,
+        ).simulate()
+
+        result_payload = result.model_dump(mode='json')
+        with PostgresDB() as db:
+            faceoff_id = db.record_sim_faceoff(user_id=g.user_id, result=result_payload, is_own_matchup=is_own_matchup)
+        return jsonify({'faceoff_id': faceoff_id}), 201
+
+    except _RequestError as exc:
+        return jsonify({'error': str(exc)}), exc.status
+    except FaceoffError as exc:
+        return jsonify({'error': str(exc)}), 400
+    except GameStuckError as exc:
+        traceback.print_exc()
+        print(f"stuck faceoff context: {json.dumps(exc.context, default=str)}")
+        return jsonify({'error': str(exc), 'context': exc.context}), 422
+    except Exception as exc:
+        traceback.print_exc()
+        return jsonify({'error': str(exc)}), 500
+
+
+@sim_bp.route('/sim/faceoff/<faceoff_id>', methods=['GET'])
+def get_faceoff(faceoff_id: str):
+    """A stored Faceoff, for its shareable replay page."""
+    try:
+        faceoff = None
+        if _is_uuid(faceoff_id):
+            with PostgresDB() as db:
+                faceoff = db.fetch_sim_faceoff(faceoff_id, optional_user_id())
+        if faceoff is None:
+            return jsonify({'error': 'Faceoff not found'}), 404
+        return jsonify(faceoff), 200
+    except Exception as exc:
+        traceback.print_exc()
+        return jsonify({'error': str(exc)}), 500
+
+
+@sim_bp.route('/sim/faceoff/<faceoff_id>/cards', methods=['GET'])
+def get_faceoff_cards(faceoff_id: str):
+    """Every card in a Faceoff, keyed by card id. Resolved from the stored rosters so a viewer gets
+    all card sources, including custom cards they couldn't fetch for themselves."""
+    try:
+        cards = {}
+        with PostgresDB() as db:
+            faceoff = db.fetch_sim_faceoff(faceoff_id, optional_user_id()) if _is_uuid(faceoff_id) else None
+            if faceoff is None:
+                return jsonify({'error': 'Faceoff not found'}), 404
+            for side in ('challenger', 'opponent'):
+                cards.update(db.fetch_cards_for_roster_slots(slots=faceoff['teams'][side]['roster']))
+        return jsonify({'cards': {card_id: card.as_json() for card_id, card in cards.items()}}), 200
+    except Exception as exc:
+        traceback.print_exc()
+        return jsonify({'error': str(exc)}), 500
+
+
+@sim_bp.route('/sim/faceoffs/mine', methods=['GET'])
+@require_auth
+def get_my_faceoffs():
+    """The signed-in user's Faceoffs, newest first."""
+    try:
+        limit = min(request.args.get('limit', default=20, type=int), 50)
+        with PostgresDB() as db:
+            faceoffs = db.fetch_sim_faceoffs_for_user(g.user_id, limit=limit)
+        return jsonify({'faceoffs': faceoffs}), 200
+    except Exception as exc:
+        traceback.print_exc()
+        return jsonify({'error': str(exc)}), 500
+
+
+@sim_bp.route('/sim/teams/<team_id>/faceoffs', methods=['GET'])
+def get_team_faceoffs(team_id: str):
+    """A team's Faceoffs against other users' teams, newest first."""
+    try:
+        if not _is_uuid(team_id):
+            return jsonify({'faceoffs': []}), 200
+        limit = min(request.args.get('limit', default=20, type=int), 50)
+        with PostgresDB() as db:
+            faceoffs = db.fetch_sim_faceoffs_for_team(team_id, viewer=optional_user_id(), limit=limit)
+        return jsonify({'faceoffs': faceoffs}), 200
     except Exception as exc:
         traceback.print_exc()
         return jsonify({'error': str(exc)}), 500

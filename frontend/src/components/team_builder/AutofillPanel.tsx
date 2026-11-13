@@ -1,5 +1,6 @@
 import { useState, useMemo } from 'react';
-import { FaXmark, FaWandMagicSparkles, FaSpinner } from 'react-icons/fa6';
+import { FaWandMagicSparkles, FaSpinner } from 'react-icons/fa6';
+import { buttonClass } from '../shared/buttonStyles';
 
 import type { AutofillStrategy, PtsDistribution } from '../../api/userTeams';
 import {
@@ -11,6 +12,10 @@ import {
     DEFAULT_PTS_DISTRIBUTION,
 } from '../../api/userTeams';
 
+import FormEnabler from '../customs/FormEnabler';
+import { FIELD_LABEL_CLASS, CAPS_LABEL_CLASS, fieldClass } from '../shared/fieldStyles';
+import { choiceClass } from '../shared/choiceStyles';
+import { Modal } from '../shared/Modal';
 type BucketSizes = {
     offense: number;   // always 9
     rotation: number;  // num_starters
@@ -65,12 +70,7 @@ function StrategyPill({ label, active, onClick }: { label: string; active: boole
         <button
             type="button"
             onClick={onClick}
-            className={[
-                'px-2.5 py-1 rounded-full text-[11px] font-semibold border transition-colors',
-                active
-                    ? 'bg-(--showdown-red) border-(--showdown-red) text-white'
-                    : 'bg-transparent border-(--divider) text-(--text-secondary) hover:border-(--text-tertiary)',
-            ].join(' ')}
+            className={choiceClass(active, 'sm')}
         >
             {label}
         </button>
@@ -190,68 +190,76 @@ export function AutofillPanel({ ptsLimit, bucketSizes, existingPts, existingPick
 
     const sliderStep = 10;
 
-    return (
-        <div
-            className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
-            onClick={onClose}
-        >
-            <div
-                className="bg-(--background-primary) rounded-2xl w-full max-w-sm shadow-2xl border border-(--divider) overflow-hidden"
-                onClick={e => e.stopPropagation()}
-            >
-                {/* Header */}
-                <div className="flex items-center justify-between px-4 pt-4 pb-3 border-b border-(--divider)">
-                    <div>
-                        <div className="text-[13px] font-bold text-(--text-primary) flex items-center gap-1.5">
-                            <FaWandMagicSparkles className="text-(--showdown-red)" />
-                            Autofill Roster
+    const footer = (
+        <>
+                    {error && (
+                        <div className="bg-(--red)/10 border border-(--red)/30 rounded-control px-3 py-2.5 space-y-2">
+                            <div className="text-[12px] font-semibold text-(--red)">
+                                Autofill couldn't complete
+                            </div>
+                            <p className="text-[11px] text-(--red) leading-snug">
+                                {error}
+                            </p>
                         </div>
-                        <div className="text-[11px] text-(--text-secondary) mt-0.5">
-                            {targetConfirmed ? (
-                                <>Budget: <span className="font-bold text-(--text-primary)">{effectiveLimit.toLocaleString()} pts</span></>
-                            ) : (
-                                'This team has no points cap — pick a target to autofill against'
-                            )}
-                        </div>
-                    </div>
-                    <button
-                        type="button"
-                        onClick={onClose}
-                        className="text-(--text-tertiary) hover:text-(--text-primary) transition-colors hover:bg-(--divider) rounded-md p-1 cursor-pointer"
-                    >
-                        <FaXmark />
-                    </button>
-                </div>
-
-                {existingPickCount > 0 && (
-                    <div className="px-4 pt-3">
+                    )}
+                    {!targetConfirmed ? (
                         <button
                             type="button"
-                            role="switch"
-                            aria-checked={replaceExisting}
-                            onClick={toggleReplaceExisting}
-                            className="w-full flex items-center gap-3 rounded-lg border border-(--divider) bg-(--background-secondary) px-3 py-2.5 text-left cursor-pointer hover:border-(--text-tertiary) transition-colors"
+                            onClick={confirmTarget}
+                            disabled={customTarget < totalFloors}
+                            className={buttonClass('primary', 'md', 'w-full py-2.5!')}
                         >
-                            <span className={[
-                                'relative shrink-0 w-9 h-5 rounded-full transition-colors',
-                                replaceExisting ? 'bg-(--showdown-red)' : 'bg-(--divider)',
-                            ].join(' ')}>
-                                <span className={[
-                                    'absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white transition-transform',
-                                    replaceExisting ? 'translate-x-4' : 'translate-x-0',
-                                ].join(' ')} />
-                            </span>
-                            <span className="min-w-0">
-                                <span className="block text-[12px] font-bold text-(--text-primary)">
-                                    Replace existing roster
-                                </span>
-                                <span className="block text-[10.5px] text-(--text-tertiary) leading-snug">
-                                    {replaceExisting
-                                        ? `All ${existingPickCount} current player${existingPickCount !== 1 ? 's' : ''} will be cleared and re-drafted.`
-                                        : `Currently keeping the ${existingPickCount} current player${existingPickCount !== 1 ? 's' : ''}, fill the rest.`}
-                                </span>
-                            </span>
+                            Continue
                         </button>
+                    ) : (
+                        <button
+                            type="button"
+                            onClick={handleConfirm}
+                            disabled={loading || overBudget || totalAllocated > effectiveLimit}
+                            className={buttonClass('primary', 'md', 'w-full transform-gpu py-2.5!')}
+                        >
+                            {loading ? (
+                                <span key="loading" className="flex items-center gap-2">
+                                    <FaSpinner className="animate-spin" />
+                                    Filling…
+                                </span>
+                            ) : (
+                                <span key="idle" className="flex items-center gap-2">
+                                    <FaWandMagicSparkles />
+                                    Fill Roster
+                                </span>
+                            )}
+                        </button>
+                    )}
+        </>
+    );
+
+    return (
+        <Modal
+            size="sm"
+            onClose={onClose}
+            title={
+                <span className="flex items-center gap-1.5">
+                    <FaWandMagicSparkles className="text-(--showdown-red) text-base" />
+                    Autofill Roster
+                </span>
+            }
+            subtitle={targetConfirmed
+                ? `Budget: ${effectiveLimit.toLocaleString()} pts`
+                : 'This team has no points cap — pick a target to autofill against'}
+            footer={footer}
+        >
+                {existingPickCount > 0 && (
+                    <div className="px-4 pt-3">
+                        <FormEnabler
+                            label="Replace existing roster"
+                            description={replaceExisting
+                                ? `All ${existingPickCount} current player${existingPickCount !== 1 ? 's' : ''} will be cleared and re-drafted.`
+                                : `Currently keeping the ${existingPickCount} current player${existingPickCount !== 1 ? 's' : ''}, fill the rest.`}
+                            isEnabled={replaceExisting}
+                            onChange={toggleReplaceExisting}
+                            className="w-full"
+                        />
                     </div>
                 )}
 
@@ -261,7 +269,7 @@ export function AutofillPanel({ ptsLimit, bucketSizes, existingPts, existingPick
                             Set a one-off points target for this autofill. It won't change the team's settings.
                         </p>
                         <div>
-                            <label className="text-[11px] font-bold text-(--text-tertiary) uppercase tracking-wide mb-1 block">
+                            <label className={`${FIELD_LABEL_CLASS} mb-1`}>
                                 Target Points
                             </label>
                             <input
@@ -270,7 +278,7 @@ export function AutofillPanel({ ptsLimit, bucketSizes, existingPts, existingPick
                                 step={50}
                                 value={customTarget}
                                 onChange={e => setCustomTarget(Math.max(0, Number(e.target.value)))}
-                                className="w-full rounded-lg border border-(--divider) bg-(--background-secondary) px-3 py-2 text-[13px] font-bold text-(--text-primary)"
+                                className={fieldClass('md', 'w-full font-bold tabular-nums focus:outline-none')}
                             />
                             {totalFloors > 0 && (
                                 <div className="text-[10px] text-(--text-tertiary) mt-1">
@@ -283,7 +291,7 @@ export function AutofillPanel({ ptsLimit, bucketSizes, existingPts, existingPick
                 <div className="px-4 py-3 space-y-4 max-h-[60vh] overflow-y-auto">
                     {/* Layer 1: Points Distribution */}
                     <section>
-                        <div className="text-[11px] font-bold text-(--text-tertiary) uppercase tracking-wide mb-2">
+                        <div className={`mb-2 ${CAPS_LABEL_CLASS} text-(--text-tertiary)`}>
                             Points Distribution
                         </div>
 
@@ -314,11 +322,11 @@ export function AutofillPanel({ ptsLimit, bucketSizes, existingPts, existingPick
                                 return (
                                     <div key={key}>
                                         <div className="flex items-baseline justify-between mb-1">
-                                            <span className="text-[11px] font-semibold text-(--text-secondary)">
+                                            <span className={`${CAPS_LABEL_CLASS} text-(--text-tertiary)`}>
                                                 {label}
                                             </span>
                                             <div className="flex items-baseline gap-2">
-                                                <span className="text-[13px] font-bold text-(--text-primary)">
+                                                <span className="text-[13px] font-bold tabular-nums text-(--text-primary)">
                                                     {pts.toLocaleString()} pts
                                                 </span>
                                                 <span className="text-[10px] text-(--text-tertiary)">
@@ -347,16 +355,16 @@ export function AutofillPanel({ ptsLimit, bucketSizes, existingPts, existingPick
 
                         {/* Budget summary */}
                         <div className={[
-                            'flex items-center justify-between mt-2 rounded-lg px-3 py-1.5 text-[11px] font-semibold',
+                            'flex items-center justify-between mt-2 rounded-control px-3 py-1.5 text-[11px] font-semibold',
                             totalAllocated > effectiveLimit
-                                ? 'bg-red-500/10 text-red-500'
+                                ? 'bg-(--red)/10 text-(--red)'
                                 : 'bg-(--background-secondary) text-(--text-secondary)',
                         ].join(' ')}>
                             <span>Total allocated</span>
                             <span>{totalAllocated.toLocaleString()} / {effectiveLimit.toLocaleString()} pts</span>
                         </div>
                         {overBudget && (
-                            <p className="text-[11px] text-red-500 bg-red-500/10 rounded-lg px-3 py-2 mt-2">
+                            <p className="text-[11px] text-(--red) bg-(--red)/10 rounded-control px-3 py-2 mt-2">
                                 Manually drafted picks already total {totalFloors.toLocaleString()} pts, over the {effectiveLimit.toLocaleString()} pt budget. {hasCap ? 'Raise the pts limit or remove picks before autofilling.' : 'Pick a higher target or remove picks before autofilling.'}
                             </p>
                         )}
@@ -364,7 +372,7 @@ export function AutofillPanel({ ptsLimit, bucketSizes, existingPts, existingPick
 
                     {/* Layer 2: Pitching Strategy */}
                     <section>
-                        <div className="text-[11px] font-bold text-(--text-tertiary) uppercase tracking-wide mb-2">
+                        <div className={`mb-2 ${CAPS_LABEL_CLASS} text-(--text-tertiary)`}>
                             Pitching Focus
                         </div>
                         <div className="flex flex-wrap gap-1.5">
@@ -381,7 +389,7 @@ export function AutofillPanel({ ptsLimit, bucketSizes, existingPts, existingPick
 
                     {/* Layer 3: Hitting Strategy */}
                     <section>
-                        <div className="text-[11px] font-bold text-(--text-tertiary) uppercase tracking-wide mb-2">
+                        <div className={`mb-2 ${CAPS_LABEL_CLASS} text-(--text-tertiary)`}>
                             Hitting Focus
                         </div>
                         <div className="flex flex-wrap gap-1.5">
@@ -398,7 +406,7 @@ export function AutofillPanel({ ptsLimit, bucketSizes, existingPts, existingPick
 
                     {/* Layer 4: Defense Strategy */}
                     <section>
-                        <div className="text-[11px] font-bold text-(--text-tertiary) uppercase tracking-wide mb-2">
+                        <div className={`mb-2 ${CAPS_LABEL_CLASS} text-(--text-tertiary)`}>
                             Defense Priority
                         </div>
                         <div className="flex flex-wrap gap-1.5">
@@ -415,7 +423,7 @@ export function AutofillPanel({ ptsLimit, bucketSizes, existingPts, existingPick
 
                     {/* Layer 5: Catcher Defense Strategy */}
                     <section>
-                        <div className="text-[11px] font-bold text-(--text-tertiary) uppercase tracking-wide mb-2">
+                        <div className={`mb-2 ${CAPS_LABEL_CLASS} text-(--text-tertiary)`}>
                             Catcher Defense Priority
                         </div>
                         <div className="flex flex-wrap gap-1.5">
@@ -433,49 +441,6 @@ export function AutofillPanel({ ptsLimit, bucketSizes, existingPts, existingPick
                 </div>
                 )}
 
-                {/* Footer */}
-                <div className="flex flex-col gap-2 px-4 pb-4 pt-3 border-t border-(--divider)">
-                    {error && (
-                        <div className="bg-red-500/15 border border-red-500/30 rounded-lg px-3 py-2.5 space-y-2">
-                            <div className="text-[12px] font-semibold text-red-600">
-                                Autofill couldn't complete
-                            </div>
-                            <p className="text-[11px] text-red-600/90 leading-snug">
-                                {error}
-                            </p>
-                        </div>
-                    )}
-                    {!targetConfirmed ? (
-                        <button
-                            type="button"
-                            onClick={confirmTarget}
-                            disabled={customTarget < totalFloors}
-                            className="w-full flex cursor-pointer items-center justify-center gap-2 rounded-xl py-2.5 text-[13px] font-bold text-white bg-linear-to-r from-blue-500 to-red-500 disabled:opacity-50 disabled:cursor-not-allowed transition-opacity"
-                        >
-                            Continue
-                        </button>
-                    ) : (
-                        <button
-                            type="button"
-                            onClick={handleConfirm}
-                            disabled={loading || overBudget || totalAllocated > effectiveLimit}
-                            className="w-full flex transform-gpu cursor-pointer items-center justify-center gap-2 rounded-xl py-2.5 text-[13px] font-bold text-white bg-linear-to-r from-blue-500 to-red-500 disabled:opacity-50 disabled:cursor-not-allowed transition-opacity"
-                        >
-                            {loading ? (
-                                <span key="loading" className="flex items-center gap-2">
-                                    <FaSpinner className="animate-spin" />
-                                    Filling…
-                                </span>
-                            ) : (
-                                <span key="idle" className="flex items-center gap-2">
-                                    <FaWandMagicSparkles />
-                                    Fill Roster
-                                </span>
-                            )}
-                        </button>
-                    )}
-                </div>
-            </div>
-        </div>
+        </Modal>
     );
 }

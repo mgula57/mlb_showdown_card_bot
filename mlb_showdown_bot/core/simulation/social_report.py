@@ -14,16 +14,20 @@ _TEMPLATE_DIR = Path(__file__).parent / "templates"
 _SHEET_SIZE = (1080, 1350)
 _CAPTURE_HEADROOM = 200
 
-# BRAND ASSETS, EMBEDDED AS DATA URIS SO THE RENDERED PAGE IS ONE SELF-CONTAINED FILE. THE FONT
-# IS THE SAME CONDENSED HEAVY OBLIQUE THE FRONTEND SHIPS AS `ShowdownSetItalic`.
-# THE LOGO IS THE FRONTEND'S OWN LIGHT-MODE WORDMARK, READ STRAIGHT FROM THE REPO RATHER THAN
-# COPIED INTO THE PACKAGE - THESE REPORTS ARE LOCAL CLI TOOLS RUN FROM A CHECKOUT.
+# BRAND ASSETS, EMBEDDED AS DATA URIS SO THE RENDERED PAGE IS ONE SELF-CONTAINED FILE. THE LOGO
+# AND THE DESIGN-LANGUAGE FONTS (frontend/DESIGN.md "Type": THE METRIC-NORMALIZED DISPLAY FACES AND
+# INTER FOR BODY COPY) ARE THE FRONTEND'S OWN, READ STRAIGHT FROM THE REPO RATHER THAN COPIED INTO
+# THE PACKAGE - THESE REPORTS ARE LOCAL CLI TOOLS RUN FROM A CHECKOUT.
 _REPO_ROOT = Path(__file__).resolve().parents[3]
 _LOGO_PATH = _REPO_ROOT / "frontend" / "public" / "images" / "logos" / "logo-light.png"
-_FONT_DIR = Path(__file__).parent.parent / "card" / "fonts"
-_FONT_PATH = _FONT_DIR / "HelveticaNeueCondensedHeavyOblique.otf"
-# UPRIGHT EXTRA BLACK FOR THE HERO TITLE - HEAVY LIKE THE WORDMARK ABOVE IT.
-_TITLE_FONT_PATH = _FONT_DIR / "HelveticaNeueLtStd107ExtraBlack.otf"
+_FRONTEND_FONT_DIR = _REPO_ROOT / "frontend" / "src" / "assets" / "fonts"
+_FONT_PATH = _FRONTEND_FONT_DIR / "HelveticaNeueCondensedHeavyOblique.otf"
+_UPRIGHT_FONT_PATH = _FRONTEND_FONT_DIR / "HelveticaNeueBoldCondensed.ttf"
+# INTER COMES FROM THE FRONTEND'S `@fontsource-variable/inter` PACKAGE, SO IT'S ONLY THERE AFTER AN
+# `npm install`; WITHOUT IT THE PAGE FALLS BACK TO THE SYSTEM SANS.
+_BODY_FONT_PATH = _REPO_ROOT / "frontend" / "node_modules" / "@fontsource-variable" / "inter" / "files" / "inter-latin-wght-normal.woff2"
+# UPRIGHT EXTRA BLACK FOR THE POSTSEASON HERO TITLE - HEAVY LIKE THE WORDMARK ABOVE IT.
+_TITLE_FONT_PATH = Path(__file__).parent.parent / "card" / "fonts" / "HelveticaNeueLtStd107ExtraBlack.otf"
 
 # WHERE TO LOOK FOR A CHROME/CHROMIUM BINARY FOR PDF EXPORT. `CHROME_PATH` WINS WHEN SET.
 _CHROME_CANDIDATES = [
@@ -69,6 +73,8 @@ class SocialSheetReport:
             logo_src=self.data_uri(_LOGO_PATH, "image/png"),
             font_src=self.data_uri(_FONT_PATH, "font/otf"),
             title_font_src=self.data_uri(_TITLE_FONT_PATH, "font/otf"),
+            upright_font_src=self.data_uri(_UPRIGHT_FONT_PATH, "font/ttf"),
+            body_font_src=self.data_uri(_BODY_FONT_PATH, "font/woff2") if _BODY_FONT_PATH.exists() else "",
             **self.context(),
         )
 
@@ -108,12 +114,13 @@ class SocialSheetReport:
         return [out_dir / f"{stem}_{page}.{image_format}" for page in range(1, cls.SHEET_COUNT + 1)]
 
     @classmethod
-    def write_images(cls, html_path: Path, image_paths: list[Path]) -> Optional[str]:
+    def write_images(cls, html_path: Path, image_paths: list[Path], scale: int = 1) -> Optional[str]:
         """Screenshot each sheet as its own image, one per path in `image_paths` (page 1 to
         `image_paths[0]`, page 2 to `image_paths[1]`, ...) - `SHEET_COUNT` of them. The format
         (PNG/JPEG) is whatever each path's extension says; headless Chrome picks it up from that.
         Returns None on success, or a reason every image was skipped - like `write_pdf`, image
-        export is optional and never fails the caller."""
+        export is optional and never fails the caller. `scale` is the device pixel ratio: 2 renders
+        a 2160x2700 image of the same 1080x1350 layout, with crisper text."""
         if len(image_paths) != cls.SHEET_COUNT:
             raise ValueError(f"write_images needs exactly {cls.SHEET_COUNT} path(s), got {len(image_paths)}")
         chrome = cls.find_chrome()
@@ -126,7 +133,7 @@ class SocialSheetReport:
             # VIEWPORT SHORTER THAN `--window-size` (LEAVING THE SHEET'S BOTTOM BLANK), SO CAPTURE A
             # TALLER WINDOW AND CROP BACK DOWN TO THE SHEET.
             command = [
-                chrome, "--headless=new", "--disable-gpu", "--hide-scrollbars",
+                chrome, "--headless=new", "--disable-gpu", "--hide-scrollbars", f"--force-device-scale-factor={scale}",
                 f"--window-size={_SHEET_SIZE[0]},{_SHEET_SIZE[1] + _CAPTURE_HEADROOM}", "--virtual-time-budget=10000",
                 f"--screenshot={image_path.resolve()}", f"{html_uri}#pdf-{page}",
             ]
@@ -137,6 +144,6 @@ class SocialSheetReport:
             if not image_path.exists():
                 return f"Chrome ran but produced no image for page {page}"
             with Image.open(image_path) as screenshot:
-                sheet = screenshot.crop((0, 0, *_SHEET_SIZE))
+                sheet = screenshot.crop((0, 0, _SHEET_SIZE[0] * scale, _SHEET_SIZE[1] * scale))
             sheet.save(image_path)
         return None

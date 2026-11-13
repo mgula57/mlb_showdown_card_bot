@@ -1,5 +1,5 @@
 import { FaMagnifyingGlass, FaXmark } from 'react-icons/fa6';
-import { SearchGradientBorder } from '../shared/SearchGradientBorder';
+import { SearchFrame } from '../shared/SearchFrame';
 
 type TeamSearchInputProps = {
     value: string;
@@ -9,11 +9,11 @@ type TeamSearchInputProps = {
     autoFocus?: boolean;
 };
 
-/** Shared search field used by the team lists — gradient frame, icon, clear button, consistent styling. */
+/** Shared search field used by the team lists — logo frame, icon, clear button, consistent styling. */
 export function TeamSearchInput({ value, onChange, placeholder, className, autoFocus }: TeamSearchInputProps) {
     return (
-        <SearchGradientBorder className={className}>
-            <div className="relative bg-(--background-secondary) rounded-lg">
+        <SearchFrame className={className}>
+            <div className="relative bg-(--background-secondary) rounded-[3px]">
                 <FaMagnifyingGlass className="absolute left-3 top-1/2 -translate-y-1/2 text-[12px] text-(--text-tertiary)" />
                 <input
                     type="text"
@@ -21,7 +21,7 @@ export function TeamSearchInput({ value, onChange, placeholder, className, autoF
                     onChange={e => onChange(e.target.value)}
                     autoFocus={autoFocus}
                     placeholder={placeholder ?? 'Search teams by name or set…'}
-                    className="w-full pl-9 pr-9 py-2 rounded-lg bg-transparent text-[13px] text-(--text-primary) placeholder:text-(--text-tertiary) focus:outline-none"
+                    className="w-full pl-9 pr-9 py-2 rounded-control bg-transparent text-[13px] text-(--text-primary) placeholder:text-(--text-tertiary) focus:outline-none"
                 />
                 {value && (
                     <button
@@ -34,7 +34,7 @@ export function TeamSearchInput({ value, onChange, placeholder, className, autoF
                     </button>
                 )}
             </div>
-        </SearchGradientBorder>
+        </SearchFrame>
     );
 }
 

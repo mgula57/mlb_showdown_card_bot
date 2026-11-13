@@ -503,6 +503,20 @@ class GamesClient(BaseMLBClient):
 
         return Schedule(**response)
 
+    def is_world_series_over(self, season: int, sport_id: int = 1) -> bool:
+        """True once a team has clinched the World Series (won a majority of its games)."""
+        schedule = self.get_season_schedule(season=season, sport_id=sport_id, game_types=["W"])
+        games = schedule.games or []
+        if not games:
+            return False
+        wins_needed = (games[0].games_in_series or 7) // 2 + 1
+        wins: dict[int, int] = {}
+        for game in games:
+            for side in (game.teams.away, game.teams.home) if game.teams else ():
+                if side and side.is_winner and side.team:
+                    wins[side.team.id] = wins.get(side.team.id, 0) + 1
+        return max(wins.values(), default=0) >= wins_needed
+
     def get_season_schedule(self, season: int, sport_id: int = 1, game_types: list[str] = ["R"]) -> Schedule:
         """Get every game for a season (regular season only by default).
 

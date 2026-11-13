@@ -1,0 +1,156 @@
+{% extends "_social_base.html.j2" %}
+{% block title %}{{ version }} · {{ headline }}{% endblock %}
+{% block styles %}
+  /* DARK THEME: MIRRORS THE FRONTEND'S `.dark` TOKENS (frontend/src/index.css). */
+  :root {
+    --primary: #f1f3f5;
+    --secondary: #d5dae0;
+    --text-tertiary: #8b939d;
+    --showdown-blue: #4f86cf;
+    --showdown-blue-fill: #3775c8;
+    --showdown-red: #e0574d;
+    --showdown-gray: #a0a0a5;
+    --background-primary: #0d1116;
+    --background-secondary: #161b22;
+    --background-tertiary: #212833;
+    --divider: #2f3844;
+    --rule-strong: #4a5461;
+    --plate: #343e4b;
+    --plate-ink: #f1f3f5;
+    --stripe: rgb(120 160 220 / 0.07);
+    --shadow-overlay: 0 18px 44px rgb(0 0 0 / 0.55);
+    --sheet-background: var(--background-primary);
+  }
+  .pinstripes { height: 820px; }
+
+  .hero { grid-template-columns: 1fr 470px; align-items: start; border-bottom: none; padding-bottom: 0; }
+  .eyebrow { font-family: 'ShowdownSetItalic', "Helvetica Neue", sans-serif; font-style: italic; font-weight: 400; font-size: 15px; letter-spacing: .42em; color: var(--text-tertiary); margin-top: 6px; }
+  h1 { margin-top: 16px; font-family: 'ShowdownSetItalic', "Helvetica Neue", sans-serif; font-style: italic; font-weight: 400; font-size: 84px; line-height: .95; letter-spacing: 0; color: var(--text-primary); }
+  h1 .accent { color: var(--showdown-red); }
+  .sub { color: var(--secondary); font-size: 21px; line-height: 1.4; margin-top: 18px; max-width: 420px; }
+  .status { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 22px; }
+  .plate.navy { background: var(--showdown-blue-fill); }
+  .plate.red { background: var(--showdown-red); color: #fff; }
+
+  /* THE SCREENSHOT: AN APP WINDOW BLEEDING OFF THE TOP-RIGHT CORNER OF THE SHEET. */
+  .shot { position: relative; margin: -44px -56px 0 0; height: 540px; }
+  .shot .frame { position: absolute; top: 34px; bottom: 0; left: 0; width: 600px; border: 1px solid var(--rule-strong); border-right: none; border-radius: 6px 0 0 6px; overflow: hidden; box-shadow: var(--shadow-overlay); background: var(--background-secondary); }
+  .shot .frame img { display: block; width: 100%; height: 100%; object-fit: cover; object-position: top left; }
+  .shot .frame::after { content: ''; position: absolute; inset: auto 0 0; height: 90px; background: linear-gradient(to bottom, transparent, var(--background-primary)); }
+  .shot .rule { position: absolute; left: 0; top: 34px; bottom: 0; width: 4px; background: var(--showdown-red); border-radius: 2px 0 0 2px; z-index: 1; }
+
+  /* CARD SHOWCASE: TWO TILTED CARDS WITH PARALLEL LABELS, IN PLACE OF THE SCREENSHOT. */
+  .fan { position: relative; height: 500px; margin-right: -8px; }
+  .fan .slot { position: absolute; width: 290px; }
+  .fan .slot:nth-child(1) { left: 0; top: 18px; transform: rotate(-5deg); z-index: 1; }
+  .fan .slot:nth-child(2) { left: 180px; top: 70px; transform: rotate(4deg); z-index: 2; }
+  .fan .pcard { border: 2px solid var(--rule-strong); border-radius: 6px; overflow: hidden; box-shadow: var(--shadow-overlay); background: var(--background-secondary); }
+  .fan .pcard img { display: block; width: 100%; }
+  .fan .tag { display: flex; align-items: center; gap: 10px; margin-top: 12px; }
+  .fan .tag .plate { font-size: 14px; }
+  .fan .tag .cap { font-size: 11px; letter-spacing: .2em; text-transform: uppercase; color: var(--text-tertiary); font-weight: 700; }
+
+  /* WITH A SCREENSHOT TOO: THE CARDS ARE SMALLER AND OVERLAP ITS BOTTOM-LEFT CORNER, LABELS ON TOP. */
+  .shot .fan { position: absolute; inset: 0; margin: 0; height: auto; pointer-events: none; }
+  .shot .fan .slot { width: 190px; }
+  .shot .fan .slot:nth-child(1) { left: -78px; top: 270px; }
+  .shot .fan .slot:nth-child(2) { left: 70px; top: 300px; }
+  .shot .fan .tag { position: absolute; top: 8px; left: 8px; margin: 0; }
+  .shot .fan .tag .plate { font-size: 12px; padding: 3px 6px; }
+
+  /* FEATURE TILES: SET-NUMBER PLATE, CARD-NAME HEADLINE, ONE SHORT LINE. */
+  .features { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 10px; }
+  .feature { position: relative; background: var(--background-secondary); border: 1px solid var(--divider); border-left: 4px solid var(--accent, var(--showdown-blue)); border-radius: 4px; padding: 20px 22px 20px 18px; display: grid; grid-template-columns: 56px 1fr; gap: 14px; align-items: start; }
+  .feature .num { font-family: 'ShowdownTitle', "Helvetica Neue", sans-serif; font-weight: 900; font-size: 22px; line-height: 1; color: var(--accent, var(--showdown-blue)); padding-top: 4px; font-variant-numeric: tabular-nums; }
+  .feature .name { font-size: 27px; line-height: 1.02; color: var(--text-primary); }
+  .feature .desc { color: var(--secondary); font-size: 17px; line-height: 1.38; margin-top: 7px; }
+  .feature .tags { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 10px; }
+  .feature .tags .plate { font-size: 11px; padding: 4px 6px; }
+  .feature.wide { grid-column: span 2; }
+  .feature.art { grid-template-columns: 56px 1fr 460px; align-items: stretch; }
+  .feature.art .name { font-size: 40px; }
+  .feature.art .desc { font-size: 19px; max-width: 420px; }
+  .feature .art-frame { align-self: center; border: 1px solid var(--rule-strong); border-radius: 4px; overflow: hidden; box-shadow: var(--shadow-overlay); }
+  .feature .art-frame img { display: block; width: 100%; }
+
+  .also { margin-top: 22px; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+  .also .caps-label { margin-right: 4px; }
+  .also .plate { font-size: 13px; }
+
+  footer { border-top-color: var(--divider); color: var(--text-tertiary); font-size: 16px; }
+  footer .url { color: var(--showdown-red); font-size: 30px; }
+  footer strong { color: var(--text-primary); font-weight: 700; font-size: 18px; }
+{% endblock %}
+{% block sheets %}
+<div class="sheet">
+<div class="pinstripes" aria-hidden="true"></div>
+<div class="inner">
+<div class="sheet-content">
+
+  <div class="hero">
+    <div>
+      <img class="logo" src="{{ logo_dark_src }}" alt="Showdown Bot">
+      <div class="eyebrow">{{ eyebrow }}</div>
+      <h1>{{ headline_lead }}<br><span class="accent">{{ headline_accent }}</span></h1>
+      <div class="sub">{{ subhead }}</div>
+      <div class="status">
+        <span class="plate lg navy">Version {{ version }}</span>
+        {% for s in status_plates %}<span class="plate lg outline">{{ s }}</span>{% endfor %}
+      </div>
+    </div>
+    {% if screenshot_src %}
+    <div class="shot">
+      <div class="rule"></div>
+      <div class="frame"><img src="{{ screenshot_src }}" alt="Screenshot of the Release Builder"></div>
+    <div class="fan">
+      {% for c in cards %}
+      <div class="slot">
+        <div class="pcard"><img src="{{ c.src }}" alt="{{ c.label }} parallel card"></div>
+        <div class="tag"><span class="plate red">{{ c.label }}</span>{% if c.caption %}<span class="cap">{{ c.caption }}</span>{% endif %}</div>
+      </div>
+      {% endfor %}
+    </div>
+    </div>
+    {% elif cards %}
+    <div class="fan">
+      {% for c in cards %}
+      <div class="slot">
+        <div class="pcard"><img src="{{ c.src }}" alt="{{ c.label }} parallel card"></div>
+        <div class="tag"><span class="plate red">{{ c.label }}</span>{% if c.caption %}<span class="cap">{{ c.caption }}</span>{% endif %}</div>
+      </div>
+      {% endfor %}
+    </div>
+    {% endif %}
+  </div>
+
+  <section class="features">
+    {% for f in features %}
+    <div class="feature{{ ' wide' if f.wide }}{{ ' art' if f.art_src }}" style="--accent: {{ f.accent or 'var(--showdown-blue)' }}">
+      <div class="num">{{ '%03d' % loop.index }}</div>
+      <div>
+        <div class="name upright">{{ f.title }}</div>
+        <div class="desc">{{ f.text }}</div>
+        {% if f.tags %}<div class="tags">{% for t in f.tags %}<span class="plate">{{ t }}</span>{% endfor %}</div>{% endif %}
+      </div>
+      {% if f.art_src %}<div class="art-frame"><img src="{{ f.art_src }}" alt=""></div>{% endif %}
+    </div>
+    {% endfor %}
+  </section>
+
+  {% if also %}
+  <div class="also">
+    <span class="caps-label">Also new</span>
+    {% for a in also %}<span class="plate outline">{{ a }}</span>{% endfor %}
+  </div>
+  {% endif %}
+
+</div>
+
+  <footer>
+    <div class="url display">{{ tagline }}</div>
+    <div><strong>{{ url }}</strong></div>
+  </footer>
+
+</div>
+</div>
+{% endblock %}

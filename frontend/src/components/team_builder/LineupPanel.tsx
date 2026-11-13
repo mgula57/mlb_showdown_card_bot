@@ -153,10 +153,10 @@ export function LineupPanel({ lineups, cardMap, onLineupsChange, readOnly = fals
                     return (
                         <div
                             key={`${ln.name}-${i}`}
-                            className={`flex items-center shrink-0 min-h-8 rounded-lg border transition-colors
+                            className={`flex items-center shrink-0 min-h-8 rounded-control border bg-(--background-secondary) transition-colors
                                 ${isActiveTab
-                                    ? 'border-(--secondary)'
-                                    : 'border-(--divider) hover:border-(--secondary)/50'
+                                    ? 'border-(--showdown-blue) ring-1 ring-(--showdown-blue)'
+                                    : 'border-(--divider) hover:border-(--rule-strong)'
                                 }`}
                         >
                             {editingTabIndex === i ? (
@@ -172,26 +172,26 @@ export function LineupPanel({ lineups, cardMap, onLineupsChange, readOnly = fals
                                     type="button"
                                     onClick={() => setActiveIndex(i)}
                                     className={`text-[13px] font-semibold px-3 py-1.5 cursor-pointer whitespace-nowrap
-                                        ${isActiveTab ? 'text-(--secondary)' : 'text-(--text-secondary)'}`}
+                                        ${isActiveTab ? 'text-(--text-primary)' : 'text-(--text-secondary)'}`}
                                 >
                                     {ln.name}
                                     {ln === simLn && allTabs.length > 1 && (
-                                        <FaCircleCheck className="inline ml-1.5 text-[11px] -translate-y-px text-green-500" title="Used in sims" />
+                                        <FaCircleCheck className="inline ml-1.5 text-[11px] -translate-y-px text-(--green)" title="Used in sims" />
                                     )}
                                 </button>
                             )}
                             {showActions && (
-                                <div className="flex items-center gap-0.5 pr-1 pl-1 border-l border-(--secondary)/30 self-stretch">
+                                <div className="flex items-center gap-0.5 pr-1 pl-1 border-l border-(--divider) self-stretch">
                                     {editingTabIndex === i ? (
-                                        <button type="button" onClick={() => commitRename(i)} aria-label="Save name" className="flex items-center justify-center w-7 h-7 rounded-md text-(--secondary) hover:bg-(--secondary)/10 cursor-pointer">
+                                        <button type="button" onClick={() => commitRename(i)} aria-label="Save name" className="flex items-center justify-center w-7 h-7 rounded-control text-(--showdown-blue) hover:bg-(--background-tertiary) cursor-pointer">
                                             <FaCheck className="text-[12px]" />
                                         </button>
                                     ) : (
                                         <>
-                                            <button type="button" onClick={() => startRename(i)} aria-label="Rename lineup" className="flex items-center justify-center w-7 h-7 rounded-md text-(--text-tertiary) hover:text-(--text-secondary) hover:bg-(--background-secondary) cursor-pointer">
+                                            <button type="button" onClick={() => startRename(i)} aria-label="Rename lineup" className="flex items-center justify-center w-7 h-7 rounded-control text-(--text-tertiary) hover:text-(--text-secondary) hover:bg-(--background-tertiary) cursor-pointer">
                                                 <FaPencil className="text-[11px]" />
                                             </button>
-                                            <button type="button" onClick={() => removeLineup(i)} aria-label="Delete lineup" className="flex items-center justify-center w-7 h-7 rounded-md text-(--text-tertiary) hover:text-red-400 hover:bg-red-400/10 cursor-pointer">
+                                            <button type="button" onClick={() => removeLineup(i)} aria-label="Delete lineup" className="flex items-center justify-center w-7 h-7 rounded-control text-(--text-tertiary) hover:text-(--red) hover:bg-(--red)/10 cursor-pointer">
                                                 <FaTrash className="text-[11px]" />
                                             </button>
                                         </>
@@ -206,7 +206,7 @@ export function LineupPanel({ lineups, cardMap, onLineupsChange, readOnly = fals
                     <button
                         type="button"
                         onClick={addLineup}
-                        className="flex items-center gap-1.5 shrink-0 text-[13px] font-semibold text-(--text-tertiary) hover:text-(--secondary) transition-colors px-3 py-1.5 min-h-8 rounded-lg border border-dashed border-(--divider) hover:border-(--secondary)/50 cursor-pointer whitespace-nowrap"
+                        className="flex items-center gap-1.5 shrink-0 text-[13px] font-semibold text-(--text-tertiary) hover:text-(--secondary) transition-colors px-3 py-1.5 min-h-8 rounded-control border border-dashed border-(--divider) hover:border-(--secondary)/50 cursor-pointer whitespace-nowrap"
                         title="Add new lineup"
                     >
                         <FaPlus className="text-[10px]" /> Add
@@ -228,7 +228,7 @@ export function LineupPanel({ lineups, cardMap, onLineupsChange, readOnly = fals
                         <button
                             type="button"
                             onClick={() => makeSimLineup(activeIndex)}
-                            className="flex items-center gap-1.5 self-start text-[12px] font-semibold text-(--secondary) px-3 py-1.5 rounded-lg border border-(--secondary)/40 hover:bg-(--secondary)/10 cursor-pointer transition-colors"
+                            className="flex items-center gap-1.5 self-start text-[12px] font-semibold text-(--secondary) px-3 py-1.5 rounded-control border border-(--secondary)/40 hover:bg-(--secondary)/10 cursor-pointer transition-colors"
                         >
                             <FaCircleCheck className="text-[11px]" /> Use in sims
                         </button>
@@ -245,7 +245,7 @@ export function LineupPanel({ lineups, cardMap, onLineupsChange, readOnly = fals
                     <button
                         type="button"
                         onClick={copyDefault}
-                        className="flex items-center gap-1.5 self-start text-[12px] font-semibold text-(--secondary) px-3 py-1.5 rounded-lg border border-(--secondary)/40 hover:bg-(--secondary)/10 cursor-pointer transition-colors"
+                        className="flex items-center gap-1.5 self-start text-[12px] font-semibold text-(--secondary) px-3 py-1.5 rounded-control border border-(--secondary)/40 hover:bg-(--secondary)/10 cursor-pointer transition-colors"
                     >
                         <FaCopy className="text-[10px]" /> Copy as new lineup
                     </button>
@@ -273,7 +273,7 @@ export function LineupPanel({ lineups, cardMap, onLineupsChange, readOnly = fals
                                 onDragOver={canReorder ? e => handleDragOver(e, slot.batting_order) : undefined}
                                 onDrop={canReorder ? () => handleDrop(slot.batting_order) : undefined}
                                 onDragEnd={() => { setDragIndex(null); setDragOverIndex(null); }}
-                                className={`flex items-center gap-2 rounded-lg transition-all
+                                className={`flex items-center gap-2 rounded-card transition-all
                                     ${isBeingDragged ? 'opacity-40' : ''}
                                     ${isDropTarget ? 'ring-1 ring-(--secondary)' : ''}
                                 `}
@@ -281,7 +281,7 @@ export function LineupPanel({ lineups, cardMap, onLineupsChange, readOnly = fals
                                 {/* Batting order + fielding position stacked into one compact
                                     column so the card keeps as much width as possible on a phone. */}
                                 <div className="flex flex-col items-center w-6 shrink-0 leading-none gap-0.5">
-                                    <span className="text-[14px] font-black text-(--text-secondary) tabular-nums">
+                                    <span className="font-display-upright text-[17px] leading-none text-(--text-secondary) tabular-nums">
                                         {slot.batting_order}
                                     </span>
                                     <span className="text-[9px] font-bold text-(--text-tertiary)">
@@ -307,7 +307,7 @@ export function LineupPanel({ lineups, cardMap, onLineupsChange, readOnly = fals
                                             disabled={idx === 0}
                                             onClick={() => moveSlot(slot.batting_order, sortedSlots[idx - 1].batting_order)}
                                             aria-label={`Move ${card?.name ?? 'slot'} up`}
-                                            className="flex items-center justify-center w-9 h-9 rounded-lg border border-(--divider) text-(--text-secondary) hover:text-(--text-primary) hover:border-(--text-tertiary) active:scale-95 disabled:opacity-30 disabled:pointer-events-none cursor-pointer transition-all"
+                                            className="flex items-center justify-center w-9 h-9 rounded-control border border-(--divider) text-(--text-secondary) hover:text-(--text-primary) hover:border-(--text-tertiary) active:scale-95 disabled:opacity-30 disabled:pointer-events-none cursor-pointer transition-all"
                                         >
                                             <FaChevronUp className="text-[12px]" />
                                         </button>
@@ -316,7 +316,7 @@ export function LineupPanel({ lineups, cardMap, onLineupsChange, readOnly = fals
                                             disabled={idx === sortedSlots.length - 1}
                                             onClick={() => moveSlot(slot.batting_order, sortedSlots[idx + 1].batting_order)}
                                             aria-label={`Move ${card?.name ?? 'slot'} down`}
-                                            className="flex items-center justify-center w-9 h-9 rounded-lg border border-(--divider) text-(--text-secondary) hover:text-(--text-primary) hover:border-(--text-tertiary) active:scale-95 disabled:opacity-30 disabled:pointer-events-none cursor-pointer transition-all"
+                                            className="flex items-center justify-center w-9 h-9 rounded-control border border-(--divider) text-(--text-secondary) hover:text-(--text-primary) hover:border-(--text-tertiary) active:scale-95 disabled:opacity-30 disabled:pointer-events-none cursor-pointer transition-all"
                                         >
                                             <FaChevronDown className="text-[12px]" />
                                         </button>

@@ -2,11 +2,11 @@
  * @fileoverview Site Settings Context and Theme Management
  * 
  * Provides global state management for application-wide settings including:
- * - MLB Showdown set preferences with visual assets
+ * - MLB Showdown set preferences
  * - Theme management (light/dark/system) with localStorage persistence
  * - System theme detection and automatic switching
  * - CSS class management for theme application
- * - Centralized configuration for Showdown sets and imagery
+ * - Centralized configuration for Showdown sets
  * 
  * The context handles complex theme logic including:
  * - Initial theme detection from localStorage and system preferences
@@ -20,50 +20,20 @@
 import React, { createContext, useContext, useState, useEffect } from "react";
 import { useAuth } from "../auth/AuthContext";
 
-// Images
-// Import images at the top of the file
-import set2000 from '/images/sets/set-2000-v2.png';
-import set2001 from '/images/sets/set-2001-v2.png';
-import setClassic from '/images/sets/set-classic-v2.png';
-import set2002 from '/images/sets/set-2002-v2.png';
-import set2003 from '/images/sets/set-2003-v2.png';
-import set2004 from '/images/sets/set-2004-v2.png';
-import set2005 from '/images/sets/set-2005-v2.png';
-import setExpanded from '/images/sets/set-expanded-v2.png';
-
-import set2000Abbr from '/images/sets/set-2000-sm-v2.png';
-import set2001Abbr from '/images/sets/set-2001-sm-v2.png';
-import setClassicAbbr from '/images/sets/set-classic-sm-v2.png';
-import set2002Abbr from '/images/sets/set-2002-sm-v2.png';
-import set2003Abbr from '/images/sets/set-2003-sm-v2.png';
-import set2004Abbr from '/images/sets/set-2004-sm-v2.png';
-import set2005Abbr from '/images/sets/set-2005-sm-v2.png';
-import setExpandedAbbr from '/images/sets/set-expanded-sm-v2.png';
-
 /**
- * Available MLB Showdown sets with their visual assets and styling
- * Each set includes value identifier, display label, image path, and optional text color
+ * Available MLB Showdown sets, in site order. `name` and `abbr` are what `SetBadge` prints;
+ * `tone` is the set's color (red for 2000, 2001 and Classic, navy for the rest).
  */
-export const showdownSets: Array<{ value: string; label: string; image?: string | undefined; imageAbbr?: string | undefined; textColor?: string | undefined; }> = [
-    { value: "2000", label: "", textColor: "text-blue", image: set2000, imageAbbr: set2000Abbr },
-    { value: "2001", label: "", image: set2001, imageAbbr: set2001Abbr },
-    { value: "CLASSIC", label: "", image: setClassic, imageAbbr: setClassicAbbr },
-    { value: "2002", label: "", image: set2002, imageAbbr: set2002Abbr },
-    { value: "2003", label: "", image: set2003, imageAbbr: set2003Abbr },
-    { value: "2004", label: "", image: set2004, imageAbbr: set2004Abbr },
-    { value: "2005", label: "", image: set2005, imageAbbr: set2005Abbr },
-    { value: "EXPANDED", label: "", image: setExpanded, imageAbbr: setExpandedAbbr },
+export const showdownSets: Array<{ value: string; name: string; abbr: string; tone: 'red' | 'blue'; }> = [
+    { value: "2000", name: "2000", abbr: "'00", tone: "red" },
+    { value: "2001", name: "2001", abbr: "'01", tone: "red" },
+    { value: "CLASSIC", name: "Classic", abbr: "CLS", tone: "red" },
+    { value: "2002", name: "2002", abbr: "'02", tone: "blue" },
+    { value: "2003", name: "2003", abbr: "'03", tone: "blue" },
+    { value: "2004", name: "2004", abbr: "'04", tone: "blue" },
+    { value: "2005", name: "2005", abbr: "'05", tone: "blue" },
+    { value: "EXPANDED", name: "Expanded", abbr: "EXP", tone: "blue" },
 ];
-
-/**
- * Utility function to retrieve the image path for a specific Showdown set
- * @param set - The set identifier to look up
- * @returns The image path for the set, or undefined if not found
- */
-export const imageForSet = (set: string, isAbbreviated?: boolean): string | undefined => {
-    const found = showdownSets.find(s => s.value === set);
-    return isAbbreviated ? found?.imageAbbr : found?.image;
-}
 
 /** Available theme options for the application */
 type Theme = 'light' | 'dark' | 'system';

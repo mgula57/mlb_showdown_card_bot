@@ -1,11 +1,12 @@
+import { ImageLightbox } from '../shared/ImageLightbox';
 import { useState, useEffect } from "react";
-import { createPortal } from "react-dom";
 import { type CustomCardLogRecord } from "../../api/card_db/cardDatabase";
-import { FaCircleCheck, FaCircleXmark, FaShuffle, FaImage, FaXmark, FaExpand } from "react-icons/fa6";
-import { imageForSet } from "../shared/SiteSettingsContext";
+import { FaCircleCheck, FaCircleXmark, FaShuffle, FaImage, FaExpand } from "react-icons/fa6";
+import { SetBadge } from "../shared/SetBadge";
 import type { CustomCardFormState } from "../customs/CustomCardBuilder";
 import { titleCase } from "../../functions/text";
 import { useAuth } from "../auth/AuthContext";
+import { cardImagePublicUrl } from "../../api/supabase";
 
 type CardHistoryProps = {
     history?: CustomCardLogRecord[];
@@ -78,18 +79,16 @@ export const CardHistory = ({ history, onSelectCard }: CardHistoryProps) => {
     };
 
     const getImageUrl = (record: CustomCardLogRecord): string | null => {
-        const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-        if (record.thumbnail_storage_path) return `${supabaseUrl}/storage/v1/object/public/card_images/${record.thumbnail_storage_path}`;
-        if (record.storage_path) return `${supabaseUrl}/storage/v1/object/public/card_images/${record.storage_path}`;
+        if (record.thumbnail_storage_path) return cardImagePublicUrl(record.thumbnail_storage_path);
+        if (record.storage_path) return cardImagePublicUrl(record.storage_path);
         if (record.img_url) return record.img_url;
         if (record.img_name) return `static/output/${record.img_name}`;
         return null;
     };
 
     const getFullImageUrl = (record: CustomCardLogRecord): string | null => {
-        const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-        if (record.storage_path) return `${supabaseUrl}/storage/v1/object/public/card_images/${record.storage_path}`;
-        if (record.thumbnail_storage_path) return `${supabaseUrl}/storage/v1/object/public/card_images/${record.thumbnail_storage_path}`;
+        if (record.storage_path) return cardImagePublicUrl(record.storage_path);
+        if (record.thumbnail_storage_path) return cardImagePublicUrl(record.thumbnail_storage_path);
         if (record.img_url) return record.img_url;
         if (record.img_name) return `static/output/${record.img_name}`;
         return null;
@@ -123,7 +122,7 @@ export const CardHistory = ({ history, onSelectCard }: CardHistoryProps) => {
 
                             return (
                                 <li key={index}>
-                                    <div className="flex items-start gap-2 py-2 rounded-lg bg-(--background-primary) px-3">
+                                    <div className="flex items-start gap-2 py-2 rounded-card bg-(--background-primary) px-3">
 
                                         {/* Thumbnail */}
                                         {(() => {
@@ -131,7 +130,7 @@ export const CardHistory = ({ history, onSelectCard }: CardHistoryProps) => {
                                             const fullUrl = getFullImageUrl(group.record);
                                             return (
                                                 <div
-                                                    className={`relative z-0 shrink-0 w-20 rounded-lg overflow-hidden bg-(--background-secondary) group/thumb ${fullUrl ? 'cursor-zoom-in' : ''}`}
+                                                    className={`relative z-0 shrink-0 w-20 rounded-control overflow-hidden bg-(--background-secondary) group/thumb ${fullUrl ? 'cursor-zoom-in' : ''}`}
                                                     style={{ aspectRatio: '3.5 / 4.5' }}
                                                     onClick={() => fullUrl && setModalImageUrl(fullUrl)}
                                                 >
@@ -172,9 +171,9 @@ export const CardHistory = ({ history, onSelectCard }: CardHistoryProps) => {
                                                     <span className="text-xs text-secondary shrink-0">{group.record.year}</span>
                                                 </div>
 
-                                                {/* Set image + set number + expansion + league */}
+                                                {/* Set badge + set number + expansion + league */}
                                                 <div className="text-xs text-secondary flex items-center gap-1.5">
-                                                    <img src={imageForSet(group.record.set)} alt={group.record.set} className="h-4 object-contain" />
+                                                    <SetBadge set={group.record.set} size="sm" />
                                                     {inputs?.set_number && (
                                                         <span className="text-[11px]">#{set_number}</span>
                                                     )}
@@ -211,7 +210,7 @@ export const CardHistory = ({ history, onSelectCard }: CardHistoryProps) => {
                                                         key={idx}
                                                         onClick={() => timestamp.user_inputs && onSelectCard?.(timestamp.user_inputs)}
                                                         disabled={!timestamp.user_inputs}
-                                                        className={`text-[10px] flex justify-between items-center gap-1.5 overflow-hidden w-full text-left rounded px-1.5 py-1 transition-colors ${
+                                                        className={`text-[10px] flex justify-between items-center gap-1.5 overflow-hidden w-full text-left rounded-control px-1.5 py-1 transition-colors ${
                                                             timestamp.user_inputs ? 'hover:bg-(--background-tertiary) cursor-pointer' : 'cursor-default'
                                                         } ${timestamp.error_for_user ? 'text-(--red)' : 'text-(--green)'}`}
                                                     >
@@ -249,26 +248,7 @@ export const CardHistory = ({ history, onSelectCard }: CardHistoryProps) => {
             </ul>
 
             {/* Lightbox */}
-            {modalImageUrl && createPortal(
-                <div
-                    className="fixed inset-0 z-9999 flex items-center justify-center bg-black/80 backdrop-blur-sm"
-                    onClick={() => setModalImageUrl(null)}
-                >
-                    <button
-                        className="absolute top-4 right-4 text-white/70 hover:text-white transition-colors text-xl"
-                        onClick={() => setModalImageUrl(null)}
-                    >
-                        <FaXmark />
-                    </button>
-                    <img
-                        src={modalImageUrl}
-                        alt="Card full view"
-                        className="max-h-[90vh] max-w-[90vw] object-contain rounded-lg shadow-2xl"
-                        onClick={(e) => e.stopPropagation()}
-                    />
-                </div>,
-                document.body
-            )}
+            {modalImageUrl && <ImageLightbox src={modalImageUrl} onClose={() => setModalImageUrl(null)} />}
         </div>
     );
 };

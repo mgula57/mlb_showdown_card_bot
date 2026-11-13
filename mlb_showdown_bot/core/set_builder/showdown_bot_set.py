@@ -1,11 +1,12 @@
 from pprint import pprint
-from typing import List, Dict, Optional, Tuple
+from typing import ClassVar, List, Dict, Optional, Tuple
 import statistics
 import os
+import traceback
 import csv
 import json
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, PrivateAttr, field_validator, model_validator
 from datetime import datetime
 from math import ceil
 from psycopg2 import sql
@@ -18,8 +19,15 @@ from ..database.postgres_db import PostgresDB, ExploreDataRecord, ExploreDataRec
 from ..shared.player_position import Position
 from ..card.showdown_player_card import ShowdownPlayerCard, Expansion, Edition, ImageParallel, StatHighlightsType, SpecialEdition
 from ..card.card_generation import generate_card
+from ..card.sets import Set
 from ..card.images import DEFAULT_RENDER_FILE_FORMAT
-from ..card.stats.stats_period import TeamSelection
+from ..card.stats.stats_period import SeasonHalf, TeamSelection
+from ..card.utils.shared_functions import convert_year_string_to_list
+from .release_card_period import ReleaseCardPeriod, ReleaseCardPeriodError
+from .selection import (
+    PLAYER_SUBTYPES, OtherEditionsRule, PositionTarget, SelectionReason, SelectionWeights, ShowdownBotSetPlayer, SlotGroup, SlotPosition,
+    TeamMinimums, TeamWeighting, WeightedPlayerSelector
+)
 
 # ANSI color codes
 class Colors:
@@ -37,15 +45,6 @@ def color_image_match(image_match_type: ImageMatchType) -> str:
     else:  # NO_MATCH or YEAR_MATCH
         return f"{Colors.RED}{image_match_type.value}{Colors.END}"
 
-class TeamAllocation(BaseModel):
-    """How many players each team should get"""
-    team_id: str
-    team_name: str
-    target_count: int
-    min_count: int = Field(ge=1)
-    max_count: int
-    actual_count: int = 0
-
 class PlayerTypeDistribution(BaseModel):
     """Distribution of player types in the set"""
     hitters_percentage: float = Field(0.65, ge=0, le=1, description="Percentage of hitters in set")
@@ -59,13 +58,47 @@ class PlayerTypeDistribution(BaseModel):
             raise ValueError(f"Player type percentages must sum to 1.0, got {total}")
         return self
     
+class PointBucket(BaseModel):
+    """A point range (inclusive) and the share of each player type's cards that should fall in it"""
+    min_points: int = Field(10, ge=0, description="Lowest point value in the bucket (inclusive)")
+    max_points: int = Field(..., ge=0, description="Highest point value in the bucket (inclusive)")
+    percentage: float = Field(..., ge=0, le=1, description="Ideal share of each player type's cards in this bucket")
 
-class ShowdownBotSetPlayer(ExploreDataRecord):
-    """Extended player record for set building"""
-    
-    priority_score: float = 0.0  # Calculated priority score for selection
+    @model_validator(mode='after')
+    def validate_range(self) -> 'PointBucket':
+        if self.min_points > self.max_points:
+            raise ValueError(f"Point bucket min ({self.min_points}) must be <= max ({self.max_points})")
+        return self
 
-    set_number: Optional[int] = None  # Assigned set number for the player
+    @property
+    def label(self) -> str:
+        return f"{self.min_points}-{self.max_points} pts"
+
+    def contains(self, player: ExploreDataRecord) -> bool:
+        """Whether a player's card points fall within this bucket"""
+        return player.points is not None and self.min_points <= player.points <= self.max_points
+
+    @classmethod
+    def validate_list(cls, buckets: List['PointBucket']) -> List['PointBucket']:
+        """Buckets can't overlap (a card could satisfy two targets) and can't ask for more than 100% of a type"""
+        ordered = sorted(buckets, key=lambda b: b.min_points)
+        for previous, current in zip(ordered, ordered[1:]):
+            if current.min_points <= previous.max_points:
+                raise ValueError(f"Point buckets {previous.label} and {current.label} overlap")
+        total = sum(b.percentage for b in buckets)
+        if total > 1.0 + 1e-9:
+            raise ValueError(f"Point bucket percentages must total 100% or less, got {total:.0%}")
+        return buckets
+
+    @classmethod
+    def parse_cli(cls, value: str) -> List['PointBucket']:
+        """Parse a CLI string like '10-50:0.15,60-100:0.10' into buckets"""
+        buckets = []
+        for chunk in value.split(','):
+            point_range, percentage = chunk.strip().split(':')
+            min_points, max_points = point_range.split('-')
+            buckets.append(cls(min_points=int(min_points), max_points=int(max_points), percentage=float(percentage)))
+        return buckets
 
 
 class ShowdownBotSet(BaseModel):
@@ -73,10 +106,11 @@ class ShowdownBotSet(BaseModel):
     
     set_size: int = Field(ge=1, le=1000, description="Total number of cards in the set")
     years: List[int] = Field(..., description="List of years to consider for player stats")
-    showdown_sets: List[str] = Field(..., description="Showdown sets to consider for player selection")
+    showdown_sets: List[str] = Field(..., description="Showdown sets to consider for player selection (hitters only when `pitcher_showdown_sets` is set)")
+    pitcher_showdown_sets: Optional[List[str]] = Field(None, description="Showdown sets for pitchers, e.g. 2000 hitters with 2001 pitchers (None to use `showdown_sets` for everyone)")
 
     # Minimum requirements
-    min_games_hitters: int = Field(60, description="Minimum games for hitters")
+    min_pa_hitters: int = Field(200, description="Minimum plate appearances for hitters")
     min_ip_starters: int = Field(75, description="Minimum IP for starting pitchers") 
     min_ip_relievers: int = Field(30, description="Minimum IP for relief pitchers")
 
@@ -90,29 +124,50 @@ class ShowdownBotSet(BaseModel):
     # Special inclusions
     include_all_stars: bool = Field(True, description="Include All-Star players")
     include_award_winners: bool = Field(True, description="Include Award-winning players")
-
-    # All-Star Game mode
-    is_all_star_game: bool = Field(False, description="Build the set as the full All-Star roster (ignores set_size, allocations, and quality selection)")
+    all_stars_only: bool = Field(False, description="Restrict the qualified player pool to players who received an All-Star selection that year")
+    legend_min_career_war: Optional[float] = Field(
+        None, ge=0,
+        description="Career WAR (through the latest year) at which a player skips the PA/IP minimums and is guaranteed a card, e.g. a veteran's injury-shortened final season (None to disable)"
+    )
 
     # Construction results
     final_players: Optional[List[ShowdownBotSetPlayer]] = Field(None, description="Final list of players selected for the set")
+    cut_lines: List[dict] = Field(default_factory=list, description="Per slot group, the best score left out when it filled (see `_cut_lines`)")
+    _pick_cut_lines: Dict[str, Optional[float]] = PrivateAttr(default_factory=dict)
+    warnings: List[str] = Field(default_factory=list, description="Non-fatal warnings surfaced during set construction (e.g. undersized player pool)")
     
-    # 10-50 point card allocation
-    ideal_low_point_percentage: Optional[float] = Field(
-        None,
-        ge=0,
-        le=1,
-        description="Ideal percentage of 10-50 point cards in the set (None to skip)"
+    # Selection weights and position composition
+    selection_weights: SelectionWeights = Field(default_factory=SelectionWeights)
+    position_targets: List[PositionTarget] = Field(
+        default_factory=list,
+        description="Share of the set (and average points) per position, e.g. from a WOTC base set. Replaces player_type_distribution when set."
+    )
+
+    # Players and teams
+    unique_players: bool = Field(True, description="At most one card per player, even across multiple years or showdown sets")
+    team_weighting: TeamWeighting = Field(TeamWeighting.EVEN, description="Even share per team, or more cards for stronger teams")
+    team_minimums: TeamMinimums = Field(default_factory=TeamMinimums, description="Cards every team gets of each player type")
+    other_editions_rule: OtherEditionsRule = Field(OtherEditionsRule.ALLOW, description="How to treat players already in another edition of the release")
+    teams: List[str] = Field(default_factory=list, description="Only players whose card is on one of these teams (ex: ['NYY', 'BOS']). Empty means every team")
+    other_edition_players: Dict[str, List[str]] = Field(
+        default_factory=dict,
+        description="Players already in another edition of the release: bref_id (w/ type override) -> their team ids there"
+    )
+
+    # Point bucket allocation (e.g. 15% of 10-50 pt cards, 10% of 60-100 pt cards)
+    point_buckets: List[PointBucket] = Field(
+        default_factory=list,
+        description="Point ranges with an ideal share of each player type's cards (empty to skip)"
     )
 
     # Specific player IDs to include
     manually_included_ids: Optional[List[str]] = Field(
         None,
-        description="Specific player IDs to always include in the set"
+        description="Specific players to always include in the set: a player ID (every year) or a player-year record ID (ex: '2023-judgeaa01')"
     )
     manually_excluded_ids: Optional[List[str]] = Field(
         None,
-        description="Specific player IDs to always exclude from the set"
+        description="Specific players to always exclude from the set: a player ID (every year) or a player-year record ID (ex: '2023-judgeaa01')"
     )
     year_overrides: Optional[Dict[str, str]] = Field(
         None,
@@ -130,6 +185,9 @@ class ShowdownBotSet(BaseModel):
         None,
         description="List of expansion cards loaded from CSV and database"
     )
+
+    # Career WAR by bref_id, loaded with the player pool when legends or the career weight need it
+    _career_wars: Dict[str, float] = PrivateAttr(default_factory=dict)
 
     def _load_expansion_players_from_csv(self) -> List[Dict]:
         """Load expansion players from CSV file in core/set_builder folder.
@@ -213,7 +271,7 @@ class ShowdownBotSet(BaseModel):
                 FROM internal.dim_card
                 WHERE player_id IN %s and showdown_set IN %s
             """)
-            raw_cards = db.execute_query(query=query, filter_values=(filter_values, tuple(self.showdown_sets)))
+            raw_cards = db.execute_query(query=query, filter_values=(filter_values, tuple(self.all_showdown_sets)))
             
             # Create a lookup map from player_id to CSV row data
             csv_data_lookup = {player['player_id']: player for player in expansion_players}
@@ -256,6 +314,16 @@ class ShowdownBotSet(BaseModel):
 
         return expansion_cards
 
+    @field_validator('point_buckets')
+    @classmethod
+    def validate_point_buckets(cls, buckets: List[PointBucket]) -> List[PointBucket]:
+        return PointBucket.validate_list(buckets)
+
+    @field_validator('position_targets')
+    @classmethod
+    def validate_position_targets(cls, targets: List[PositionTarget]) -> List[PositionTarget]:
+        return PositionTarget.validate_list(targets)
+
     def build_set_player_list(self, show_team_breakdown: Optional[str] = None, source_env: str = "dev") -> None:
         """Build a complete set (base + expansions) based on configuration"""
         
@@ -264,45 +332,127 @@ class ShowdownBotSet(BaseModel):
         # 1. Get player pool
         player_pool = self._get_qualified_player_pool(source_env=source_env)
         print(f"Found {len(player_pool)} qualified players")
+        
+        if len(player_pool) < self.set_size:
+            self._warn(f"Only {len(player_pool)} qualified players available for {self.set_size} card set")
+        
+        # 2. Calculate quality thresholds
+        self._calculate_quality_thresholds(player_pool)
+        
+        # 3. Score players and fill the set by weighted selection
+        player_pool = WeightedPlayerSelector.score_player_pool(player_pool, self.selection_weights, self._calculate_quality_score, self._career_war)
+        selector = WeightedPlayerSelector(player_pool, self.set_size, self.selection_weights, self.team_weighting, self.unique_players)
+        final_players = self._select_players(selector)
+        
+        # 4. Swap cards to hit point bucket targets across the whole set
+        final_players = self._enforce_point_buckets(final_players, player_pool, selector)
+        self.cut_lines = self._cut_lines(final_players, selector)
+        self._pick_cut_lines = {p.id: selector.cut_line(p) for p in final_players}
 
-        if self.is_all_star_game:
-            # All-Star Game mode: the entire roster makes the set, no allocations or quality selection
-            if len(player_pool) == 0:
-                print(f"No All-Star players found for {', '.join(map(str, self.years))}")
-                return
-
-            final_players = [ShowdownBotSetPlayer(**p.model_dump()) for p in player_pool]
-            self.set_size = len(final_players)
-            self._print_set_summary(final_players, {}, show_team_breakdown, player_pool)
-        else:
-            if len(player_pool) < self.set_size:
-                print(f"Warning: Only {len(player_pool)} qualified players available for {self.set_size} card set")
-
-            # 2. Calculate quality thresholds
-            self._calculate_quality_thresholds(player_pool)
-
-            # # 3. Get team allocations
-            team_allocations = self._calculate_team_allocations(player_pool)
-
-            # 4. Select players by team and type
-            selected_players = self._select_players(player_pool, team_allocations)
-
-            # 5. Redistribute unused slots
-            final_players = self._redistribute_unused_slots(player_pool, team_allocations, selected_players)
-
-            self._print_set_summary(final_players, team_allocations, show_team_breakdown, player_pool)
+        self._print_set_summary(final_players, selector.team_targets, show_team_breakdown, player_pool)
 
         final_players = self._sort_and_number_players(final_players)
         
-        # 6. Load and add expansion players from CSV (if provided)
+        # 5. Load and add expansion players from CSV (if provided)
         expansion_player_tuples = self._load_expansion_players_from_csv()
         if expansion_player_tuples:
             expansion_cards = self._load_expansion_cards_from_db(expansion_player_tuples, source_env=source_env)
             self.expansion_cards = expansion_cards
         
         self.final_players = final_players
-        
+
         return
+
+    def build_preview_rows(self, db: PostgresDB, rerun_cards: bool = False, variable_speed: bool = False, season_half: Optional[SeasonHalf] = None) -> List[dict]:
+        """Build the set and return its `card_bot` rows in set-number order, as the Edition
+        Builder's Algorithm preview shows them. With `rerun_cards`, each row's card is rebuilt
+        through the current `ShowdownPlayerCard` algorithm instead of the archived version.
+        With `variable_speed`, 2000/2001 cards get uncapped speed and recalculated points.
+        With `season_half`, each card is rebuilt from that half of its season's games."""
+        self.build_set_player_list()
+
+        # `id` is the player-season, shared by its card in every set, so a pick is its id plus its set
+        players_by_key = {(p.id, p.showdown_set): p for p in self.final_players or []}
+        if not players_by_key:
+            return []
+
+        ids = list(dict.fromkeys(p.id for p in players_by_key.values()))
+        sets = list(dict.fromkeys(p.showdown_set for p in players_by_key.values()))
+        rows = db.fetch_card_list({'id': ids, 'showdown_set': sets, 'limit': len(ids) * len(sets)})
+        # The query returns each picked season in every queried set - keep only the picked set's card
+        rows = [row for row in rows if (row.get('id'), row.get('showdown_set')) in players_by_key]
+        for row in rows:
+            player = players_by_key[(row.get('id'), row.get('showdown_set'))]
+            row['algorithm_set_number'] = player.set_number
+            row['algorithm_match_score'] = round(player.match_score, 1) if player else None
+            row['algorithm_selection_reason'] = player.selection_reason.value if player and player.selection_reason else None
+            row['algorithm_pick_score'] = round(player.pick_score, 1) if player and player.pick_score is not None else None
+            # Saved with the card (the run's summary isn't), so the margin over the cut still shows after saving
+            cut_line = self._pick_cut_lines.get(player.id) if player else None
+            row['algorithm_cut_line'] = round(cut_line, 1) if cut_line is not None else None
+        rows.sort(key=lambda r: r.get('algorithm_set_number') or 0)
+
+        if (rerun_cards or variable_speed or season_half) and rows:
+            self.warnings.extend(self._recompute_preview_rows(db, rows, rerun_cards=rerun_cards, variable_speed=variable_speed, season_half=season_half))
+        return rows
+
+    @staticmethod
+    def _recompute_preview_rows(db: PostgresDB, rows: List[dict], rerun_cards: bool, variable_speed: bool, season_half: Optional[SeasonHalf] = None) -> List[str]:
+        """Recompute preview rows' archived cards, overwriting each row's card-derived columns in place.
+        `rerun_cards` rebuilds every card through the current algorithm; `variable_speed` applies
+        variable speed (and recalculated points) to 2000/2001 cards; `season_half` rebuilds every
+        card from that half of its season. Rows that fail keep their archived card. Returns warnings."""
+        # Variable speed alone only affects 2000/2001 cards
+        target_rows = rows if (rerun_cards or season_half) else [row for row in rows if Set(row.get('showdown_set')).is_00_01]
+        if not target_rows:
+            return []
+        archived_cards = db.fetch_cards_for_roster_slots(
+            [{'card_id': row['card_id'], 'card_source': 'BOT'} for row in target_rows if row.get('card_id')]
+        )
+        failed_names: List[str] = []
+        changed_count = 0
+        for row in target_rows:
+            card = archived_cards.get(str(row.get('card_id')))
+            if card is None:
+                failed_names.append(row.get('name') or row.get('id'))
+                continue
+            points_before = row.get('points') or 0
+            try:
+                if season_half:
+                    # Embeds the half-season card (`card_data`), which also carries variable speed
+                    card = ReleaseCardPeriod(db).apply_to_row(row, card, season_half, variable_speed)
+                else:
+                    if rerun_cards:
+                        card = ShowdownPlayerCard.rebuilt_from_card_data(card.as_json())
+                    if variable_speed:
+                        card.apply_variable_speed_00_01(True)
+            except ReleaseCardPeriodError as exc:
+                failed_names.append(f"{row.get('name') or row.get('id')} ({exc})")
+                continue
+            except Exception:
+                traceback.print_exc()
+                failed_names.append(row.get('name') or row.get('id'))
+                continue
+
+            points_diff = (card.points or 0) - points_before
+            if points_diff:
+                changed_count += 1
+            if row.get('points_change_yoy') is not None:
+                row['points_change_yoy'] += points_diff
+            if not season_half:
+                row.update(card.card_bot_columns())
+                # Like a variable speed search row, so saving it embeds the variable speed card
+                # (`_embed_variable_speed_card_data`) instead of renders loading the standard archived one
+                if card.is_variable_speed_00_01:
+                    row['is_variable_speed_00_01'] = True
+
+        recomputed_count = len(target_rows) - len(failed_names)
+        half_label = f'built the {season_half.card_text.lower()} of' if season_half else ''
+        actions = [label for label, enabled in [('Re-ran', rerun_cards and not season_half), (half_label, season_half), ('applied variable speed to', variable_speed)] if enabled]
+        warnings = [f"{' and '.join(actions).capitalize()} {recomputed_count} cards ({changed_count} changed points)."]
+        if failed_names:
+            warnings.append(f"Could not recompute {len(failed_names)} cards, kept archived versions: {', '.join(failed_names)}")
+        return warnings
 
     def _generate_card_with_year_override(self, player: ShowdownBotSetPlayer, year_override: str) -> Optional[ShowdownPlayerCard]:
         """Generate a card live for a player whose stats should come from a different year combo (ex: '2025-2026').
@@ -412,7 +562,7 @@ class ShowdownBotSet(BaseModel):
 
         all_cards: list[ShowdownPlayerCard] = []
         total_cards = len(self.final_players)
-        digits = max(3 if self.is_all_star_game else 1, len(str(total_cards)))
+        digits = max(3 if self.all_stars_only else 1, len(str(total_cards)))
 
         for player in self.final_players:
             player_id = player.id
@@ -436,7 +586,7 @@ class ShowdownBotSet(BaseModel):
             card.apply_variable_speed_00_01(variable_speed)
             card.stats_period.disable_display_text_on_card = True
             card.stats_period.team_selection = self.team_selection
-            if self.is_all_star_game:
+            if self.all_stars_only:
                 card.image.edition = Edition.ALL_STAR_GAME
                 if year_override:
                     # Multi-year year strings don't match the exact-year checks in update_special_edition
@@ -493,16 +643,24 @@ class ShowdownBotSet(BaseModel):
         db = PostgresDB(is_archive=(source_env == "prod"))
 
         # Get all players from the season
-        filters = {'year': [str(y) for y in self.years], 'showdown_set': self.showdown_sets, 'limit': 2000}
-        if self.is_all_star_game:
+        filters = {'year': [str(y) for y in self.years], 'showdown_set': self.all_showdown_sets, 'limit': 2000}
+        if self.teams:
+            filters['team'] = self.teams
+        if self.all_stars_only:
             filters['awards'] = ['AS']
-        all_players = db.fetch_cards_bot(filters)
+        all_players = [p for p in db.fetch_cards_bot(filters) if p.showdown_set in self._showdown_sets_for(p)]
 
         print(f"Total players found in DB for years {self.years}: {len(all_players)}")
 
+        if self.legend_min_career_war is not None or self.selection_weights.career > 0:
+            self._career_wars = db.fetch_career_wars({p.bref_id for p in all_players if p.bref_id}, through_year=max(self.years), showdown_set=self.showdown_sets[0])
+
         # All-Star Game mode includes the entire roster, regardless of games/IP thresholds
-        if self.is_all_star_game:
-            return [p for p in all_players if p.bref_id_w_type_override not in (self.manually_excluded_ids or [])]
+        if self.all_stars_only:
+            return [
+                p for p in all_players
+                if not self._is_manually_excluded(p) and not self._is_in_other_edition(p)
+            ]
 
         qualified_players = []
         
@@ -510,17 +668,26 @@ class ShowdownBotSet(BaseModel):
             
             player_type = player.player_subtype  # Uses the property from ExploreDataRecord
 
-            if player.bref_id_w_type_override in (self.manually_included_ids or []):
+            if self._is_manually_included(player):
                 qualified_players.append(player)
                 continue
             
-            if player.bref_id_w_type_override in (self.manually_excluded_ids or []):
+            if self._is_manually_excluded(player) or self._is_in_other_edition(player):
                 continue
-            
+
+            if self._is_legend(player):
+                qualified_players.append(player)
+                continue
+
+            if self.all_stars_only and not player.has_award('AS'):
+                continue
+
             # Apply minimum thresholds based on player type
             if player_type == 'POSITION_PLAYER':
-                min_games_adjustment_ca = 0.80 if 'C' in player.primary_positions else 1.0
-                if player.g >= (self.min_games_hitters * min_games_adjustment_ca):
+                min_pa_adjustment_ca = 0.80 if 'C' in player.primary_positions else 1.0
+                # Rows without PA fall back to games at a part-timer's pace
+                pa = player.pa if player.pa is not None else player.g * 3.5
+                if pa >= (self.min_pa_hitters * min_pa_adjustment_ca):
                     qualified_players.append(player)
             elif player_type == 'STARTING_PITCHER':
                 if player.real_ip and player.real_ip >= self.min_ip_starters:
@@ -530,6 +697,44 @@ class ShowdownBotSet(BaseModel):
                     qualified_players.append(player)
         
         return qualified_players
+
+    @staticmethod
+    def _is_named_in(player: ExploreDataRecord, ids: Optional[List[str]]) -> bool:
+        """Whether `ids` names this player (every year) or this player-year record"""
+        return bool(ids) and (player.bref_id_w_type_override in ids or player.id in ids)
+
+    @property
+    def all_showdown_sets(self) -> List[str]:
+        """Every set a card can come from, hitters and pitchers combined"""
+        return list(dict.fromkeys(self.showdown_sets + (self.pitcher_showdown_sets or [])))
+
+    def _showdown_sets_for(self, player: ExploreDataRecord) -> List[str]:
+        """The sets this player's type can come from"""
+        if self.pitcher_showdown_sets and player.player_type != 'HITTER':
+            return self.pitcher_showdown_sets
+        return self.showdown_sets
+
+    def _is_manually_included(self, player: ExploreDataRecord) -> bool:
+        return self._is_named_in(player, self.manually_included_ids)
+
+    def _is_manually_excluded(self, player: ExploreDataRecord) -> bool:
+        return self._is_named_in(player, self.manually_excluded_ids)
+
+    def _career_war(self, player: ExploreDataRecord) -> float:
+        return self._career_wars.get(player.bref_id, 0.0)
+
+    def _is_legend(self, player: ExploreDataRecord) -> bool:
+        """Whether the player's career WAR earns them a guaranteed card (see `legend_min_career_war`)"""
+        return self.legend_min_career_war is not None and not self.all_stars_only \
+            and self._career_war(player) >= self.legend_min_career_war
+
+    def _is_guaranteed(self, player: ExploreDataRecord) -> bool:
+        """Manually included players and legends are seated first and never swapped out"""
+        return self._is_manually_included(player) or self._is_legend(player)
+
+    def _is_in_other_edition(self, player: ExploreDataRecord) -> bool:
+        """Whether `other_editions_rule` keeps this player out because of their card in another edition"""
+        return self.other_editions_rule.blocks(player.team_id, self.other_edition_players.get(player.bref_id_w_type_override))
 
     def _calculate_quality_thresholds(self, player_pool: List[ExploreDataRecord]):
         """Calculate WAR thresholds for quality tiers"""
@@ -550,136 +755,158 @@ class ShowdownBotSet(BaseModel):
         
         print(f"Quality thresholds - Elite: {self.elite_war_threshold:.1f} WAR, Good: {self.good_war_threshold:.1f} WAR")
     
-    def _calculate_team_allocations(self, player_pool: List[ExploreDataRecord]) -> Dict[str, TeamAllocation]:
-        """Calculate how many players each team should get"""
+    def _select_players(self, selector: WeightedPlayerSelector) -> List[ShowdownBotSetPlayer]:
+        """Fill the set in passes, each relaxing what a slot accepts:
         
-        # Get all teams with qualified players
-        teams = list(set(p.team_id for p in player_pool if p.team_id))
-        teams.sort()
-
-        target_count = max(1, self.set_size // len(teams))
-                
-        # Convert to TeamAllocation objects
-        team_allocations = {}
-        for team_id in teams:
-            team_allocations[team_id] = TeamAllocation(
-                team_id=team_id,
-                team_name=team_id,
-                target_count=target_count,
-                min_count=max(1, target_count - 2),  # Allow some flexibility
-                max_count=target_count + 2
-            )
+        1. Position targets (card's primary position) or player type distribution
+        2. Position targets only: any position on the card, so thin positions borrow multi-position players
+        3. Leftover slots by player type
+        4. Anything still open, from any player type
+        """
+        if self.position_targets:
+            counts = PositionTarget.allocate_counts({t.position: t.percentage for t in self.position_targets}, self.set_size)
+            groups = [
+                SlotGroup(t.position, counts[t.position], accepts=lambda p, slot=t.position: SlotPosition.primary_slot(p) == slot, avg_points=t.avg_points)
+                for t in self.position_targets
+            ]
+        else:
+            distribution = self.player_type_distribution
+            counts = PositionTarget.allocate_counts({
+                'POSITION_PLAYER': distribution.hitters_percentage,
+                'STARTING_PITCHER': distribution.starters_percentage,
+                'RELIEF_PITCHER': distribution.relievers_percentage,
+            }, self.set_size)
+            groups = [self._player_type_group(subtype, counts[subtype]) for subtype in PLAYER_SUBTYPES]
         
-        return team_allocations
+        for player in selector.player_pool:
+            if self._is_manually_included(player):
+                selector.add(player, next((g for g in groups if g.remaining and g.accepts(player)), None), SelectionReason.MANUAL)
+        
+        self._seat_legends(selector, groups)
+        
+        self._fill_team_minimums(selector, groups)
+        selector.fill(groups)
+        
+        if self.position_targets:
+            for group in groups:
+                group.accepts = lambda p, slot=group.key: slot in SlotPosition.eligible_slots(p)
+            selector.fill(groups)
+            for group in groups:
+                if group.remaining:
+                    self._warn(f"Only found {len(group.members)} of {group.target} {group.key} cards, filled the rest with other {SlotPosition.player_subtype(group.key).replace('_', ' ').lower()}s")
+                print(f"{group.key}: {len(group.members)}/{group.target} cards, avg {group.actual_avg_points or 0:.0f} pts (target {group.avg_points or 0:.0f})")
+            leftover = {subtype: sum(g.remaining for g in groups if SlotPosition.player_subtype(g.key) == subtype) for subtype in PLAYER_SUBTYPES}
+            selector.fill([self._player_type_group(subtype, count) for subtype, count in leftover.items()])
+        
+        selector.fill([SlotGroup('ANY', self.set_size - len(selector.selected), accepts=lambda p: True)])
+        return selector.selected
     
-    def _select_players(self, player_pool: List[ExploreDataRecord], team_allocations: Dict[str, TeamAllocation]) -> List[ShowdownBotSetPlayer]:
-        """Select players for the set based on allocations"""
-        
-        selected_players: List[ShowdownBotSetPlayer] = []
-        
-        # Group players by team
-        players_by_team: Dict[str, List[ShowdownBotSetPlayer]] = {}
-        for player in player_pool:
-            team = player.team_id
-            if team not in players_by_team:
-                players_by_team[team] = []
-            players_by_team[team].append(player)
+    # Lowest scoring picks reported per group, the ones that sit just above its cut line
+    CUT_LINE_PICK_COUNT: ClassVar[int] = 5
 
-        # Select players for each team
-        for team_id, allocation in team_allocations.items():
-            if team_id not in players_by_team:
+    @classmethod
+    def _cut_lines(cls, selected_players: List[ShowdownBotSetPlayer], selector: WeightedPlayerSelector) -> List[dict]:
+        """Each slot group's cut line: the best score left out when its last slot filled, on the match score's
+        scale. A pick's margin is its pick score minus its group's line. Groups that never filled have none.
+
+        Each line also carries what sits around it, so the cutoff can be drawn: the group's lowest scoring
+        picks, its closest calls left out, and picks a point bucket swap pushed out."""
+        groups: List[SlotGroup] = []
+        group_picks: Dict[int, List[ShowdownBotSetPlayer]] = {}
+        for player in selected_players:
+            group = selector.player_groups.get(player.id)
+            if group is None or group.cut_player is None:
                 continue
-                
-            team_players = players_by_team[team_id]
-            selected_team_players = self._select_team_players(team_players, allocation.target_count)
-            selected_players.extend(selected_team_players)
-            allocation.actual_count = len(selected_team_players)
-        
-        return selected_players
+            if all(group is not g for g in groups):
+                groups.append(group)
+            group_picks.setdefault(id(group), []).append(player)
+
+        def player_fields(player: ExploreDataRecord) -> dict:
+            return {'id': player.id, 'name': player.name, 'year': player.year, 'team': player.team_id, 'points': player.points}
+
+        lines: List[dict] = []
+        for group in groups:
+            picks = group_picks[id(group)]
+            lowest_picks = sorted(picks, key=lambda p: p.pick_score if p.pick_score is not None else 0.0)[:cls.CUT_LINE_PICK_COUNT]
+            lines.append({
+                'group': group.key,
+                'player_subtype': group.player_subtype if group.key != 'ANY' else None,
+                'pick_score': round(group.cut_score * selector.score_scale, 1),
+                'name': group.cut_player.name,
+                'year': group.cut_player.year,
+                'team': group.cut_player.team_id,
+                'slot_count': len(picks),
+                'picks': [
+                    {**player_fields(p), 'breakdown': p.pick_breakdown, 'selection_reason': p.selection_reason.value if p.selection_reason else None}
+                    for p in lowest_picks
+                ],
+                'near_misses': [
+                    {**player_fields(p), 'breakdown': breakdown.scaled(selector.score_scale)}
+                    for breakdown, p in group.near_misses
+                ],
+                'swapped_out': [
+                    {**player_fields(p), 'breakdown': breakdown, 'replaced_by': replaced_by.name}
+                    for p, breakdown, replaced_by in group.swapped_out
+                ],
+            })
+        return lines
+
+    def _seat_legends(self, selector: WeightedPlayerSelector, groups: List[SlotGroup]) -> None:
+        """Give each legend their highest priority card, biggest careers first, until the set is full"""
+        legends = [p for p in selector.player_pool if self._is_legend(p) and not self._is_manually_included(p)]
+        if not legends:
+            return
+        legends.sort(key=lambda p: (self._career_war(p), p.priority_score), reverse=True)
+        seated_bref_ids: set = set()
+        skipped: List[str] = []
+        for player in legends:
+            # One card per legend even when repeats are allowed, so a long career doesn't take over the set
+            if player.bref_id in seated_bref_ids or not selector.is_available(player):
+                continue
+            if len(selector.selected) >= self.set_size:
+                skipped.append(player.name)
+                continue
+            selector.add(player, next((g for g in groups if g.remaining and g.accepts(player)), None), SelectionReason.LEGEND)
+            seated_bref_ids.add(player.bref_id)
+        if skipped:
+            self._warn(f"Set is full before every legend fit, left out {len(set(skipped))} with {self.legend_min_career_war:g}+ career WAR. Raise the career WAR minimum or the set size")
+
+    def _fill_team_minimums(self, selector: WeightedPlayerSelector, groups: List[SlotGroup]) -> None:
+        """Seat each team's minimum cards first. A minimum that needs more cards of a type than the set has
+        slots for is lowered to what fits (e.g. 1 SP per team in a set with 20 SP slots and 30 teams -> 0)."""
+        if self.team_minimums.total == 0:
+            return
+        team_count = len(selector.team_targets)
+        minimums = self.team_minimums.model_copy()
+        fields = {'POSITION_PLAYER': 'hitters', 'STARTING_PITCHER': 'starters', 'RELIEF_PITCHER': 'relievers'}
+        for player_subtype, minimum in self.team_minimums.by_subtype().items():
+            slots = sum(g.target for g in groups if g.player_subtype == player_subtype)
+            if minimum * team_count > slots:
+                lowered = slots // max(1, team_count)
+                setattr(minimums, fields[player_subtype], lowered)
+                type_label = player_subtype.replace('_', ' ').lower()
+                self._warn(f"Team minimum of {minimum} {type_label}s needs {minimum * team_count} cards but the set has {slots} {type_label} slots, so it was lowered to {lowered}")
+        self.team_minimums = minimums  # Point bucket swaps protect the minimums that were actually applied
+        shortfalls = selector.fill_team_minimums(groups, minimums)
+        if shortfalls:
+            listed = ', '.join(shortfalls[:5]) + (f" and {len(shortfalls) - 5} more" if len(shortfalls) > 5 else '')
+            self._warn(f"{len(shortfalls)} team minimum{'s' if len(shortfalls) != 1 else ''} not met (not enough eligible players): {listed}")
+
+    @staticmethod
+    def _player_type_group(player_subtype: str, target: int) -> SlotGroup:
+        return SlotGroup(player_subtype, target, accepts=lambda p: p.player_subtype == player_subtype)
     
-    def _select_team_players(self, team_players: List[ExploreDataRecord], target_count: int) -> List[ShowdownBotSetPlayer]:
-        """Select players for a specific team"""
-        
-        # Separate by player type
-        hitters = [p for p in team_players if p.player_subtype == 'POSITION_PLAYER']
-        starters = [p for p in team_players if p.player_subtype == 'STARTING_PITCHER']  
-        relievers = [p for p in team_players if p.player_subtype == 'RELIEF_PITCHER']
-        
-        # Calculate target counts for each type
-        target_hitters = max(1, round(target_count * self.player_type_distribution.hitters_percentage))
-        target_starters = max(0, round(target_count * self.player_type_distribution.starters_percentage))
-        target_relievers = target_count - target_hitters - target_starters
-        
-        selected = []
-        
-        # Select hitters
-        selected_hitters = self._select_by_quality(hitters, target_hitters)
-        selected.extend(selected_hitters)
-        
-        # Select starters
-        selected_starters = self._select_by_quality(starters, target_starters)
-        selected.extend(selected_starters)
-        
-        # Select relievers
-        selected_relievers = self._select_by_quality(relievers, target_relievers)
-        selected.extend(selected_relievers)
-        
-        return selected
+    def _warn(self, warning: str) -> None:
+        print(f"Warning: {warning}")
+        self.warnings.append(warning)
     
-    def _select_by_quality(self, players: List[ExploreDataRecord], target_count: int) -> List[ShowdownBotSetPlayer]:
-        """Select players based on quality distribution"""
+    def _calculate_quality_score(self, player: ExploreDataRecord) -> float:
+        """Raw quality: WAR plus All-Star/award bonuses. Playing time is weighted separately (see `WeightedPlayerSelector.volume`)."""
         
-        if not players or target_count <= 0:
-            return []
+        score = max(player.war or 0.0, 0.0)
         
-        # Sort players by quality (WAR, with special considerations)
-        players_with_priority: List[Tuple[ShowdownBotSetPlayer, float]] = []
-        for player in players:
-            priority_score = self._calculate_priority_score(player)
-            updated_player = ShowdownBotSetPlayer(
-                **player.model_dump(),
-                priority_score=priority_score
-            )
-            players_with_priority.append((updated_player, priority_score))
-        
-        num_players_manually_included = len([p for p in players if p.bref_id_w_type_override in (self.manually_included_ids or [])])
-        cap = max(target_count, num_players_manually_included)
-
-        players_with_priority.sort(key=lambda x: (x[0].bref_id_w_type_override in (self.manually_included_ids or []), x[1]), reverse=True)
-
-        # Select top players up to target count
-        selected = [p[0] for p in players_with_priority[:cap]]
-        
-        return selected
-    
-    def _calculate_priority_score(self, player: ExploreDataRecord) -> float:
-        """Calculate priority score for player selection"""
-        
-        score = 0.0
-        war = player.war or 0.0
-        
-        # Base score from WAR
-        score += max(war, 0.0)
-
-        # Incorporate games played / innings pitched
-        match player.player_subtype:
-            case 'POSITION_PLAYER':
-                score += (player.g / 162) * 5.0  # Up to 5 point bonus for full season
-            case 'STARTING_PITCHER' | 'RELIEF_PITCHER':
-                is_sp = player.player_subtype == 'STARTING_PITCHER'
-                ip = player.real_ip or 0
-                max_ip = 180 if is_sp else 70
-
-                # REMOVE GS IP FOR RELIEVERS
-                ip_gs = player.gs * 5
-                gs = player.gs or 0
-                if not is_sp and ip_gs and gs > 0:
-                    ip -= (ip_gs * gs)
-
-                score += (ip / max_ip) * 5.0  # Up to 5 point bonus for full season
-
-                if player.primary_position == Position.CL:
-                    score += 1.0  # Small bonus for closers
+        if player.player_subtype == 'RELIEF_PITCHER' and player.primary_position == Position.CL:
+            score += 1.0  # Small bonus for closers
         
         # Bonuses for special achievements
         if player.awards_list:
@@ -704,158 +931,89 @@ class ShowdownBotSet(BaseModel):
         
         return score
     
-    def _redistribute_unused_slots(self, player_pool: List[ExploreDataRecord], team_allocations: Dict[str, TeamAllocation], selected_players: List[ExploreDataRecord]) -> List[ShowdownBotSetPlayer]:
-        """Redistribute unused slots when teams don't have enough qualified players
+    def _enforce_point_buckets(self, selected_players: List[ShowdownBotSetPlayer], player_pool: List[ShowdownBotSetPlayer],
+                               selector: WeightedPlayerSelector) -> List[ShowdownBotSetPlayer]:
+        """Swap cards so each player type hits every point bucket's target share of that type.
         
-        Prioritizes maintaining player type distribution (hitters/starters/relievers percentages).
-        
-        If ideal_low_point_percentage is set:
-        - First fills slots to reach target player type distribution
-        - Then balances low-point card percentages within each type
-        - Finally fills any remaining slots with highest priority players
-        
-        If ideal_low_point_percentage is None:
-        - Fills slots to reach target player type distribution with highest priority players
+        Weighted selection doesn't look at point ranges, so buckets are enforced here against the
+        whole set. For each type and each bucket below target, the highest priority unselected card in the
+        bucket replaces the lowest priority card of the same type that is either outside every bucket or in a
+        bucket already above its target. Swaps prefer removing a card from the incoming player's team to keep
+        team balance, never drop a team below its minimum, never remove manually included players or legends and never add a
+        second card of a selected player. Set size and type counts are unchanged.
         """
-        
-        # Calculate how many slots are unused
-        total_selected = len(selected_players)
-        unused_slots = self.set_size - total_selected
-        
-        if unused_slots <= 0:
-            return [ShowdownBotSetPlayer(**p.model_dump()) for p in selected_players]
-        
-        print(f"Redistributing {unused_slots} unused slots...")
-        
-        # Get all unselected players
-        ids = set(p.id for p in selected_players)
-        unselected_players = [p for p in player_pool if p.id not in ids]
-        print(f"Found {len(unselected_players)} unselected players for redistribution. There are {len(player_pool)} total qualified players.")
-        
-        # Calculate current player type counts
-        current_hitters = len([p for p in selected_players if p.player_subtype == 'POSITION_PLAYER'])
-        current_starters = len([p for p in selected_players if p.player_subtype == 'STARTING_PITCHER'])
-        current_relievers = len([p for p in selected_players if p.player_subtype == 'RELIEF_PITCHER'])
-        
-        # Calculate target percentages for final set
-        target_hitters_pct = self.player_type_distribution.hitters_percentage
-        target_starters_pct = self.player_type_distribution.starters_percentage
-        target_relievers_pct = self.player_type_distribution.relievers_percentage
-        
-        # Calculate current percentages
-        current_hitters_pct = current_hitters / total_selected if total_selected > 0 else 0
-        current_starters_pct = current_starters / total_selected if total_selected > 0 else 0
-        current_relievers_pct = current_relievers / total_selected if total_selected > 0 else 0
-        
-        # Calculate deficits (how far below target each type is)
-        hitters_deficit = target_hitters_pct - current_hitters_pct
-        starters_deficit = target_starters_pct - current_starters_pct
-        relievers_deficit = target_relievers_pct - current_relievers_pct
-        
-        print(f"Current percentages - Hitters: {current_hitters_pct:.1%} (target {target_hitters_pct:.1%}), Starters: {current_starters_pct:.1%} (target {target_starters_pct:.1%}), Relievers: {current_relievers_pct:.1%} (target {target_relievers_pct:.1%})")
-        print(f"Deficits - Hitters: {hitters_deficit:+.1%}, Starters: {starters_deficit:+.1%}, Relievers: {relievers_deficit:+.1%}")
-        
-        # Distribute unused slots proportionally based on deficits
-        # Only allocate to types that are below target
-        total_deficit = max(0, hitters_deficit) + max(0, starters_deficit) + max(0, relievers_deficit)
-        
-        if total_deficit > 0:
-            # Allocate proportionally to deficits
-            hitters_allocation = round(unused_slots * (max(0, hitters_deficit) / total_deficit))
-            starters_allocation = round(unused_slots * (max(0, starters_deficit) / total_deficit))
-            relievers_allocation = unused_slots - hitters_allocation - starters_allocation
-        else:
-            # All types at or above target, distribute evenly by target percentages
-            hitters_allocation = round(unused_slots * target_hitters_pct)
-            starters_allocation = round(unused_slots * target_starters_pct)
-            relievers_allocation = unused_slots - hitters_allocation - starters_allocation
-        
-        print(f"Allocating unused slots - Hitters: {hitters_allocation}, Starters: {starters_allocation}, Relievers: {relievers_allocation}")
-        
-        # Separate unselected players by type and calculate priority scores
-        unselected_hitters = []
-        unselected_starters = []
-        unselected_relievers = []
-        
-        for player in unselected_players:
-            priority_score = self._calculate_priority_score(player)
-            player_with_score = ShowdownBotSetPlayer(**player.model_dump(), priority_score=priority_score)
-            
-            if player.player_subtype == 'POSITION_PLAYER':
-                unselected_hitters.append(player_with_score)
-            elif player.player_subtype == 'STARTING_PITCHER':
-                unselected_starters.append(player_with_score)
-            elif player.player_subtype == 'RELIEF_PITCHER':
-                unselected_relievers.append(player_with_score)
-        
-        # Sort each type by priority
-        unselected_hitters.sort(key=lambda x: x.priority_score, reverse=True)
-        unselected_starters.sort(key=lambda x: x.priority_score, reverse=True)
-        unselected_relievers.sort(key=lambda x: x.priority_score, reverse=True)
-        
-        # If no ideal low point percentage, just fill with highest priority maintaining type distribution
-        if self.ideal_low_point_percentage is None:
-            print("No ideal low-point percentage set, filling proportionally by deficit.")
-            additional_players = []
-            additional_players.extend(unselected_hitters[:hitters_allocation])
-            additional_players.extend(unselected_starters[:starters_allocation])
-            additional_players.extend(unselected_relievers[:relievers_allocation])
-            
-            # If we still have slots (due to rounding or lack of players), fill with highest priority overall
-            slots_after_type_balance = unused_slots - len(additional_players)
-            if slots_after_type_balance > 0:
-                print(f"Filling {slots_after_type_balance} remaining slots with highest priority players (any type)")
-                # Get remaining unselected players
-                used_ids = set(p.id for p in additional_players)
-                remaining_hitters = [p for p in unselected_hitters[hitters_allocation:] if p.id not in used_ids]
-                remaining_starters = [p for p in unselected_starters[starters_allocation:] if p.id not in used_ids]
-                remaining_relievers = [p for p in unselected_relievers[relievers_allocation:] if p.id not in used_ids]
-                
-                all_remaining = remaining_hitters + remaining_starters + remaining_relievers
-                all_remaining.sort(key=lambda x: x.priority_score, reverse=True)
-                additional_players.extend(all_remaining[:slots_after_type_balance])
-            
-            selected_players.extend(additional_players)
+        if not self.point_buckets:
             return selected_players
         
-        # If ideal low point percentage is set, balance low-point cards within each type
-        print(f"Ideal low-point percentage set to {self.ideal_low_point_percentage:.1%}, balancing within each player type.")
-        additional_players = []
-        for unselected_list, allocation in [
-            (unselected_hitters, hitters_allocation),
-            (unselected_starters, starters_allocation),
-            (unselected_relievers, relievers_allocation)
-        ]:
-            if allocation <= 0:
-                continue
-            
-            # Calculate current low-point percentage in this type
-            current_type_players = [p for p in selected_players if p.player_subtype == unselected_list[0].player_subtype]
-            current_low_point_count = len([p for p in current_type_players if p.points is not None and p.points <= 50])
-            current_type_count = len(current_type_players)
-            current_low_point_pct = (current_low_point_count / current_type_count) if current_type_count > 0 else 0.0
-            
-            # Determine how many low-point cards to add
-            desired_low_point_count = ceil((current_type_count + allocation) * self.ideal_low_point_percentage)
-            low_point_needed = max(0, desired_low_point_count - current_low_point_count)
-            high_point_needed = allocation - low_point_needed
-            
-            print(f"For {unselected_list[0].player_subtype}, current low-point pct: {current_low_point_pct:.1%}, need {low_point_needed} low-point and {high_point_needed} high-point cards.")
-            
-            # Select low-point cards
-            low_point_candidates = [p for p in unselected_list if p.points is not None and p.points <= 50]
-            high_point_candidates = [p for p in unselected_list if p.points is None or p.points > 50]
-            
-            additional_players.extend(low_point_candidates[:low_point_needed])
-            additional_players.extend(high_point_candidates[:high_point_needed])
+        selected_ids = set(p.id for p in selected_players)
+        unselected_players = [p for p in player_pool if p.id not in selected_ids]
+        selected_keys = set(selector.player_key(p) for p in selected_players)
+        team_minimums = self.team_minimums.by_subtype()
         
-        selected_players.extend(additional_players)
+        for player_subtype in ('POSITION_PLAYER', 'STARTING_PITCHER', 'RELIEF_PITCHER'):
+            type_players = [p for p in selected_players if p.player_subtype == player_subtype]
+            if not type_players:
+                continue
+            targets = [ceil(len(type_players) * bucket.percentage) for bucket in self.point_buckets]
+            
+            def bucket_index(player: ExploreDataRecord) -> Optional[int]:
+                return next((i for i, bucket in enumerate(self.point_buckets) if bucket.contains(player)), None)
+            
+            def bucket_count(index: int) -> int:
+                return len([p for p in type_players if bucket_index(p) == index])
+            
+            def is_removable(player: ShowdownBotSetPlayer, incoming: ShowdownBotSetPlayer) -> bool:
+                if self._is_guaranteed(player):
+                    return False
+                if player.team_id != incoming.team_id and len([p for p in type_players if p.team_id == player.team_id]) <= team_minimums[player_subtype]:
+                    return False
+                index = bucket_index(player)
+                return index is None or bucket_count(index) > targets[index]
+            
+            candidates = sorted(
+                (p for p in unselected_players if p.player_subtype == player_subtype),
+                key=lambda x: x.priority_score, reverse=True
+            )
+            
+            for index, bucket in enumerate(self.point_buckets):
+                starting_count = bucket_count(index)
+                for incoming in (c for c in candidates if bucket.contains(c)):
+                    if bucket_count(index) >= targets[index]:
+                        break
+                    if selector.player_key(incoming) in selected_keys:
+                        continue
+                    removable = [p for p in type_players if is_removable(p, incoming)]
+                    if not removable:
+                        continue
+                    outgoing = min(removable, key=lambda p: (p.team_id != incoming.team_id, p.priority_score))
+                    type_players.remove(outgoing)
+                    type_players.append(incoming)
+                    # The incoming card takes the outgoing card's slot (and so its cut line), judged in the final state
+                    incoming.selection_reason = SelectionReason.POINTS_SWAP
+                    selector.record_pick_score(incoming)
+                    outgoing_group = selector.player_groups.pop(outgoing.id, None)
+                    if outgoing_group is not None:
+                        selector.player_groups[incoming.id] = outgoing_group
+                        outgoing_group.swapped_out.append((outgoing, outgoing.pick_breakdown, incoming))
+                    outgoing.selection_reason = None
+                    outgoing.pick_score = None
+                    outgoing.pick_breakdown = None
+                    selected_keys.discard(selector.player_key(outgoing))
+                    selected_keys.add(selector.player_key(incoming))
+                
+                final_count = bucket_count(index)
+                print(f"{player_subtype} {bucket.label}: {starting_count} -> {final_count} (target {targets[index]}, {bucket.percentage:.0%})")
+                if final_count < targets[index]:
+                    self._warn(f"Only reached {final_count} of {targets[index]} {player_subtype.replace('_', ' ').lower()} cards in the {bucket.label} bucket")
+            
+            selected_players = [p for p in selected_players if p.player_subtype != player_subtype] + type_players
+        
         return selected_players
     
     def _print_set_summary(
         self,
         selected_players: List[ShowdownBotSetPlayer],
-        team_allocations: Dict[str, TeamAllocation],
+        team_targets: Dict[str, float],
         show_team_breakdown: Optional[str] = None,
         player_pool: Optional[List[ShowdownBotSetPlayer]] = None
     ):
@@ -885,10 +1043,7 @@ class ShowdownBotSet(BaseModel):
         
         team_dist_table = PrettyTable(field_names=["Team", "Count", "Target"])
         for team in sorted(team_counts.keys()):
-            team_allocation = team_allocations.get(team, None)
-            target_count = team_allocation.target_count if team_allocation else 0
-            actual = team_counts[team]
-            team_dist_table.add_row([team, actual, target_count])
+            team_dist_table.add_row([team, team_counts[team], f"{team_targets.get(team, 0.0):.1f}"])
         print(f"\nTeam Distribution:")
         print(team_dist_table)
 
@@ -1006,7 +1161,7 @@ class ShowdownBotSet(BaseModel):
                 return ""
             return parts[-1].lower()
 
-        if self.is_all_star_game:
+        if self.all_stars_only:
             # AL players first, then NL, each sorted by last name
             league_order = {'AL': 0, 'NL': 1}
             for player in players:
@@ -1035,3 +1190,77 @@ class ShowdownBotSet(BaseModel):
             player.set_number = index
 
         return sorted_players
+
+
+class AlgorithmPreviewRequest(BaseModel):
+    """Validated web-request payload for the Edition Builder's Algorithm tab.
+
+    A strict subset of `ShowdownBotSet`'s constructor fields — this is the API contract exposed
+    to the browser, so fields like `final_players`, `expansion_cards`, and `csv_file_path` are
+    intentionally excluded (they must never be attacker-settable from the web).
+    """
+
+    set_size: int = Field(..., ge=1, le=800)
+    years: str = Field(..., description="Flexible year string, e.g. '2023', '2000-2004', '2006+2014'")
+    showdown_sets: List[str] = Field(..., min_length=1)
+    pitcher_showdown_sets: Optional[List[str]] = None
+
+    min_pa_hitters: int = 200
+    min_ip_starters: int = 75
+    min_ip_relievers: int = 30
+
+    player_type_distribution: PlayerTypeDistribution = Field(default_factory=PlayerTypeDistribution)
+
+    include_all_stars: bool = True
+    include_award_winners: bool = True
+    all_stars_only: bool = False
+    legend_min_career_war: Optional[float] = Field(None, ge=0)
+
+    point_buckets: List[PointBucket] = Field(default_factory=list)
+
+    selection_weights: SelectionWeights = Field(default_factory=SelectionWeights)
+    position_targets: List[PositionTarget] = Field(default_factory=list)
+
+    manually_included_ids: Optional[List[str]] = None
+    manually_excluded_ids: Optional[List[str]] = None
+
+    variable_speed: bool = Field(False, description="Uncap speed on 2000/2001 cards (instead of 10/15/20) and recalculate points")
+    season_half: Optional[SeasonHalf] = Field(None, description="Build every card from this half of its season (split at the All-Star break) instead of the full season")
+
+    unique_players: bool = True
+    team_weighting: TeamWeighting = TeamWeighting.EVEN
+    team_minimums: TeamMinimums = Field(default_factory=TeamMinimums)
+    other_editions_rule: OtherEditionsRule = OtherEditionsRule.ALLOW
+    teams: List[str] = Field(default_factory=list, description="Only players whose card is on one of these teams. Empty means every team")
+
+    def to_showdown_bot_set(self, other_edition_players: Optional[Dict[str, List[str]]] = None) -> ShowdownBotSet:
+        """Validate and construct the `ShowdownBotSet` this request describes. `other_edition_players` comes
+        from the release's other editions (looked up server side, never from the request)."""
+        if not self.position_targets:
+            self.player_type_distribution.validate_total()
+        return ShowdownBotSet(
+            set_size=self.set_size,
+            years=convert_year_string_to_list(self.years),
+            showdown_sets=self.showdown_sets,
+            # An empty list means the toggle is on with nothing picked yet - same as off
+            pitcher_showdown_sets=self.pitcher_showdown_sets or None,
+            min_pa_hitters=self.min_pa_hitters,
+            min_ip_starters=self.min_ip_starters,
+            min_ip_relievers=self.min_ip_relievers,
+            player_type_distribution=self.player_type_distribution,
+            include_all_stars=self.include_all_stars,
+            include_award_winners=self.include_award_winners,
+            all_stars_only=self.all_stars_only,
+            legend_min_career_war=self.legend_min_career_war,
+            point_buckets=self.point_buckets,
+            selection_weights=self.selection_weights,
+            position_targets=self.position_targets,
+            manually_included_ids=self.manually_included_ids,
+            manually_excluded_ids=self.manually_excluded_ids,
+            unique_players=self.unique_players,
+            team_weighting=self.team_weighting,
+            team_minimums=self.team_minimums,
+            other_editions_rule=self.other_editions_rule,
+            teams=self.teams,
+            other_edition_players=other_edition_players or {},
+        )

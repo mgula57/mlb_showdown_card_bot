@@ -9,7 +9,9 @@
 import React from "react";
 import { FaXmark } from "react-icons/fa6";
 import { FaSearch } from "react-icons/fa";
+import { searchFrameClass } from "../shared/searchFrameStyles";
 
+import { FIELD_CHANGED_CLASS, FIELD_FRAME_CLASS, FIELD_LABEL_CLASS } from '../shared/fieldStyles';
 /**
  * Props for the FormInput component
  */
@@ -44,6 +46,8 @@ type FormInputProps = {
     step?: number | string;
     /** Maximum character length for text input */
     maxLength?: number;
+    /** Highlights the field as holding a non-default value */
+    isChanged?: boolean;
 };
 
 /**
@@ -86,13 +90,13 @@ type FormInputProps = {
  * @param isTitleCase - Auto-format text in title case
  * @returns Versatile input component with label
  */
-const FormInput: React.FC<FormInputProps> = ({ label, value, onChange, onBlur, className = "", type="text", inputMode="text", isClearable=false, placeholder, onChangeFile, isTitleCase, disabled = false, showSearchIcon = false, step, maxLength }) => {
+const FormInput: React.FC<FormInputProps> = ({ label, value, onChange, onBlur, className = "", type="text", inputMode="text", isClearable=false, placeholder, onChangeFile, isTitleCase, disabled = false, showSearchIcon = false, step, maxLength, isChanged = false }) => {
 
     /** Check if this is a file upload input */
     const isFileInput = type === "file";
 
-    /** Search inputs get the shared red→blue gradient frame (see PlayerSearchInput / SearchGradientBorder). */
-    const useSearchGradient = showSearchIcon && !isFileInput;
+    /** Search inputs get the shared logo frame (see PlayerSearchInput / SearchFrame). */
+    const useSearchFrame = showSearchIcon && !isFileInput;
 
     /**
      * Handle file selection for upload inputs
@@ -107,17 +111,17 @@ const FormInput: React.FC<FormInputProps> = ({ label, value, onChange, onBlur, c
     return (
         <div className={`${className}`}>
             {/* Form field label */}
-            <label className="text-sm font-medium text-secondary">{label}</label>
+            <label className={FIELD_LABEL_CLASS}>{label}</label>
 
             {/* Input container with border styling */}
             <div
                 className={
-                    useSearchGradient
-                        ? "flex items-stretch focus:outline-none rounded-xl mt-1 bg-linear-to-r from-blue-500 to-red-500 p-0.5"
-                        : "flex items-stretch focus:outline-none border border-form-element rounded-xl mt-1"
+                    useSearchFrame
+                        ? `flex items-stretch focus:outline-none mt-1 ${searchFrameClass()}`
+                        : `flex items-stretch focus:outline-none mt-1 ${FIELD_FRAME_CLASS} ${isChanged ? FIELD_CHANGED_CLASS : ''}`
                 }
             >
-              <div className={useSearchGradient ? "flex items-stretch w-full bg-primary rounded-[10px]" : "contents"}>
+              <div className={useSearchFrame ? "flex items-stretch w-full bg-primary rounded-[3px]" : "contents"}>
 
                 {/* File upload input with custom styling */}
                 {isFileInput ? (
@@ -130,12 +134,12 @@ const FormInput: React.FC<FormInputProps> = ({ label, value, onChange, onBlur, c
                         disabled={disabled}
                         className="
                             w-full py-2 pl-2 pr-2
-                            rounded-xl
+                            rounded-control
                             focus:outline-none
                             text-sm
                             file:mr-3 file:py-1 file:px-3
-                            file:rounded-md file:border-0
-                            file:bg-tertiary file:text-secondary
+                            file:rounded-control file:border-0
+                            file:bg-(--background-tertiary) file:text-(--text-secondary)
                             file:cursor-pointer
                         "
                         autoComplete="off"
@@ -146,7 +150,7 @@ const FormInput: React.FC<FormInputProps> = ({ label, value, onChange, onBlur, c
                     <>
                         {/* Search icon */}
                         {showSearchIcon && (
-                            <div className="flex items-center pl-3 text-gray-400">
+                            <div className="flex items-center pl-3 text-(--text-tertiary)">
                                 <FaSearch />
                             </div>
                         )}
@@ -166,7 +170,7 @@ const FormInput: React.FC<FormInputProps> = ({ label, value, onChange, onBlur, c
                             disabled={disabled}
                             className={`
                                 w-full py-2 pl-2 ${ isClearable ? 'pr-0' : 'pr-2' }
-                                rounded-xl border-form-element
+                                rounded-control border-form-element
                                 focus:outline-none
                             `}
                             style={isTitleCase ? { textTransform: 'capitalize' } : undefined}
@@ -183,7 +187,7 @@ const FormInput: React.FC<FormInputProps> = ({ label, value, onChange, onBlur, c
                                     cursor-pointer 
                                 "
                             >
-                                <FaXmark className="text-gray-500" />
+                                <FaXmark className="text-(--text-tertiary)" />
                             </button>
                         )}
                     </>

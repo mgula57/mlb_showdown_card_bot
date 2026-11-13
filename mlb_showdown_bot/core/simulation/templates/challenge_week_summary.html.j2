@@ -1,54 +1,68 @@
 {% extends "_social_base.html.j2" %}
 {% block title %}Team Challenges · {{ week_of.strftime('%b %-d') }}{% endblock %}
 {% block styles %}
+  /* ON THE DESIGN LANGUAGE (frontend/DESIGN.md): FLAT SILVER PAGE, PINSTRIPES AT THE TOP ONLY. */
+  :root { --sheet-background: var(--background-primary); }
+
   .hero { grid-template-columns: 1fr 540px; align-items: center; }
-  .live-pill { display: inline-flex; align-items: center; gap: 10px; margin-top: 22px; background: var(--background-secondary); border: 1px solid var(--divider); border-radius: 999px; padding: 6px 18px 6px 8px; font-size: 14px; font-weight: 900; text-transform: uppercase; letter-spacing: .04em; color: var(--showdown-blue); }
-  .live-pill .num { display: grid; place-items: center; width: 36px; height: 36px; border-radius: 999px; background: var(--showdown-red); color: #fff; font-size: 22px; }
+  .eyebrow { font-family: 'ShowdownSetItalic', "Helvetica Neue", sans-serif; font-style: italic; font-weight: 400; font-size: 15px; letter-spacing: .42em; color: var(--text-tertiary); }
+  h1 { margin-top: 14px; font-family: 'ShowdownSetItalic', "Helvetica Neue", sans-serif; font-style: italic; font-weight: 400; font-size: 64px; letter-spacing: 0; color: var(--text-primary); }
+  .sub { color: var(--text-secondary); font-size: 17px; line-height: 1.4; margin-top: 12px; }
+  .status { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 22px; }
 
   /* THE FANNED STACK - EACH CARD'S ROTATION/OFFSET COMES INLINE FROM ITS POSITION IN THE FAN. */
   .stack { position: relative; height: 440px; }
   /* NUDGED A LITTLE RIGHT OF CENTER SO THE LEFT CARD'S TILT CLEARS THE HERO TEXT. */
   .stack .card { position: absolute; left: 50%; top: 14px; width: 230px; aspect-ratio: 5 / 7; margin-left: -105px; transform-origin: 50% 85%; }
   .stack .card.labels { z-index: 20 !important; }
-  .stack .card img { display: block; width: 100%; border-radius: 12px; box-shadow: 0 16px 34px rgba(26, 59, 95, .32); }
-  .sticker { position: absolute; left: 50%; bottom: -14px; transform: translateX(-50%) rotate(-4deg); white-space: nowrap; background: var(--accent); color: #fff; border-radius: 8px; padding: 5px 12px 6px; box-shadow: 0 6px 14px rgba(0, 0, 0, .22); text-align: center; }
-  /* STICKERS ARE WIDER THAN THE FAN'S SPACING, SO EVERY OTHER ONE SITS HIGHER TO CLEAR ITS NEIGHBORS. */
-  .card.raised .sticker { bottom: 44px; }
-  .sticker .who { font-size: 16px; line-height: 1; }
-  .sticker .for { font-size: 10px; font-weight: 900; text-transform: uppercase; letter-spacing: .08em; opacity: .9; margin-top: 3px; }
+  /* THE CARDS FLOAT OVER THE PAGE, SO THEY TAKE THE OVERLAY SHADOW (THE ONLY SOFT ONE). */
+  .stack .card img { display: block; width: 100%; border-radius: 10px; box-shadow: var(--shadow-overlay); }
+  /* A RAISED TAG UNDER EACH CARD: THE PLAYER IN THE CARD-NAME FACE, THE CHALLENGE IN ITS CATEGORY COLOR. */
+  .tag { position: absolute; left: 50%; bottom: -14px; transform: translateX(-50%); white-space: nowrap; background: var(--background-secondary); border: 1px solid var(--divider); border-top: 3px solid var(--accent); border-radius: 2px; padding: 6px 12px 7px; box-shadow: var(--shadow-raised); text-align: center; }
+  /* TAGS ARE WIDER THAN THE FAN'S SPACING, SO EVERY OTHER ONE SITS HIGHER TO CLEAR ITS NEIGHBORS. */
+  .card.raised .tag { bottom: 44px; }
+  .tag .who { font-size: 18px; line-height: 1; color: var(--text-primary); }
+  .tag .for { color: var(--accent); margin-top: 4px; font-size: 10px; }
 
+  /* MIRRORS THE FRONTEND'S `ChallengeCard`: CATEGORY-COLOR LEFT EDGE WITH A FOLDED CORNER RIBBON. */
   .challenges { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
-  .challenge { background: var(--background-secondary); border: 1px solid var(--divider); border-top: 6px solid var(--accent); border-radius: 14px; padding: 18px 22px 16px; display: flex; flex-direction: column; }
-  .challenge .cat { color: var(--accent); font-size: 13px; font-weight: 900; text-transform: uppercase; letter-spacing: .08em; }
-  .challenge .name { font-size: 34px; line-height: 1.02; color: var(--showdown-blue); margin-top: 4px; }
-  .challenge .desc { color: var(--secondary); font-size: 16px; line-height: 1.35; margin-top: 6px; }
-  .facts { margin-top: auto; padding-top: 6px; }
-  .fact { display: grid; grid-template-columns: 86px 1fr; gap: 10px; padding: 8px 0; border-top: 1px solid var(--divider); font-size: 16px; }
-  .fact .k { color: var(--showdown-gray); font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; padding-top: 2px; }
-  .fact .v { font-weight: 800; }
+  .challenge { position: relative; overflow: hidden; background: var(--background-secondary); border: 1px solid var(--divider); border-left: 5px solid var(--accent); border-radius: 5px; padding: 18px 22px 16px; display: flex; flex-direction: column; }
+  .challenge::before { content: ''; position: absolute; left: 0; top: 0; width: 28px; height: 28px; background: var(--accent); clip-path: polygon(0 0, 100% 0, 0 100%); }
+  .challenge .cat { align-self: flex-start; color: var(--accent); background: color-mix(in srgb, var(--accent) 15%, transparent); font-size: 12px; }
+  .challenge .name { font-size: 34px; line-height: 1.02; color: var(--text-primary); margin-top: 10px; }
+  .challenge .desc { color: var(--text-secondary); font-size: 16px; line-height: 1.4; margin-top: 8px; }
+  .facts { margin-top: auto; padding-top: 10px; }
+  .fact { display: grid; grid-template-columns: 86px 1fr; gap: 10px; align-items: baseline; padding: 9px 0; border-top: 1px solid var(--divider); font-size: 16px; }
+  .fact .v { font-weight: 600; color: var(--text-primary); }
+  .fact .v .plate { vertical-align: 1px; }
   .rules { display: flex; flex-wrap: wrap; gap: 6px; }
-  .rule { background: color-mix(in srgb, var(--accent) 14%, transparent); color: var(--secondary); border-radius: 999px; padding: 2px 10px; font-size: 13px; font-weight: 800; }
+  .rules .plate { white-space: normal; line-height: 1.2; font-size: 12px; }
 
-  footer .url { color: var(--showdown-red); font-size: 22px; }
+  footer { border-top-color: var(--divider); color: var(--text-tertiary); }
+  footer .url { color: var(--showdown-red); font-size: 24px; }
+  footer strong { font-weight: 700; }
 {% endblock %}
 {% block sheets %}
 <div class="sheet">
-<div class="stripe"></div>
+<div class="pinstripes" aria-hidden="true"></div>
 <div class="inner">
 <div class="sheet-content">
 
   <div class="hero">
     <div>
       <img class="logo" src="{{ logo_src }}" alt="Showdown Bot">
-      <div class="eyebrow">Team Challenges · Week of {{ week_of.strftime('%b %-d, %Y') }}</div>
+      <div class="eyebrow">Team Challenges</div>
       <h1>{{ headline }}</h1>
       <div class="sub">{{ subhead }}</div>
-      <div class="live-pill"><span class="num display">{{ challenges|length }}</span>challenge{{ 's' if challenges|length != 1 }} live{% if expires_at %} · thru {{ expires_at.strftime('%b %-d') }}{% endif %}</div>
+      <div class="status">
+        <span class="plate lg navy">{{ challenges|length }} live</span>
+        <span class="plate lg outline">{{ week_of.strftime('%b %-d') }}{% if expires_at %} – {{ expires_at.strftime('%b %-d') }}{% else %} week{% endif %}</span>
+      </div>
     </div>
     {% if cards %}
     <div class="stack">
       {# TWO PASSES OVER THE SAME FAN POSITIONS: THE CARD ART (MIDDLE CARD ON TOP), THEN THE
-         STICKERS IN A LAYER ABOVE EVERY CARD SO A NEIGHBOR NEVER COVERS ONE. #}
+         TAGS IN A LAYER ABOVE EVERY CARD SO A NEIGHBOR NEVER COVERS ONE. #}
       {% set mid = (cards|length - 1) / 2 %}
       {% for layer in ('art', 'labels') %}
       {% for k in cards %}
@@ -57,9 +71,9 @@
         {% if layer == 'art' %}
         <img src="{{ k.image_src }}" alt="{{ k.name }} {{ k.year }} card">
         {% else %}
-        <div class="sticker">
-          <div class="who display">{{ k.name }}</div>
-          {% if k.challenge %}<div class="for">{{ k.challenge.title }}</div>{% endif %}
+        <div class="tag">
+          <div class="who upright">{{ k.name }}</div>
+          {% if k.challenge %}<div class="for caps-label">{{ k.challenge.title }}</div>{% endif %}
         </div>
         {% endif %}
       </div>
@@ -72,15 +86,15 @@
   <section class="challenges">
     {% for c in challenges %}
     <div class="challenge" style="--accent: {{ c.accent }}">
-      <div class="cat">{{ c.category_label }} · {{ c.year }}</div>
+      <span class="plate cat">{{ c.category_label }} · {{ c.year }}</span>
       <div class="name display">{{ c.title }}</div>
       <div class="desc">{{ c.description }}</div>
       <div class="facts">
-        <div class="fact"><div class="k">Take over</div><div class="v">{{ c.takeover_label }}</div></div>
-        <div class="fact"><div class="k">Goal</div><div class="v">{{ c.goal_label }}</div></div>
-        <div class="fact"><div class="k">Budget</div><div class="v">{{ '{:,}'.format(c.pts_limit) ~ ' pts' if c.pts_limit else 'No cap' }} · {{ c.roster_size }}-man roster</div></div>
+        <div class="fact"><div class="caps-label">Take over</div><div class="v">{{ c.takeover_label }}</div></div>
+        <div class="fact"><div class="caps-label">Goal</div><div class="v">{{ c.goal_label }}</div></div>
+        <div class="fact"><div class="caps-label">Budget</div><div class="v"><span class="plate">{{ '{:,}'.format(c.pts_limit) ~ ' PT.' if c.pts_limit else 'No cap' }}</span> · {{ c.roster_size }}-man roster</div></div>
         {% if c.restrictions %}
-        <div class="fact"><div class="k">Rules</div><div class="v rules">{% for r in c.restrictions %}<span class="rule">{{ r }}</span>{% endfor %}</div></div>
+        <div class="fact"><div class="caps-label">Rules</div><div class="v rules">{% for r in c.restrictions %}<span class="plate outline">{{ r }}</span>{% endfor %}</div></div>
         {% endif %}
       </div>
     </div>
@@ -94,7 +108,6 @@
     <div><strong>showdownbot.com/teams/challenges</strong></div>
   </footer>
 
-</div>
 </div>
 </div>
 {% endblock %}

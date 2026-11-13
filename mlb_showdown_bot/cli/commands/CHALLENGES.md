@@ -43,7 +43,7 @@ Every command echoes `Using --env dev (DATABASE_URL_LOGS).` on the first line �
 
 ## One-time setup
 
-1. Env vars set (`DATABASE_URL_LOGS`, plus the usual `SUPABASE_*` / `GOOGLE_CREDENTIALS`) — see the repo [`CLAUDE.md`](../../../CLAUDE.md).
+1. Env vars set (`DATABASE_URL_LOGS`, plus the usual `SUPABASE_*` / `GOOGLE_CREDENTIALS`) — see the repo [`AGENTS.md`](../../../AGENTS.md).
 2. Tables exist — `build_challenge_tables()` has run against the LOGS DB. It ALTERs `sim_season` and `user_teams`, so it must run after `build_sim_job_table` and `build_user_teams_tables`.
 3. Weekly rotation is wired: [`.github/workflows/rotate_challenges.yml`](../../../.github/workflows/rotate_challenges.yml) runs `showdown_bot challenges rotate` every Monday 12:00 UTC (also runnable from the Actions tab).
 

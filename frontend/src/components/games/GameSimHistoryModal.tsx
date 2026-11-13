@@ -1,9 +1,11 @@
 import { useEffect, useState } from 'react';
 import { FaSpinner, FaTerminal } from 'react-icons/fa6';
 import { Modal } from '../shared/Modal';
+import { InlineError } from '../shared/InlineError';
 import { UserAvatar } from '../shared/UserAvatar';
 import { ordinal } from '../../functions/formatters';
 import { fetchGameSimHistory, fetchGameSimResult, type SimGameRecord } from '../../api/simGame';
+import { EmptyState } from '../shared/EmptyState';
 
 function errorMessage(err: unknown): string {
     return err instanceof Error ? err.message : String(err);
@@ -60,21 +62,23 @@ export default function GameSimHistoryModal({ gamePk, onClose, onSelect }: Props
         <Modal title="Previous Simulations" size="sm" onClose={onClose}>
             <div className="max-h-[70vh] space-y-2 overflow-y-auto p-4">
                 {loading && (
-                    <div className="flex items-center justify-center gap-2 py-10 text-(--secondary)">
-                        <FaSpinner className="animate-spin" /> Loading simulations…
+                    <div className="space-y-2 animate-pulse" aria-label="Loading simulations">
+                        {[0, 1, 2].map(i => (
+                            <div key={i} className="space-y-1.5 rounded-control border border-(--divider) px-3 py-2.5">
+                                <div className="h-4 w-32 rounded-plate bg-(--background-tertiary)" />
+                                <div className="h-3 w-20 rounded-plate bg-(--background-tertiary)" />
+                                <div className="h-3 w-48 rounded-plate bg-(--background-tertiary)" />
+                            </div>
+                        ))}
                     </div>
                 )}
 
                 {error && (
-                    <div className="rounded-lg border border-(--red)/30 bg-(--red)/5 px-3 py-2 text-[12px] text-(--red)">
-                        {error}
-                    </div>
+                    <InlineError size="md">{error}</InlineError>
                 )}
 
                 {!loading && games?.length === 0 && (
-                    <div className="py-10 text-center text-xs text-(--secondary)">
-                        No one has simulated this game yet.
-                    </div>
+                    <EmptyState size="panel" title="Be the first.">Nobody has simulated this game yet.</EmptyState>
                 )}
 
                 {games?.map((row) => (
@@ -83,10 +87,10 @@ export default function GameSimHistoryModal({ gamePk, onClose, onSelect }: Props
                         type="button"
                         onClick={() => handlePick(row)}
                         disabled={loadingId !== null}
-                        className="flex w-full cursor-pointer items-center justify-between gap-3 rounded-lg border border-(--divider) px-3 py-2.5 text-left transition-colors hover:bg-(--background-secondary) disabled:cursor-not-allowed disabled:opacity-60"
+                        className="flex w-full cursor-pointer items-center justify-between gap-3 rounded-control border border-(--divider) px-3 py-2.5 text-left transition-colors hover:bg-(--background-secondary) disabled:cursor-not-allowed disabled:opacity-60"
                     >
                         <div className="min-w-0">
-                            <div className="text-sm font-semibold text-(--primary)">
+                            <div className="font-display-upright uppercase text-[15px] leading-5 tabular-nums text-(--text-primary)">
                                 {row.away_abbr} {row.away_score} – {row.home_abbr} {row.home_score}
                             </div>
                             {row.creator_username && (
@@ -95,7 +99,6 @@ export default function GameSimHistoryModal({ gamePk, onClose, onSelect }: Props
                                         name={row.creator_username}
                                         avatarUrl={row.creator_avatar_url}
                                         primaryColor={row.creator_primary_color}
-                                        secondaryColor={row.creator_secondary_color}
                                         size={18}
                                     />
                                     <span className="truncate">{row.is_own ? 'You' : `@${row.creator_username}`}</span>

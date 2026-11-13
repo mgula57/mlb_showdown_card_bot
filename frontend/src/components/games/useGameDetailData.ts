@@ -9,10 +9,8 @@ import {
     fetchGameBoxscore,
     type GameBoxscoreDetail,
 } from "../../api/mlbAPI";
-import { buildCardsFromIds, fetchCardsByIds, type ShowdownBotCardAPIResponse } from "../../api/showdownBotCard";
-import { fetchCardData } from "../../api/card_db/cardDatabase";
-import { CardSource } from "../../types/cardSource";
-import { cardKey, TWO_WAY_PLAYER_IDS } from "../../domain/players";
+import { buildCardsFromIds, fetchArchivedCardMap, type ShowdownBotCardAPIResponse } from "../../api/showdownBotCard";
+import { TWO_WAY_PLAYER_IDS } from "../../domain/players";
 import type { SimGameResult } from "../../api/simGame";
 
 type CardMap = Record<string, ShowdownBotCardAPIResponse>;
@@ -198,7 +196,8 @@ export function useGameDetailData({
         const isCurrentSeason = new Date().getFullYear() === season;
         const useLastYear = new Date().getMonth() < 3; // Months are 0-indexed
         const adjustedSeason = (sportId === 1 && isCurrentSeason && useLastYear) ? season - 1 : season;
-        const gameDate = new Date(boxscore.datetime.official_date ?? "") || new Date();
+        const officialDate = boxscore.datetime.official_date;
+        const gameDate = officialDate ? new Date(officialDate) : new Date();
         const yesterday = new Date(gameDate);
         yesterday.setDate(yesterday.getDate() - 1);
 
@@ -219,27 +218,10 @@ export function useGameDetailData({
         setIsLoadingCards(true);
 
         // Postseason games use only the archived card for the season — no live stats pull, so no
-        // point trend either. Look up each player's row in the card database, then fetch all their
-        // full nested cards by id in one batch (both database-only, unlike `buildCardsFromIds` below).
+        // point trend either (database-only, unlike `buildCardsFromIds` below).
         const isPostseason = !!boxscore.game_type && POSTSEASON_GAME_TYPES.has(boxscore.game_type);
         const cardsPromise = isPostseason
-            ? fetchCardData(CardSource.BOT, {
-                mlb_id: [...allIds],
-                year: String(adjustedSeason),
-                showdown_set: showdownSet,
-                limit: allIds.size * 2, // Two-way players return both a hitter and pitcher record
-            }).then((records) => fetchCardsByIds(records.map((record) => record.card_id), 'game-detail-postseason')
-                .then((responses) => ({ records, responses }))
-            ).then(({ records, responses }) => {
-                const map: CardMap = {};
-                for (const record of records) {
-                    const response = responses[record.card_id];
-                    if (!response?.card || record.mlb_id == null) continue;
-                    const id = Number(record.mlb_id);
-                    map[cardKey(id, record.is_pitcher ? "P" : "H")] = response;
-                }
-                return map;
-            })
+            ? fetchArchivedCardMap([...allIds], adjustedSeason, showdownSet, 'game-detail-postseason')
             : buildCardsFromIds([...allIds], adjustedSeason, cardSettings).then((response) => {
                 const map: CardMap = {};
                 for (const entry of response.cards ?? []) {

@@ -67,7 +67,8 @@ class SupabaseClientManager:
         file_path: str | Path,
         destination_path: str,
         overwrite: bool = False,
-        content_type: str | None = None
+        content_type: str | None = None,
+        cache_control: str = '3600'
     ) -> dict:
         """
         Upload a file to a Supabase Storage bucket.
@@ -80,6 +81,8 @@ class SupabaseClientManager:
             content_type: MIME type to store the object as. Defaults to a guess
                 from the destination extension; storage3 would otherwise send
                 text/plain, which buckets with allowed_mime_types reject.
+            cache_control: Seconds browsers/CDN may cache the object. Raise it for
+                paths whose content never changes (e.g. content-hashed names).
         
         Returns:
             Dictionary with upload result containing:
@@ -115,7 +118,7 @@ class SupabaseClientManager:
             # Determine file options based on overwrite setting. `upsert` must be a
             # string ("true"/"false") — it's forwarded verbatim as the x-upsert header.
             file_options = {
-                'cacheControl': '3600',
+                'cacheControl': cache_control,
                 'upsert': str(bool(overwrite)).lower()
             }
 
@@ -203,6 +206,70 @@ class SupabaseClientManager:
                 'error': str(e)
             }
     
+    # Paths per storage `remove` call, keeping each request body small
+    DELETE_BATCH_SIZE = 100
+
+    def delete_files(
+        self,
+        bucket_name: str,
+        file_paths: list[str]
+    ) -> list[str]:
+        """
+        Delete many files from a Supabase bucket, in batches.
+
+        Args:
+            bucket_name: Name of the bucket
+            file_paths: Paths to delete. Missing files are ignored by Supabase.
+
+        Returns:
+            Paths whose batch failed to delete (empty when everything succeeded)
+        """
+        paths = list(dict.fromkeys(path for path in file_paths if path))
+        failed: list[str] = []
+        for start in range(0, len(paths), self.DELETE_BATCH_SIZE):
+            batch = paths[start:start + self.DELETE_BATCH_SIZE]
+            try:
+                self.client.storage.from_(bucket_name).remove(batch)
+            except Exception as e:
+                logger.error(f"Error deleting {len(batch)} files from {bucket_name}: {str(e)}")
+                failed += batch
+        return failed
+
+    # Max entries storage `list` returns per page
+    LIST_PAGE_SIZE = 1000
+
+    def list_file_paths(
+        self,
+        bucket_name: str,
+        folder: str
+    ) -> list[str]:
+        """
+        Every file path under a folder, recursing into subfolders.
+
+        Args:
+            bucket_name: Name of the bucket
+            folder: Folder path in the bucket (no trailing slash)
+
+        Returns:
+            Full paths of all files under the folder
+        """
+        paths: list[str] = []
+        offset = 0
+        while True:
+            entries = self.client.storage.from_(bucket_name).list(
+                folder, {'limit': self.LIST_PAGE_SIZE, 'offset': offset}
+            ) or []
+            for entry in entries:
+                entry_path = f"{folder}/{entry['name']}"
+                # Folders are listed without an id
+                if entry.get('id') is None:
+                    paths += self.list_file_paths(bucket_name, entry_path)
+                else:
+                    paths.append(entry_path)
+            if len(entries) < self.LIST_PAGE_SIZE:
+                return paths
+            offset += self.LIST_PAGE_SIZE
+
     def copy_file(
         self,
         bucket_name: str,

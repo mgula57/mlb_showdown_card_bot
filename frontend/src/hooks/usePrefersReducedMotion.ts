@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 
 /** Mirrors `prefers-reduced-motion: reduce` into JS so timed logic (e.g. the playback phase
- *  machine) can match the CSS `--motion-scale` collapse instead of drifting out of sync with it. */
+ *  machine, the home reel's autoplay) can match the CSS reduced-motion collapse instead of
+ *  drifting out of sync with it. */
 export function usePrefersReducedMotion(): boolean {
     const [prefersReduced, setPrefersReduced] = useState(
         () => typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches,
@@ -15,4 +16,10 @@ export function usePrefersReducedMotion(): boolean {
     }, []);
 
     return prefersReduced;
+}
+
+/** The scroll behavior for programmatic scrolls (`scrollIntoView`, `scrollTo`): smooth, or instant
+ *  when the viewer prefers reduced motion. CSS `scroll-behavior` doesn't reach these calls. */
+export function smoothScrollBehavior(): ScrollBehavior {
+    return typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth";
 }

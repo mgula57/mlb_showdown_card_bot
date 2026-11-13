@@ -5,6 +5,7 @@ from time import sleep
 from typing import List, Optional, Dict, Any
 from datetime import datetime
 from ..base_client import BaseMLBClient
+from .games_client import GamesClient
 from ..models.person import Players, Player, FreeAgent, StatTypeEnum, StatGroupEnum
 from ..models.stats.enums import GameTypeEnum
 from ..models.leagues.league import LeagueListEnum
@@ -23,7 +24,7 @@ _PLAYER_FIELDS = [
     # Stats envelope
     'stats', 'displayName', 'group', 'splits', 'stat',
     # Split context metadata
-    'sport', 'split', 'date', 'game', 'gamePk',
+    'sport', 'split', 'date', 'game', 'gamePk', 'gameType',
     # Team + league (team.abbreviation, team.league.abbreviation)
     'team', 'league',
 ]
@@ -174,12 +175,35 @@ class PeopleClient(BaseMLBClient):
                 )
                 if postseason_players.players:
                     postseason_stat_groups = postseason_players.players[0].stats or []
+                    self._resolve_postseason_rounds(postseason_stat_groups, seasons or [])
                     player.stats = (player.stats or []) + postseason_stat_groups
 
             return player
         except Exception as e:
             print(f"Error fetching player with ID {player_id}: {e}")
             raise e
+
+    def _resolve_postseason_rounds(self, stat_groups: list, seasons: List[int]) -> None:
+        """
+        The game log splits of some seasons only carry the generic playoffs game type ("P") instead of the round.
+        Look the round up by gamePk from the postseason schedule, and set it on those splits in place.
+        """
+        generic_types = (None, GameTypeEnum.PLAYOFFS)
+        splits = [split for group in stat_groups for split in (group.splits or []) if split.game_type in generic_types]
+        if not splits:
+            return
+
+        game_types_by_pk: dict[int, GameTypeEnum] = {}
+        games_client = GamesClient(use_cache=self.use_cache, cache_ttl=self.cache_ttl)
+        round_types = [GameTypeEnum.WILD_CARD, GameTypeEnum.DIVISION_SERIES, GameTypeEnum.LEAGUE_CHAMPIONSHIP_SERIES, GameTypeEnum.WORLD_SERIES]
+        for season in {int(split.season) for split in splits if split.season} or set(seasons):
+            schedule = games_client.get_season_schedule(season=season, game_types=[t.value for t in round_types])
+            game_types_by_pk.update({game.game_pk: GameTypeEnum(game.game_type.value) for game in schedule.games if game.game_type})
+
+        for split in splits:
+            game_pk = split.game.get('gamePk') if split.game else None
+            if game_pk in game_types_by_pk:
+                split.game_type = game_types_by_pk[game_pk]
 
     def get_player_seasons(self, player_id: int, player_type: PlayerType, league_list: Optional[LeagueListEnum] = None) -> List[int]:
         """Get every season (ascending) the player recorded stats in for their player type. Used to resolve a full career into a list of years."""

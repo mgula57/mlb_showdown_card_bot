@@ -23,8 +23,8 @@ import { TeamCard } from './TeamCard';
 import { TeamSearchInput } from './TeamSearchInput';
 import { matchesTeamQuery } from './teamSearch';
 import { TeamPreviewCard } from './TeamPreviewCard';
-import { TeamShelf } from './TeamShelf';
-import { TeamDetail } from './TeamDetail';
+import { TeamShelf, TeamShelfSkeleton } from './TeamShelf';
+import { TeamDetail, TeamDetailSkeleton } from './TeamDetail';
 import { TeamBuilderWelcome } from './TeamBuilderWelcome';
 import { BrowseTeams } from './BrowseTeams';
 import { CollectionDetail } from './CollectionDetail';
@@ -34,13 +34,21 @@ import { SimSeasonView } from './sim/SimSeasonView';
 import { SimulationsTab } from './sim/SimulationsTab';
 import { RecentSimsShelf } from './sim/RecentSimsShelf';
 import { ChallengeDetail } from './sim/ChallengeDetail';
+import { FaceoffView } from './faceoff/FaceoffView';
+import { RecentFaceoffsShelf } from './faceoff/RecentFaceoffsShelf';
+import { FACEOFFS_ENABLED } from '../../api/faceoff';
 import { AdminChallengesView } from './sim/admin/AdminChallengesView';
 import { Tabs, type TabItem } from '../shared/Tabs';
-import { BetaBadge } from '../shared/BetaBadge';
 import BackButton from '../shared/BackButton';
 import { FaPlus, FaSpinner, FaUsers, FaGlobe, FaRankingStar } from 'react-icons/fa6';
 import { fetchChallengeInstance, type ChallengeInstance } from '../../api/sim';
 
+import { InlineError } from '../shared/InlineError';
+import { Heading } from '../shared/Heading';
+import { buttonClass } from '../shared/buttonStyles';
+import { EmptyState } from '../shared/EmptyState';
+import { PinstripeBackdrop } from '../shared/PinstripeBackdrop';
+import { PageSubtitle } from '../shared/PageSubtitle';
 // A team can be addressed by URL four ways: a saved UUID, a historical MLB team, an All-Star
 // team, or an Era Roster (all-time or all-decade).
 type TeamRef =
@@ -51,7 +59,7 @@ type TeamRef =
 
 // Path segments reserved for non-"saved" team refs and other top-level Team Builder screens —
 // none of these should ever fall through to being parsed as a saved team's UUID.
-const RESERVED_TEAM_PATH_SEGMENTS = ['historical', 'asg', 'era', 'challenges', 'all', 'collections', 'admin'];
+const RESERVED_TEAM_PATH_SEGMENTS = ['historical', 'asg', 'era', 'challenges', 'faceoffs', 'all', 'collections', 'admin'];
 
 function parseTeamRef(pathname: string): TeamRef | null {
     const parts = pathname.split('/').filter(Boolean);
@@ -83,6 +91,14 @@ function parseSimJobId(pathname: string): string | null {
 function parseChallengeInstanceId(pathname: string): string | null {
     const parts = pathname.split('/').filter(Boolean);
     return parts[0] === 'teams' && parts[1] === 'challenges' && parts[2] ? parts[2] : null;
+}
+
+// A Faceoff's replay has its own shareable URL (/teams/faceoffs/:faceoffId), independent of the team
+// editor/list state below, just like a challenge.
+function parseFaceoffId(pathname: string): string | null {
+    if (!FACEOFFS_ENABLED) return null;
+    const parts = pathname.split('/').filter(Boolean);
+    return parts[0] === 'teams' && parts[1] === 'faceoffs' && parts[2] ? parts[2] : null;
 }
 
 // The full "My Teams" list (with search) is its own screen at /teams/all — shareable, and the
@@ -251,6 +267,7 @@ export default function TeamBuilder() {
     const teamRef = parseTeamRef(location.pathname);
     const simJobId = parseSimJobId(location.pathname);
     const challengeInstanceId = parseChallengeInstanceId(location.pathname);
+    const faceoffId = parseFaceoffId(location.pathname);
     const allTeamsView = isAllTeamsView(location.pathname);
     const collectionSlug = parseCollectionSlug(location.pathname);
     const eraAllView = isEraAllPath(location.pathname);
@@ -275,7 +292,7 @@ export default function TeamBuilder() {
     // Load the (lightweight) teams list lazily — only when viewing the list, so a direct
     // visit to a team URL opens the team without first loading every team.
     useEffect(() => {
-        if (teamRef || challengeInstanceId || listLoaded) return;
+        if (teamRef || challengeInstanceId || faceoffId || listLoaded) return;
         loadTeams();
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [location.pathname, listLoaded, token]);
@@ -355,7 +372,8 @@ export default function TeamBuilder() {
         setError(null);
         try {
             const myTeams = token ? await fetchUserTeams(token) : [];
-            setUserTeams(myTeams);
+            // League teams are managed from their league, not the Team Builder.
+            setUserTeams(myTeams.filter(t => t.source !== 'league'));
             setListLoaded(true);
         } catch (err: any) {
             setError(err.message ?? 'Failed to load teams.');
@@ -547,6 +565,21 @@ export default function TeamBuilder() {
         );
     }
 
+    // A Faceoff's replay takes over the view, and resolves on a cold link like a challenge does.
+    if (faceoffId) {
+        return (
+            <div className="flex flex-col h-full">
+                <FaceoffView
+                    key={faceoffId}
+                    faceoffId={faceoffId}
+                    token={token}
+                    onBack={() => navigate('/teams')}
+                    onOpenFaceoff={id => navigate('/teams/faceoffs/' + id)}
+                />
+            </div>
+        );
+    }
+
     // A curated collection's own shareable page.
     if (collectionSlug) {
         return (
@@ -618,11 +651,11 @@ export default function TeamBuilder() {
                 <div className={`flex items-center gap-3 ${px}`}>
                     <BackButton onBack={() => { setTeamSearch(''); navigate('/teams'); }} />
                     <div>
-                        <h1 className="text-[20px] font-black text-(--text-primary)">My Teams</h1>
-                        <p className="text-[12px] text-(--text-secondary)">
+                        <Heading level="page">My Teams</Heading>
+                        <PageSubtitle size="sm">
                             {sortedUserTeams.length} team{sortedUserTeams.length === 1 ? '' : 's'}
                             {archivedCount > 0 && ` · ${archivedCount} archived`}
-                        </p>
+                        </PageSubtitle>
                     </div>
                 </div>
 
@@ -647,23 +680,30 @@ export default function TeamBuilder() {
                 </div>
 
                 {error && (
-                    <div className="mx-4 text-[12px] text-red-400 px-3 py-2 rounded-lg border border-red-400/30 bg-red-400/5">
+                    <InlineError size="md" className="mx-4">
                         {error}
-                    </div>
+                    </InlineError>
                 )}
 
                 {loading ? (
-                    <div className="flex justify-center py-12">
-                        <FaSpinner className="animate-spin text-(--text-tertiary) text-xl" />
+                    <div className={`grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-2 animate-pulse ${px}`} aria-label="Loading teams">
+                        {Array.from({ length: 6 }, (_, i) => <div key={i} className="h-16 rounded-control bg-(--background-tertiary)" />)}
                     </div>
                 ) : !token ? (
                     <p className="text-[13px] text-(--text-tertiary) py-8 text-center">
                         Sign in to view your teams.
                     </p>
                 ) : filteredUserTeams.length === 0 ? (
-                    <p className="text-[13px] text-(--text-tertiary) py-8 text-center">
-                        {q ? `No teams match “${q}”.` : 'You haven’t created any teams yet.'}
-                    </p>
+                    q ? (
+                        <EmptyState size="inline">No teams match “{q}”.</EmptyState>
+                    ) : (
+                        <EmptyState
+                            title="No teams yet."
+                            action={<button type="button" onClick={handleNewTeam} className={buttonClass('primary')}><FaPlus className="text-[11px]" /> New team</button>}
+                        >
+                            Draft a roster of Showdown cards, then take it into a 162-game season.
+                        </EmptyState>
+                    )
                 ) : (
                     <div className={`grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-2 ${px}`}>
                         {filteredUserTeams.map(team => (
@@ -679,9 +719,7 @@ export default function TeamBuilder() {
 
     if (view.mode === 'loading') {
         return (
-            <div className="flex flex-col h-full items-center justify-center py-12">
-                <FaSpinner className="animate-spin text-(--text-tertiary) text-xl" />
-            </div>
+            <TeamDetailSkeleton />
         );
     }
 
@@ -753,29 +791,27 @@ export default function TeamBuilder() {
     return (
         // `@container` here spans the full content region, so shelves flagged `bleed` can
         // run to the screen edge past the centered max-width below.
-        <div className="@container w-full">
+        <div className="@container w-full relative isolate">
+        {/* Card-back pinstripes behind the page header, like the Release Builder list */}
+        <PinstripeBackdrop heightClass="h-72" />
         <div className="flex flex-col gap-4 py-4 max-w-4xl lg:max-w-7xl mx-auto w-full">
             {/* Header */}
             <div className={`flex items-center ${px} justify-between`}>
                 <div>
-                    <h1 className="flex items-center gap-2 text-[20px] font-black text-(--text-primary)">
-                        Team Builder
-                        <BetaBadge />
-                    </h1>
-                    <p className="text-[12px] text-(--text-secondary)">
+                    <Heading level="page">Team Builder</Heading>
+                    <PageSubtitle size="sm">
                         Build your team, compete in challenges, and explore community creations.
-                    </p>
+                    </PageSubtitle>
                 </div>
                 {token && (
                     <button
                         type="button"
                         onClick={handleNewTeam}
                         disabled={creatingTeam}
-                        className={`flex items-center gap-1 ${px} py-3 text-sm rounded-xl bg-(--secondary) font-bold text-(--background-primary) hover:opacity-90 transition-opacity cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed`}
+                        className={buttonClass('primary', 'md', `${px} py-3!`)}
                     >
                         {creatingTeam ? <FaSpinner className="animate-spin" /> : <FaPlus />}
-                        New
-                        <span className="hidden md:inline">Team</span>
+                        <span>New<span className="hidden md:inline"> Team</span></span>
                     </button>
                 )}
             </div>
@@ -784,9 +820,9 @@ export default function TeamBuilder() {
             <Tabs tabs={TABS} value={activeTab} onChange={setActiveTab} className={px} fullWidth />
 
             {error && (
-                <div className="mx-4 text-[12px] text-red-400 px-3 py-2 rounded-lg border border-red-400/30 bg-red-400/5">
+                <InlineError size="md" className="mx-4">
                     {error}
-                </div>
+                </InlineError>
             )}
 
             {/* My Teams tab */}
@@ -804,10 +840,13 @@ export default function TeamBuilder() {
                             <RecentSimsShelf token={token} onOpenSeason={openSeason} />
                         </div>
                     )}
-                    {loading ? (
-                        <div className="flex justify-center py-12">
-                            <FaSpinner className="animate-spin text-(--text-tertiary) text-xl" />
+                    {FACEOFFS_ENABLED && !loading && token && (
+                        <div className={px}>
+                            <RecentFaceoffsShelf token={token} onOpenFaceoff={id => navigate('/teams/faceoffs/' + id)} />
                         </div>
+                    )}
+                    {loading ? (
+                        <TeamShelfSkeleton shelves={2} className={px} />
                     ) : (
                         <section className={`${px}`}>
                             {!token || userTeams.length === 0 ? (
@@ -900,7 +939,7 @@ function TeamListSection({ title, teams, previewCount, onOpen, showAll, emptyNot
     return (
         <div className="space-y-3">
             <div className="flex items-center justify-between gap-3">
-                <h3 className="text-[15px] font-black text-(--text-primary) truncate">{title}</h3>
+                <Heading level="panel" className="truncate">{title}</Heading>
                 {showAll && (
                     <button
                         type="button"

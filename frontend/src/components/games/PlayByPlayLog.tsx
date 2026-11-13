@@ -5,6 +5,11 @@ import { resolveCardKey } from "../../domain/players";
 import { ordinal } from "../../functions/formatters";
 import { CardItemCompactFromCard } from "../cards/CardItemCompact";
 import type { ShowdownBotCardAPIResponse } from "../../api/showdownBotCard";
+import { headingClass } from "../shared/headingStyles";
+import { choiceClass } from "../shared/choiceStyles";
+import { CAPS_LABEL_CLASS } from "../shared/fieldStyles";
+import { Plate } from "../shared/Plate";
+import { Eyebrow } from '../shared/Eyebrow';
 
 type CardMap = Record<string, ShowdownBotCardAPIResponse>;
 
@@ -45,7 +50,7 @@ function MiniCard({
             {card ? (
                 <CardItemCompactFromCard card={card} hideDetails onClick={cardResponse ? () => onCardSelect?.(cardResponse) : undefined} />
             ) : isLoadingCards ? (
-                <div className="h-11 rounded-lg bg-(--background-quaternary) animate-pulse" />
+                <div className="h-11 rounded-control bg-(--background-quaternary) animate-pulse" />
             ) : (
                 <div className="text-xs font-semibold text-(--primary) truncate pt-1">{fallbackName}</div>
             )}
@@ -69,31 +74,25 @@ function CurrentMatchupRow({
 
     return (
         <div className="sticky top-0 z-10 -mx-1 px-1 pb-1 bg-primary">
-            <div className="text-sm w-full text-center font-black text-(--green) pt-1 pb-2 flex items-center justify-center gap-2">
+            <div className={`w-full pt-1 pb-2 flex items-center justify-center gap-2 ${headingClass('panel')} text-(--green)!`}>
                 <span className="relative flex h-2 w-2">
                     <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-(--green) opacity-75" />
                     <span className="relative inline-flex h-2 w-2 rounded-full bg-(--green)" />
                 </span>
                 Now Batting · {inningLabel(situation.inning, situation.isTop)}
             </div>
-            <div className="flex items-start gap-3 p-3 rounded-xl bg-primary border border-(--green)/50 ring-1 ring-(--green)/20">
+            <div className="flex items-start gap-3 p-3 rounded-card bg-primary border border-(--green)/50 ring-1 ring-(--green)/20">
                 <div className="grid grid-cols-1 @[500px]:grid-cols-2 gap-1 min-w-24 @[300px]:min-w-32">
                     <MiniCard cardResponse={pitcherCardResponse} fallbackName={situation.pitcher?.name ?? 'Unknown'} onCardSelect={onCardSelect} isLoadingCards={isLoadingCards} />
                     <MiniCard cardResponse={batterCardResponse} fallbackName={situation.batter?.name ?? 'Unknown'} onCardSelect={onCardSelect} isLoadingCards={isLoadingCards} />
                 </div>
                 <div className="min-w-0 flex-1 pt-0.5">
                     <div className="flex flex-wrap items-center gap-1.5">
-                        <span className="inline-block rounded-full border border-(--green)/40 px-2 py-0.5 text-[11px] font-bold text-(--green)">
-                            At Bat
-                        </span>
+                        <Plate variant="success" size="sm">At Bat</Plate>
                         {hasCount && (
-                            <span className="rounded-full bg-(--background-tertiary) px-2 py-0.5 text-[10px] font-bold tracking-wide text-(--secondary)">
-                                {situation.balls}-{situation.strikes}
-                            </span>
+                            <Plate size="sm">{situation.balls}-{situation.strikes}</Plate>
                         )}
-                        <span className="rounded-full bg-(--background-tertiary) px-2 py-0.5 text-[10px] font-bold tracking-wide text-(--secondary)">
-                            {situation.outs} out{situation.outs !== 1 ? 's' : ''}
-                        </span>
+                        <Plate size="sm">{situation.outs} out{situation.outs !== 1 ? 's' : ''}</Plate>
                     </div>
                     <p className="text-sm text-(--primary) mt-1">
                         <span className="font-bold">{situation.pitcher?.name ?? 'Unknown'}</span>
@@ -134,7 +133,6 @@ export default function PlayByPlayLog({ plays, cardMap, onCardSelect, isLoadingC
     // list changes (live polling can grow it, and the filter can shrink it).
     useEffect(() => {
         checkScroll();
-        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [visiblePlays, isLoadingCards]);
 
     const filterToggle = (
@@ -143,11 +141,7 @@ export default function PlayByPlayLog({ plays, cardMap, onCardSelect, isLoadingC
             onClick={() => setScoringOnly((on) => !on)}
             disabled={scoringCount === 0 && !scoringOnly}
             aria-pressed={scoringOnly}
-            className={`cursor-pointer rounded-full border px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${
-                scoringOnly
-                    ? 'border-(--green)/40 bg-(--green)/10 text-(--green)'
-                    : 'border-(--divider) text-(--secondary) hover:text-(--primary)'
-            }`}
+            className={choiceClass(scoringOnly, 'sm')}
         >
             Scoring{scoringCount > 0 ? ` (${scoringCount})` : ''}
         </button>
@@ -189,34 +183,28 @@ export default function PlayByPlayLog({ plays, cardMap, onCardSelect, isLoadingC
                             {showTakeover && (
                                 <div className="flex items-center gap-2 py-2">
                                     <div className="h-px flex-1 bg-(--divider)" />
-                                    <span className="text-[10px] font-bold uppercase tracking-wider text-(--secondary)">Took over here</span>
+                                    <span className={`${CAPS_LABEL_CLASS} text-(--text-tertiary)`}>Took over here</span>
                                     <div className="h-px flex-1 bg-(--divider)" />
                                 </div>
                             )}
                             {showDivider && (
-                                <div className="text-sm w-full text-center font-black text-(--primary) pt-1 pb-2">
-                                    {inningLabel(play.inning, play.isTop)}
+                                <div className="w-full text-center pt-1 pb-2">
+                                    <Eyebrow>{inningLabel(play.inning, play.isTop)}</Eyebrow>
                                 </div>
                             )}
-                            <div className="flex items-start gap-3 p-3 rounded-xl bg-primary border border-(--divider)/50">
+                            <div className="flex items-start gap-3 p-3 rounded-card bg-primary border border-(--divider)/50">
                                 <div className="grid grid-cols-1 @[500px]:grid-cols-2 gap-1 min-w-24 @[300px]:min-w-32">
                                     <MiniCard cardResponse={pitcherCardResponse} fallbackName={play.pitcherName} onCardSelect={onCardSelect} isLoadingCards={isLoadingCards} />
                                     <MiniCard cardResponse={batterCardResponse} fallbackName={play.batterName} onCardSelect={onCardSelect} isLoadingCards={isLoadingCards} />
                                 </div>
                                 <div className="min-w-0 flex-1 pt-0.5">
                                     <div className="flex flex-wrap items-center gap-1.5">
-                                        <span className={`inline-block rounded-full border px-2 py-0.5 text-[11px] font-bold ${
-                                            play.isScoringPlay
-                                                ? 'border-(--green)/40 text-(--green)'
-                                                : 'border-(--divider) text-(--secondary)'
-                                        }`}>
+                                        <Plate variant={play.isScoringPlay ? 'success' : 'outline'} size="sm">
                                             {play.event}
-                                        </span>
+                                        </Plate>
                                         {/* Sim games resolve a plate appearance with two d20s instead of a pitch count. */}
                                         {play.roll && (
-                                            <span className="rounded-full bg-(--background-tertiary) px-2 py-0.5 text-[10px] font-bold tracking-wide text-(--secondary)">
-                                                P {play.roll.pitchRoll} · S {play.roll.swingRoll}
-                                            </span>
+                                            <Plate size="sm">P {play.roll.pitchRoll} · S {play.roll.swingRoll}</Plate>
                                         )}
                                     </div>
                                     <p className="text-sm text-(--primary) mt-1">
@@ -231,11 +219,13 @@ export default function PlayByPlayLog({ plays, cardMap, onCardSelect, isLoadingC
                     );
                 })}
             </div>
+            {/* design-ok-start: scroll fade over the log, not decoration */}
             <div
                 className={`absolute bottom-0 inset-x-0 h-10 bg-linear-to-t from-(--background-secondary) to-transparent pointer-events-none transition-opacity duration-300 ${
                     showBottomFade ? 'opacity-100' : 'opacity-0'
                 }`}
             />
+            {/* design-ok-end */}
         </div>
     );
 
@@ -250,9 +240,9 @@ export default function PlayByPlayLog({ plays, cardMap, onCardSelect, isLoadingC
     }
 
     return (
-        <div className="rounded-xl border border-(--divider) bg-(--background-secondary) p-3">
+        <div className="rounded-card border border-(--divider) bg-(--background-secondary) p-3">
             <div className="mb-2 flex items-center justify-between gap-2">
-                <div className="text-xs font-bold uppercase tracking-wide text-(--secondary)">Play-by-Play</div>
+                <div className={headingClass('panel')}>Play-by-Play</div>
                 {filterToggle}
             </div>
             {list}

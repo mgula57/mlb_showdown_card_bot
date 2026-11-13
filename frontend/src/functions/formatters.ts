@@ -77,6 +77,11 @@ export function relativeTime(iso: string): string {
     return new Date(iso).toLocaleDateString();
 }
 
+/** "Oct 26, 2026" in the viewer's locale. */
+export function formatShortDate(iso: string): string {
+    return new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+}
+
 /** Up to two initials from a username or email - split on the separators those usually carry. */
 export function userInitials(name: string | null | undefined): string {
     return (name ?? '')

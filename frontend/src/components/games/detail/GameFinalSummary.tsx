@@ -11,6 +11,8 @@ import type { ShowdownBotCardAPIResponse } from "../../../api/showdownBotCard";
 import { playerOfTheGame } from "../../../domain/gameSummary";
 import { resolveCardKey } from "../../../domain/players";
 import { CardItemFromCard, CardItemSkeleton } from "../../cards/CardItem";
+import { Eyebrow } from "../../shared/Eyebrow";
+import { CAPS_LABEL_CLASS } from "../../shared/fieldStyles";
 
 type CardMap = Record<string, ShowdownBotCardAPIResponse>;
 
@@ -31,7 +33,7 @@ export default function GameFinalSummary({ game, cardMap, onCardSelect, isLoadin
         ref ? [...(game.away.boxscore?.pitching ?? []), ...(game.home.boxscore?.pitching ?? [])].find((p) => String(p.id) === String(ref.id)) : undefined;
 
     const winningTeam = potg ? game[potg.side].team : undefined;
-    const accent = winningTeam?.primaryColor ?? "#eab308";
+    const accent = winningTeam?.primaryColor ?? "var(--gold)";
 
     /* Every entry — Player of the Game and each decision — sits in the same tile, so they share
        one padding and read as a set; only the left accent and an optional heading differ. */
@@ -41,11 +43,11 @@ export default function GameFinalSummary({ game, cardMap, onCardSelect, isLoadin
             <div
                 key={key}
                 style={{ borderLeftColor: accentColor }}
-                className="min-w-0 space-y-1 rounded-xl border border-l-4 border-white/10 bg-(--background-secondary)/30 p-2.5"
+                className="min-w-0 space-y-1 rounded-card border border-l-4 border-(--divider) bg-(--background-secondary) p-2.5"
             >
                 {heading}
                 <div className="flex items-baseline gap-1.5 text-sm min-w-0">
-                    {label && <span className={`font-black shrink-0 ${labelClass}`}>{label}</span>}
+                    {label && <span className={`font-display-upright uppercase shrink-0 ${labelClass}`}>{label}</span>}
                     <span className="font-semibold text-(--primary) truncate">{ref.name}</span>
                     {detail && <span className="text-xs text-(--secondary) shrink-0">{detail}</span>}
                 </div>
@@ -61,19 +63,19 @@ export default function GameFinalSummary({ game, cardMap, onCardSelect, isLoadin
     const decisions = [
         winner && recapPlayer("W", "W", "text-(--green)", "var(--green)", winner, "P", pitchingLine(winner)?.note),
         loser && recapPlayer("L", "L", "text-(--red)", "var(--red)", loser, "P", pitchingLine(loser)?.note),
-        save && recapPlayer("SV", "SV", "text-blue-400", "#60a5fa", save, "P", pitchingLine(save)?.note),
+        save && recapPlayer("SV", "SV", "text-(--showdown-blue)", "var(--showdown-blue)", save, "P", pitchingLine(save)?.note),
     ].filter(Boolean);
 
     return (
         <div
-            className={`@container mx-2 rounded-2xl border border-white/10 bg-(--background-primary)/35 backdrop-blur-xl backdrop-saturate-150 shadow-xl p-3 space-y-3 ${className}`}
+            className={`@container mx-2 rounded-card border border-(--divider) bg-(--background-primary) shadow-overlay p-3 space-y-3 ${className}`}
         >
-            <span className="block text-[11px] font-black tracking-widest text-(--secondary) uppercase">Game Recap</span>
+            <Eyebrow className="block">Game Recap</Eyebrow>
 
             {potg && recapPlayer(
                 "POTG", "", "", accent, { id: potg.line.id, name: potg.line.name }, potg.role, potg.line.summary,
-                <div className="flex items-center gap-1.5 text-[11px] font-black uppercase tracking-wider text-(--primary)">
-                    <FaStar className="text-yellow-400" />
+                <div className={`flex items-center gap-1.5 ${CAPS_LABEL_CLASS} text-(--text-primary)`}>
+                    <FaStar className="text-(--gold)" />
                     Player of the Game
                     {winningTeam && <span className="text-(--secondary) font-bold">· {winningTeam.abbreviation}</span>}
                 </div>,

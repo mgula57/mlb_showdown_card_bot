@@ -1,0 +1,177 @@
+import { useCallback, useEffect, useState } from 'react';
+import { FaCheck, FaDownload, FaLink, FaShareNodes, FaSpinner } from 'react-icons/fa6';
+import { ensureReleaseShareImage, type Release } from '../../api/releases';
+import { cardImagePublicUrl } from '../../api/supabase';
+import { Modal } from '../shared/Modal';
+import { Eyebrow } from '../shared/Eyebrow';
+import { InlineError } from '../shared/InlineError';
+import { RetryableError } from '../shared/RetryableError';
+import { buttonClass } from '../shared/buttonStyles';
+import { fieldClass } from '../shared/fieldStyles';
+import { useCopyReleaseLink } from './useCopyReleaseLink';
+import { ReleaseSharingSettings } from './ReleaseSharingSettings';
+import { isPrivateRelease } from './releaseVisibility';
+
+type ReleaseShareSheetProps = {
+    release: Release;
+    onClose: () => void;
+    /** Shown above the title, e.g. "Published · v1" right after publishing. */
+    eyebrow?: string;
+    /** The owner's session, to change who can find it from here. */
+    ownerToken?: string;
+    onReleaseUpdated?: (release: Release) => void;
+};
+
+/** The release's preview image, asked for when the sheet opens: the server renders it if it's missing
+ *  or out of date (e.g. a release published before share images, or a render that failed at publish).
+ *  Not while `enabled` is false (a private release has no public preview). */
+function useShareImage(release: Release, enabled: boolean) {
+    const [path, setPath] = useState<string | null>(release.share_image_path);
+    const [loading, setLoading] = useState(enabled);
+    const [error, setError] = useState<string | null>(null);
+
+    const load = useCallback(async () => {
+        setLoading(true);
+        setError(null);
+        try {
+            setPath(await ensureReleaseShareImage(release.id));
+        } catch (err) {
+            setError(err instanceof Error ? err.message : "Couldn't make the preview image.");
+        } finally {
+            setLoading(false);
+        }
+    }, [release.id]);
+
+    useEffect(() => { if (enabled) load(); }, [load, enabled]);
+
+    return { path, loading, error, retry: load };
+}
+
+/** Everything for sending a release to someone: its short link (copied, or handed to the phone's
+ *  share sheet) and the preview image chat apps show for it, which can also be saved. */
+export function ReleaseShareSheet({ release, onClose, eyebrow, ownerToken, onReleaseUpdated }: ReleaseShareSheetProps) {
+    const link = useCopyReleaseLink(release.share_path);
+    const [downloading, setDownloading] = useState(false);
+    const [error, setError] = useState<string | null>(null);
+    const isPrivate = isPrivateRelease(release);
+    const shareImage = useShareImage(release, !isPrivate);
+    const imageUrl = shareImage.path ? cardImagePublicUrl(shareImage.path) : null;
+    const [loadedUrl, setLoadedUrl] = useState<string | null>(null);
+    const imageReady = !!imageUrl && loadedUrl === imageUrl;
+    const canShareNatively = typeof navigator.share === 'function';
+
+    async function handleNativeShare() {
+        try {
+            await navigator.share({ title: release.name, text: release.description ?? undefined, url: link.url });
+        } catch (err) {
+            // Closing the share sheet rejects with AbortError, which isn't a failure
+            if (!(err instanceof DOMException && err.name === 'AbortError')) setError("Couldn't open sharing. Copy the link instead.");
+        }
+    }
+
+    async function handleDownloadImage() {
+        if (!imageUrl) return;
+        setDownloading(true);
+        setError(null);
+        try {
+            const blob = await fetch(imageUrl).then(res => {
+                if (!res.ok) throw new Error();
+                return res.blob();
+            });
+            const objectUrl = URL.createObjectURL(blob);
+            const anchor = document.createElement('a');
+            anchor.href = objectUrl;
+            anchor.download = `${release.slug}.jpg`;
+            anchor.click();
+            URL.revokeObjectURL(objectUrl);
+        } catch {
+            setError("Couldn't download the image. Try again in a moment.");
+        } finally {
+            setDownloading(false);
+        }
+    }
+
+    return (
+        <Modal
+            size="md"
+            onClose={onClose}
+            title={
+                <div className="flex flex-col gap-1">
+                    {eyebrow && <Eyebrow>{eyebrow}</Eyebrow>}
+                    <span>Share {release.name}</span>
+                </div>
+            }
+        >
+            <div className="flex flex-col gap-4 p-4">
+                {isPrivate ? (
+                    <p className="text-[13px] text-(--text-secondary)">
+                        Only you can open this release. Pick Listed or Link only to share it; the link stays the same.
+                    </p>
+                ) : (
+                <>
+                {imageUrl ? (
+                    <div className="relative w-full aspect-1200/630 rounded-card bg-(--background-tertiary) overflow-hidden">
+                        <img
+                            key={imageUrl}
+                            src={imageUrl}
+                            alt={`Link preview for ${release.name}`}
+                            onLoad={() => setLoadedUrl(imageUrl)}
+                            className={`w-full h-full object-cover rounded-card border border-(--divider) transition-opacity ${imageReady ? 'opacity-100' : 'opacity-0'}`}
+                        />
+                        {(!imageReady || shareImage.loading) && (
+                            <div className={`absolute flex items-center gap-1.5 text-[12px] text-(--text-tertiary) ${imageReady ? 'right-2 bottom-2 px-2 py-1 bg-(--background-secondary) rounded-card' : 'inset-0 justify-center animate-pulse'}`}>
+                                <FaSpinner className="animate-spin text-[11px]" />
+                                {imageReady ? 'Refreshing…' : 'Loading preview…'}
+                            </div>
+                        )}
+                    </div>
+                ) : shareImage.error ? (
+                    <RetryableError onRetry={shareImage.retry}>{shareImage.error}</RetryableError>
+                ) : (
+                    <div className="flex flex-col gap-1.5">
+                        <div aria-hidden className={`w-full aspect-1200/630 rounded-card bg-(--background-tertiary) flex items-center justify-center ${shareImage.loading ? 'animate-pulse' : ''}`}>
+                            <FaSpinner className="animate-spin text-(--text-tertiary)" />
+                        </div>
+                        <span className="text-[12px] text-(--text-tertiary)">Making the preview image…</span>
+                    </div>
+                )}
+
+                <div className="flex gap-2">
+                    <input
+                        type="text"
+                        readOnly
+                        value={link.url}
+                        aria-label="Release link"
+                        onFocus={e => e.currentTarget.select()}
+                        className={fieldClass('md', 'flex-1 min-w-0 tabular-nums')}
+                    />
+                    <button type="button" onClick={link.copy} className={buttonClass('primary', 'md')}>
+                        {link.copied ? <FaCheck className="text-[11px]" /> : <FaLink className="text-[11px]" />}
+                        {link.copied ? 'Copied' : 'Copy link'}
+                    </button>
+                </div>
+
+                <div className="flex flex-wrap gap-2">
+                    {canShareNatively && (
+                        <button type="button" onClick={handleNativeShare} className={buttonClass('secondary', 'md', 'flex-1')}>
+                            <FaShareNodes className="text-[11px]" /> Share…
+                        </button>
+                    )}
+                    {imageUrl && (
+                        <button type="button" onClick={handleDownloadImage} disabled={downloading} className={buttonClass('secondary', 'md', 'flex-1')}>
+                            {downloading ? <FaSpinner className="animate-spin text-[11px]" /> : <FaDownload className="text-[11px]" />} Download image
+                        </button>
+                    )}
+                </div>
+                </>
+                )}
+
+                {ownerToken && onReleaseUpdated && (
+                    <ReleaseSharingSettings release={release} token={ownerToken} onReleaseUpdated={onReleaseUpdated} />
+                )}
+
+                {(error || link.error) && <InlineError size="md">{error ?? link.error}</InlineError>}
+            </div>
+        </Modal>
+    );
+}

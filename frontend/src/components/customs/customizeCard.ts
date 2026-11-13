@@ -44,6 +44,7 @@ export const formInputsFromCard = (card: ShowdownBotCard): Partial<CustomCardFor
         expansion: card.image?.expansion ?? undefined,
         edition: card.image?.edition ?? undefined,
         image_parallel: card.image?.parallel ?? undefined,
+        image_parallel_coloring: card.image?.parallel_coloring ?? undefined,
         chart_version: card.chart_version ? String(card.chart_version) : undefined,
     };
 

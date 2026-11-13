@@ -2,7 +2,12 @@ import typer
 import time
 
 # Import business logic
-from ...core.set_builder.showdown_bot_set import ShowdownBotSet
+from ...core.set_builder.showdown_bot_set import ShowdownBotSet, PointBucket
+from ...core.set_builder.wotc_set_profile import WotcSetProfile
+from ...core.set_builder.selection import TeamWeighting
+from ...core.set_builder.release_importer import ReleaseImporter
+from ...core.set_builder.release_images import ReleaseImageJanitor
+from ...core.database.postgres_db import PostgresDB
 
 app = typer.Typer()
 
@@ -14,7 +19,8 @@ def set_builder(
     set_size: int = typer.Option(100, "--set_size", "-ss", help="Number of cards to include in the set."),
     all_star_game: bool = typer.Option(False, "--all_star_game", "-asg", help="Build the full All-Star Game roster set for the given year(s)."),
     team_breakdown: str = typer.Option(None, "--team_breakdown", "-tb", help="Show team breakdown for a specific team."),
-    ideal_low_point_percentage: float = typer.Option(None, "--ideal_low_point_percentage", "-ilpp", help="Ideal percentage of low-point cards in the set."),
+    point_buckets: str = typer.Option(None, "--point_buckets", "-pb", help="Point ranges with an ideal share of each player type, as 'min-max:pct' pairs, comma-separated. Ex: '10-50:0.15,60-100:0.10'."),
+    wotc_base_set: str = typer.Option(None, "--wotc_base_set", "-wbs", help="Match the position counts, average points and low point buckets of a WOTC base set (2000-2005), scaled to --set_size. --point_buckets overrides the buckets."),
     manually_included_ids: str = typer.Option(None, "--manually_included_ids", "-inc", help="Specific player IDs to include in the set, comma-separated."),
     manually_excluded_ids: str = typer.Option(None, "--manually_excluded_ids", "-exc", help="Specific player IDs to exclude from the set, comma-separated."),
     year_overrides: str = typer.Option(None, "--year_overrides", "-yo", help="Per-player year overrides as 'bref_id:years' pairs, comma-separated. Ex: 'verlaju01:2025-2026'. Cards are generated live instead of pulled from the DB."),
@@ -54,12 +60,15 @@ def set_builder(
         year_list = [int(y.strip()) for y in years.split(',')] if years else []
 
         # BUILD THE SET
+        wotc_profile = WotcSetProfile.load(wotc_base_set) if wotc_base_set else None
         showdown_bot_set = ShowdownBotSet(
             years=year_list,
             showdown_sets=showdown_set_list,
             set_size=set_size,
-            is_all_star_game=all_star_game,
-            ideal_low_point_percentage=ideal_low_point_percentage,
+            all_stars_only=all_star_game,
+            point_buckets=PointBucket.parse_cli(point_buckets) if point_buckets else (wotc_profile.point_buckets if wotc_profile else []),
+            position_targets=wotc_profile.position_targets if wotc_profile else [],
+            team_weighting=wotc_profile.team_weighting if wotc_profile else TeamWeighting.EVEN,
             manually_included_ids=[pid.strip() for pid in manually_included_ids.split(',')] if manually_included_ids else None,
             manually_excluded_ids=[pid.strip() for pid in manually_excluded_ids.split(',')] if manually_excluded_ids else None,
             year_overrides=year_overrides_dict,
@@ -100,6 +109,68 @@ def set_builder(
             time_str = f"{hours}h {minutes}m {seconds:.1f}s"
         
         print(f"\n✅ Set Builder operation completed in {time_str}")
+
+
+@app.command("import_release")
+def import_release(
+    json_path: str = typer.Argument(..., help="Path to a set export JSON (from `set build --export_data`)."),
+    release_name: str = typer.Option(..., "--name", "-n", help="Release name. An existing release you own with this name is updated in place."),
+    user_id: str = typer.Option(..., "--user_id", "-u", help="Supabase user id that owns the release."),
+    base_edition_name: str = typer.Option("Base Set", "--base_edition_name", "-b", help="Edition name for the non-expansion cards. Expansions are named by their code (e.g. CC)."),
+    publish: bool = typer.Option(False, "--publish", "-p", help="Publish the editions so the release is publicly visible."),
+    env: str = typer.Option("dev", "--env", "-e", help="Environment to write to (dev or prod)."),
+):
+    """Load a locally built set export into the Release Builder, one edition per image edition."""
+    db = PostgresDB(is_archive=env.lower() == "prod")
+    if db.connection is None:
+        raise typer.Exit(code=1)
+    importer = ReleaseImporter(json_path=json_path, release_name=release_name, user_id=user_id, db=db, base_edition_name=base_edition_name, publish=publish)
+    release_id = importer.run()
+    db.close_connection()
+    print(f"\n✅ Release ready: /release-builder/{release_id}")
+
+
+@app.command("migrate_release")
+def migrate_release(
+    release_path: str = typer.Argument(..., help="The release in DEV: the <owner>/<slug> part of its /r/ link, or a bare slug if only one user has it."),
+    apply: bool = typer.Option(False, "--apply", "-a", help="Write to PROD. Without it, only prints the plan."),
+):
+    """Copy a release built in DEV (DATABASE_URL_LOGS) into PROD (DATABASE_URL_ARCHIVE) as an
+    unpublished release owned by the same email's PROD account. Images are not copied or rendered."""
+    from ...core.set_builder.release_migrator import ReleaseMigrator, ReleaseMigrationError
+
+    print("Source DEV (DATABASE_URL_LOGS) -> target PROD (DATABASE_URL_ARCHIVE)")
+    with PostgresDB() as source_db, PostgresDB(is_archive=True) as target_db:
+        try:
+            migrator = ReleaseMigrator(source_db=source_db, target_db=target_db, release_path=release_path)
+            plan = migrator.plan()
+        except ReleaseMigrationError as exc:
+            print(f"❌ {exc}")
+            raise typer.Exit(code=1)
+        print(plan.summary())
+        if not apply:
+            print("\nDry run. Re-run with --apply to write to PROD.")
+            return
+        release_id, orphaned_paths = migrator.apply(plan)
+    if orphaned_paths:
+        print(f"\n{len(orphaned_paths)} image file(s) from removed editions are no longer referenced (left in storage):")
+        print('\n'.join(f"  {path}" for path in orphaned_paths))
+    print(f"\n✅ Migrated to PROD as unpublished release {release_id}: /release-builder/{release_id}")
+
+
+@app.command("clean_release_images")
+def clean_release_images(
+    dry_run: bool = typer.Option(False, "--dry_run", "-d", help="Only report how many files would be deleted."),
+    env: str = typer.Option("dev", "--env", "-e", help="Environment to clean (dev or prod)."),
+):
+    """Delete release images in Supabase storage that no release card image row points to
+    (deleted releases/editions, replaced renders, failed best-effort deletes)."""
+    db = PostgresDB(is_archive=env.lower() == "prod")
+    if db.connection is None:
+        raise typer.Exit(code=1)
+    deleted_count = ReleaseImageJanitor(db=db, dry_run=dry_run).run()
+    db.close_connection()
+    print(f"\n✅ {'Would delete' if dry_run else 'Deleted'} {deleted_count} release image files")
 
 
 # Make set builder the default command

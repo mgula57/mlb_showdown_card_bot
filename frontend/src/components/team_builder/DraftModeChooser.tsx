@@ -3,6 +3,7 @@ import type { IconType } from 'react-icons';
 
 import { Modal } from '../shared/Modal';
 import { NewBadge } from '../shared/NewBadge';
+import { headingClass } from '../shared/headingStyles';
 
 /** How the drafter adds players: search the card pool freely, or one Guided Draft round at a time. */
 export type DraftMode = 'search' | 'guided';
@@ -26,13 +27,13 @@ export function DraftModeChooser({ onChoose, onClose }: { onChoose: (choice: Dra
                         key={value}
                         type="button"
                         onClick={() => onChoose(value)}
-                        className="flex sm:flex-col items-start gap-3 sm:gap-2 rounded-xl border border-(--divider) bg-(--background-secondary) p-3 text-left cursor-pointer transition-colors hover:border-(--showdown-red)"
+                        className="flex sm:flex-col items-start gap-3 sm:gap-2 rounded-card border border-(--divider) bg-(--background-secondary) p-3 text-left cursor-pointer transition-colors hover:border-(--showdown-red)"
                     >
                         <span className="flex items-center justify-center w-9 h-9 shrink-0 rounded-full bg-(--showdown-red)/10 text-(--showdown-red)">
                             <Icon className="text-[15px]" />
                         </span>
                         <span className="flex flex-col gap-1 min-w-0">
-                            <span className="flex items-center gap-1.5 text-[13px] font-bold text-(--text-primary)">
+                            <span className={`flex items-center gap-1.5 ${headingClass('panel')}`}>
                                 {title}
                                 {isNew && <NewBadge />}
                             </span>
@@ -68,7 +69,7 @@ export function DraftModeBannerToggle({ mode, onChange, btnClass, alwaysShowLabe
         </button>
     );
     return (
-        <div role="radiogroup" aria-label="Draft mode" className={`flex items-stretch h-7 rounded-lg overflow-hidden ${btnClass}`}>
+        <div role="radiogroup" aria-label="Draft mode" className={`flex items-stretch h-7 rounded-card overflow-hidden ${btnClass}`}>
             {option('search', FaMagnifyingGlass, 'Search')}
             {option('guided', FaCompass, 'Guided')}
         </div>

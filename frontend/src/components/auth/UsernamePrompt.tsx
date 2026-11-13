@@ -18,6 +18,8 @@ import { useAuth } from './AuthContext';
 import { supabase } from '../../api/supabase';
 import { Modal } from '../shared/Modal';
 
+import { FIELD_LABEL_CLASS, fieldClass } from '../shared/fieldStyles';
+import { buttonClass } from '../shared/buttonStyles';
 /**
  * Props for UsernamePrompt component
  */
@@ -80,7 +82,7 @@ export const UsernamePrompt: React.FC<UsernamePromptProps> = ({ userId, onComple
                 .eq('id', userId);
 
             if (updateError) {
-                setError('Failed to save username. Please try again.');
+                setError("Couldn't save your username. Try again.");
                 setSaving(false);
                 return;
             }
@@ -119,14 +121,14 @@ export const UsernamePrompt: React.FC<UsernamePromptProps> = ({ userId, onComple
         >
             <div className="p-6">
                 <p className="text-secondary mb-4">
-                    Please choose a username to complete your account setup.
+                    Choose a username to finish setting up your account.
                 </p>
 
                 <form onSubmit={handleSubmit} className="space-y-4">
                     {/* Username Input */}
                     <div>
-                        <label htmlFor="username" className="block text-sm font-medium text-secondary mb-1">
-                            Username <span className="text-red-500">*</span>
+                        <label htmlFor="username" className={`${FIELD_LABEL_CLASS} mb-1`}>
+                            Username <span className="text-(--red)">*</span>
                         </label>
                         <input
                             id="username"
@@ -142,35 +144,26 @@ export const UsernamePrompt: React.FC<UsernamePromptProps> = ({ userId, onComple
                             minLength={3}
                             pattern="[a-zA-Z0-9_]+"
                             autoFocus
-                            className={`
-                                w-full px-3 py-2
-                                bg-background-primary
-                                border
-                                rounded-lg
-                                text-secondary
-                                focus:outline-none focus:ring-2 focus:ring-accent
-                                disabled:opacity-50 disabled:cursor-not-allowed
-                                ${error ? 'border-red-500' : 'border-form-element'}
-                            `}
+                            className={fieldClass('md', `w-full focus:outline-none ${error ? 'border-(--red)!' : ''}`)}
                             placeholder="e.g. brianjordangoat"
                         />
                         
                         {checking && (
-                            <p className="text-xs text-gray-500 mt-1">
-                                Checking availability...
+                            <p className="text-xs text-(--text-tertiary) mt-1">
+                                Checking availability…
                             </p>
                         )}
                         {error && (
-                            <p className="text-xs text-red-500 mt-1">
+                            <p className="text-xs text-(--red) mt-1">
                                 {error}
                             </p>
                         )}
                         {!error && username && !checking && username.length >= 3 && /^[a-zA-Z0-9_]+$/.test(username) && (
-                            <p className="text-xs text-green-500 mt-1">
+                            <p className="text-xs text-(--green) mt-1">
                                 Username is available!
                             </p>
                         )}
-                        <p className="text-xs text-gray-500 mt-1">
+                        <p className="text-xs text-(--text-tertiary) mt-1">
                             Letters, numbers, and underscores only. Min 3 characters.
                         </p>
                     </div>
@@ -179,18 +172,9 @@ export const UsernamePrompt: React.FC<UsernamePromptProps> = ({ userId, onComple
                     <button
                         type="submit"
                         disabled={saving || checking || !!error || !username}
-                        className="
-                            w-full py-2.5
-                            bg-accent text-primary
-                            rounded-lg
-                            bg-(--background-tertiary) hover:bg-(--background-quaternary)
-                            disabled:opacity-50 disabled:cursor-not-allowed
-                            cursor-pointer
-                            transition-colors duration-150
-                            font-semibold
-                        "
+                        className={buttonClass('primary', 'md', 'w-full')}
                     >
-                        {saving ? 'Saving...' : 'Continue'}
+                        {saving ? 'Saving…' : 'Continue'}
                     </button>
                 </form>
             </div>

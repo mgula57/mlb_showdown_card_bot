@@ -1,9 +1,11 @@
 import { useEffect, useState } from 'react';
 import { fetchTeamCollections, type TeamCollection, type TeamSummary } from '../../api/userTeams';
-import { TeamPreviewCard } from './TeamPreviewCard';
+import { TeamPreviewCard, TeamPreviewCardSkeleton } from './TeamPreviewCard';
 import BackButton from '../shared/BackButton';
-import { FaSpinner } from 'react-icons/fa6';
 
+import { Heading } from '../shared/Heading';
+import { EmptyState } from '../shared/EmptyState';
+import { PageSubtitle } from '../shared/PageSubtitle';
 type CollectionDetailProps = {
     slug: string;
     onOpenTeam: (team: TeamSummary) => void;
@@ -23,7 +25,14 @@ export function CollectionDetail({ slug, onOpenTeam, onBack, horizontalPadding }
     }, [slug]);
 
     if (collection === undefined) {
-        return <div className="flex justify-center py-16"><FaSpinner className="animate-spin text-(--text-tertiary) text-xl" /></div>;
+        return (
+            <div className="flex flex-col gap-4 py-4 max-w-4xl lg:max-w-7xl mx-auto w-full animate-pulse" aria-label="Loading collection">
+                <div className={px}><div className="h-7 w-64 rounded-plate bg-(--background-tertiary)" /></div>
+                <div className={`flex flex-wrap gap-3 ${px}`}>
+                    {Array.from({ length: 6 }, (_, i) => <TeamPreviewCardSkeleton key={i} />)}
+                </div>
+            </div>
+        );
     }
 
     return (
@@ -31,11 +40,11 @@ export function CollectionDetail({ slug, onOpenTeam, onBack, horizontalPadding }
             <div className={`flex items-center gap-3 ${px}`}>
                 <BackButton onBack={onBack} />
                 <div>
-                    <h1 className="text-[20px] font-black text-(--text-primary)">
+                    <Heading level="page">
                         {collection ? `${collection.cover_emoji ? collection.cover_emoji + ' ' : ''}${collection.title}` : 'Collection not found'}
-                    </h1>
+                    </Heading>
                     {collection?.description && (
-                        <p className="text-[12px] text-(--text-secondary)">{collection.description}</p>
+                        <PageSubtitle size="sm">{collection.description}</PageSubtitle>
                     )}
                 </div>
             </div>
@@ -50,7 +59,7 @@ export function CollectionDetail({ slug, onOpenTeam, onBack, horizontalPadding }
                         />
                     ))}
                     {(collection.teams ?? []).length === 0 && (
-                        <p className="text-[13px] text-(--text-tertiary) py-8">No teams in this collection yet.</p>
+                        <EmptyState size="panel" title="Empty collection." className="w-full">No teams have been added to this collection yet.</EmptyState>
                     )}
                 </div>
             )}

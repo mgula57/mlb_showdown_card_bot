@@ -1,11 +1,13 @@
+import { Heading } from './shared/Heading';
+
 const Privacy = () => {
     return (
         <div className="max-w-3xl mx-auto px-6 py-12 text-sm leading-relaxed">
-            <h1 className="text-2xl font-bold mb-2">Privacy Policy</h1>
-            <p className="text-gray-500 mb-8">Last updated: May 27, 2026</p>
+            <Heading level="page" className="mb-2">Privacy Policy</Heading>
+            <p className="text-(--text-tertiary) mb-8">Last updated: May 27, 2026</p>
 
             <section className="mb-8">
-                <h2 className="text-lg font-semibold mb-3">Overview</h2>
+                <Heading level="section" className="mb-3">Overview</Heading>
                 <p>
                     MLB Showdown Card Bot ("the app") is a fan-made tool for generating MLB Showdown
                     trading card stats. This policy describes what information we collect when you
@@ -14,7 +16,7 @@ const Privacy = () => {
             </section>
 
             <section className="mb-8">
-                <h2 className="text-lg font-semibold mb-3">1. Data Accessed</h2>
+                <Heading level="section" className="mb-3">1. Data Accessed</Heading>
                 <p className="mb-3">
                     When you sign in using a third-party provider (such as Google), the app
                     requests only the minimum information needed to create and identify your
@@ -37,7 +39,7 @@ const Privacy = () => {
             </section>
 
             <section className="mb-8">
-                <h2 className="text-lg font-semibold mb-3">2. Data Usage</h2>
+                <Heading level="section" className="mb-3">2. Data Usage</Heading>
                 <p className="mb-3">
                     Information received from sign-in providers is used exclusively to:
                 </p>
@@ -53,7 +55,7 @@ const Privacy = () => {
             </section>
 
             <section className="mb-8">
-                <h2 className="text-lg font-semibold mb-3">3. Data Sharing</h2>
+                <Heading level="section" className="mb-3">3. Data Sharing</Heading>
                 <p className="mb-3">
                     We do <strong>not</strong> sell, rent, or trade your personal information.
                     Limited sharing occurs only as follows:
@@ -72,7 +74,7 @@ const Privacy = () => {
             </section>
 
             <section className="mb-8">
-                <h2 className="text-lg font-semibold mb-3">4. Data Storage & Protection</h2>
+                <Heading level="section" className="mb-3">4. Data Storage & Protection</Heading>
                 <p className="mb-3">
                     Account data (email, display name) is stored in Supabase's managed PostgreSQL
                     database, which provides:
@@ -92,7 +94,7 @@ const Privacy = () => {
             </section>
 
             <section className="mb-8">
-                <h2 className="text-lg font-semibold mb-3">5. Data Retention & Deletion</h2>
+                <Heading level="section" className="mb-3">5. Data Retention & Deletion</Heading>
                 <p className="mb-3">
                     Your account information is retained for as long as your account remains
                     active. If you stop using the app, data is not automatically deleted, but you
@@ -111,7 +113,7 @@ const Privacy = () => {
             </section>
 
             <section className="mb-8">
-                <h2 className="text-lg font-semibold mb-3">Third-Party Privacy Policies</h2>
+                <Heading level="section" className="mb-3">Third-Party Privacy Policies</Heading>
                 <p className="mb-3">
                     Your use of a third-party sign-in provider is also governed by that provider's
                     own privacy policy. For reference:
@@ -141,7 +143,7 @@ const Privacy = () => {
             </section>
 
             <section className="mb-8">
-                <h2 className="text-lg font-semibold mb-3">Changes to This Policy</h2>
+                <Heading level="section" className="mb-3">Changes to This Policy</Heading>
                 <p>
                     If this policy changes materially, we will update the "Last updated" date at
                     the top of this page.

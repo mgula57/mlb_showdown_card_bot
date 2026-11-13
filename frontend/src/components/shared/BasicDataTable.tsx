@@ -101,6 +101,7 @@ export function BasicDataTable<TData>({ data, columns, className = "", initialSo
             right: isRightPinned ? `${column.getAfter('right')}px` : undefined,
             zIndex: 2,
             background,
+            // design-ok: a hairline plus a short fade marks the pinned column's scroll edge
             boxShadow: isLeftPinned && column.getIsLastColumn('left')
                 ? '1px 0 0 0 var(--divider), 4px 0 8px -6px rgba(0,0,0,0.35)'
                 : isRightPinned && column.getIsFirstColumn('right')
@@ -121,7 +122,7 @@ export function BasicDataTable<TData>({ data, columns, className = "", initialSo
     });
 
     return (
-        <div className={`overflow-scroll scrollbar-hide rounded-lg border-2 border-(--background-tertiary) ${className} text-sm`}>
+        <div className={`overflow-scroll scrollbar-hide rounded-card border-2 border-(--background-tertiary) ${className} text-sm`}>
             <table className="min-w-full">
                 {/* Table Header with sortable columns */}
                 <thead className="bg-table-header">

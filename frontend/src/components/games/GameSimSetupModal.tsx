@@ -12,6 +12,10 @@ import {
     type SimGameTeamSetup,
     type StartGameSimPayload,
 } from '../../api/simGame';
+import { buttonClass } from '../shared/buttonStyles';
+import { choiceClass } from '../shared/choiceStyles';
+import { CAPS_LABEL_CLASS } from '../shared/fieldStyles';
+import { Heading } from '../shared/Heading';
 
 function errorMessage(err: unknown): string {
     return err instanceof Error ? err.message : String(err);
@@ -74,11 +78,11 @@ function TeamPanel({
                     className="h-3 w-3 rounded-full border border-(--divider)"
                     style={{ backgroundColor: team.identity.primary_color ?? undefined }}
                 />
-                <span className="text-sm font-bold text-(--primary)">{team.identity.name}</span>
+                <Heading level="panel" as="span">{team.identity.name}</Heading>
             </div>
 
             <div className="space-y-1">
-                <div className="text-xs font-bold uppercase tracking-wide text-(--secondary)">Starting Pitcher</div>
+                <div className={`${CAPS_LABEL_CLASS} text-(--text-tertiary)`}>Starting Pitcher</div>
                 <div className="text-xs font-semibold text-(--primary)">
                     {starter ? `${starter.name} · ${starter.points} pts${starter.ip ? ` · ${starter.ip} IP` : ''}` : '—'}
                 </div>
@@ -86,7 +90,7 @@ function TeamPanel({
 
             {team.lineup.length > 0 ? (
                 <div className="space-y-1.5">
-                    <div className="text-xs font-bold uppercase tracking-wide text-(--secondary)">Lineup</div>
+                    <div className={`${CAPS_LABEL_CLASS} text-(--text-tertiary)`}>Lineup</div>
                     {team.lineup.map((slot) => {
                         const option = optionsById.get(slot.player_id);
                         return (
@@ -100,7 +104,7 @@ function TeamPanel({
                     })}
                 </div>
             ) : (
-                <div className="rounded-lg border border-(--divider) p-3 text-xs text-(--secondary)">
+                <div className="rounded-card border border-(--divider) p-3 text-xs text-(--secondary)">
                     No lineup has been posted yet. The simulation will pick one from the active roster.
                 </div>
             )}
@@ -186,7 +190,7 @@ export default function GameSimSetupModal({ gamePk, showdownSet, onCancel, onSta
             footer={(
                 <div className="space-y-1">
                     {error && (
-                        <div className="rounded-lg border border-(--red)/30 bg-(--red)/5 px-3 py-2 text-[12px] text-(--red)">
+                        <div className="rounded-card border border-(--red)/30 bg-(--red)/5 px-3 py-2 text-[12px] text-(--red)">
                             {error}
                         </div>
                     )}
@@ -195,7 +199,7 @@ export default function GameSimSetupModal({ gamePk, showdownSet, onCancel, onSta
                         <button
                             type="button"
                             onClick={onCancel}
-                            className="cursor-pointer rounded-lg bg-tertiary px-3 py-2 text-[12px] font-semibold text-(--secondary) transition-colors hover:text-(--primary)"
+                            className="cursor-pointer rounded-control bg-tertiary px-3 py-2 text-[12px] font-semibold text-(--secondary) transition-colors hover:text-(--primary)"
                         >
                             Cancel
                         </button>
@@ -203,10 +207,10 @@ export default function GameSimSetupModal({ gamePk, showdownSet, onCancel, onSta
                             type="button"
                             onClick={handleStart}
                             disabled={!setup || starting || setup.is_final}
-                            className="flex cursor-pointer items-center gap-1.5 rounded-lg animated-showdown-gradient px-3 py-2 text-[12px] font-bold text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
+                            className={buttonClass('feature', 'sm')}
                         >
                             {starting ? <FaSpinner className="animate-spin text-[10px]" /> : <FaTerminal className="text-[15px]" />}
-                            {starting ? 'Simulating…' : setup?.is_takeover ? 'Take Over' : 'Simulate'}
+                            {starting ? 'Simulating…' : setup?.is_takeover ? 'Take over' : 'Simulate'}
                         </button>
                     </div>
                 </div>
@@ -215,27 +219,23 @@ export default function GameSimSetupModal({ gamePk, showdownSet, onCancel, onSta
             <div className="p-4 space-y-4">
                 {canOfferTakeover && (
                     <div className="flex items-center gap-2">
-                        <span className="text-xs font-bold uppercase tracking-wide text-(--secondary)">Start from</span>
-                        <div className="inline-flex rounded-lg border border-(--divider) bg-(--background-secondary) p-0.5">
+                        <span className={`${CAPS_LABEL_CLASS} text-(--text-tertiary)`}>Start from</span>
+                        <div className="inline-flex gap-1.5">
                             <button
                                 type="button"
                                 onClick={() => setFromBeginning(false)}
                                 disabled={loading}
-                                className={`cursor-pointer rounded-md px-3 py-1 text-[12px] font-semibold transition-colors disabled:cursor-not-allowed ${
-                                    !fromBeginning ? 'animated-showdown-gradient text-white' : 'text-(--secondary) hover:text-(--primary)'
-                                }`}
+                                className={choiceClass(!fromBeginning, 'sm')}
                             >
-                                Current State
+                                Current state
                             </button>
                             <button
                                 type="button"
                                 onClick={() => setFromBeginning(true)}
                                 disabled={loading}
-                                className={`cursor-pointer rounded-md px-3 py-1 text-[12px] font-semibold transition-colors disabled:cursor-not-allowed ${
-                                    fromBeginning ? 'animated-showdown-gradient text-white' : 'text-(--secondary) hover:text-(--primary)'
-                                }`}
+                                className={choiceClass(fromBeginning, 'sm')}
                             >
-                                Beginning of Game
+                                Beginning of game
                             </button>
                         </div>
                         {loading && <FaSpinner className="animate-spin text-xs text-(--secondary)" />}
@@ -243,16 +243,21 @@ export default function GameSimSetupModal({ gamePk, showdownSet, onCancel, onSta
                 )}
 
                 {loading && !setup && (
-                    <div className="flex items-center justify-center gap-2 py-10 text-(--secondary)">
-                        <FaSpinner className="animate-spin" /> Loading lineups…
+                    <div className="grid grid-cols-2 gap-4 animate-pulse" aria-label="Loading lineups">
+                        {[0, 1].map(side => (
+                            <div key={side} className="space-y-1.5">
+                                <div className="h-4 w-24 rounded-plate bg-(--background-tertiary)" />
+                                {Array.from({ length: 9 }, (_, i) => <div key={i} className="h-7 rounded-control bg-(--background-tertiary)" />)}
+                            </div>
+                        ))}
                     </div>
                 )}
 
                 {setup && (
                     <div className={loading ? 'space-y-4 opacity-50' : 'space-y-4'}>
                         {canOfferTakeover && (
-                            <div className="rounded-xl border border-(--divider) bg-(--background-secondary) p-3">
-                                <div className="text-xs font-bold uppercase tracking-wide text-(--secondary)">
+                            <div className="rounded-card border border-(--divider) bg-(--background-secondary) p-3">
+                                <div className={`${CAPS_LABEL_CLASS} text-(--text-tertiary)`}>
                                     {setup.is_takeover ? 'Taking over from' : 'Starting from'}
                                 </div>
                                 <div className="text-sm font-semibold text-(--primary)">
@@ -266,7 +271,7 @@ export default function GameSimSetupModal({ gamePk, showdownSet, onCancel, onSta
                         )}
 
                         {setup.lineup_source === 'AUTO' && !setup.is_takeover && (
-                            <div className="rounded-xl border border-(--divider) p-3 text-xs text-(--secondary)">
+                            <div className="rounded-card border border-(--divider) p-3 text-xs text-(--secondary)">
                                 Lineups have not been posted for this game yet. Starting pitchers are the announced
                                 probables; the batting orders will be chosen from each active roster.
                             </div>

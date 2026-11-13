@@ -10,8 +10,10 @@
  * @version 4.0
  */
 
-import type { CardSource } from "../types/cardSource";
+import { CardSource as CardSourceValues, type CardSource } from "../types/cardSource";
 import { type GameBoxscoreDetail } from "./mlbAPI";
+import { fetchCardData } from "./card_db/cardDatabase";
+import { cardKey } from "../domain/players";
 
 // =============================================================================
 // MARK: - CONFIGURATION & CONSTANTS
@@ -196,6 +198,32 @@ export async function fetchCardsByIds(cardIds: string[], source: string): Promis
     return Object.fromEntries(Object.entries(cards).map(([id, card]) => [id, { card, error: null, error_for_user: null }]));
 }
 
+/**
+ * Archived (database-only) cards for a set of MLB player ids in one season, keyed by `cardKey` —
+ * no live stats pull, unlike `buildCardsFromIds`. Looks up each player's row in the card
+ * database, then fetches all their full nested cards in one batch. Two-way players return both a
+ * hitter and a pitcher record, so each lands under its own role-suffixed key.
+ */
+export async function fetchArchivedCardMap(
+    mlbIds: string[], year: number | string, showdownSet: string, source: string,
+): Promise<Record<string, ShowdownBotCardAPIResponse>> {
+    if (mlbIds.length === 0) return {};
+    const records = await fetchCardData(CardSourceValues.BOT, {
+        mlb_id: mlbIds,
+        year: String(year),
+        showdown_set: showdownSet,
+        limit: mlbIds.length * 2,
+    });
+    const responses = await fetchCardsByIds(records.map((record) => record.card_id), source);
+    const map: Record<string, ShowdownBotCardAPIResponse> = {};
+    for (const record of records) {
+        const response = responses[record.card_id];
+        if (!response?.card || record.mlb_id == null) continue;
+        map[cardKey(Number(record.mlb_id), record.is_pitcher ? "P" : "H")] = response;
+    }
+    return map;
+}
+
 export async function buildCards(requestedCards: Record<string, any>[]): Promise<ShowdownBotMultiCardAPIResponse> {
     const res = await fetch(`${API_BASE}/build_cards`, {
         method: "POST",
@@ -278,6 +306,9 @@ export type ShowdownBotCardAPIResponse = {
 
     /** Generic extra stat attribute. Used to display things like badges, icons, or other visual indicators */
     extra_stat?: Record<string, any> | null;
+
+    /** The built card's id in the user's custom card history (`CardSource.CUSTOM`), when it was logged */
+    custom_card_id?: string | null;
 };
 
 export type ShowdownBotMultiCardAPIResponse = {
@@ -486,8 +517,14 @@ export type ShowdownBotCard = {
     stats_period?: StatsPeriod;
     is_stats_estimate?: boolean;
 
+    /** What a small real sample was regressed toward, and how it blended */
+    stat_normalizer?: StatNormalizer | null;
+
     /** Flag indicating if the card is a WOTC card */
     is_wotc?: boolean;
+
+    /** User labels for tracking, e.g. "FOIL" for cards marked as foils */
+    tags?: string[] | null;
 
     /** Data quality and edge case warnings */
     warnings: string[];
@@ -516,6 +553,8 @@ export type ShowdownBotCardCompact = {
     icons_list?: string[] | null;
     source: CardSource;
     isEmpty?: boolean;
+    /** 2+ flags an alternate chart (not the most accurate one) */
+    chart_version?: number | null;
 }
 // =============================================================================
 // MARK: - CARD IMAGE & VISUAL TYPES
@@ -548,6 +587,9 @@ export type ShowdownBotCardImage = {
     /** Visual parallel effect (e.g., "foil", "refractor") */
     parallel: string | null;
 
+    /** Coloring for a team colored parallel's art. "DEFAULT" matches the card's coloring. */
+    parallel_coloring?: string | null;
+
     /** Generated filename for saved image */
     output_file_name?: string | null;
     
@@ -572,6 +614,9 @@ export type ShowdownBotCardImage = {
     /** Set number within the expansion */
     set_number?: number | null;
 
+    /** Image includes the border around the 1500x2100 card */
+    is_bordered?: boolean;
+
     /** Supabase storage path for the card image */
     storage_path?: string | null;
     thumbnail_storage_path?: string | null;
@@ -582,6 +627,14 @@ export type ShowdownBotCardImage = {
 // =============================================================================
 
 type StatsPeriodType = "REGULAR" | "DATES" | "POST" | "SPLIT" | "PROJECTED" | "REPLACEMENT";
+
+/** A half of the regular season, split at the All-Star break. The backend sets the date range from it. */
+export type SeasonHalf = 'FIRST_HALF' | 'SECOND_HALF';
+
+export const SEASON_HALF_LABELS: Record<SeasonHalf, string> = {
+    FIRST_HALF: '1st Half',
+    SECOND_HALF: '2nd Half',
+};
 
 export type StatsPeriod = {
     /** Type of stats period (e.g., "REGULAR", "DATES") */
@@ -594,6 +647,7 @@ export type StatsPeriod = {
     /** Date range bounds (DATES type), formatted YYYY-MM-DD */
     start_date?: string | null;
     end_date?: string | null;
+    season_half?: SeasonHalf | null;
 
     /** Split name (BREF) and MLB API situation code (2026+ SPLIT type) */
     split?: string | null;
@@ -730,6 +784,39 @@ export type PointsCategoryBreakdown = {
  * Shows how accurately the generated card would reproduce the player's
  * actual statistical performance in simulated games.
  */
+/** One rate stat for the real sample, the normalizer's baseline, and the blend the card is built from */
+export type StatNormalizerSummaryStat = {
+    /** Rate stat name (OPS, OBP, SLG, K%, WHIP). Against, for pitchers */
+    stat: string;
+    real: number;
+    baseline: number;
+    blended: number;
+};
+
+/** How much of a normalized card came from the real sample vs the normalizer's baseline */
+export type StatNormalizerSummary = {
+    /** Type actually used (ex: 'PLAYER_CAREER'), REPLACEMENT_LEVEL when a player option had no other seasons */
+    type: string;
+    /** Display name (ex: 'Player Career Avg'). Replacement Level when a player option had no other seasons */
+    label: string;
+    /** Share of the card from the real sample, 0-1 (1 = full sample, unchanged) */
+    real_weight: number;
+    real_pa: number;
+    /** PA at which the real sample is used as-is (600, or ~60 IP of batters faced for relievers) */
+    full_sample_pa: number;
+    /** Seasons the baseline was built from, for player options */
+    baseline_years?: number[] | null;
+    stats: StatNormalizerSummaryStat[];
+};
+
+/** Regresses a small real sample toward a baseline (backend `StatNormalizer`) */
+export type StatNormalizer = {
+    /** Requested type (ex: 'PLAYER_CAREER') */
+    type: string;
+    /** Real vs baseline blend, set once the card is built */
+    summary?: StatNormalizerSummary | null;
+};
+
 export type RealVsProjectedStat = {
     /** Statistical category name (e.g., "OBP", "SLG", "HR") */
     stat: string;
