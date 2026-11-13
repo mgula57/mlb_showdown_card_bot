@@ -19,6 +19,8 @@ from mlb_showdown_bot.core.simulation.social_report import _REPO_ROOT, SocialShe
 
 _DARK_LOGO_PATH = _REPO_ROOT / "frontend" / "public" / "images" / "logos" / "logo-dark.png"
 # EMBEDDED AT 2x ITS ~640px DISPLAY WIDTH, CROPPED TO THE TOP OF THE APP.
+_ART_WIDTH = 1000
+_CARD_WIDTH = 720
 _SCREENSHOT_WIDTH = 1600
 _SCREENSHOT_MAX_HEIGHT = 1400
 
@@ -44,8 +46,42 @@ class ReleaseNotesSocial(SocialSheetReport):
             image.save(buffer, format="JPEG", quality=95)
         return self.bytes_data_uri(buffer.getvalue(), "image/jpeg")
 
+    def _cards(self) -> list[dict]:
+        """Showcase cards (`cards` in the content JSON: `path`, `label`, optional `caption` and `keep`,
+        the top fraction of the image to keep - use it to crop off footer text before it ships)."""
+        cards = []
+        for card in self.content.get("cards", []):
+            with Image.open(Path(card["path"]).expanduser()) as image:
+                image = image.convert("RGB")
+                image = image.crop((0, 0, image.width, round(image.height * card.get("keep", 1.0))))
+                image = image.resize((_CARD_WIDTH, round(image.height * _CARD_WIDTH / image.width)), Image.Resampling.LANCZOS)
+                buffer = BytesIO()
+                image.save(buffer, format="JPEG", quality=95)
+            cards.append(dict(src=self.bytes_data_uri(buffer.getvalue(), "image/jpeg"), label=card["label"], caption=card.get("caption", "")))
+        return cards
+
+    def _features(self) -> list[dict]:
+        """Feature tiles; a tile may carry `image` (`path`, optional `box` = left/top/right/bottom crop
+        in pixels), shown on the right of a `wide` tile."""
+        features = []
+        for feature in self.content["features"]:
+            feature = dict(feature)
+            art = feature.pop("image", None)
+            if art:
+                with Image.open(Path(art["path"]).expanduser()) as image:
+                    image = image.convert("RGB")
+                    if art.get("box"):
+                        image = image.crop(tuple(art["box"]))
+                    image = image.resize((_ART_WIDTH, round(image.height * _ART_WIDTH / image.width)), Image.Resampling.LANCZOS)
+                    buffer = BytesIO()
+                    image.save(buffer, format="JPEG", quality=95)
+                feature["art_src"] = self.bytes_data_uri(buffer.getvalue(), "image/jpeg")
+            features.append(feature)
+        return features
+
     def context(self) -> dict:
         return dict(
+            cards=self._cards(),
             logo_dark_src=self.data_uri(_DARK_LOGO_PATH, "image/png"),
             screenshot_src=self._screenshot_src(),
             version=self.content["version"],
@@ -55,7 +91,7 @@ class ReleaseNotesSocial(SocialSheetReport):
             headline_accent=self.content["headline_accent"],
             subhead=self.content.get("subhead", ""),
             status_plates=self.content.get("status_plates", []),
-            features=self.content["features"],
+            features=self._features(),
             also=self.content.get("also", []),
             tagline=self.content.get("tagline", ""),
             url=self.content.get("url", "showdownbot.com"),

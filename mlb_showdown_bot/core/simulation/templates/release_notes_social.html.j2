@@ -39,6 +39,25 @@
   .shot .frame::after { content: ''; position: absolute; inset: auto 0 0; height: 90px; background: linear-gradient(to bottom, transparent, var(--background-primary)); }
   .shot .rule { position: absolute; left: 0; top: 34px; bottom: 0; width: 4px; background: var(--showdown-red); border-radius: 2px 0 0 2px; z-index: 1; }
 
+  /* CARD SHOWCASE: TWO TILTED CARDS WITH PARALLEL LABELS, IN PLACE OF THE SCREENSHOT. */
+  .fan { position: relative; height: 500px; margin-right: -8px; }
+  .fan .slot { position: absolute; width: 290px; }
+  .fan .slot:nth-child(1) { left: 0; top: 18px; transform: rotate(-5deg); z-index: 1; }
+  .fan .slot:nth-child(2) { left: 180px; top: 70px; transform: rotate(4deg); z-index: 2; }
+  .fan .pcard { border: 2px solid var(--rule-strong); border-radius: 6px; overflow: hidden; box-shadow: var(--shadow-overlay); background: var(--background-secondary); }
+  .fan .pcard img { display: block; width: 100%; }
+  .fan .tag { display: flex; align-items: center; gap: 10px; margin-top: 12px; }
+  .fan .tag .plate { font-size: 14px; }
+  .fan .tag .cap { font-size: 11px; letter-spacing: .2em; text-transform: uppercase; color: var(--text-tertiary); font-weight: 700; }
+
+  /* WITH A SCREENSHOT TOO: THE CARDS ARE SMALLER AND OVERLAP ITS BOTTOM-LEFT CORNER, LABELS ON TOP. */
+  .shot .fan { position: absolute; inset: 0; margin: 0; height: auto; pointer-events: none; }
+  .shot .fan .slot { width: 190px; }
+  .shot .fan .slot:nth-child(1) { left: -78px; top: 270px; }
+  .shot .fan .slot:nth-child(2) { left: 70px; top: 300px; }
+  .shot .fan .tag { position: absolute; top: 8px; left: 8px; margin: 0; }
+  .shot .fan .tag .plate { font-size: 12px; padding: 3px 6px; }
+
   /* FEATURE TILES: SET-NUMBER PLATE, CARD-NAME HEADLINE, ONE SHORT LINE. */
   .features { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 10px; }
   .feature { position: relative; background: var(--background-secondary); border: 1px solid var(--divider); border-left: 4px solid var(--accent, var(--showdown-blue)); border-radius: 4px; padding: 20px 22px 20px 18px; display: grid; grid-template-columns: 56px 1fr; gap: 14px; align-items: start; }
@@ -48,6 +67,11 @@
   .feature .tags { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 10px; }
   .feature .tags .plate { font-size: 11px; padding: 4px 6px; }
   .feature.wide { grid-column: span 2; }
+  .feature.art { grid-template-columns: 56px 1fr 460px; align-items: stretch; }
+  .feature.art .name { font-size: 40px; }
+  .feature.art .desc { font-size: 19px; max-width: 330px; }
+  .feature .art-frame { align-self: center; border: 1px solid var(--rule-strong); border-radius: 4px; overflow: hidden; box-shadow: var(--shadow-overlay); }
+  .feature .art-frame img { display: block; width: 100%; }
 
   .also { margin-top: 22px; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
   .also .caps-label { margin-right: 4px; }
@@ -78,19 +102,37 @@
     <div class="shot">
       <div class="rule"></div>
       <div class="frame"><img src="{{ screenshot_src }}" alt="Screenshot of the Release Builder"></div>
+    <div class="fan">
+      {% for c in cards %}
+      <div class="slot">
+        <div class="pcard"><img src="{{ c.src }}" alt="{{ c.label }} parallel card"></div>
+        <div class="tag"><span class="plate red">{{ c.label }}</span>{% if c.caption %}<span class="cap">{{ c.caption }}</span>{% endif %}</div>
+      </div>
+      {% endfor %}
+    </div>
+    </div>
+    {% elif cards %}
+    <div class="fan">
+      {% for c in cards %}
+      <div class="slot">
+        <div class="pcard"><img src="{{ c.src }}" alt="{{ c.label }} parallel card"></div>
+        <div class="tag"><span class="plate red">{{ c.label }}</span>{% if c.caption %}<span class="cap">{{ c.caption }}</span>{% endif %}</div>
+      </div>
+      {% endfor %}
     </div>
     {% endif %}
   </div>
 
   <section class="features">
     {% for f in features %}
-    <div class="feature{{ ' wide' if f.wide }}" style="--accent: {{ f.accent or 'var(--showdown-blue)' }}">
+    <div class="feature{{ ' wide' if f.wide }}{{ ' art' if f.art_src }}" style="--accent: {{ f.accent or 'var(--showdown-blue)' }}">
       <div class="num">{{ '%03d' % loop.index }}</div>
       <div>
         <div class="name upright">{{ f.title }}</div>
         <div class="desc">{{ f.text }}</div>
         {% if f.tags %}<div class="tags">{% for t in f.tags %}<span class="plate">{{ t }}</span>{% endfor %}</div>{% endif %}
       </div>
+      {% if f.art_src %}<div class="art-frame"><img src="{{ f.art_src }}" alt=""></div>{% endif %}
     </div>
     {% endfor %}
   </section>
