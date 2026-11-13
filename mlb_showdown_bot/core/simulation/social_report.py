@@ -20,7 +20,9 @@ _CAPTURE_HEADROOM = 200
 # THE PACKAGE - THESE REPORTS ARE LOCAL CLI TOOLS RUN FROM A CHECKOUT.
 _REPO_ROOT = Path(__file__).resolve().parents[3]
 _LOGO_PATH = _REPO_ROOT / "frontend" / "public" / "images" / "logos" / "logo-light.png"
-_FRONTEND_FONT_DIR = _REPO_ROOT / "frontend" / "src" / "assets" / "fonts"
+_DARK_LOGO_PATH = _LOGO_PATH.with_name("logo-dark.png")
+THEMES = ("light", "dark")
+_FRONTEND_FONT_DIR =_REPO_ROOT / "frontend" / "src" / "assets" / "fonts"
 _FONT_PATH = _FRONTEND_FONT_DIR / "HelveticaNeueCondensedHeavyOblique.otf"
 _UPRIGHT_FONT_PATH = _FRONTEND_FONT_DIR / "HelveticaNeueBoldCondensed.ttf"
 # INTER COMES FROM THE FRONTEND'S `@fontsource-variable/inter` PACKAGE, SO IT'S ONLY THERE AFTER AN
@@ -53,7 +55,10 @@ class SocialSheetReport:
     SHEET_COUNT = 1
     TEMPLATE_NAME: str = ""
 
-    def __init__(self) -> None:
+    def __init__(self, theme: str = "light") -> None:
+        if theme not in THEMES:
+            raise ValueError(f"theme must be one of {', '.join(THEMES)}, got '{theme}'")
+        self.theme = theme
         self.env = Environment(loader=FileSystemLoader(_TEMPLATE_DIR), autoescape=select_autoescape(["html", "j2"]))
 
     @staticmethod
@@ -70,7 +75,8 @@ class SocialSheetReport:
 
     def render(self) -> str:
         return self.env.get_template(self.TEMPLATE_NAME).render(
-            logo_src=self.data_uri(_LOGO_PATH, "image/png"),
+            theme=self.theme,
+            logo_src=self.data_uri(_DARK_LOGO_PATH if self.theme == "dark" else _LOGO_PATH, "image/png"),
             font_src=self.data_uri(_FONT_PATH, "font/otf"),
             title_font_src=self.data_uri(_TITLE_FONT_PATH, "font/otf"),
             upright_font_src=self.data_uri(_UPRIGHT_FONT_PATH, "font/ttf"),

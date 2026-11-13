@@ -110,6 +110,15 @@ class PlayerFilterSet(BaseModel):
                 if reason is not None:
                     return reason
                 continue
+            if key.endswith('_pitchers'):
+                # Pitchers-only variant - mirrors the SQL builder's
+                # `(player_type = 'HITTER' OR (<base filter>))`.
+                if str(card.get('player_type') or '').upper() == 'HITTER':
+                    continue
+                reason = PlayerFilterSet(filters={key.removesuffix('_pitchers'): value}).ineligible_reason(card)
+                if reason is not None:
+                    return reason
+                continue
             if key.endswith('_catchers'):
                 # Catchers-only variant - mirrors the SQL builder's
                 # `(NOT <rated at catcher> OR (<base filter>))`: anyone not rated at C passes.
