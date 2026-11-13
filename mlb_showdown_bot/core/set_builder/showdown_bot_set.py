@@ -451,7 +451,7 @@ class ShowdownBotSet(BaseModel):
         actions = [label for label, enabled in [('Re-ran', rerun_cards and not season_half), (half_label, season_half), ('applied variable speed to', variable_speed)] if enabled]
         warnings = [f"{' and '.join(actions).capitalize()} {recomputed_count} cards ({changed_count} changed points)."]
         if failed_names:
-            warnings.append(self._failed_recompute_warning(failed_names, season_half))
+            warnings.append(ShowdownBotSet._failed_recompute_warning(failed_names, season_half))
         return warnings
 
     @staticmethod
