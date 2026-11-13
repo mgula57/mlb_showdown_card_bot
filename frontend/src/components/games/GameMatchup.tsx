@@ -12,6 +12,7 @@ import type { ShowdownBotCardAPIResponse } from "../../api/showdownBotCard";
 import { CardItemFromCard, CardItemSkeleton } from "../cards/CardItem";
 import type { AdvantageSide } from "../../domain/play";
 import { CardItemCompactFromCard } from "../cards/CardItemCompact";
+import { CAPS_LABEL_CLASS } from "../shared/fieldStyles";
 
 type CardMap = Record<string, ShowdownBotCardAPIResponse>;
 
@@ -47,7 +48,7 @@ function PointsTrend({ card }: { card?: ShowdownBotCardAPIResponse }) {
     const change = card?.in_season_trends?.pts_change.day;
     if (change == null || change === 0) return null;
     return (
-        <span className={`text-[10px] font-semibold ${change >= 0 ? "text-(--green)" : "text-(--red)"}`}>
+        <span className={`text-[10px] font-semibold tabular-nums ${change >= 0 ? "text-(--green)" : "text-(--red)"}`}>
             {change >= 0 ? "+" : ""}{change} PTS
         </span>
     );
@@ -72,13 +73,13 @@ function MatchupSide({
         <div className="min-w-0 space-y-1.5">
             <div className="flex w-full items-baseline justify-between gap-1.5">
                 <div className="flex min-w-0 items-center gap-2">
-                    <span className="text-[10px] font-semibold uppercase tracking-[1px] text-(--secondary)">{label}</span>
-                    {summary && <span className="truncate text-[10px] text-(--secondary)">{summary}</span>}
+                    <span className={`${CAPS_LABEL_CLASS} text-(--text-tertiary)`}>{label}</span>
+                    {summary && <span className="truncate text-[11px] tabular-nums text-(--text-secondary)">{summary}</span>}
                     {!hideTrend && <PointsTrend card={response} />}
                 </div>
                 {advantage != null && (
-                    <div className="text-[11px] font-bold text-(--secondary) text-nowrap">
-                        <span className="text-(--primary)">{advantage}%</span> advantage
+                    <div className="text-[11px] font-semibold text-(--text-tertiary) text-nowrap">
+                        <span className="tabular-nums text-(--text-primary)">{advantage}%</span> advantage
                     </div>
                 )}
                 
@@ -127,7 +128,7 @@ export default function GameMatchup({ game, cardMap, isLoadingCards, onCardSelec
     const pitcherAdvantage = control != null && onbase != null ? pitcherAdvantagePct(control, onbase) : undefined;
 
     return (
-        <div className={`@container rounded-xl border border-(--divider) bg-(--background-secondary)/30 mx-2 p-4 ${className}`}>
+        <div className={`@container rounded-card border border-(--divider) bg-(--background-secondary)/30 mx-2 p-4 ${className}`}>
             <div 
                 className={`
                     ${isCompactCards ? "grid grid-cols-2" : "grid grid-cols-1 @[600px]:grid-cols-2 "}
@@ -166,12 +167,12 @@ export default function GameMatchup({ game, cardMap, isLoadingCards, onCardSelec
                 <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 border-t border-(--divider) pt-2 text-[11px]">
                     {situation.onDeck && (
                         <span className="text-(--secondary)">
-                            <span className="font-bold uppercase tracking-wide">On Deck</span> {situation.onDeck.name}
+                            <span className={CAPS_LABEL_CLASS}>On Deck</span> {situation.onDeck.name}
                         </span>
                     )}
                     {situation.inHole && (
                         <span className="text-(--secondary)">
-                            <span className="font-bold uppercase tracking-wide">In Hole</span> {situation.inHole.name}
+                            <span className={CAPS_LABEL_CLASS}>In Hole</span> {situation.inHole.name}
                         </span>
                     )}
                 </div>

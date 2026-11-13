@@ -8,14 +8,12 @@
  * - Responsive sidebar navigation (desktop collapsible, mobile overlay)
  * - Fixed/sticky header with adaptive behavior for iOS Safari
  * - Main content area with proper spacing and overflow handling
- * - Modal system integration for feature announcements
  * 
  * **Advanced Features:**
  * - Dual sidebar state management (desktop/mobile with separate localStorage)
  * - iOS Safari-specific viewport handling to prevent URL bar jitter
  * - Route-based header title and icon detection
  * - Global Showdown set selection in header
- * - Automatic "What's New" modal system with version tracking
  * 
  * **Responsive Behavior:**
  * - Desktop: Collapsible sidebar with content padding adjustment
@@ -27,7 +25,6 @@
  * - Sidebar open/closed state saved to localStorage
  * - Separate mobile and desktop sidebar preferences
  * - User's Showdown set selection persistence
- * - "What's New" modal acknowledgment tracking
  * 
  * @component
  * @example
@@ -40,22 +37,24 @@
 
 import React, { type ReactNode, useState, useEffect, useRef } from "react";
 import SideMenu from "./side_menu/SideMenu";
+import { UnderToolbarFill } from "./shared/UnderToolbarFill";
 import ShowdownBotLogo from "./shared/ShowdownBotLogo";
 import { useLocation } from "react-router-dom";
-import { useSiteSettings, showdownSets } from "./shared/SiteSettingsContext";
+import { useSiteSettings } from "./shared/SiteSettingsContext";
+import { SET_SELECT_OPTIONS_LG } from "./shared/SetBadge";
 import CustomSelect from "./shared/CustomSelect";
 import { FiMenu } from "react-icons/fi";
-import { sideMenuItems } from "./side_menu/SideMenuItem";
-import { WhatsNewModal, hasSeenWhatsNew, markWhatsNewAsSeen } from "./side_menu/WhatsNewModal";
+import { sideMenuItems } from "./side_menu/sideMenuConfig";
 import { fetchFeatureStatuses, type FeatureStatus } from "../api/status/feature_status";
 import { FaExclamationCircle } from 'react-icons/fa';
 import { AccountIcon } from "./auth/AccountIcon";
 import { LoginModal } from "./auth/LoginModal";
 import { UsernamePrompt } from "./auth/UsernamePrompt";
 import { useAuth } from "./auth/AuthContext";
-import { LoadingStatusToast } from "../components/shared/LoadingStatusToast";
+import { ToastMessage } from "../components/shared/ToastMessage";
 import { FaCircleCheck } from 'react-icons/fa6';
 
+import { Heading } from './shared/Heading';
 /**
  * Props for the AppLayout component
  */
@@ -112,6 +111,44 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
             return false; // Fallback to closed if localStorage fails
         }
     });
+
+    // Mobile drawer: `isSideMenuOpenMobile` controls mounting, `isSideMenuVisibleMobile` drives the
+    // slide/fade transitions. Transitions (not keyframes) so an open interrupted by a close — or vice
+    // versa — reverses from wherever the drawer is instead of jumping to the start of the other animation.
+    const [isSideMenuVisibleMobile, setIsSideMenuVisibleMobile] = useState(false);
+
+    /** Open/close setter handed to the mobile SideMenu — closing plays the exit transition before unmounting. */
+    const setSideMenuOpenMobile: React.Dispatch<React.SetStateAction<boolean>> = (value) => {
+        const next = typeof value === 'function' ? value(isSideMenuVisibleMobile) : value;
+        if (next) {
+            setIsSideMenuOpenMobile(true);
+            // Already mounted mid-close: reverse in place. Otherwise the effect below shows it after mount.
+            if (isSideMenuOpenMobile) setIsSideMenuVisibleMobile(true);
+        } else {
+            setIsSideMenuVisibleMobile(false);
+        }
+    };
+
+    /**
+     * Effect: reveal the drawer after it mounts off-screen. Two frames so the browser commits the
+     * off-screen position (and the scroll lock's layout) before the transition starts — otherwise the
+     * first frame is either skipped or janked by that layout work.
+     */
+    useEffect(() => {
+        if (!isSideMenuOpenMobile) return;
+        let frame = requestAnimationFrame(() => {
+            frame = requestAnimationFrame(() => setIsSideMenuVisibleMobile(true));
+        });
+        return () => cancelAnimationFrame(frame);
+    }, [isSideMenuOpenMobile]);
+
+    const handleMobileDrawerTransitionEnd = (e: React.TransitionEvent<HTMLDivElement>) => {
+        // Ignore transitions bubbling up from inside the menu (hover colors, indicator, etc.).
+        // Tailwind 4's translate-x-* sets the `translate` property, not `transform`.
+        if (e.target !== e.currentTarget || e.propertyName !== 'translate' || isSideMenuVisibleMobile) return;
+        setIsSideMenuOpenMobile(false);
+    };
+
     const hasCheckedFeatures = useRef(false);
     const featureStatuses = useRef<Record<string, FeatureStatus>>({});
 
@@ -128,9 +165,6 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
         checkFeatures();
     }, []);
 
-    // Modal state for "What's New" feature announcements
-    const [showWhatsNewModal, setShowWhatsNewModal] = useState(false);
-    
     // Modal state for login
     const [showLoginModal, setShowLoginModal] = useState(false);
     
@@ -146,7 +180,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
 
     // Desktop sidebar width, published as `--side-menu-width` on the layout root so fixed-position
     // elements elsewhere (e.g. the team builder's docked Guided Draft strip) can clear it at md+.
-    const sideMenuWidth = isSideMenuOpen ? '12rem' : '3.5rem';
+    const sideMenuWidth = isSideMenuOpen ? '13rem' : '4rem';
     
     // Get current route information for header title and icon
     const location = useLocation();
@@ -167,32 +201,6 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
             console.warn('Failed to save side menu state to localStorage:', error);
         }
     }, [isSideMenuOpen]);
-
-    /**
-     * Effect: Initialize "What's New" modal display
-     * 
-     * Checks if user has seen the current version's announcements and
-     * displays the modal after a brief delay to allow the app to settle.
-     * The delay prevents jarring modal appearance during initial load.
-     */
-    useEffect(() => {
-        const timer = setTimeout(() => {
-            if (!hasSeenWhatsNew()) {
-                // setShowWhatsNewModal(true); DISABLED FOR 4.01
-            }
-        }, 1000); // 1 second delay for smooth UX
-
-        return () => clearTimeout(timer);
-    }, []);
-
-    /**
-     * Handles closing of the "What's New" modal
-     * Marks the current version as seen and closes the modal
-     */
-    const handleWhatsNewClose = () => {
-        setShowWhatsNewModal(false);
-        markWhatsNewAsSeen();
-    };
 
     /**
      * Handles successful login
@@ -247,79 +255,100 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
                 (and the backdrop nested inside it) always overshoots past the
                 visible area and bleeds under the URL bar instead. */}
             {isSideMenuOpenMobile && (
-                <div className="fixed top-0 left-0 right-0 h-lvh z-40 md:hidden">
+                <div className={`fixed top-0 left-0 right-0 h-lvh z-40 md:hidden ${isSideMenuVisibleMobile ? '' : 'pointer-events-none'}`}>
                     {/* Backdrop - Click to close sidebar */}
                     <div
-                        className="absolute inset-0 bg-black/40"
-                        onClick={() => setIsSideMenuOpenMobile(false)}
+                        className={`
+                            absolute inset-0 bg-black/40 transition-opacity will-change-[opacity] motion-reduce:duration-[1ms]
+                            ${isSideMenuVisibleMobile ? 'opacity-100 duration-300 ease-out' : 'opacity-0 duration-200 ease-in'}
+                        `}
+                        onClick={() => setSideMenuOpenMobile(false)}
                         aria-hidden="true"
                     />
-                    {/* Sidebar with mobile-specific behavior */}
-                    <SideMenu 
-                        isOpen={true} 
-                        setIsOpen={setIsSideMenuOpenMobile} 
-                        isMobile={true} 
-                    />
+                    {/* Sidebar with mobile-specific behavior - slides in from the left edge.
+                        Sized to the drawer (w-64 = SideMenu's mobile width) because SideMenu itself is
+                        position:fixed and contributes no size — without it -translate-x-full moves 0px. */}
+                    <div
+                        className={`
+                            absolute top-0 left-0 w-64 h-full transition-[translate,box-shadow] will-change-[translate] motion-reduce:duration-[1ms]
+                            ${isSideMenuVisibleMobile
+                                ? 'translate-x-0 shadow-overlay duration-300 ease-(--side-menu-ease)'
+                                : '-translate-x-full shadow-none duration-200 ease-[cubic-bezier(0.32,0,0.67,0)]'}
+                        `}
+                        onTransitionEnd={handleMobileDrawerTransitionEnd}
+                    >
+                        <SideMenu 
+                            isOpen={true} 
+                            setIsOpen={setSideMenuOpenMobile} 
+                            isMobile={true} 
+                        />
+                    </div>
                 </div>
             )}
 
+            {/* Drawer scrim + menu background continued behind Safari's bottom toolbar (see UnderToolbarFill) */}
+            {isSideMenuOpenMobile && (
+                <>
+                    <UnderToolbarFill zIndex={40} className={`left-0 w-full bg-black/40 md:hidden transition-opacity duration-300 ${isSideMenuVisibleMobile ? 'opacity-100' : 'opacity-0'}`} />
+                    <UnderToolbarFill zIndex={41} className={`left-0 w-64 bg-secondary border-r-2 border-form-element md:hidden transition-opacity duration-300 ${isSideMenuVisibleMobile ? 'opacity-100' : 'opacity-0'}`} />
+                </>
+            )}
 
             {/* Main Content Container with responsive padding for sidebar */}
-            <div className={`flex flex-col h-full w-full transition-[padding-left] duration-300 md:pl-(--side-menu-width)`}>
+            <div className={`flex flex-col h-full w-full transition-[padding-left] duration-300 ease-(--side-menu-ease) motion-reduce:transition-none md:pl-(--side-menu-width)`}>
                 
                 {/* Application Header - Adaptive positioning for iOS Safari */}
                 <header
                     className={`
                         ${isIOSSafari ? 'fixed left-0 right-0 top-0' : 'sticky top-0'}
                         z-30 flex h-10 p-4 w-full items-center justify-between
-                        border-b-gray-600 shadow-md bg-primary/95 backdrop-blur
+                        border-b border-(--divider) bg-(--background-primary)
                     `}
                     // Ensure header respects device notch and status bar on iOS
                     style={isIOSSafari ? { boxSizing: 'border-box' } : undefined}
                 >
-                    {/* Left Section: Menu Button, Logo, and Page Title */}
-                    <div className="flex items-center space-x-4">
+                    {/* Left Section: Menu Button, Logo, and Page Title. Fills up to the right section so the title can fit itself to what's left. */}
+                    <div className="flex-1 min-w-0 flex items-center gap-x-4">
 
                         {/* Mobile Menu Button - Only visible on mobile */}
                         <button
                             type="button"
                             className="
                                 md:hidden inline-flex items-center justify-center p-1.5
-                                rounded-md border border-form-element 
-                                text-secondary hover:bg-background-secondary
+                                rounded-control border border-form-element 
+                                text-secondary hover:bg-(--background-secondary)
                                 cursor-pointer
                             "
                             aria-label="Open navigation menu"
-                            onClick={() => setIsSideMenuOpenMobile(true)}
+                            onClick={() => setSideMenuOpenMobile(true)}
                         >
                             <FiMenu className="h-5 w-5" />
                         </button>
                         
                         {/* Logo Display Logic */}
                         {/* Always show on mobile */}
-                        <ShowdownBotLogo className="max-w-42 md:hidden" />
+                        <ShowdownBotLogo className="max-w-42 shrink-0 md:hidden" />
                         {/* Show on desktop only when sidebar is collapsed */}
-                        {!isSideMenuOpen && <ShowdownBotLogo className="max-w-42 hidden md:block" />}
+                        {!isSideMenuOpen && <ShowdownBotLogo className="max-w-42 shrink-0 hidden md:block" />}
                         
                         {/* Page Title with Icon - Route-based content */}
                         {(selectedMenuItem?.text || 'Home') !== 'Home' && (
-                            <h1 className="hidden sm:flex sm:flex-row text-lg font-semibold text-secondary items-center">
-                                {selectedMenuItem?.icon && <selectedMenuItem.icon className="w-4 h-4 mr-2" />}
-                                {selectedMenuItem?.text || 'Home'}
-                            </h1>
+                            <div className="hidden sm:flex flex-1 min-w-0 items-center gap-2">
+                                {selectedMenuItem?.icon && <selectedMenuItem.icon className="w-4 h-4 shrink-0 text-(--text-tertiary)" />}
+                                <Heading level="section" as="h1" fit>{selectedMenuItem?.text || 'Home'}</Heading>
+                            </div>
                         )}
                     </div>
 
                     
                     {/* Right Section: Showdown Set Selector and Account Icon */}
-                    <div className="flex items-center space-x-2">
+                    <div className="flex items-center space-x-2 shrink-0 ml-4">
                         <CustomSelect
-                            className="w-22 text-lg"
-                            buttonClassName="flex justify-center cursor-pointer select-none"
-                            imageClassName="object-contain object-center w-18"
+                            // design-ok: set-badge picker, not a form field
+                            buttonClassName="flex justify-center items-center cursor-pointer select-none"
                             value={userShowdownSet}
                             onChange={setUserShowdownSet}
-                            options={showdownSets}
+                            options={SET_SELECT_OPTIONS_LG}
                             showDropdownArrow={true}
                         />
 
@@ -336,7 +365,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
                 <main className={`flex-1 overflow-auto w-full relative z-0`}>
                     {/* Status Message */}
                     {selectedMenuItemStatus && (
-                        <div className="bg-yellow-100 border-l-4 border-yellow-500 text-yellow-700 p-4 m-4 rounded" role="alert">
+                        <div className="bg-(--gold)/15 border-l-4 border-(--gold) text-(--gold) p-4 m-4 rounded-control" role="alert">
                             <div className="font-bold items-center flex">
                                 <FaExclamationCircle className="inline mr-1" />
                                 Update in Progress
@@ -349,12 +378,6 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
                 </main>
             </div>
 
-            {/* Feature Announcement Modal - Global modal for version updates */}
-            <WhatsNewModal 
-                isOpen={showWhatsNewModal} 
-                onClose={handleWhatsNewClose} 
-            />
-            
             {/* Login Modal - Global modal for authentication */}
             {showLoginModal && (
                 <LoginModal 
@@ -364,12 +387,11 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
             )}
             
             {/* Login Success Toast */}
-            <LoadingStatusToast
+            <ToastMessage
                 loadingStatus={loginSuccess ? {
-                    message: 'Welcome!',
-                    subMessage: 'Successfully logged in',
+                    message: 'Signed in',
                     icon: <FaCircleCheck className="w-5 h-5" />,
-                    backgroundColor: 'rgb(34, 197, 94)', // green-500
+                    tone: 'success',
                     removeAfterSeconds: 3
                 } : null}
                 isExiting={isLoginSuccessExiting}

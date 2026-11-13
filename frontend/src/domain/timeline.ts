@@ -415,3 +415,16 @@ export class LinescoreAccumulator {
 // ------------------------------------------------------------------
 
 export const EMPTY_BASES: Record<BaseSlot, PlayerRef | null> = { first: null, second: null, third: null };
+
+/** The frame "next inning" lands on: the changeover into the next top half, so the inning opens
+ *  with its first batter still to come. A play frame there would already be past that batter. In
+ *  the last inning this is the final frame, and null when neither exists yet (a live game still in
+ *  its current inning, or a cursor already on the last frame). A cursor sitting on a changeover
+ *  moves past it, so repeated presses walk one inning at a time. */
+export const nextInningFrameIndex = (frames: GameFrame[], cursor: number): number | null => {
+    const lastIndex = frames.length - 1;
+    for (let i = cursor + 1; i <= lastIndex; i++) {
+        if (frames[i].transition?.halfInningBreak?.toIsTop) return i;
+    }
+    return cursor < lastIndex && frames[lastIndex].kind === "FINAL" ? lastIndex : null;
+};

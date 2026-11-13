@@ -36,6 +36,7 @@ function sortValue(row: SimStatLine, key: SortKey): string | number {
 
 // SHARED WITH THE FIRST BODY CELL BELOW SO THE FROZEN PLAYER COLUMN STAYS OPAQUE OVER WHATEVER
 // SCROLLS UNDERNEATH IT, WITH A SHADOW MARKING WHERE THE SCROLLABLE PART BEGINS.
+// design-ok: a short fade marks the pinned column's scroll edge
 const STICKY_COL_CLASS = 'sticky left-0 bg-(--background-secondary) shadow-[2px_0_4px_-2px_rgba(0,0,0,0.15)]';
 
 function SortHeader({ label, active, dir, onClick, align = 'right', sticky = false }: { label: string; active: boolean; dir?: 'asc' | 'desc'; onClick: () => void; align?: 'left' | 'right'; sticky?: boolean }) {
@@ -103,7 +104,7 @@ export function SimStatsTable({ rows, columns, emptyLabel, cardsEnabled = false,
     }
 
     return (
-        <div className="overflow-x-auto scrollbar-hide rounded-xl border border-(--divider)">
+        <div className="overflow-x-auto scrollbar-hide rounded-card border border-(--divider)">
             <table className="w-full text-[12px] whitespace-nowrap">
                 <thead>
                     <tr className="text-(--text-tertiary) border-b border-(--divider)">
@@ -135,7 +136,7 @@ export function SimStatsTable({ rows, columns, emptyLabel, cardsEnabled = false,
                                             isPitcher={record?.is_pitcher}
                                             primaryColor={teamIdentity?.primary_color ?? record?.color_primary}
                                             secondaryColor={teamIdentity?.secondary_color ?? record?.color_secondary}
-                                            command={record?.command} team={row.team} points={record?.points}
+                                            command={record?.command} team={row.team} set={record?.showdown_set} points={record?.points}
                                         />
                                     ) : (
                                         <span className="font-medium text-(--text-primary)">{row.name}</span>

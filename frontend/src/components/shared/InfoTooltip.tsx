@@ -15,8 +15,11 @@ const VIEWPORT_MARGIN = 8; // px, min gap kept from the viewport edge
  * being cut off inside them.
  *
  * `iconSize` accepts a Tailwind text-size class (e.g. `'text-[13px]'`, `'text-sm'`) to scale the
- * (i) icon to match the surrounding label — defaults to the original `text-[11px]`. */
-export function InfoTooltip({ text, className = '', iconSize = 'text-[11px]' }: { text: string; className?: string; iconSize?: string }) {
+ * (i) icon to match the surrounding label — defaults to the original `text-[11px]`.
+ *
+ * `openOnHover` also opens the tooltip while the pointer is over the icon (mouse only — a tap
+ * still toggles it on touch devices). */
+export function InfoTooltip({ text, className = '', iconSize = 'text-[11px]', openOnHover = false }: { text: string; className?: string; iconSize?: string; openOnHover?: boolean }) {
     const [open, setOpen] = useState(false);
     const [position, setPosition] = useState<{ top: number; left: number; placement: 'above' | 'below' } | null>(null);
     const buttonRef = useRef<HTMLButtonElement>(null);
@@ -70,7 +73,11 @@ export function InfoTooltip({ text, className = '', iconSize = 'text-[11px]' }: 
     }, [open]);
 
     return (
-        <div className={`relative inline-flex ${className}`}>
+        <div
+            className={`relative inline-flex ${className}`}
+            onPointerEnter={openOnHover ? e => e.pointerType === 'mouse' && setOpen(true) : undefined}
+            onPointerLeave={openOnHover ? e => e.pointerType === 'mouse' && setOpen(false) : undefined}
+        >
             <button
                 ref={buttonRef}
                 type="button"
@@ -91,7 +98,7 @@ export function InfoTooltip({ text, className = '', iconSize = 'text-[11px]' }: 
                         left: position.left,
                         transform: position.placement === 'above' ? 'translate(-50%, -100%)' : 'translate(-50%, 0)',
                     }}
-                    className="w-48 p-2 rounded-lg bg-(--background-tertiary) border border-(--divider) shadow-xl text-[11px] font-normal normal-case text-(--text-secondary) text-left z-50"
+                    className="w-48 p-2 rounded-card bg-(--background-tertiary) border border-(--divider) shadow-overlay text-[11px] font-normal normal-case text-(--text-secondary) text-left z-50"
                 >
                     {text}
                 </div>,

@@ -8,7 +8,7 @@
 
 import { type TrendDatapoint } from '../../../api/showdownBotCard';
 import { ResponsiveContainer, AreaChart, XAxis, YAxis, Tooltip, Area, CartesianGrid } from 'recharts';
-import { useMemo } from 'react';
+import { useId, useMemo } from 'react';
 import { enhanceColorVisibility } from '../../../functions/colors';
 
 /**
@@ -70,8 +70,9 @@ const ChartPlayerPointsTrend = ({ title, trendData }: ChartPlayerPointsTrendProp
      * Generate unique gradient IDs to prevent conflicts between multiple chart instances
      * Each chart needs its own gradient definition in the SVG
      */
-    const gradientId = useMemo(() => `gradient-${Math.random().toString(36).substr(2, 9)}`, [title]);
-    const strokeGradientId = useMemo(() => `stroke-gradient-${Math.random().toString(36).substr(2, 9)}`, [title]);
+    const chartId = useId().replace(/:/g, '');
+    const gradientId = `gradient-${chartId}`;
+    const strokeGradientId = `stroke-gradient-${chartId}`;
 
     /**
      * Create horizontal gradient stops based on team colors over time
@@ -104,12 +105,12 @@ const ChartPlayerPointsTrend = ({ title, trendData }: ChartPlayerPointsTrendProp
         const isVisible = active && payload && payload.length;
         const card = payload[0]?.payload as TrendDatapoint;
         return (
-            <div className="bg-primary p-2 rounded-lg" style={{ visibility: isVisible ? 'visible' : 'hidden' }}>
+            <div className="bg-primary p-2 rounded-card" style={{ visibility: isVisible ? 'visible' : 'hidden' }}>
             {isVisible && (
                 <div className="flex flex-col text-xs">
 
                     {/* POINTS */}
-                    <p className="font-black border-b border-gray-600">{`${formatXAxisLabel(label)} ${card.team}: ${card.points} PTS`}</p>
+                    <p className="font-bold border-b border-(--divider)">{`${formatXAxisLabel(label)} ${card.team}: ${card.points} PTS`}</p>
 
                     {/* COMMAND/OUTS */}
                     <p className="label pt-1">{`${card.command} ${card.command_type?.toUpperCase() === 'ONBASE' ? 'OB' : 'CO'} | ${card.outs} OUTS`}</p>
@@ -175,16 +176,16 @@ const ChartPlayerPointsTrend = ({ title, trendData }: ChartPlayerPointsTrendProp
                 <div className="
                     absolute inset-0 
                     flex items-center justify-center 
-                    rounded-xl
+                    rounded-card
                     pointer-events-none opacity-75
                     z-10
                 ">
                     <div className="
                         bg-table-header
                         px-4 py-2 
-                        rounded-lg 
+                        rounded-card 
                         text-center
-                        border border-gray-600
+                        border border-(--divider)
                     ">
                         <p className="text-sm font-semibold">No Data Available</p>
                         <p className="text-xs opacity-50">Showing sample data</p>

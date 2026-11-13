@@ -7,8 +7,10 @@ import type { ReactNode } from "react";
 import ReactCountryFlag from "react-country-flag";
 
 import type { GameView } from "../../../domain/game";
-import { getReadableTextColor } from "../../../functions/colors";
+import { getReadableTextColor, NEUTRAL_TEAM_COLOR } from '../../../functions/colors';
 import { BasesDiamond } from "../BasesDiamond";
+import { GameStatePlate } from "../GameStatePlate";
+import { CAPS_LABEL_CLASS } from "../../shared/fieldStyles";
 
 type ScoreHeaderProps = {
     game: GameView;
@@ -32,9 +34,9 @@ export default function ScoreHeader({ game, className = "", compact = false, cen
     const awayRecord = away.record;
     const homeRecord = home.record;
 
-    const awayBadgeBg = away.team.primaryColor ?? '#374151';
+    const awayBadgeBg = away.team.primaryColor ?? NEUTRAL_TEAM_COLOR;
     const awayBadgeText = getReadableTextColor(awayBadgeBg, '#ffffff');
-    const homeBadgeBg = home.team.primaryColor ?? '#374151';
+    const homeBadgeBg = home.team.primaryColor ?? NEUTRAL_TEAM_COLOR;
     const homeBadgeText = getReadableTextColor(homeBadgeBg, '#ffffff');
 
     const awayRuns = away.score ?? 0;
@@ -53,7 +55,7 @@ export default function ScoreHeader({ game, className = "", compact = false, cen
 
     return (
         <div
-            className={`rounded-xl border border-(--divider) bg-(--background-secondary)/30 ${
+            className={`rounded-card border border-(--divider) bg-(--background-secondary)/30 ${
                 compact ? "mx-2 px-3 py-1.5" : "mx-2 px-4 py-2 lg:py-4"
             } ${className}`}
         >
@@ -65,31 +67,25 @@ export default function ScoreHeader({ game, className = "", compact = false, cen
                     )}
                     <div className={`flex items-center ${compact ? "gap-2" : "gap-2.5"}`}>
                         <div
-                            className={`flex items-center justify-center rounded-lg font-bold leading-none shrink-0 ${badgeSize}`}
+                            className={`flex items-center justify-center rounded-card font-display-upright uppercase leading-none shrink-0 ${badgeSize}`}
                             style={{ backgroundColor: awayBadgeBg, color: awayBadgeText }}
                         >{away.team.abbreviation}</div>
-                        <span className={`${scoreSize} font-bold leading-none text-(--primary)`}>{awayRuns}</span>
+                        <span className={`${scoreSize} font-display-upright leading-none tabular-nums text-(--text-primary)`}>{awayRuns}</span>
                     </div>
-                    <div className={`${nameSize} hidden sm:block font-semibold text-(--primary) leading-snug`}>{away.team.name}</div>
+                    <div className={`${nameSize} hidden sm:block font-semibold text-(--text-primary) leading-snug`}>{away.team.name}</div>
                     {!compact && awayRecord && (
-                        <div className="text-[12px] text-(--secondary)">{awayRecord.wins ?? 0}-{awayRecord.losses ?? 0}</div>
+                        <div className="text-[12px] tabular-nums text-(--text-secondary)">{awayRecord.wins ?? 0}-{awayRecord.losses ?? 0}</div>
                     )}
                 </div>
 
                 {/* Center: game state, count and bases — the situational info, not the score */}
                 <div className={`flex flex-col items-center ${compact ? "gap-1.5" : "gap-2"}`}>
-                    {isInProgress && inningStr ? (
-                        <div className={`inline-flex items-center gap-1.5 rounded-full bg-(--background-primary) border border-(--divider) ${
-                            compact ? "px-2 py-0.5 text-[10px]" : "px-2.5 py-1 text-[11px]"
-                        }`}>
-                            <span className="live-pulse w-1.75 h-1.75 rounded-full bg-(--live) shrink-0" />
-                            <span className="font-semibold tracking-[0.5px] text-(--live)">LIVE</span>
-                            <span className="text-(--secondary) mx-0.5">·</span>
-                            <span className="text-(--secondary)">{inningStr}</span>
-                        </div>
-                    ) : (
-                        <div className={`font-semibold text-(--secondary) uppercase tracking-wide ${compact ? "text-[10px]" : "text-xs"}`}>{game.detailedState}</div>
-                    )}
+                    <GameStatePlate
+                        state={game.state}
+                        detailedState={game.detailedState}
+                        liveDetail={inningStr || undefined}
+                        size={compact ? 'sm' : 'md'}
+                    />
 
                     {!isInProgress && centerAction}
 
@@ -97,8 +93,8 @@ export default function ScoreHeader({ game, className = "", compact = false, cen
                         <div className={`flex items-center ${compact ? "gap-2.5" : "gap-3"}`}>
                             {hasCount && (
                                 <div className="text-center">
-                                    <div className="text-[9px] uppercase tracking-wide text-(--secondary)">Count</div>
-                                    <div className={`font-bold leading-none text-(--primary) ${compact ? "text-[14px]" : "text-[16px]"}`}>{situation?.balls}–{situation?.strikes}</div>
+                                    <div className={`${CAPS_LABEL_CLASS} text-(--text-tertiary)`}>Count</div>
+                                    <div className={`font-display-upright leading-none tabular-nums text-(--text-primary) ${compact ? "text-[15px]" : "text-[18px]"}`}>{situation?.balls}–{situation?.strikes}</div>
                                 </div>
                             )}
                             <BasesDiamond bases={bases} outs={situation?.outs} size={compact ? 30 : "sm"} />
@@ -115,15 +111,15 @@ export default function ScoreHeader({ game, className = "", compact = false, cen
                         </div>
                     )}
                     <div className={`flex items-center ${compact ? "gap-2" : "gap-2.5"}`}>
-                        <span className={`${scoreSize} font-bold leading-none text-(--primary)`}>{homeRuns}</span>
+                        <span className={`${scoreSize} font-display-upright leading-none tabular-nums text-(--text-primary)`}>{homeRuns}</span>
                         <div
-                            className={`flex items-center justify-center rounded-lg font-bold leading-none shrink-0 ${badgeSize}`}
+                            className={`flex items-center justify-center rounded-card font-display-upright uppercase leading-none shrink-0 ${badgeSize}`}
                             style={{ backgroundColor: homeBadgeBg, color: homeBadgeText }}
                         >{home.team.abbreviation}</div>
                     </div>
-                    <div className={`${nameSize} hidden sm:block font-semibold text-(--primary) leading-snug text-right`}>{home.team.name}</div>
+                    <div className={`${nameSize} hidden sm:block font-semibold text-(--text-primary) leading-snug text-right`}>{home.team.name}</div>
                     {!compact && homeRecord && (
-                        <div className="text-[12px] text-(--secondary)">{homeRecord.wins ?? 0}-{homeRecord.losses ?? 0}</div>
+                        <div className="text-[12px] tabular-nums text-(--text-secondary)">{homeRecord.wins ?? 0}-{homeRecord.losses ?? 0}</div>
                     )}
                 </div>
             </div>

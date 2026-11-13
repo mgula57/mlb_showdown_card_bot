@@ -2,6 +2,9 @@ import { useEffect, useMemo, useState } from 'react';
 import { fetchSimHistory, type SimLeaderboardSort, type SimSeasonListItem } from '../../../api/sim';
 import { SimSeasonRow, SimSeasonRowSkeleton } from './SimSeasonRow';
 
+import { InlineError } from '../../shared/InlineError';
+import { Heading } from '../../shared/Heading';
+import { EmptyState } from '../../shared/EmptyState';
 type Props = {
     token?: string;
     onOpenSeason: (teamId: string, jobId: string) => void;
@@ -69,9 +72,9 @@ export function SimHistory({ token, onOpenSeason, sort }: Props) {
 
     if (error) {
         return (
-            <div className="mx-4 text-[12px] text-red-400 px-3 py-2 rounded-lg border border-red-400/30 bg-red-400/5">
+            <InlineError size="md" className="mx-4">
                 {error}
-            </div>
+            </InlineError>
         );
     }
 
@@ -90,9 +93,9 @@ export function SimHistory({ token, onOpenSeason, sort }: Props) {
 
     if (seasons.length === 0) {
         return (
-            <p className="text-[13px] text-(--text-tertiary) py-8 text-center px-4">
-                You haven't played a season yet. Open one of your teams and hit Play Season.
-            </p>
+            <EmptyState size="panel" title="No seasons played.">
+                Open one of your teams and hit Play season.
+            </EmptyState>
         );
     }
 
@@ -100,7 +103,7 @@ export function SimHistory({ token, onOpenSeason, sort }: Props) {
         <div className="flex flex-col gap-5 px-4">
             {byYear.map(([year, entries]) => (
                 <section key={year}>
-                    <h2 className="text-[15px] font-black text-(--text-primary) mb-1.5">{year}</h2>
+                    <Heading level="panel" as="h2" className="mb-1.5">{year}</Heading>
                     <div className="flex flex-col gap-1.5">
                         {entries.map(entry => (
                             <SimSeasonRow

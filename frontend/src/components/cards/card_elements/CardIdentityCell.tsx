@@ -1,6 +1,7 @@
 import CardCommand from "./CardCommand";
 import PointsBadge from "./PointsBadge";
 import { defenseAtPosition } from "../../shared/DefenseUtils";
+import { cardSecondaryStyle } from "../../../functions/colors";
 
 /**
  * A player-identity table cell: command badge + name + points/defense. Takes primitive props
@@ -19,6 +20,7 @@ type CardIdentityCellProps = {
     secondaryColor?: string | null;
     command?: number | null;
     team?: string | null;
+    set?: string | null;
     points?: number;
     ptsChange?: number | null;
     positionsAndDefense?: Record<string, number> | null;
@@ -26,15 +28,16 @@ type CardIdentityCellProps = {
 
 export default function CardIdentityCell({
     name, position, isLoadingCard, hasCard = false,
-    isPitcher, primaryColor, secondaryColor, command, team,
+    isPitcher, primaryColor, secondaryColor, command, team, set,
     points, ptsChange, positionsAndDefense,
 }: CardIdentityCellProps) {
     const defense = defenseAtPosition(positionsAndDefense, position);
+    const pointsStyle = secondaryColor ? cardSecondaryStyle(secondaryColor, team, set) : undefined;
 
     return (
         <div className="flex items-center space-x-1.5">
             {isLoadingCard ? (
-                <div className="w-6 h-6 rounded-full bg-(--background-quaternary) animate-pulse shrink-0" />
+                <div className="w-6 h-6 rounded-full bg-(--background-tertiary) animate-pulse shrink-0" />
             ) : (
                 <CardCommand
                     isPitcher={isPitcher ?? true}
@@ -48,8 +51,8 @@ export default function CardIdentityCell({
             <div className="space-y-0.5">
                 <div className="font-semibold text-(--primary) text-[11px] text-nowrap">{name}</div>
                 <div className="flex items-center gap-1">
-                    {isLoadingCard && <div className="h-4 w-10 rounded-full bg-(--background-quaternary) animate-pulse" />}
-                    {hasCard && points != null && <PointsBadge points={points} bg_color={secondaryColor} />}
+                    {isLoadingCard && <div className="h-4 w-10 rounded-plate bg-(--background-tertiary) animate-pulse" />}
+                    {hasCard && points != null && <PointsBadge points={points} bg_color={pointsStyle?.backgroundColor} textColor={pointsStyle?.color} />}
                     {hasCard && ptsChange != null && ptsChange !== 0 && (
                         <span className={`text-[9px] font-bold leading-none ${ptsChange > 0 ? 'text-(--green)' : 'text-(--red)'}`}>
                             {ptsChange > 0 ? '▲' : '▼'}{Math.abs(ptsChange)}

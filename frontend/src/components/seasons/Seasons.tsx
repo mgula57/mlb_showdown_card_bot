@@ -4,7 +4,7 @@
  * Displays real MLB season results with Showdown context including
  * player cards, team points, and performance analytics.
  */
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../auth/AuthContext";
 import { DayPicker } from "react-day-picker";
@@ -29,7 +29,7 @@ import StandingsTab from "./Standings";
 import {
     FaRankingStar, FaClipboardList, FaEarthAmericas, FaCalendarDays,
     FaChevronDown, FaChevronRight, FaChevronLeft,
-    FaStar, FaRegStar, FaArrowsRotate, FaTrophy, FaXmark, FaMedal, FaDice, FaCircleQuestion
+    FaStar, FaRegStar, FaTrophy, FaXmark, FaMedal, FaDice, FaCircleQuestion
 } from "react-icons/fa6";
 
 // import ShowdownCardSearch from "../cards/ShowdownCardSearch";
@@ -47,6 +47,13 @@ import { NewBadge } from "../shared/NewBadge";
 import { BetaBadge } from "../shared/BetaBadge";
 import { startOpenSim, type OpenSimPayload } from "../../api/sim";
 
+import { Eyebrow } from '../shared/Eyebrow';
+import { Heading } from '../shared/Heading';
+import { PinstripeBackdrop } from '../shared/PinstripeBackdrop';
+import { radixVerticalTabTriggerClass } from '../shared/tabStyles';
+import { CAPS_LABEL_CLASS } from '../shared/fieldStyles';
+import { buttonClass } from "../shared/buttonStyles";
+import { smoothScrollBehavior } from '../../hooks/usePrefersReducedMotion';
 const formatScheduleDate = (date?: string): string => {
     if (!date) {
         return "Today's Games";
@@ -105,14 +112,14 @@ type SeasonsProps = {
 };
 
 export default function Seasons({ type, title, subtitle, staticSports, staticSeasons }: SeasonsProps) {
-    const STORAGE_KEYS = {
+    const STORAGE_KEYS = useMemo(() => ({
         seasonId: `${type}.seasons.selectedSeasonId`,
         sportId: `${type}.seasons.selectedSportId`,
         leagueGroup: `${type}.seasons.selectedLeagueGroup`,
         activeTab: `${type}.seasons.activeTab`,
         sidebarCollapsed: `${type}.seasons.sidebarCollapsed`,
         starredTeams: `${type}.seasons.starredTeams`,
-    };
+    }), [type]);
 
     const getStoredValue = (key: string): string | null => {
         if (typeof window === "undefined") {
@@ -166,7 +173,6 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
     const [isDatePickerOpen, setIsDatePickerOpen] = useState(false);
     const datePickerRef = useRef<HTMLDivElement>(null);
 
-    const [isLoading, setIsLoading] = useState<boolean>(false);
     const [isLoadingStandings, setIsLoadingStandings] = useState<boolean>(false);
     const [isLoadingSchedule, setIsLoadingSchedule] = useState<boolean>(false);
 
@@ -199,7 +205,6 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
         if (selectedGamePk !== null) {
             setActiveTab('schedule');
         }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [selectedGamePk]);
 
     // `?sim=1` (e.g. "Run again" from a finished sim) opens the Simulate tab with the setup form
@@ -306,7 +311,6 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
     }, [settingsLoaded]);
     const hasLoadedSeasonsRef = useRef(false);
     const isLoadingSeasonsRef = useRef(false);
-    const pendingRequestsRef = useRef(0);
     const isRunningLoadAllRef = useRef(false);
     const scheduleAbortControllerRef = useRef<AbortController | null>(null);
 
@@ -321,18 +325,6 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
         document.addEventListener("mousedown", handleClickOutside);
         return () => document.removeEventListener("mousedown", handleClickOutside);
     }, [isDatePickerOpen]);
-
-    const beginLoading = () => {
-        pendingRequestsRef.current += 1;
-        setIsLoading(true);
-    };
-
-    const endLoading = () => {
-        pendingRequestsRef.current = Math.max(0, pendingRequestsRef.current - 1);
-        if (pendingRequestsRef.current === 0) {
-            setIsLoading(false);
-        }
-    };
 
     const seasonOptions: SelectOption[] = seasons
         .filter(season => season.season_id != null)
@@ -395,7 +387,7 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
     const hideAwardWinners = selectedSeasonYear === nowForAwards.getFullYear()
         && nowForAwards < new Date(nowForAwards.getFullYear(), 10, 1);
 
-    const tabs = [
+    const tabs = useMemo(() => [
         ...(isSelectedSeasonOver ? [] : [{ id: "schedule", label: "Schedule", icon: <FaCalendarDays /> }]),
         { id: "standings", label: "Standings", icon: <FaRankingStar /> },
         { id: "leaders", label: "Leaders", icon: <FaTrophy /> },
@@ -403,7 +395,7 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
         ...(type === "mlb" ? [{ id: "simulate", label: "Simulations", icon: <FaDice /> }] : []),
         { id: "teams", label: "Teams", icon: <FaClipboardList /> },
         // { id: "players", label: "Players", icon: <FaUserGroup /> },
-    ];
+    ], [isSelectedSeasonOver, hideAwardWinners, type]);
 
     // ************************
     // Loading Methods
@@ -436,7 +428,6 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
         }
 
         isLoadingSeasonsRef.current = true;
-        beginLoading();
         try {
             const seasonsData = await fetchSeasons();
             console.log("Raw seasons data from API:", seasonsData);
@@ -461,7 +452,6 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
             console.error("Error fetching seasons:", error);
         } finally {
             isLoadingSeasonsRef.current = false;
-            endLoading();
         }
     };
 
@@ -486,7 +476,6 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
 
         var standingsData: { [leagueAbbreviation: string]: Standings[] } = {};
         let standingsFailed = false;
-        beginLoading();
         setIsLoadingStandings(true);
         try {
             standingsData = await fetchSeasonStandings(selectedSeason, leaguesToQuery, userShowdownSet);
@@ -496,7 +485,6 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
             console.error(`Error fetching standings for season ${selectedSeason.season_id}:`, error);
             standingsFailed = true;
         } finally {
-            endLoading();
             setIsLoadingStandings(false);
         }
 
@@ -544,7 +532,6 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
         if (!selectedSeason) return;
 
         isRunningLoadAllRef.current = true;
-        beginLoading();
 
         // Apply cached teams immediately so the list renders before network completes
         const teamsCacheKey = getTeamsCacheKey(selectedSeason.season_id.toString());
@@ -686,7 +673,6 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
             console.error(`Error in loadAll for season ${selectedSeason.season_id}:`, error);
         } finally {
             isRunningLoadAllRef.current = false;
-            endLoading();
         }
     };
 
@@ -695,7 +681,6 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
             return null;
         }
 
-        beginLoading();
         try {
             const showdownTeam = await fetchShowdownTeam(selectedSeason, team.id, selectedSport.id, team.abbreviation || team.name, team.name, userShowdownSet);
             console.log(`Fetched showdown team for ${team.name} in season ${selectedSeason.season_id}:`, showdownTeam);
@@ -710,7 +695,6 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
             console.error(`Error fetching showdown team for ${team.name} in season ${selectedSeason.season_id}:`, error);
             return null;
         } finally {
-            endLoading();
         }
     };
 
@@ -735,7 +719,6 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
         const controller = new AbortController();
         scheduleAbortControllerRef.current = controller;
 
-        beginLoading();
         setIsLoadingSchedule(true);
         try {
             const selectedDate = formatDateForApi(gamesDate);
@@ -748,7 +731,6 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
             console.error(`Error fetching games schedule for season ${selectedSeason.season_id}:`, error);
             setGamesSchedule(null);
         } finally {
-            endLoading();
             setIsLoadingSchedule(false);
         }
     };
@@ -758,12 +740,14 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
     // ************************
     useEffect(() => {
         loadSeasons();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
     // Single orchestrated load: sports → leagues → standings + schedules in parallel
     useEffect(() => {
         if (!selectedSeason) return;
         loadAll();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [selectedSeason]);
 
     // Re-run standings + both schedules when user changes league group or showdown set
@@ -771,29 +755,31 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
         if (isRunningLoadAllRef.current || !selectedSeason || leagues.length === 0) return;
         loadStandings();
         loadGamesSchedule();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [selectedLeagueGroup, userShowdownSet]);
 
     // Re-run only games schedule when selected date changes
     useEffect(() => {
         if (!selectedSeason || leagues.length === 0) return;
         loadGamesSchedule();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [gamesDate]);
 
     useEffect(() => {
         setStoredValue(STORAGE_KEYS.seasonId, selectedSeason?.season_id?.toString() ?? null);
-    }, [selectedSeason]);
+    }, [STORAGE_KEYS.seasonId, selectedSeason]);
 
     useEffect(() => {
         setStoredValue(STORAGE_KEYS.sportId, selectedSport?.id?.toString() ?? null);
-    }, [selectedSport]);
+    }, [STORAGE_KEYS.sportId, selectedSport]);
 
     useEffect(() => {
         setStoredValue(STORAGE_KEYS.activeTab, activeTab);
-    }, [activeTab]);
+    }, [STORAGE_KEYS.activeTab, activeTab]);
 
     useEffect(() => {
         setStoredValue(STORAGE_KEYS.sidebarCollapsed, isSidebarCollapsed ? "true" : "false");
-    }, [isSidebarCollapsed]);
+    }, [STORAGE_KEYS.sidebarCollapsed, isSidebarCollapsed]);
 
     useEffect(() => {
         setStoredValue(STORAGE_KEYS.starredTeams, JSON.stringify(starredTeamKeys));
@@ -804,7 +790,7 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
 
     useEffect(() => {
         setStoredValue(STORAGE_KEYS.leagueGroup, selectedLeagueGroup);
-    }, [selectedLeagueGroup]);
+    }, [STORAGE_KEYS.leagueGroup, selectedLeagueGroup]);
 
     useEffect(() => {
         if (!tabs.some((tab) => tab.id === activeTab)) {
@@ -823,6 +809,7 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
         if (selectedTeam === null || selectedTeam.id === undefined) return;
         setSelectedRoster(null);
         loadShowdownTeam(selectedTeam).then(setSelectedRoster);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [selectedTeam, userShowdownSet, activeTab]);
 
     // Load the inline roster shown below the standings table
@@ -830,13 +817,14 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
         if (activeTab !== "standings" || standingsTeam === null) return;
         setStandingsRoster(null);
         loadShowdownTeam(standingsTeam).then(setStandingsRoster);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [standingsTeam, userShowdownSet, activeTab]);
 
     // Scroll the inline roster into view so it's clear the selection did something
     useEffect(() => {
         if (standingsTeam === null) return;
         requestAnimationFrame(() => {
-            standingsRosterRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+            standingsRosterRef.current?.scrollIntoView({ behavior: smoothScrollBehavior(), block: "start" });
         });
     }, [standingsTeam]);
 
@@ -919,12 +907,7 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
                         <button
                             type="button"
                             onClick={() => setIsSimModalOpen(true)}
-                            className="
-                                w-full flex items-center justify-center gap-1.5 px-3 py-2
-                                rounded-lg animated-showdown-gradient
-                                text-[12px] font-semibold text-white
-                                hover:opacity-90 transition-opacity cursor-pointer
-                            "
+                            className={buttonClass('feature', 'sm', 'w-full')}
                         >
                             <FaDice className="text-[11px]" />
                             Simulate this season
@@ -946,13 +929,7 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
                                 <div className="flex items-center gap-1">
                                     <Tabs.Trigger
                                         value={tab.id}
-                                        className="relative flex flex-1 gap-x-2 items-center justify-start px-3 py-2.5 text-sm rounded-lg transition-colors
-                                                   data-[state=active]:bg-(--background-quaternary)
-                                                   data-[state=active]:font-bold
-                                                   data-[state=active]:text-(--text-primary)
-                                                   data-[state=inactive]:text-(--text-tertiary)
-                                                   data-[state=inactive]:font-medium
-                                                   data-[state=inactive]:hover:bg-(--divider)"
+                                        className={`relative flex-1 justify-start ${radixVerticalTabTriggerClass()}`}
                                     >
                                         <span className="text-(--text-secondary)">{tab.icon}</span>
                                         {tab.label}
@@ -968,7 +945,7 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
                                                 event.stopPropagation();
                                                 setIsTeamsNavOpen((previous) => !previous);
                                             }}
-                                            className="p-2 rounded-md text-(--text-secondary) hover:bg-(--divider) cursor-pointer"
+                                            className="p-2 rounded-control text-(--text-secondary) hover:bg-(--divider) cursor-pointer"
                                         >
                                             <FaChevronDown className={`h-3.5 w-3.5 transition-transform ${isTeamsNavOpen ? "rotate-180" : ""}`} />
                                         </button>
@@ -994,7 +971,7 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
                                                                 setSelectedTeam(team);
                                                                 setActiveTab("teams");
                                                             }}
-                                                            className={`w-full text-left px-2 py-1.5 rounded-md text-xs transition-colors ${
+                                                            className={`w-full text-left px-2 py-1.5 rounded-control text-xs transition-colors cursor-pointer ${
                                                                 isSelected
                                                                     ? "bg-(--background-quaternary) font-semibold"
                                                                         : "text-(--text-primary) hover:bg-(--team-primary-color) hover:text-(--team-hover-text-color)"
@@ -1041,7 +1018,7 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
                                                                                 toggleStarTeam(team);
                                                                             }
                                                                         }}
-                                                                        className={`text-sm leading-none cursor-pointer ${isStarred ? 'text-yellow-300' : 'text-(--quaternary) hover:text-yellow-300'}`}
+                                                                        className={`text-sm leading-none cursor-pointer ${isStarred ? 'text-(--gold)' : 'text-(--quaternary) hover:text-(--gold)'}`}
                                                                     >
                                                                         {isStarred ? <FaStar className="h-3.5 w-3.5" /> : <FaRegStar className="h-3.5 w-3.5" />}
                                                                     </span>
@@ -1081,7 +1058,9 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
     }
 
     return (
-        <div className="w-full bg-(--background-primary)">
+        <div className="w-full relative isolate bg-(--background-primary)">
+            {/* Card-back pinstripes behind the top of the page */}
+            <PinstripeBackdrop heightClass="h-72" />
             <div className="max-w-full lg:mx-auto py-6 sm:py-0 lg:h-[calc(100dvh-2.5rem)] lg:overflow-hidden">
                 {selectedSeason && (
                     <>
@@ -1090,7 +1069,7 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
                                 <div className={`hidden lg:block order-1 lg:h-full lg:min-h-0 overflow-hidden transition-[max-height,opacity] duration-300 ease-in-out ${isSidebarCollapsed ? 'max-h-16' : 'max-h-480'} lg:max-h-480`}>
                                     {isSidebarCollapsed ? (
                                         <aside className="w-full p-2 lg:pt-6 lg:sticky lg:top-0 lg:self-start lg:min-h-0">
-                                            <div className="rounded-2xl border border-(--divider) bg-(--background-secondary) overflow-hidden lg:h-full">
+                                            <div className="rounded-card border border-(--divider) bg-(--background-secondary) overflow-hidden lg:h-full">
                                                 <div className="px-2 py-2 lg:py-3 flex items-center justify-center lg:items-start lg:justify-center">
                                                     <button
                                                         type="button"
@@ -1100,8 +1079,8 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
                                                         title="Expand sidebar panel"
                                                     >
                                                         <FaChevronRight className="h-3.5 w-3.5" />
-                                                        <span className="lg:hidden text-xs font-semibold uppercase tracking-wide">
-                                                            Show WBC Navigation
+                                                        <span className={`lg:hidden ${CAPS_LABEL_CLASS}`}>
+                                                            Show WBC navigation
                                                         </span>
                                                     </button>
                                                 </div>
@@ -1131,21 +1110,16 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
                                 </div>
 
                                 <div className="min-w-0 order-2 sm:pt-4 lg:h-full lg:min-h-0 lg:overflow-y-auto lg:overscroll-contain">
-                                    <div className="lg:hidden mb-4 rounded-2xl space-y-4">
+                                    <div className="lg:hidden mb-4 rounded-card space-y-4">
                                         <div className="space-y-2 px-4">
                                             {hasStaticSports && sportOptions.length <= 1 && selectedSport && (
                                                 <div className="flex items-center justify-between gap-2">
-                                                    <div className="flex items-center font-bold text-2xl min-w-0">
-                                                        {type === "wbc" ? <FaEarthAmericas className="inline-block mr-2 shrink-0" /> : <FaCalendarDays className="inline-block mr-2 shrink-0" />}
-                                                        <span className="truncate">{title}</span>
+                                                    <div className="flex-1 flex items-center min-w-0">
+                                                        {type === "wbc" ? <FaEarthAmericas className="inline-block mr-2 shrink-0 text-xl text-(--text-tertiary)" /> : <FaCalendarDays className="inline-block mr-2 shrink-0 text-xl text-(--text-tertiary)" />}
+                                                        <Heading level="page" as="span" fit>{title}</Heading>
                                                         {!(hasStaticSeasons && seasonOptions.length <= 1) && (
                                                             <CustomSelect
-                                                                buttonClassName="
-                                                                    ml-4 text-sm p-2 items-center
-                                                                    rounded-lg bg-secondary text-primary text-nowrap text-left
-                                                                    overflow-clip
-                                                                    cursor-pointer
-                                                                "
+                                                                className="ml-4"
                                                                 value={selectedSeason?.season_id.toString() || "2026"}
                                                                 onChange={(value) => setSelectedSeason(seasons.find(season => season.season_id === value) || null)}
                                                                 options={seasonOptions}
@@ -1157,12 +1131,7 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
                                                             <button
                                                                 type="button"
                                                                 onClick={() => setIsSimModalOpen(true)}
-                                                                className="
-                                                                    flex items-center gap-1.5 px-2.5 py-1.5
-                                                                    rounded-lg animated-showdown-gradient
-                                                                    text-[12px] font-semibold text-(--text-primary)
-                                                                    hover:opacity-90 transition-opacity cursor-pointer whitespace-nowrap
-                                                                "
+                                                                className={buttonClass('feature', 'sm', 'whitespace-nowrap')}
                                                             >
                                                                 <FaDice className="text-[11px]" />
                                                                 Simulate
@@ -1214,9 +1183,7 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
                                     >
                                         <div className="px-3 lg:px-0 space-y-2 pb-24 lg:pt-6 lg:pr-6">
                                             <div className="space-y-2 flex justify-between items-top">
-                                                <p className="text-sm font-semibold uppercase tracking-wide text-(--text-secondary)">
-                                                    Standings
-                                                </p>
+                                                <Heading level="section" as="h2">Standings</Heading>
                                                 <p className="px-1 text-xs text-(--text-secondary)">
                                                     Select a team to view its Showdown roster below.
                                                 </p>
@@ -1233,13 +1200,13 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
                                                 <div ref={standingsRosterRef} className="pt-4 scroll-mt-4 space-y-3">
                                                     <hr className="border-(--divider)" />
                                                     <div className="flex items-center justify-between">
-                                                        <h2 className="text-sm font-semibold uppercase tracking-wide text-(--text-secondary)">
+                                                        <Eyebrow>
                                                             {standingsTeam.name || standingsTeam.abbreviation} Roster
-                                                        </h2>
+                                                        </Eyebrow>
                                                         <button
                                                             type="button"
                                                             onClick={handleCloseStandingsRoster}
-                                                            className="flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-semibold text-(--text-secondary) hover:bg-(--divider) cursor-pointer"
+                                                            className="flex items-center gap-1.5 rounded-control px-2.5 py-1 text-xs font-semibold text-(--text-secondary) hover:bg-(--divider) cursor-pointer"
                                                             aria-label="Close team roster"
                                                         >
                                                             <FaXmark className="h-3.5 w-3.5" />
@@ -1264,12 +1231,12 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
                                     >
                                         <div className="px-3 lg:px-0 space-y-5 lg:pt-6 lg:pr-6">
                                                 {!isGamedayBetaNoticeDismissed && (
-                                                    <div className="relative rounded-xl px-3 py-2.5 pr-8 text-xs font-semibold leading-snug border border-violet-500/30 bg-violet-500/15 text-violet-700 dark:text-violet-300">
+                                                    <div className="relative rounded-card px-3 py-2.5 pr-8 text-xs font-semibold leading-snug border border-(--showdown-blue)/30 bg-(--showdown-blue)/10 text-(--showdown-blue)">
                                                         <button
                                                             type="button"
                                                             onClick={dismissGamedayBetaNotice}
                                                             aria-label="Dismiss"
-                                                            className="absolute top-2 right-2 text-violet-500/70 hover:text-violet-700 dark:hover:text-violet-200 transition-colors cursor-pointer"
+                                                            className="absolute top-2 right-2 text-(--showdown-blue)/70 hover:text-(--showdown-blue) transition-colors cursor-pointer"
                                                         >
                                                             <FaXmark size={12} />
                                                         </button>
@@ -1279,7 +1246,7 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
                                                         </span>
                                                     </div>
                                                 )}
-                                                <div className="rounded-xl bg-(--background-secondary) px-4 py-3">
+                                                <div className="rounded-card bg-(--background-secondary) px-4 py-3">
                                                     <div className="flex items-center justify-between">
                                                         <button
                                                             type="button"
@@ -1303,14 +1270,14 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
                                                                 className="flex flex-col items-center text-center leading-tight hover:opacity-70 transition-opacity cursor-pointer group"
                                                                 aria-label="Pick a date"
                                                             >
-                                                                <div className="text-sm font-extrabold tracking-wide text-(--text-secondary)">{gamesHeaderTopText}</div>
+                                                                <Eyebrow className="block">{gamesHeaderTopText}</Eyebrow>
                                                                 <div className="flex items-center gap-1">
-                                                                    <span className="text-xl font-black text-(--text-primary)">{gamesHeaderBottomText}</span>
+                                                                    <Heading level="section" as="span">{gamesHeaderBottomText}</Heading>
                                                                     <FaChevronDown className={`h-3 w-3 text-(--text-secondary) transition-transform ${isDatePickerOpen ? 'rotate-180' : ''}`} />
                                                                 </div>
                                                             </button>
                                                             {isDatePickerOpen && (
-                                                                <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 z-50 rounded-xl border border-(--divider) bg-(--background-secondary) shadow-xl p-2">
+                                                                <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 z-50 rounded-card border border-(--divider) bg-(--background-secondary) shadow-overlay p-2">
                                                                     <DayPicker
                                                                         mode="single"
                                                                         selected={gamesDate}
@@ -1367,7 +1334,7 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
                                         value="teams"
                                         className="focus:outline-none data-[state=inactive]:hidden"
                                     >
-                                        <div className="px-3 lg:px-0 lg:pt-6 lg:pr-6">
+                                        <div className="px-3 lg:px-0 lg:pt-3 lg:pr-6">
                                             {selectedTeam && (
                                                 <ShowdownTeamPanel
                                                     showdownTeam={selectedRoster}
@@ -1386,9 +1353,7 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
                                         <div className="px-3 lg:px-0 lg:pt-6 lg:pr-6 space-y-4 pb-24">
                                             <div className="flex flex-wrap items-start justify-between gap-3">
                                                 <div>
-                                                    <p className="text-sm font-semibold uppercase tracking-wide text-(--text-secondary)">
-                                                        Simulations
-                                                    </p>
+                                                    <Heading level="section" as="h2">Simulations</Heading>
                                                     <p className="text-xs text-(--text-secondary) mt-1">
                                                         Play out any MLB season, then jump back to your past runs here.
                                                     </p>
@@ -1399,7 +1364,7 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
                                                         onClick={() => setIsSimGuideOpen(true)}
                                                         className="
                                                             flex items-center gap-1.5 px-3 py-2
-                                                            rounded-lg border border-(--showdown-red)/40
+                                                            rounded-control border border-(--showdown-red)/40
                                                             text-[12px] font-semibold text-(--showdown-red)
                                                             hover:bg-(--showdown-red)/10 transition-colors cursor-pointer whitespace-nowrap
                                                         "
@@ -1410,12 +1375,7 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
                                                     <button
                                                         type="button"
                                                         onClick={() => setIsSimModalOpen(true)}
-                                                        className="
-                                                            flex items-center gap-1.5 px-3 py-2
-                                                            rounded-lg animated-showdown-gradient
-                                                            text-[12px] font-semibold text-white
-                                                            hover:opacity-90 transition-opacity cursor-pointer whitespace-nowrap
-                                                        "
+                                                        className={buttonClass('primary', 'sm', 'whitespace-nowrap')}
                                                     >
                                                         <FaDice className="text-[11px]" />
                                                         New simulation
@@ -1483,7 +1443,7 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
                                             />
                                         )} */}
                                         <div className="flex justify-center p-24 text-2xl">
-                                            <span className="p-12 rounded-lg bg-secondary">Coming soon - once 2026 stats mature!</span>
+                                            <span className="p-12 rounded-card bg-secondary">Coming once 2026 stats mature.</span>
                                         </div>
                                     </Tabs.Content>
 

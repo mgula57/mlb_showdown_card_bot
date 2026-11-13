@@ -195,6 +195,11 @@ class EraRosterDrafter(RosterToTeamConverter):
     def _by_games_started(self, card: ExploreDataRecord) -> tuple:
         return (self._qualified_rank(card), card.points or 0)
 
+    def _order_rotation(self, rotation_cards: list[ExploreDataRecord]) -> list[ExploreDataRecord]:
+        # Already ranked by points via _by_games_started; GS from different pooled seasons isn't
+        # comparable, so it shouldn't reshuffle the order.
+        return rotation_cards
+
     def _by_saves(self, card: ExploreDataRecord) -> tuple:
         # No real saves data comparable across pooled seasons; prefer a card the bot itself
         # tagged as a closer that year, then fall back to points among all bullpen candidates.

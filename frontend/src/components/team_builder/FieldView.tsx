@@ -5,12 +5,15 @@ import type { CardDatabaseRecord } from '../../api/card_db/cardDatabase';
 import { CardItemCompactFromCardDatabaseRecord } from '../cards/CardItemCompact';
 import { FaPlus, FaPencil } from 'react-icons/fa6';
 import { defenseAtPosition, OF_POSITIONS, IF_POSITIONS } from '../shared/DefenseUtils';
+import { orderedBullpen } from '../../domain/roster';
 import { buildLineupKpis, buildBenchKpis, buildPitcherKpis } from './TeamKpiUtils';
 import { SectionHeader } from '../shared/SectionHeader';
 import { Modal } from '../shared/Modal';
 import { CardDetail } from '../cards/CardDetail';
 import { SlotSavingOverlay } from './SlotSavingOverlay';
 import { CardNotFoundOverlay } from '../shared/CardNotFoundOverlay';
+import { CAPS_LABEL_CLASS } from '../shared/fieldStyles';
+import { smoothScrollBehavior } from '../../hooks/usePrefersReducedMotion';
 
 // Percentage-based [left, top] coordinates relative to the Field.png container
 export const POSITION_COORDS: Record<string, [number, number]> = {
@@ -34,6 +37,7 @@ export type FieldViewRosterData = {
     roster: TeamRosterSlot[];
     rotation: PitcherAssignment[];
     benchPtsMultiplier: number;
+    bullpenOrderCustom?: boolean;
     minBench: number;
     minBullpen: number;
     maxRotation: number;
@@ -119,7 +123,7 @@ export function FieldView({
         const target = position === 'BE' || position === 'RP'
             ? root.querySelector(`[data-slot^="${position}"][data-empty]`) ?? root.querySelector(`[data-slot^="${position}"]`)
             : root.querySelector(`[data-slot="${position}"]`);
-        target?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        target?.scrollIntoView({ behavior: smoothScrollBehavior(), block: 'center' });
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [scrollTarget?.position, scrollTarget?.key]);
 
@@ -159,7 +163,7 @@ export function FieldView({
     const byPointsDesc = <T extends { card_id: string }>(a: T, b: T) => pts(b.card_id) - pts(a.card_id);
     const benchSlots    = (rosterData?.roster ?? []).filter(s => s.roster_position.toUpperCase() === 'BE').slice().sort(byPointsDesc);
     const rotByRole     = Object.fromEntries((rosterData?.rotation ?? []).filter(r => (ROTATION_ROLES as readonly string[]).includes(r.role)).map(r => [r.role, r]));
-    const bullpenSlots  = (rosterData?.rotation ?? []).filter(r => !(ROTATION_ROLES as readonly string[]).includes(r.role)).slice().sort(byPointsDesc);
+    const bullpenSlots  = orderedBullpen(rosterData?.roster ?? [], rosterData?.bullpenOrderCustom, pts);
 
     const isRoleActive = (role: string) => !!activeRole && (
         role === activeRole
@@ -245,8 +249,8 @@ export function FieldView({
         <div ref={rootRef} className="flex flex-col @container">
             {showTotalPoints && (
                 <div className="flex items-center justify-center gap-2 p-1">
-                    <span className="text-[11px] font-semibold uppercase tracking-wide text-(--text-tertiary)">Total Points</span>
-                    <span className="text-sm font-black tabular-nums text-(--text-primary)">{totalPts}</span>
+                    <span className={`${CAPS_LABEL_CLASS} text-(--text-tertiary)`}>Total Points</span>
+                    <span className="font-display-upright text-[17px] leading-none tabular-nums text-(--text-primary)">{totalPts}</span>
                 </div>
             )}
             <div className="relative w-full" style={{ aspectRatio: '1 / 1' }}>
@@ -259,7 +263,7 @@ export function FieldView({
 
                 {showDefenseSummary && (
                     <div
-                        className="absolute -translate-x-1/2 grid grid-cols-[auto_auto] items-center gap-x-2 gap-y-1.5 px-2.5 py-1 border border-(--divider) rounded-xl bg-primary backdrop-blur-xs pointer-events-none select-none"
+                        className="absolute -translate-x-1/2 grid grid-cols-[auto_auto] items-center gap-x-2 gap-y-1.5 px-2.5 py-1 border border-(--divider) rounded-card bg-primary pointer-events-none select-none"
                         style={{ top: '80%', left: '15%' }}
                     >
                         {([
@@ -268,8 +272,8 @@ export function FieldView({
                             { label: 'CA ARM',   value: armC,       color: colorArmC },
                         ] as const).map(({ label, value, color }) => (
                             <Fragment key={label}>
-                                <span className="text-[10px] font-semibold text-(--text-secondary) uppercase tracking-wide">{label}</span>
-                                <span className={`text-xs font-black text-right ${color}`}>
+                                <span className={`${CAPS_LABEL_CLASS} text-(--text-tertiary)`}>{label}</span>
+                                <span className={`text-xs font-bold text-right ${color}`}>
                                     {
                                         value === null ?
                                             '-'
@@ -326,7 +330,7 @@ export function FieldView({
                             onMouseEnter={card ? () => onCardHover?.(card.card_id) : undefined}
                             onMouseLeave={() => onCardHover?.(null)}
                         >
-                            <div className={`relative ${isActive ? 'rounded-lg ring-2 ring-(--secondary) shadow-[0_0_14px_4px_color-mix(in_srgb,var(--secondary)_50%,transparent)] animate-pulse' : ''}`}>
+                            <div className={`relative ${isActive ? 'rounded-control ring-2 ring-(--card-edge) animate-pulse' : ''}`}>
                                 {card ? (
                                     <CardItemCompactFromCardDatabaseRecord
                                         card={card}
@@ -453,19 +457,18 @@ function PositionSlotPlaceholder({ position, onClick, isActive }: PlaceholderPro
             onClick={onClick}
             className={`
                 w-full flex items-center justify-between gap-1
-                rounded-lg px-2 h-12 @[340px]:h-16
+                rounded-control px-2 h-12 @[340px]:h-16
                 border-2 border-dashed
-                backdrop-blur-[2px]
                 ${isActive
-                    ? 'border-(--secondary) bg-black/30'
+                    ? 'border-(--card-edge) bg-black/30'
                     : 'border-white/30 bg-black/20 hover:bg-black/30 hover:border-white/50'
                 }
                 ${onClick ? 'cursor-pointer' : 'cursor-default'}
                 transition-colors
             `}
         >
-            <span className={`text-[11px] font-black ${isActive ? 'text-(--secondary)' : 'text-white/70'}`}>{position}</span>
-            {onClick && <FaPlus className={`text-[9px] shrink-0 ${isActive ? 'text-(--secondary)' : 'text-white/50'}`} />}
+            <span className={`text-[11px] font-bold ${isActive ? 'text-(--card-edge)' : 'text-white/70'}`}>{position}</span>
+            {onClick && <FaPlus className={`text-[9px] shrink-0 ${isActive ? 'text-(--card-edge)' : 'text-white/50'}`} />}
         </button>
     );
 }
@@ -480,8 +483,8 @@ const LoadingDots = ({ dotClassName }: { dotClassName: string }) => (
 
 function PositionSlotLoadingPlaceholder({ position }: { position: string }) {
     return (
-        <div className="w-full flex items-center justify-between gap-1 rounded-lg px-2 h-12 border-2 border-dashed border-white/30 bg-black/20 backdrop-blur-[2px]">
-            <span className="text-[11px] font-black text-white/70">{position}</span>
+        <div className="w-full flex items-center justify-between gap-1 rounded-card px-2 h-12 border-2 border-dashed border-white/30 bg-black/20">
+            <span className="text-[11px] font-bold text-white/70">{position}</span>
             <LoadingDots dotClassName="bg-white/60" />
         </div>
     );
@@ -489,7 +492,7 @@ function PositionSlotLoadingPlaceholder({ position }: { position: string }) {
 
 function SlotLoadingPlaceholder() {
     return (
-        <div className="flex items-center justify-center h-9 rounded-lg border border-dashed border-(--divider)">
+        <div className="flex items-center justify-center h-9 rounded-card border border-dashed border-(--divider)">
             <LoadingDots dotClassName="bg-(--text-tertiary)" />
         </div>
     );

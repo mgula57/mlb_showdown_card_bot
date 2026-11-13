@@ -13,6 +13,11 @@ import { Modal } from '../shared/Modal';
 import type { ShowdownBotCardAPIResponse } from '../../api/showdownBotCard';
 import { ProgressRing } from './ProgressRing';
 
+import { Heading } from '../shared/Heading';
+import { FIELD_LABEL_CLASS, CAPS_LABEL_CLASS, fieldClass } from '../shared/fieldStyles';
+import { buttonClass } from '../shared/buttonStyles';
+import { headingClass } from '../shared/headingStyles';
+import { smoothScrollBehavior } from '../../hooks/usePrefersReducedMotion';
 type BucketProgress = { filled: number; target: number };
 
 type Props = {
@@ -76,13 +81,13 @@ export function GuidedDraftPanel(props: Props) {
     // round was left scrolled.
     const optionsScrollRef = useRef<HTMLDivElement>(null);
     useEffect(() => {
-        optionsScrollRef.current?.scrollTo({ top: 0, left: 0, behavior: 'smooth' });
+        optionsScrollRef.current?.scrollTo({ top: 0, left: 0, behavior: smoothScrollBehavior() });
     }, [rosterCount]);
 
     const progressBar = (
         <div className="h-1 rounded-full overflow-hidden bg-(--background-quaternary)">
             <div
-                className="h-full rounded-full bg-(--showdown-red) transition-all"
+                className="h-full rounded-full bg-(--showdown-red-fill) transition-all"
                 style={{ width: `${rosterSize > 0 ? (rosterCount / rosterSize) * 100 : 0}%` }}
             />
         </div>
@@ -94,7 +99,7 @@ export function GuidedDraftPanel(props: Props) {
             ~{round.target_points} PTS <span className="font-semibold text-(--text-tertiary)">±{round.window}</span>
         </span>
     ) : (
-        <span className="h-3.5 w-24 rounded bg-(--background-quaternary) animate-pulse" />
+        <span className="h-3.5 w-24 rounded-plate bg-(--background-tertiary) animate-pulse" />
     );
 
     return (
@@ -104,10 +109,10 @@ export function GuidedDraftPanel(props: Props) {
                 <div className="flex flex-col gap-1.5 px-3 pt-2 pb-2 border-b border-(--divider) shrink-0">
                     <div className="flex items-center gap-2 min-w-0">
                         <FaCompass className="text-(--showdown-red) text-[12px] shrink-0" />
-                        <span className="text-[11px] font-black tabular-nums text-(--text-tertiary) shrink-0">{roundIndex}/{rosterSize}</span>
+                        <span className="text-[11px] font-bold tabular-nums text-(--text-tertiary) shrink-0">{roundIndex}/{rosterSize}</span>
                         {round
-                            ? <span className="text-[13px] font-black uppercase text-(--text-primary) truncate">{round.round.label}</span>
-                            : <span className="h-4 w-28 rounded bg-(--background-quaternary) animate-pulse" />}
+                            ? <span className={`${headingClass('panel')} truncate`}>{round.round.label}</span>
+                            : <span className="h-4 w-28 rounded-plate bg-(--background-tertiary) animate-pulse" />}
                         <span className="ml-auto flex items-center gap-1.5 shrink-0 text-[10px] font-bold text-(--text-secondary)">
                             {target}
                             <OrderToggle order={order} onChange={onOrderChange} compact />
@@ -121,14 +126,14 @@ export function GuidedDraftPanel(props: Props) {
                 <div className="flex flex-col gap-2.5 px-4 py-3 border-b border-(--divider) shrink-0">
                     <div className="flex items-end justify-between gap-3">
                         <div className="min-w-0">
-                            <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-wide text-(--text-tertiary)">
+                            <div className={`flex items-center gap-2 ${CAPS_LABEL_CLASS} text-(--text-tertiary)`}>
                                 <span>Round <span className="tabular-nums text-(--text-primary)">{roundIndex}</span> of <span className="tabular-nums">{rosterSize}</span></span>
                                 {round && <PhasePill phase={round.round.phase} />}
                             </div>
                             {round ? (
-                                <div className="text-lg font-black uppercase text-(--text-primary) truncate">{round.round.label}</div>
+                                <Heading level="section" as="div" fit>{round.round.label}</Heading>
                             ) : (
-                                <div className="h-6 w-40 mt-1 rounded bg-(--background-quaternary) animate-pulse" />
+                                <div className="h-6 w-40 mt-1 rounded-plate bg-(--background-tertiary) animate-pulse" />
                             )}
                         </div>
                         <div className="flex flex-col items-end gap-0.5 shrink-0 text-[11px] font-bold text-(--text-secondary)">
@@ -169,7 +174,7 @@ function GuidedOptions({ state, docked, currentPts, budget, benchPtsMultiplier, 
         : 'grid grid-cols-1 xl:grid-cols-2 gap-3';
     const itemClass = docked ? 'w-80 shrink-0 snap-start' : '';
 
-    const noticeButtonClass = 'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] font-bold border border-(--divider) text-(--text-secondary) hover:text-(--text-primary) cursor-pointer transition-colors';
+    const noticeButtonClass = 'flex items-center gap-1.5 px-3 py-1.5 rounded-control text-[12px] font-bold border border-(--divider) text-(--text-secondary) hover:text-(--text-primary) cursor-pointer transition-colors';
     const retryButton = (
         <div className="flex flex-wrap justify-center gap-2">
             <button type="button" onClick={retry} className={noticeButtonClass}>
@@ -190,11 +195,11 @@ function GuidedOptions({ state, docked, currentPts, budget, benchPtsMultiplier, 
     if (complete) {
         return notice(<>
             <FaFlagCheckered className="text-2xl text-(--success)" />
-            <div className="text-[13px] font-bold text-(--text-primary)">Roster complete</div>
+            <Heading level="panel" as="div">Roster complete</Heading>
         </>);
     }
     if (error) {
-        return notice(<><p className="text-[12px] text-red-500">{error}</p>{retryButton}</>);
+        return notice(<><p className="text-[12px] text-(--red)">{error}</p>{retryButton}</>);
     }
     if (round && !loading && round.options.length === 0) {
         return notice(<>
@@ -206,15 +211,15 @@ function GuidedOptions({ state, docked, currentPts, budget, benchPtsMultiplier, 
     return (
         <>
             {saveFailed && (
-                <p className="mb-3 text-[11px] text-red-500 bg-red-500/10 rounded-lg px-3 py-2">
+                <p className="mb-3 text-[11px] text-(--red) bg-(--red)/10 rounded-control px-3 py-2">
                     Couldn't save your last pick. It'll retry on your next change.
                 </p>
             )}
             <div className={listClass}>
                 {loading || !round
                     ? Array.from({ length: OPTION_SKELETON_COUNT }, (_, i) => (
-                        <div key={i} className={`${itemClass} flex flex-col gap-1.5 rounded-xl border border-(--divider) p-1.5`}>
-                            <div className="h-9 rounded-lg bg-(--background-quaternary) animate-pulse" />
+                        <div key={i} className={`${itemClass} flex flex-col gap-1.5 rounded-card border border-(--divider) p-1.5`}>
+                            <div className="h-9 rounded-control bg-(--background-quaternary) animate-pulse" />
                             <CardItemSkeleton className="h-28" />
                         </div>
                     ))
@@ -271,18 +276,18 @@ function GuidedOptionCard({ option, currentPts, budget, benchPtsMultiplier, onPi
     const projected = currentPts + cost;
     const overBudget = budget != null && projected > budget;
     return (
-        <div className={`${className} flex flex-col gap-1.5 rounded-xl border border-(--divider) bg-(--background-secondary) p-1.5 transition-colors hover:border-(--showdown-red)/60`}>
+        <div className={`${className} flex flex-col gap-1.5 rounded-card border border-(--divider) bg-(--background-secondary) p-1.5 transition-colors hover:border-(--showdown-red)/60`}>
             <button
                 type="button"
                 onClick={() => onPick(option)}
                 disabled={disabled}
-                className="flex items-center justify-between gap-2 px-3 h-9 rounded-lg text-[12px] font-bold text-white bg-(--showdown-red) hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-opacity"
+                className={buttonClass('primary', 'sm', 'justify-between! h-9')}
             >
                 <span className="flex items-center gap-1.5">
                     <FaPlus className="text-[10px]" /> Draft
                     <FaArrowRight className="text-[9px] opacity-70" /> {option.roster_position}
                 </span>
-                <span className={`tabular-nums text-[11px] font-semibold ${overBudget ? 'text-red-200' : 'opacity-80'}`}>
+                <span className={`tabular-nums text-[11px] font-semibold ${overBudget ? 'font-bold underline underline-offset-2' : 'opacity-80'}`}>
                     {currentPts} → {projected} PTS
                 </span>
             </button>
@@ -302,7 +307,7 @@ function HeaderIconButton({ icon: Icon, label, onClick, disabled = false }: { ic
             type="button"
             onClick={onClick}
             disabled={disabled}
-            className="p-1.5 shrink-0 rounded-lg text-(--text-tertiary) hover:text-(--text-primary) hover:bg-(--background-tertiary) disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-colors"
+            className="p-1.5 shrink-0 rounded-control text-(--text-tertiary) hover:text-(--text-primary) hover:bg-(--background-tertiary) disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-colors"
             aria-label={label}
             title={label}
         >
@@ -314,7 +319,7 @@ function HeaderIconButton({ icon: Icon, label, onClick, disabled = false }: { ic
 /** In order / Random switch for how Fill rounds choose the next roster need. */
 function OrderToggle({ order, onChange, compact = false }: { order: GuidedFillOrder; onChange: (order: GuidedFillOrder) => void; compact?: boolean }) {
     return (
-        <div className="flex shrink-0 rounded-lg bg-(--background-tertiary) p-0.5" role="radiogroup" aria-label="Round order">
+        <div className="flex shrink-0 rounded-card bg-(--background-tertiary) p-0.5" role="radiogroup" aria-label="Round order">
             {GUIDED_FILL_ORDER_OPTIONS.map(({ value, label }) => {
                 const Icon = value === 'random' ? FaShuffle : FaListOl;
                 const active = order === value;
@@ -326,8 +331,8 @@ function OrderToggle({ order, onChange, compact = false }: { order: GuidedFillOr
                         aria-checked={active}
                         onClick={() => onChange(value)}
                         title={value === 'random' ? 'Each round targets a random open roster spot' : 'Rounds walk the roster: lineup, rotation, bullpen, bench'}
-                        className={`flex items-center gap-1 rounded-md px-1.5 py-1 text-[10px] font-bold whitespace-nowrap cursor-pointer transition-colors ${
-                            active ? 'bg-(--background-primary) text-(--text-primary) shadow-sm' : 'text-(--text-tertiary) hover:text-(--text-primary)'
+                        className={`flex items-center gap-1 rounded-control px-1.5 py-1 text-[10px] font-bold whitespace-nowrap cursor-pointer transition-colors ${
+                            active ? 'bg-(--background-primary) text-(--text-primary) shadow-raised' : 'text-(--text-tertiary) hover:text-(--text-primary)'
                         }`}
                     >
                         <Icon className="text-[10px]" />
@@ -341,9 +346,9 @@ function OrderToggle({ order, onChange, compact = false }: { order: GuidedFillOr
 
 function PhasePill({ phase }: { phase: GuidedRound['round']['phase'] }) {
     return phase === 'cornerstone' ? (
-        <span className="rounded-full px-1.5 py-px bg-amber-500/15 text-amber-600 dark:text-amber-400">Cornerstone</span>
+        <span className="rounded-plate px-1.5 py-px bg-(--gold)/15 text-(--gold)">Cornerstone</span>
     ) : (
-        <span className="rounded-full px-1.5 py-px bg-sky-500/15 text-sky-600 dark:text-sky-300">Fill</span>
+        <span className="rounded-plate px-1.5 py-px bg-(--showdown-blue)/15 text-(--showdown-blue)">Fill</span>
     );
 }
 
@@ -351,7 +356,7 @@ function PhasePill({ phase }: { phase: GuidedRound['round']['phase'] }) {
  *  the current round's segment highlighted. */
 function RoundStepper({ round, buckets }: { round: GuidedRound | null; buckets: Props['buckets'] }) {
     const segmentClass = (active: boolean) =>
-        `flex items-center gap-1 rounded-lg px-1.5 py-1 text-[10px] font-bold whitespace-nowrap transition-colors ${
+        `flex items-center gap-1 rounded-card px-1.5 py-1 text-[10px] font-bold whitespace-nowrap transition-colors ${
             active ? 'bg-(--showdown-red)/10 text-(--showdown-red) ring-1 ring-(--showdown-red)/40' : 'text-(--text-tertiary)'
         }`;
 
@@ -365,7 +370,7 @@ function RoundStepper({ round, buckets }: { round: GuidedRound | null; buckets: 
                         {done
                             ? <FaCircleCheck className="text-[10px] text-(--success)" />
                             : active
-                                ? <span className="w-1.5 h-1.5 rounded-full bg-(--showdown-red) animate-pulse" />
+                                ? <span className="w-1.5 h-1.5 rounded-full bg-(--showdown-red-fill) animate-pulse" />
                                 : <span className="tabular-nums">{i + 1}.</span>}
                         {label}
                     </span>
@@ -398,7 +403,7 @@ function GuidedTargetPrompt({ onSetTarget }: { onSetTarget: (target: number) => 
                 This team has no points cap. Pick a budget so each round can offer options at the right price.
                 It won't change the team's settings.
             </p>
-            <label className="text-[11px] font-bold text-(--text-tertiary) uppercase tracking-wide">
+            <label className={FIELD_LABEL_CLASS}>
                 Target Points
                 <input
                     type="number"
@@ -406,16 +411,16 @@ function GuidedTargetPrompt({ onSetTarget }: { onSetTarget: (target: number) => 
                     step={50}
                     value={target}
                     onChange={e => setTarget(Math.max(0, Number(e.target.value)))}
-                    className="mt-1 w-full rounded-lg border border-(--divider) bg-(--background-secondary) px-3 py-2 text-[13px] font-bold text-(--text-primary) normal-case"
+                    className={fieldClass('md', 'mt-1 w-full font-bold tabular-nums normal-case focus:outline-none')}
                 />
             </label>
             <button
                 type="button"
                 onClick={() => onSetTarget(target)}
                 disabled={target < 100}
-                className="flex items-center justify-center gap-1.5 rounded-lg py-2 text-[13px] font-bold text-white bg-(--showdown-red) hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-opacity"
+                className={buttonClass('primary', 'md')}
             >
-                Start Guided Draft <FaArrowRight className="text-[11px]" />
+                Start guided draft <FaArrowRight className="text-[11px]" />
             </button>
         </div>
     );

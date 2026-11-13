@@ -26,12 +26,15 @@
  * ```
  */
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import { FaXmark } from 'react-icons/fa6';
+import PinnedFooterScrollArea from './PinnedFooterScrollArea';
+import { PanelCloseContext, type PanelClose } from './panelClose';
 
-// Global counter to track multiple concurrent modals for proper scroll lock management
-let bodyScrollLockCount = 0;
+import { Heading } from './Heading';
+import { UnderToolbarFill } from './UnderToolbarFill';
+import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
 
 /**
  * Props for the Modal component
@@ -45,7 +48,7 @@ type ModalProps = {
     title?: React.ReactNode;
     /** Optional subtitle shown under the title, e.g. a short description of the modal's purpose */
     subtitle?: string;
-    /** Optional footer content (e.g. action buttons), pinned below the scrollable body */
+    /** Optional footer content (e.g. action buttons), pinned over the bottom of the scrollable body */
     footer?: React.ReactNode;
     /** Size preset for the modal width - defaults to 'lg' */
     size?: 'sm' | 'md' | 'lg' | 'xl';
@@ -71,10 +74,26 @@ type ModalProps = {
  */
 export function Modal({ children, onClose, title, subtitle, footer, size = 'lg', disableCloseButton = false, isVisible = true }: ModalProps) {
     const modalRef = useRef<HTMLDivElement>(null);
-    const scrollYRef = useRef(0); // Stores scroll position for restoration
 
     /**
-     * Effect: Close when navigating to a different top-level page (ex: "Customize" → /customs).
+     * Untitled modals offer their close action to content that puts its own close button in its
+     * header row (`usePanelClose`, e.g. CardDetail); while claimed, the floating button hides.
+     * Stable value (onClose read through a ref) so callers' inline onClose doesn't re-claim per render.
+     */
+    const [closeClaims, setCloseClaims] = useState(0);
+    const onCloseRef = useRef(onClose);
+    useEffect(() => { onCloseRef.current = onClose; }, [onClose]);
+    const panelClose = useMemo<PanelClose>(() => ({
+        onClose: () => onCloseRef.current(),
+        claim: () => {
+            setCloseClaims(n => n + 1);
+            return () => setCloseClaims(n => n - 1);
+        },
+    }), []);
+    const offersPanelClose = !title && !disableCloseButton;
+
+    /**
+     * Effect: Close when navigating to a different top-level page (ex: "Open in Builder" → /customs).
      * Pages stay mounted-but-hidden across routes, so without this the modal (and its body scroll
      * lock) would linger behind the new page. Sub-route changes within a page are left alone.
      */
@@ -84,7 +103,7 @@ export function Modal({ children, onClose, title, subtitle, footer, size = 'lg',
     useEffect(() => {
         if (pageSection !== pageSectionRef.current) {
             pageSectionRef.current = pageSection;
-            onClose();
+            onCloseRef.current();
         }
     }, [pageSection]);
 
@@ -113,61 +132,8 @@ export function Modal({ children, onClose, title, subtitle, footer, size = 'lg',
         }
     };
 
-    /**
-     * Effect: Body scroll lock mechanism with reference counting
-     * 
-     * Implements sophisticated scroll locking that:
-     * - Increments global counter when modal opens
-     * - Only applies scroll lock on first modal (when counter = 1)
-     * - Preserves current scroll position
-     * - Compensates for scrollbar width to prevent layout shift
-     * - Only restores scroll when all modals are closed (counter = 0)
-     * - Restores exact scroll position on cleanup
-     */
-    useEffect(() => {
-        // Only apply scroll lock when modal is visible
-        if (!isVisible) return;
-
-        // Increment modal count and apply scroll lock if this is the first modal
-        bodyScrollLockCount += 1;
-        if (bodyScrollLockCount === 1) {
-            const body = document.body;
-            const docEl = document.documentElement;
-            
-            // Calculate scrollbar width to prevent layout shift
-            const scrollbarWidth = Math.max(0, window.innerWidth - docEl.clientWidth);
-
-            // Store current scroll position for restoration
-            scrollYRef.current = window.scrollY;
-            
-            // Apply scroll lock styles
-            body.style.position = 'fixed';
-            body.style.top = `-${scrollYRef.current}px`;
-            body.style.width = '100%';
-            if (scrollbarWidth) body.style.paddingRight = `${scrollbarWidth}px`;
-        }
-
-        // Cleanup: decrement counter and restore scroll when all modals are closed
-        return () => {
-            bodyScrollLockCount -= 1;
-            
-            // Only restore scroll when no modals remain open
-            if (bodyScrollLockCount === 0) {
-                const body = document.body;
-                const top = body.style.top;
-                
-                // Remove scroll lock styles
-                body.style.position = '';
-                body.style.top = '';
-                body.style.width = '';
-                body.style.paddingRight = '';
-                
-                // Restore original scroll position
-                const y = parseInt(top || '0', 10) || 0;
-                window.scrollTo(0, -y);
-            }
-        };
-    }, [isVisible]);
+    // Lock background scroll while visible (shared ref-counted lock handles nested modals)
+    useBodyScrollLock(isVisible);
 
     /** Responsive size classes for different modal sizes */
     const sizeClasses = {
@@ -192,8 +158,9 @@ export function Modal({ children, onClose, title, subtitle, footer, size = 'lg',
     );
 
     return (
+        <>
         <div 
-            className="fixed left-0 top-0 w-screen h-lvh bg-black/50 flex items-center justify-center z-50 p-4 cursor-pointer"
+            className="fixed left-0 top-0 w-screen h-lvh bg-black/50 flex items-center justify-center z-50 p-4 cursor-pointer pointer-events-auto"
             onClick={handleBackdropClick}
         >
             {/* Modal container with responsive sizing and theming. flex-col so the header and
@@ -202,8 +169,8 @@ export function Modal({ children, onClose, title, subtitle, footer, size = 'lg',
                 ref={modalRef}
                 className={`
                     bg-(--background-primary)
-                    rounded-2xl
-                    shadow-2xl
+                    rounded-card
+                    shadow-overlay
                     w-full
                     ${sizeClasses[size]}
                     max-h-[85vh]
@@ -217,10 +184,10 @@ export function Modal({ children, onClose, title, subtitle, footer, size = 'lg',
                 {/* Conditional header with title, optional subtitle, and close button */}
                 {title ? (
                     <div className="flex items-start justify-between gap-3 p-3 border-b border-form-element shrink-0">
-                        <div className="min-w-0">
-                            <h2 className="text-xl font-semibold text-(--text-primary) truncate">
+                        <div className="flex-1 min-w-0">
+                            <Heading level="section" fit>
                                 {title}
-                            </h2>
+                            </Heading>
                             {subtitle && (
                                 <p className="text-[12px] text-(--text-secondary) mt-0.5">
                                     {subtitle}
@@ -230,26 +197,24 @@ export function Modal({ children, onClose, title, subtitle, footer, size = 'lg',
                         {!disableCloseButton && closeButton()}
                     </div>
                 ) : (
-                    !disableCloseButton &&
-                    // Floating close button when no title is provided
+                    offersPanelClose && closeClaims === 0 &&
+                    // Floating close button when no title is provided and the content hasn't claimed it
                     <div className="absolute right-3 top-3 z-10">
                         {closeButton()}
                     </div>
                 )}
 
-                {/* Scrollable modal content area */}
-                <div className="flex-1 min-h-0 overflow-y-auto">
-                    {children}
-                </div>
-
-                {/* Optional footer (e.g. action buttons), pinned below the scrollable body */}
-                {footer && (
-                    <div className="border-t border-form-element shrink-0 p-3 flex flex-col gap-2">
-                        {footer}
-                    </div>
-                )}
+                {/* Scrollable modal content area. The optional `footer` (and anything children pin via
+                    PinnedFooterPortal) is pinned over its bottom edge. */}
+                <PinnedFooterScrollArea className="flex-1" footer={footer}>
+                    <PanelCloseContext.Provider value={offersPanelClose ? panelClose : null}>
+                        {children}
+                    </PanelCloseContext.Provider>
+                </PinnedFooterScrollArea>
 
             </div>
         </div>
+        {isVisible && <UnderToolbarFill className="left-0 w-full bg-black/50" />}
+        </>
     );
 }

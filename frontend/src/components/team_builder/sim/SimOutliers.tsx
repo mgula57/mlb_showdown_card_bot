@@ -1,6 +1,7 @@
 import type { OutlierEntry, OutlierGroup, SimStatLine, SimTeamIdentity } from '../../../api/sim';
 import { SectionCard } from './SectionCard';
 import { SimStatsTable } from './SimStatsTable';
+import { CAPS_LABEL_CLASS } from '../../shared/fieldStyles';
 
 const OUTLIER_COLUMNS = ['ops', 'real_ops', 'ops_diff'];
 
@@ -46,14 +47,14 @@ export function SimOutliers({ outliers, identities }: Props) {
         <SectionCard title="Outliers vs. Real Life">
             <div className="flex flex-col gap-4">
                 <div>
-                    <p className="text-[11px] font-bold text-(--success) uppercase tracking-wide mb-1.5">Overperformers</p>
+                    <p className={`text-(--success) mb-1.5 ${CAPS_LABEL_CLASS}`}>Overperformers</p>
                     <div className="flex flex-col lg:flex-row lg:w-full gap-3">
                         {subTable('Hitters', hitters?.positive)}
                         {subTable('Pitchers', pitchers?.positive)}
                     </div>
                 </div>
                 <div>
-                    <p className="text-[11px] font-bold text-(--error) uppercase tracking-wide mb-1.5">Underperformers</p>
+                    <p className={`text-(--error) mb-1.5 ${CAPS_LABEL_CLASS}`}>Underperformers</p>
                     <div className="flex flex-col lg:flex-row lg:w-full gap-3">
                         {subTable('Hitters', hitters?.negative)}
                         {subTable('Pitchers', pitchers?.negative)}

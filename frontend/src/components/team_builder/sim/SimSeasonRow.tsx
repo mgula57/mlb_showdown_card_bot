@@ -1,7 +1,8 @@
 import { FaTrophy, FaLock } from 'react-icons/fa6';
 import type { SimSeasonListItem } from '../../../api/sim';
 import { relativeTime } from '../../../functions/formatters';
-import { imageForSet } from '../../shared/SiteSettingsContext';
+import { SetBadge } from '../../shared/SetBadge';
+import { CAPS_LABEL_CLASS } from '../../shared/fieldStyles';
 
 /** A labelled rule between the runs that cleared a challenge and the ones that didn't. Shared by
  *  every place a challenge's entries get split into those two buckets. */
@@ -9,16 +10,16 @@ export function OutcomeDivider({ label, tone }: { label: string; tone: 'success'
     const color = tone === 'success' ? 'text-(--success)' : 'text-(--text-tertiary)';
     return (
         <div className="flex items-center gap-2 pt-1">
-            <span className={`text-[10px] font-bold uppercase tracking-wide shrink-0 ${color}`}>{label}</span>
+            <span className={`shrink-0 ${color} ${CAPS_LABEL_CLASS}`}>{label}</span>
             <span className="h-px flex-1 bg-(--divider)" />
         </div>
     );
 }
 
 function medalClass(rank: number): string {
-    if (rank === 1) return 'text-yellow-300';
+    if (rank === 1) return 'text-(--gold)';
     if (rank === 2) return 'text-(--text-secondary)';
-    if (rank === 3) return 'text-orange-400';
+    if (rank === 3) return 'text-(--bronze)';
     return 'text-(--text-tertiary)';
 }
 
@@ -53,14 +54,14 @@ export function SimSeasonRow({ entry, onOpen, rank, attempts, showTime, disabled
             type="button"
             onClick={onOpen}
             disabled={disabled}
-            className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-left transition-colors ${
+            className={`w-full flex items-center gap-3 px-3 py-2 rounded-control text-left transition-colors ${
                 disabled ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer hover:bg-(--divider)'
             } ${
                 entry.is_own ? 'bg-(--showdown-blue)/10 ring-1 ring-(--showdown-blue)/40' : 'bg-(--background-tertiary)'
             }`}
         >
             {rank !== undefined && (
-                <span className={`w-6 shrink-0 text-[13px] font-black tabular-nums ${medalClass(rank)}`}>{rank}</span>
+                <span className={`w-6 shrink-0 text-[13px] font-bold tabular-nums ${medalClass(rank)}`}>{rank}</span>
             )}
 
             <span className="w-1.5 h-7 rounded-full shrink-0" style={{ backgroundColor: entry.primary_color ?? 'var(--divider)' }} />
@@ -70,7 +71,7 @@ export function SimSeasonRow({ entry, onOpen, rank, attempts, showTime, disabled
                     <span className="text-[13px] font-bold text-(--text-primary) truncate">
                         {entry.team_name ?? entry.team_abbreviation ?? (isOpenSim ? entry.year : 'Unnamed team')}
                     </span>
-                    {entry.is_champion && <FaTrophy className="text-[10px] text-yellow-300 shrink-0" title="Won the World Series" />}
+                    {entry.is_champion && <FaTrophy className="text-[10px] text-(--gold) shrink-0" title="Won the World Series" />}
                     {entry.is_own && rank !== undefined && <FaLock className="text-[9px] text-(--text-tertiary) shrink-0" title="Your result" />}
                 </span>
                 <span className="block text-[11px] text-(--text-tertiary) truncate">
@@ -80,11 +81,7 @@ export function SimSeasonRow({ entry, onOpen, rank, attempts, showTime, disabled
                     {entry.showdown_set && (
                         <>
                             {entry.replaced_abbr ? ' · ' : ''}
-                            <img
-                                src={imageForSet(entry.showdown_set, true)}
-                                alt={entry.showdown_set}
-                                className="inline h-3 w-auto object-contain align-middle"
-                            />
+                            <SetBadge set={entry.showdown_set} abbreviated size="sm" className="align-middle" />
                         </>
                     )}
                     {entry.division ? ` · ${entry.division}` : ''}
@@ -94,7 +91,7 @@ export function SimSeasonRow({ entry, onOpen, rank, attempts, showTime, disabled
             </span>
 
             <span className="text-right shrink-0">
-                <span className="block text-[14px] font-black text-(--text-primary) tabular-nums">
+                <span className="block font-display-upright text-[17px] leading-none text-(--text-primary) tabular-nums">
                     {entry.wins}<span className="text-(--text-tertiary)">–</span>{entry.losses}
                 </span>
                 <span className="block text-[11px] text-(--text-tertiary) tabular-nums">
@@ -118,16 +115,16 @@ export function SimSeasonRow({ entry, onOpen, rank, attempts, showTime, disabled
  *  reserve the rank column, so the skeleton doesn't shift width when data lands. */
 export function SimSeasonRowSkeleton({ showRank = false }: { showRank?: boolean }) {
     return (
-        <div aria-hidden className="w-full flex items-center gap-3 px-3 py-2 rounded-lg bg-(--background-tertiary) animate-pulse">
-            {showRank && <span className="w-6 h-3.5 rounded bg-(--background-primary) shrink-0" />}
+        <div aria-hidden className="w-full flex items-center gap-3 px-3 py-2 rounded-card bg-(--background-tertiary) animate-pulse">
+            {showRank && <span className="w-6 h-3.5 rounded-plate bg-(--background-primary) shrink-0" />}
             <span className="w-1.5 h-7 rounded-full shrink-0 bg-(--background-primary)" />
             <span className="min-w-0 flex-1 flex flex-col gap-1.5 py-0.5">
-                <span className="h-3 w-2/5 rounded bg-(--background-primary)" />
-                <span className="h-2.5 w-3/5 rounded bg-(--background-primary)" />
+                <span className="h-3 w-2/5 rounded-plate bg-(--background-primary)" />
+                <span className="h-2.5 w-3/5 rounded-plate bg-(--background-primary)" />
             </span>
             <span className="flex flex-col items-end gap-1.5 shrink-0 py-0.5">
-                <span className="h-3.5 w-10 rounded bg-(--background-primary)" />
-                <span className="h-2.5 w-8 rounded bg-(--background-primary)" />
+                <span className="h-3.5 w-10 rounded-plate bg-(--background-primary)" />
+                <span className="h-2.5 w-8 rounded-plate bg-(--background-primary)" />
             </span>
         </div>
     );

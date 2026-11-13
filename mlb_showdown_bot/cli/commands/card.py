@@ -37,6 +37,7 @@ def card_main(
     add_one_to_set_year: bool = typer.Option(False, "--add_one_to_set_year", "-sy", help="Optionally add one to the set year on 04/05 set."),
     hide_team_logo: bool = typer.Option(False, "--hide_team_logo", "-htl", help="Optionally remove all team logos and branding."),
     coloring: str = typer.Option("PRIMARY", "--coloring", "-col", help="Optionally add coloring to the card."),
+    parallel_coloring: str = typer.Option("DEFAULT", "--parallel_coloring", "-plc", help="Coloring for team colored parallels (Team Color Blast, Breakout, Booster). DEFAULT matches --coloring. Options: DEFAULT, PRIMARY, SECONDARY, MULTI."),
     stat_highlights_type: str = typer.Option("NONE", "--stat_highlights_type", "-sh", help="Type of stat highlights to use. (CLASSIC, MODERN, ALL)"),
     glow_multiplier: float = typer.Option(1.0, "--glow_multiplier", "-gm", help="Glow/Shadow multiplier for card image"),
     
@@ -57,7 +58,7 @@ def card_main(
     show_year_text: bool = typer.Option(False, "--show_year_text", "-yrt", help="Optionally add separate year text to the image. Applies to 2000-2005 only."),
     nickname_index: Optional[int] = typer.Option(None, "--nickname_index", "-nick", help="Optionally choose a nickname to show for images. Enter a number based on ordering from bref, max is 3"),
     is_wotc: bool = typer.Option(False, "--is_wotc", "-wotc", help="Try loading from WOTC cards."),
-    regress_small_sample_to_replacement: bool = typer.Option(False, "--regress_to_replacement", "-rtr", help="Regress small sample stats toward replacement level for more realistic stats."),
+    stat_normalizer: Optional[str] = typer.Option(None, "--stat_normalizer", "-norm", help="Regress small sample stats toward a baseline. Options are REPLACEMENT_LEVEL, LEAGUE_AVERAGE, PLAYER_CAREER, PLAYER_LAST_YEAR, PLAYER_TRAILING_3, PLAYER_TRAILING_5."),
     
     # DATABASE/CACHE
     datasource: str = typer.Option(None, "--datasource", "-ds", help="Datasource to use for stats and info. Options are MLB_API or BREF."),
@@ -67,6 +68,7 @@ def card_main(
     ignore_cache: bool = typer.Option(False, "--ignore_cache", "-ic", help="Ignore local cache"),
     ignore_archive: bool = typer.Option(False, "--ignore_archive", "-ia", help="Ignore postgres showdown bot archive"),
     disable_cache_cleaning: bool = typer.Option(False, "--disable_cache_cleaning", "-dc", help="Disable removal of cached files after minutes threshold."),
+    cache_mlb_api: bool = typer.Option(False, "--cache_mlb_api", "-cma", help="Cache MLB Stats API responses on disk (24h) so repeat runs for the same card skip the network."),
     disable_realtime: bool = typer.Option(False, "--disable_realtime", "-drt", help="Skip query and integration of current days stats from MLB API."),
     
     # TRENDS

@@ -219,12 +219,16 @@ class SimTeam:
         sp_slot_by_card_id = {slot.card_id: slot.roster_position.upper() for slot in team.roster if slot.roster_position.upper() in ROTATION_ROLES}
         rotation_players = [sp_players[card_id] for card_id in sorted(sp_players, key=lambda cid: int(sp_slot_by_card_id[cid][2:]))]
 
-        # THE 'CL' SLOT IS THE CLOSER. THE BUILDER HAS NO SETUP/MIDDLE/LONG ROLES, SO THE REST OF
-        # THE BULLPEN IS LEFT TO `pitchers_available`'s OPS-BASED LEVERAGE SORT.
+        # THE 'CL' SLOT IS THE CLOSER. THE REST OF THE BULLPEN IS LEFT TO `pitchers_available`'s
+        # OPS-BASED LEVERAGE SORT UNLESS THE OWNER HAS RANKED IT, IN WHICH CASE ROSTER ORDER IS THE
+        # RANKING. IT WEIGHS ON `situational_fit` RATHER THAN SCRIPTING THE ORDER OF APPEARANCE.
         closer_id: Optional[str] = next(
             (pid(slot.card_id) for slot in team.roster if slot.roster_position.upper() == 'CL' and slot.card_id in bullpen_players),
             None,
         )
+        role_order: dict[str, int] = {}
+        if team.bullpen_order_custom:
+            role_order = {pid(slot.card_id): rank for rank, slot in enumerate(team.bullpen)}
 
         # PRESET LINEUP - THE USER'S ACTIVE LINEUP, FALLING BACK TO THE COMPUTED DEFAULT
         sim_lineup = team.sim_lineup
@@ -241,7 +245,7 @@ class SimTeam:
             name=name_override or team.abbreviation,
             position_players=position_players,
             rotation=Rotation(players=rotation_players),
-            bullpen=Bullpen(players=list(bullpen_players.values()), closer_id=closer_id),
+            bullpen=Bullpen(players=list(bullpen_players.values()), closer_id=closer_id, role_order=role_order),
             league=league,
             bench_pts_multiplier=team.bench_pts_multiplier,
             bench_player_ids=bench_player_ids,

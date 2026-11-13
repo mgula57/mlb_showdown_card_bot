@@ -1,5 +1,8 @@
 import { useEffect } from 'react';
-import { FaCaretDown } from 'react-icons/fa6';
+import { FaCaretDown, FaCaretRight } from 'react-icons/fa6';
+import { Heading } from './Heading';
+import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
+import { UnderToolbarFill } from './UnderToolbarFill';
 
 type SlideOverProps = {
     isOpen: boolean;
@@ -11,69 +14,65 @@ type SlideOverProps = {
      * (not part of the scrollable content).
      */
     handleContent?: React.ReactNode;
+    /** Edge it slides in from: `bottom` (default, a ~90% tall sheet) or `right` (a full-height panel
+     *  that leaves a strip of the page showing, for side content like comments). */
+    side?: 'bottom' | 'right';
 };
 
 /**
  * Full-height mobile slideover: hidden until triggered, then slides up from the
- * bottom over a blurred/translucent backdrop. Unlike BottomSheet there's no drag
+ * bottom (or in from the right with `side="right"`) over a flat scrim. Unlike BottomSheet there's no drag
  * gesture or peek snap point — it's either open (~90% of the screen) or closed.
  * Dismiss via the backdrop or the floating circular button in the bottom-right
  * corner. Hidden on lg+ (use the desktop panel instead).
  */
-export function SlideOver({ isOpen, onClose, title, children, handleContent }: SlideOverProps) {
-    // Lock the background while open, same reasoning as BottomSheet's expanded lock:
-    // `overflow: hidden` alone isn't reliable on mobile Safari, so pin the body and
-    // cut pointer-events to everything except the panel/backdrop themselves.
+export function SlideOver({ isOpen, onClose, title, children, handleContent, side = 'bottom' }: SlideOverProps) {
+    const fromRight = side === 'right';
+    // Lock the background while open: overflow lock for scrolling, plus cutting pointer-events to
+    // everything except the panel/backdrop themselves.
+    useBodyScrollLock(isOpen);
     useEffect(() => {
         if (!isOpen) return;
-        const scrollY = window.scrollY;
         const body = document.body;
-        const prev = { position: body.style.position, top: body.style.top, width: body.style.width, overflow: body.style.overflow, pointerEvents: body.style.pointerEvents };
-        body.style.position = 'fixed';
-        body.style.top = `-${scrollY}px`;
-        body.style.width = '100%';
-        body.style.overflow = 'hidden';
+        const prev = body.style.pointerEvents;
         body.style.pointerEvents = 'none';
-        return () => {
-            body.style.position = prev.position;
-            body.style.top = prev.top;
-            body.style.width = prev.width;
-            body.style.overflow = prev.overflow;
-            body.style.pointerEvents = prev.pointerEvents;
-            window.scrollTo(0, scrollY);
-        };
+        return () => { body.style.pointerEvents = prev; };
     }, [isOpen]);
 
     return (
         <>
-            {/* Backdrop — blurred + translucent, height uses the large viewport (lvh) so it
+            {/* Backdrop — the same flat scrim as Modal; height uses the large viewport (lvh) so it
                 bleeds under Safari mobile's translucent URL bar instead of leaving a gap. */}
             <div
                 className={`
                     lg:hidden fixed top-0 left-0 right-0 h-lvh z-40
-                    bg-black/40 backdrop-blur-md
+                    bg-black/50
                     transition-opacity duration-300
                     ${isOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}
                 `}
                 onClick={onClose}
             />
+            {isOpen && <UnderToolbarFill zIndex={40} className="left-0 w-full bg-black/50 lg:hidden" />}
 
-            {/* Panel — slides up from fully off-screen. Height uses lvh (same reasoning as
+            {/* Panel — slides in from fully off-screen. Height uses lvh (same reasoning as
                 the backdrop) rather than dvh so it never exposes a gap at the bottom edge
                 as Safari's URL bar animates. */}
             <div
                 className={`
-                    lg:hidden fixed bottom-0 left-0 right-0 z-49
-                    bg-(--background-primary) rounded-t-2xl flex flex-col
-                    shadow-[0_-8px_30px_rgba(0,0,0,0.18)] border-t border-(--divider)
+                    lg:hidden fixed z-49
+                    bg-(--background-primary) flex flex-col
                     transition-transform duration-300 ease-[cubic-bezier(0.32,0.72,0,1)]
-                    ${isOpen ? 'translate-y-0 pointer-events-auto' : 'translate-y-full pointer-events-none'}
+                    ${fromRight
+                        ? `top-0 right-0 w-[88vw] max-w-md pt-[env(safe-area-inset-top)] shadow-overlay border-l border-(--divider)
+                           ${isOpen ? 'translate-x-0 pointer-events-auto' : 'translate-x-full pointer-events-none'}`
+                        : `bottom-0 left-0 right-0 rounded-t-card shadow-sheet border-t border-(--divider)
+                           ${isOpen ? 'translate-y-0 pointer-events-auto' : 'translate-y-full pointer-events-none'}`}
                 `}
-                style={{ height: '90lvh' }}
+                style={{ height: fromRight ? '100lvh' : '90lvh' }}
             >
                 {(title || handleContent) && (
                     <div className="flex flex-col items-center pt-3 pb-1 shrink-0">
-                        {title && <div className="text-[13px] font-bold text-(--text-primary)">{title}</div>}
+                        {title && <Heading level="section">{title}</Heading>}
                         {handleContent && <div className="w-full mt-2">{handleContent}</div>}
                     </div>
                 )}
@@ -83,22 +82,10 @@ export function SlideOver({ isOpen, onClose, title, children, handleContent }: S
                 </div>
             </div>
 
-            {/* Floating circular dismiss button, bottom-right of the screen. A larger halo sits
-                behind it so the button stays legible over busy scrolling content (e.g. a wall
-                of card results) — both its blur and its tint feather out via a radial mask
-                rather than cutting off in a hard circle, so it reads as a soft glow rather than
-                a visible disc. */}
+            {/* Floating circular dismiss button, bottom-right of the screen. The overlay shadow
+                keeps it legible over busy scrolling content (e.g. a wall of card results). */}
             {isOpen && (
-                <div
-                    className="lg:hidden fixed bottom-0 right-0 z-50 w-24 h-24 flex items-center justify-center pointer-events-none"
-                    style={{
-                        background: 'radial-gradient(circle, rgba(0,0,0,0.4) 0%, rgba(0,0,0,0.2) 40%, rgba(0,0,0,0) 72%)',
-                        backdropFilter: 'blur(16px)',
-                        WebkitBackdropFilter: 'blur(16px)',
-                        maskImage: 'radial-gradient(circle, black 40%, transparent 72%)',
-                        WebkitMaskImage: 'radial-gradient(circle, black 40%, transparent 72%)',
-                    }}
-                >
+                <div className="lg:hidden fixed bottom-0 right-0 z-50 w-24 h-24 flex items-center justify-center pointer-events-none">
                     <button
                         type="button"
                         onClick={onClose}
@@ -106,12 +93,12 @@ export function SlideOver({ isOpen, onClose, title, children, handleContent }: S
                         className="
                             pointer-events-auto
                             w-12 h-12 rounded-full flex items-center justify-center
-                            bg-(--showdown-red) text-white
-                            shadow-lg
+                            bg-(--showdown-red-fill) text-white
+                            shadow-overlay
                             cursor-pointer hover:opacity-90 transition-opacity
                         "
                     >
-                        <FaCaretDown className="text-[24px]" />
+                        {fromRight ? <FaCaretRight className="text-[24px]" /> : <FaCaretDown className="text-[24px]" />}
                     </button>
                 </div>
             )}

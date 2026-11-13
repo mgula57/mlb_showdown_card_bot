@@ -14,6 +14,16 @@ const API_BASE = import.meta.env.PROD ? "/api" : "http://127.0.0.1:5000/api";
 // MARK: - TYPES & INTERFACES
 // =============================================================================
 
+export type ImageMatchType = 'exact' | 'team match' | 'year match' | 'no match';
+
+/** Auto image classifications, best match first. */
+export const IMAGE_MATCH_TYPE_OPTIONS: { value: ImageMatchType; label: string }[] = [
+    { value: 'exact', label: 'Exact Match (Year + Team)' },
+    { value: 'team match', label: 'Team Match (Different Year)' },
+    { value: 'year match', label: 'Year Match (Different Team)' },
+    { value: 'no match', label: 'No Match' },
+];
+
 /**
  * Represents a card record from the database with both stats and card data
  */
@@ -60,6 +70,16 @@ export type CardDatabaseRecord = {
     edition?: string | null;
     set_number?: string | null;
 
+    // Release Builder edition (RELEASE source only)
+    card_number?: string | null;
+    release_edition_id?: string;
+    release_edition_name?: string;
+    release_edition_slug?: string;
+    release_id?: string;
+    release_name?: string;
+    /** `card_images` storage path of the card's rendered edition image, if one exists */
+    release_image_path?: string | null;
+
     // Points
     points: number;
     points_estimated: number;
@@ -95,6 +115,14 @@ export type CardDatabaseRecord = {
     real_onbase_plus_slugging_plus?: number | null;
     real_earned_run_avg?: number | null;
     real_whip?: number | null;
+    real_bwar?: number | null;
+    real_h?: number | null;
+    real_hr?: number | null;
+    real_sb?: number | null;
+    real_so?: number | null;
+    real_bb?: number | null;
+    real_w?: number | null;
+    real_sv?: number | null;
 
     // Stats
     awards_list: string[];
@@ -120,11 +148,14 @@ export type CardDatabaseRecord = {
     wbc_team?: string | null;
 
     // Auto Images
-    image_match_type: 'exact' | 'team match' | 'year match' | 'no match';
+    image_match_type: ImageMatchType;
     image_ids?: string[] | null;
 
     // Updated
     updated_at: string;
+
+    // Status
+    status?: 'live' | 'final' | null;
 
     // Error Message
     error?: string | null;
@@ -298,13 +329,13 @@ export async function fetchPopularCards(showdownSet: string): Promise<PopularCar
     return data?.popular_cards ?? [];
 }
 
-export async function fetchSpotlightCards(showdownSet: string): Promise<SpotlightCardRecord[]> {
+export async function fetchSpotlightCards(showdownSet: string, limit?: number): Promise<SpotlightCardRecord[]> {
     const res = await fetch(`${API_BASE}/cards/spotlight`, {
         method: "POST",
         headers: {
             'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ set: showdownSet }),
+        body: JSON.stringify({ set: showdownSet, limit }),
     });
     
     // Handle errors

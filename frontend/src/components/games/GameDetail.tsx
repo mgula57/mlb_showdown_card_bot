@@ -1,13 +1,7 @@
-import { useEffect, useRef, useState, type CSSProperties } from "react";
+import { useEffect, useRef, useState } from "react";
 
-import { bannerTokens, getReadableTextColor } from "../../functions/colors";
+import { bannerTokens, NEUTRAL_TEAM_COLOR } from "../../functions/colors";
 import { ordinal } from "../../functions/formatters";
-import { Modal } from "../shared/Modal";
-import { ModeBanner } from "../shared/ModeBanner";
-import type { ShowdownBotCardAPIResponse } from "../../api/showdownBotCard";
-import { CardDetail } from "../cards/CardDetail";
-import * as Tabs from '@radix-ui/react-tabs';
-import { Tabs as TabButtons, type TabItem } from '../shared/Tabs';
 import { fromBoxscoreDetail, fromGamePlays } from "../../domain/adapters/fromMlbApi";
 import { fromSimGame } from "../../domain/adapters/fromSim";
 import { fetchGameSimCount, startGameSim, type SimGameRecord, type SimGameResult, type StartGameSimPayload } from "../../api/simGame";
@@ -15,40 +9,27 @@ import { useAuth } from "../auth/AuthContext";
 import GameSimSetupModal from "./GameSimSetupModal";
 import GameSimHistoryModal from "./GameSimHistoryModal";
 import SimBoxScoreTable from "./SimBoxScoreTable";
-import PlayByPlayLog from "./PlayByPlayLog";
-import GameField from "./GameField";
-import { advantageSideOf } from "../../domain/play";
-import GameMatchup from "./GameMatchup";
+import GameBoxScoreTabs from "./GameBoxScoreTabs";
 import GameLinescore from "./GameLinescore";
 import { useGameDetailData } from "./useGameDetailData";
 import GameDetailPlayback from "./GameDetailPlayback";
 import GameDetailSkeleton from "./GameDetailSkeleton";
+import GameStage, { SimTopBarControls } from "./GameStage";
+import { useGameStage } from "./useGameStage";
 import BackButton from "../shared/BackButton";
 import { BetaBadge } from "../shared/BetaBadge";
-import ScoreHeader from "./detail/ScoreHeader";
-import GameFinalSummary from "./detail/GameFinalSummary";
+import { Heading } from "../shared/Heading";
 import ProbableStartingPitchers from "./detail/ProbableStartingPitchers";
 import BattingTable from "./detail/BattingTable";
 import PitchingTable from "./detail/PitchingTable";
 import GameInfo from "./detail/GameInfo";
 import TopBarButton from "./detail/TopBarButton";
-import { FaTerminal, FaRing, FaTable, FaList } from "react-icons/fa";
-import { FaClockRotateLeft, FaListUl, FaStar } from "react-icons/fa6";
+import { FaTerminal } from "react-icons/fa";
+import { FaClockRotateLeft, FaListUl } from "react-icons/fa6";
+import { buttonVariantClass } from '../shared/buttonStyles';
 
-type MobileTab = 'field' | 'playbyplay' | 'boxscore';
-// The `md`–`lg` two-column view keeps the field pinned on the left and tabs only between the two
-// panels that share the right column.
-type MidTab = Exclude<MobileTab, 'field'>;
-
-const MOBILE_TABS: TabItem<MobileTab>[] = [
-    { id: 'field', label: 'Field View', icon: <FaRing />},
-    { id: 'boxscore', label: 'Boxscore', icon: <FaTable /> },
-    { id: 'playbyplay', label: 'Play By Play', icon: <FaList /> },
-];
-
-const MID_TABS = MOBILE_TABS.filter((tab): tab is TabItem<MidTab> => tab.id !== 'field');
-
-const OUTLINE_BUTTON_CLASS = "rounded-lg border border-(--divider) px-2.5 py-1.5 text-(--secondary) hover:text-(--primary)";
+const OUTLINE_BUTTON_CLASS = `rounded-control px-2.5 py-1.5 ${buttonVariantClass('secondary')}`;
+const FEATURE_BUTTON_CLASS = `rounded-control px-3 py-1.5 text-[15px]! ${buttonVariantClass('feature')}`;
 
 type GameDetailProps = {
     gamePk: number;
@@ -64,16 +45,11 @@ type GameDetailProps = {
 };
 
 export default function GameDetail({ gamePk, sportId, season, showdownSet, isActive = true, openSimSetupOnMount, className, onBack }: GameDetailProps) {
-    const [selectedCard, setSelectedCard] = useState<ShowdownBotCardAPIResponse | null>(null);
-    const [isFieldExpanded, setIsFieldExpanded] = useState(false);
-    const [mobileTab, setMobileTab] = useState<MobileTab>('field');
-    const [midTab, setMidTab] = useState<MidTab>('playbyplay');
+    const stage = useGameStage();
+    const { selectedCard, setSelectedCard, resetForNewSim } = stage;
     // The transport strip (play/pause/scrub) is opt-in — collapsed by default so a plain live or
     // finished-game view isn't cluttered with controls most visits never touch.
     const [showPlaybackControls, setShowPlaybackControls] = useState(false);
-    const handleModalCardClose = () => {
-        setSelectedCard(null);
-    };
 
     // Showdown simulation of this game. Non-null once one has been run; the panels then render it
     // instead of the real game until the user switches back.
@@ -86,15 +62,6 @@ export default function GameDetail({ gamePk, sportId, season, showdownSet, isAct
     // playback cursor — otherwise it would keep the previous run's position (the end) and the new
     // result would show straight away instead of parking on the first pitch.
     const [simRunId, setSimRunId] = useState(0);
-    // Tracks whether the field's big Play button has been pressed for the CURRENT sim result.
-    // `playbackState.cursor === 0` alone isn't enough to hide it on click — the cursor doesn't
-    // advance to frame 1 until the first animation beat lands, which would leave the button
-    // visible (and clickable again) for a beat after it's already been pressed. Reset to false
-    // whenever a new sim is loaded so the button reappears for it.
-    const [simPlayStarted, setSimPlayStarted] = useState(false);
-    // The post-game recap covers the field once a game is final; the scoreboard's center toggle
-    // tucks it away until the user brings it back (or loads a different sim, which earns a fresh recap).
-    const [isRecapDismissed, setIsRecapDismissed] = useState(false);
     // Stored sims of this game, for the badge on "Past Sims". Null until loaded (or if it fails -
     // the badge is a nicety, so a failed count just leaves it off).
     const [simCount, setSimCount] = useState<number | null>(null);
@@ -106,10 +73,12 @@ export default function GameDetail({ gamePk, sportId, season, showdownSet, isAct
         return () => { isCancelled = true; };
     }, [gamePk]);
 
+    // A loaded sim shows the cards it was played with (possibly another user's set), not the viewer's.
+    const cardShowdownSet = simResult?.showdown_set ?? showdownSet;
     const {
         boxscore, bufferedBoxscore, cardMap, isLoading, isRefreshing, isLoadingCards, error,
         setLivePaused, applyBuffer,
-    } = useGameDetailData({ gamePk, sportId, season, showdownSet, isActive, simResult });
+    } = useGameDetailData({ gamePk, sportId, season, showdownSet: cardShowdownSet, isActive, simResult });
 
     // Deep-linked from a "Sim this" badge — open the setup modal as soon as we know the game is
     // still simulatable. Guarded by a ref (not just the prop) since the caller clears the
@@ -141,11 +110,11 @@ export default function GameDetail({ gamePk, sportId, season, showdownSet, isAct
 
     if (error || !boxscore || !view) {
         return (
-            <div className={`flex flex-col md:h-[calc(100dvh-2.5rem)] overflow-hidden ${className ?? ''}`}>
+            <div className={`flex flex-col md:tall:h-[calc(100dvh-2.5rem)] overflow-hidden ${className ?? ''}`}>
                 <div className="px-4 py-2.5 border-b border-(--divider) shrink-0">
                     <BackButton onBack={onBack} />
                 </div>
-                <div className="flex-1 flex items-center justify-center text-red-400 text-sm">
+                <div className="flex-1 flex items-center justify-center text-(--red) text-sm">
                     {error ?? "Boxscore data unavailable."}
                 </div>
             </div>
@@ -166,7 +135,7 @@ export default function GameDetail({ gamePk, sportId, season, showdownSet, isAct
     // const canSimulate = false; // TODO: Enable simulation when appropriate
 
     // "Replay mode" = the transport bar is open. Entering it freezes a live game's
-    // cursor so you can scrub back; the colored REPLAY banner then shows and its
+    // cursor so you can scrub back; the top bar then turns into the colored REPLAY strip and its
     // "Exit Replay" is the only way out (the toolbar button hides while it's on),
     // so users always know where they are. Exiting resumes live and flushes the
     // plays that buffered while paused.
@@ -192,8 +161,7 @@ export default function GameDetail({ gamePk, sportId, season, showdownSet, isAct
         setSimError(null);
         setShowSimSetup(false);
         setSimRunId((n) => n + 1);
-        setSimPlayStarted(false);
-        setIsRecapDismissed(false);
+        resetForNewSim();
         // The sim opens parked on the first pitch (see GameDetailPlayback) with its result hidden,
         // so the transport strip needs to be visible for the user to play through it.
         setShowPlaybackControls(true);
@@ -209,20 +177,15 @@ export default function GameDetail({ gamePk, sportId, season, showdownSet, isAct
         setSimError(null);
         setShowSimHistory(false);
         setSimRunId((n) => n + 1);
-        setSimPlayStarted(false);
-        setIsRecapDismissed(false);
+        resetForNewSim();
         setShowPlaybackControls(true);
     }
 
-    /* Mode strip in the team builder's idiom, coloured by the two clubs so it reads as this
-       game's own. Full-bleed at the top of the page rather than inside a panel — it is a
-       statement about the whole view, not about the box score. */
-    const simBannerTokens = bannerTokens(home.team.secondary_color ?? '#374151');
-    const simLeftTokens = bannerTokens(away.team.primary_color ?? '#374151');
-
-    // The field is the mobile backdrop, so it only leads the layout once there's a live
-    // situation to put on it. Before first pitch and after the final out, the panels are the page.
-    const hasLiveField = true;
+    /* Mode strip in the team builder's idiom: a flat fill in the away club's color (the side
+       the title sits on) so it reads as this game's own. Full-bleed at the top of the page
+       rather than inside a panel — it is a statement about the whole view, not the box score. */
+    const modeBarColor = away.team.primary_color ?? NEUTRAL_TEAM_COLOR;
+    const simBarTokens = bannerTokens(modeBarColor);
 
     /* Linescore, box score and game info. On desktop this is the scrolling right column; on
        mobile it rides in the bottom sheet over the field, below the play-by-play panel. A real
@@ -243,52 +206,29 @@ export default function GameDetail({ gamePk, sportId, season, showdownSet, isAct
                 legacy log with no player ids — that one is frozen at the final line, so while the
                 user is watching the replay we hide it outright rather than spoil the result. */}
             {hideResult ? (
-                <div className="rounded-xl border border-(--divider) bg-(--background-secondary)/30 p-6 text-center">
-                    <div className="text-xs font-semibold text-(--primary)">Box score hidden during replay</div>
-                    <div className="mt-1 text-[11px] text-(--secondary)">
+                <div className="rounded-card border border-(--divider) bg-(--background-secondary)/30 p-6 text-center">
+                    <Heading level="panel" as="div">Box score hidden during replay</Heading>
+                    <div className="mt-1 text-[12px] text-(--text-secondary)">
                         The full line reveals when the replay reaches the end — or use “Skip to result” to jump ahead.
                     </div>
                 </div>
             ) : (
-            /* Below @820px the container is too narrow for both teams' tables side by side, so
-                they collapse into tabs; at/above it, both Tabs.Content panels are forced visible
-                (via forceMount + the @[820px] override below) and sit in a 2-column grid instead. */
-            <Tabs.Root defaultValue="away">
-                <Tabs.List className="@[820px]:hidden flex gap-1 rounded-lg bg-(--background-tertiary) p-1 mb-3">
-                    <Tabs.Trigger
-                        value="away"
-                        style={{ '--tab-bg': away.team.primary_color ?? '#374151', '--tab-text': getReadableTextColor(away.team.primary_color ?? '#374151', '#ffffff') } as CSSProperties}
-                        className="flex-1 px-4 py-2 text-sm font-semibold rounded-md text-(--secondary) data-[state=active]:bg-(--tab-bg) data-[state=active]:text-(--tab-text) cursor-pointer transition-colors"
-                    >
-                        {away.team.abbreviation}
-                    </Tabs.Trigger>
-                    <Tabs.Trigger
-                        value="home"
-                        style={{ '--tab-bg': home.team.primary_color ?? '#374151', '--tab-text': getReadableTextColor(home.team.primary_color ?? '#374151', '#ffffff') } as CSSProperties}
-                        className="flex-1 px-4 py-2 text-sm font-semibold rounded-md text-(--secondary) data-[state=active]:bg-(--tab-bg) data-[state=active]:text-(--tab-text) cursor-pointer transition-colors"
-                    >
-                        {home.team.abbreviation}
-                    </Tabs.Trigger>
-                </Tabs.List>
-                <div className="grid gap-4 @[820px]:grid-cols-2 min-w-0">
-                    {(['away', 'home'] as const).map((side) => {
+                <GameBoxScoreTabs
+                    awayLabel={away.team.abbreviation}
+                    homeLabel={home.team.abbreviation}
+                    renderSide={(side) => {
                         const team = side === 'away' ? away : home;
                         const simSide = activeView[side].boxscore;
-                        return (
-                            <Tabs.Content key={side} value={side} forceMount className="min-w-0 space-y-4 data-[state=inactive]:hidden @[820px]:data-[state=inactive]:block">
-                                {simResult && simSide ? (
-                                    <SimBoxScoreTable boxscore={simSide} cardMap={cardMap} onCardSelect={setSelectedCard} />
-                                ) : (
-                                    <>
-                                        <BattingTable team={team} sportId={sportId} cardMap={cardMap} onCardSelect={setSelectedCard} isLoadingCards={isLoadingCards} hasGameStarted={!isNotStarted} isShowingModal={selectedCard !== null} />
-                                        <PitchingTable team={team} sportId={sportId} cardMap={cardMap} onCardSelect={setSelectedCard} isLoadingCards={isLoadingCards} hasGameStarted={!isNotStarted} isShowingModal={selectedCard !== null} />
-                                    </>
-                                )}
-                            </Tabs.Content>
+                        return simResult && simSide ? (
+                            <SimBoxScoreTable boxscore={simSide} cardMap={cardMap} onCardSelect={setSelectedCard} />
+                        ) : (
+                            <>
+                                <BattingTable team={team} sportId={sportId} cardMap={cardMap} onCardSelect={setSelectedCard} isLoadingCards={isLoadingCards} hasGameStarted={!isNotStarted} isShowingModal={selectedCard !== null} />
+                                <PitchingTable team={team} sportId={sportId} cardMap={cardMap} onCardSelect={setSelectedCard} isLoadingCards={isLoadingCards} hasGameStarted={!isNotStarted} isShowingModal={selectedCard !== null} />
+                            </>
                         );
-                    })}
-                </div>
-            </Tabs.Root>
+                    }}
+                />
             )}
 
             {/* The real feed's game notes - hidden only alongside a frozen sim box score above. */}
@@ -307,181 +247,106 @@ export default function GameDetail({ gamePk, sportId, season, showdownSet, isAct
             onApplyBuffer={bufferedBoxscore ? applyBuffer : undefined}
         >
             {({ activeView, activePlays, playbackBar, playbackControls, playbackState, isReplaying, isBoxscoreFrozen }) => {
-                /* `ScoreHeader` reads `detailedState` off the `GameView` it's given, so the sim/
-                   finished-game label computed above rides along on a shallow-copied view rather
-                   than as a prop. It's a no-op on every non-terminal playback frame — those report
-                   `state: "LIVE"`, and `ScoreHeader` only reads `detailedState` once state is FINAL. */
-                const headerView = { ...activeView, detailedState };
-
-                /* The in-progress plate appearance, pinned atop the log. Only while the game is
-                   genuinely live at the cursor's position — a finished game has no "current"
-                   matchup, and scrubbing back to an earlier point (`isReplaying`) would otherwise
-                   pin that frame's on-deck batter as if it were happening now. */
-                const currentMatchup = !isReplaying && activeView.state === "LIVE" && activeView.situation?.batter
-                    ? activeView.situation
-                    : undefined;
-                const playByPlayPanelDesktop = (
-                    <PlayByPlayLog
-                        key={gamePk}
-                        plays={activePlays}
-                        cardMap={cardMap}
-                        onCardSelect={setSelectedCard}
-                        isLoadingCards={isLoadingCards}
-                        currentMatchup={currentMatchup}
-                        maxHeightClassName="max-h-none"
-                    />
-                );
-                const playByPlayPanelMobile = (
-                    <PlayByPlayLog
-                        key={gamePk}
-                        plays={activePlays}
-                        cardMap={cardMap}
-                        onCardSelect={setSelectedCard}
-                        isLoadingCards={isLoadingCards}
-                        currentMatchup={currentMatchup}
-                        maxHeightClassName="max-h-[26rem]"
-                    />
-                );
-
                 /* A sim whose cursor hasn't reached the end yet — the user is still playing through
                    it and shouldn't see the final score or box score. `isReplaying` goes false only
                    once the cursor sits on the last frame (played to the end, or "Skip to result"). */
                 const simMidReplay = !!simResult && isReplaying;
-                const panels = boxScorePanels(activeView, simMidReplay && isBoxscoreFrozen);
 
-                /* The recap waits for the final frame to finish animating, so the last out still
-                   plays out on the field before it fades back behind the summary. */
-                const isRecapAvailable = activeView.state === "FINAL" && !isReplaying && playbackState.phase === "idle";
-                const showRecap = isRecapAvailable && !isRecapDismissed;
-
-                /* Recap ⇄ Field toggle, docked in the center of the scoreboard under "Final". */
-                const recapToggle = isRecapAvailable ? (
-                    <button
-                        type="button"
-                        onClick={() => setIsRecapDismissed((dismissed) => !dismissed)}
-                        className="flex items-center gap-1 cursor-pointer rounded-full border border-(--divider) bg-(--background-primary)/60 backdrop-blur px-2.5 py-1 text-[10px] font-bold text-(--secondary) hover:text-(--primary) transition-colors"
-                    >
-                        {showRecap ? <FaRing size={10} /> : <FaStar size={10} />}
-                        {showRecap ? 'Show Field' : 'Recap'}
-                    </button>
-                ) : undefined;
-                const scoreHeader = <ScoreHeader game={headerView} centerAction={recapToggle} />;
-
-                /* Mode strip: sim banner gets a "Watch" button that jumps to the first pitch and
-                   starts playback; a finished real game under active review gets its own REPLAY strip
-                   with an "Exit Replay" action that jumps back to the live/final edge. Only one of
-                   the two is ever relevant at once — a sim result is never mid-live-review. */
                 /* A live game that's merely catching up on new plays (cursor trailing the live edge
                    while auto-following) isn't a replay the user opened — flashing the REPLAY strip
                    for a few seconds each time a poll lands would just be noise. Only treat the
                    trailing cursor as a review once the user has opened the transport bar. */
                 const isReviewing = isReplaying && !(isLiveReal && !showPlaybackControls);
 
-                /* Who won the pitch roll, flagged on the matching cards from the moment the result
-                   reveals until the play commits — before that the dice are still in the air, and
-                   after it the cursor has moved on to the next plate appearance. */
-                const isResultRevealed = playbackState.phase === "result" || playbackState.phase === "runners" || playbackState.phase === "settle";
-                const advantage = isResultRevealed ? advantageSideOf(playbackState.pendingPlay) : undefined;
-                const swingResult = isResultRevealed ? playbackState.pendingPlay?.roll?.swingResult : undefined;
-
-                /* In a sim the mode strip is the page's own top bar (see below) rather than a
-                   separate banner, so only the controls are built here. */
-                const simLabel = simResult ? (simResult.is_takeover ? 'TAKEOVER SIM' : 'SHOWDOWN SIM') : null;
-                const simDetail = simResult
+                /* Sim and replay both take over the page's own top bar as their mode strip rather
+                   than adding a separate banner, so only the label and controls are built here. */
+                const isReplayMode = !simResult && (isReviewing || showPlaybackControls);
+                const isModeBar = !!simResult || isReplayMode;
+                const modeLabel = simResult
+                    ? (simResult.is_takeover ? 'TAKEOVER SIM' : 'SHOWDOWN SIM')
+                    : isReplayMode ? 'REPLAY' : null;
+                const modeDetail = simResult
                     ? (simResult.is_takeover && simResult.setup.start_state
                         ? `— took over in the ${simResult.setup.start_state.is_top ? 'top' : 'bottom'} of the ${ordinal(simResult.setup.start_state.inning)}`
                         : '— played from the first pitch')
-                    : null;
-                const simButtonClass = `rounded-lg px-2 py-1 h-7 ${simBannerTokens.btnClass}`;
-                const simControls = simResult ? (
-                        <div className="flex min-w-0 items-center gap-2">
-                            {/* The sim already opens parked on the first pitch, so this is a
-                                one-click "start playing": from frame 0 it reads "Watch"; once the
-                                cursor has moved it becomes "Restart" and jumps back to the top. */}
-                            <TopBarButton
-                                label={playbackState.cursor === 0 ? 'Watch' : 'Restart'}
-                                shortLabel={playbackState.cursor === 0 ? 'Play' : 'Restart'}
-                                onClick={() => {
-                                    playbackControls.seekToStart();
-                                    playbackControls.play();
-                                }}
-                                className={simButtonClass}
-                            />
-                            {/* Only while mid-replay — jumps the cursor to the end so the final
-                                score, box score and last play all resolve at once. */}
-                            {simMidReplay && (
-                                <TopBarButton label="Skip to result" shortLabel="Skip to end" onClick={() => playbackControls.seekToLive()} className={simButtonClass} />
-                            )}
-                            <TopBarButton
-                                label="Exit Sim"
-                                shortLabel="Exit"
-                                onClick={() => { setSimResult(null); setShowPlaybackControls(false); setIsRecapDismissed(false); }}
-                                className={simButtonClass}
-                            />
-                        </div>
-                ) : null;
-
-                const modeBanner = simResult ? null : (isReviewing || showPlaybackControls) ? (
-                    <ModeBanner
-                        primaryColor={away.team.primary_color ?? '#374151'}
-                        secondaryColor={home.team.secondary_color ?? '#374151'}
-                        label="REPLAY"
-                        detail={
-                            isReviewing
-                                ? "— reviewing an earlier point in the game"
-                                : isLiveReal
-                                    ? "— live updates paused while you scrub"
-                                    : "— playback controls open"
-                        }
-                    >
-                        <button
-                            type="button"
-                            onClick={() => { playbackControls.seekToLive(); exitReplay(); }}
-                            className={`flex items-center gap-1 rounded-lg px-2 py-1 h-7 text-[11px] font-bold cursor-pointer transition-colors ${simBannerTokens.btnClass}`}
-                        >
-                            Exit Replay
-                        </button>
-                    </ModeBanner>
-                ) : null;
+                    : isReplayMode
+                        ? (isReviewing
+                            ? '— reviewing an earlier point in the game'
+                            : isLiveReal
+                                ? '— live updates paused while you scrub'
+                                : '— playback controls open')
+                        : null;
+                const modeButtonClass = `rounded-control px-2 py-1 h-7 ${simBarTokens.btnClass}`;
 
                 return (
-                    <div className={`flex flex-col md:h-[calc(100dvh-2.5rem)] overflow-hidden ${className ?? ''}`}>
-                        <div
-                            className={`relative z-50 px-4 py-2 border-b border-(--divider) shrink-0 flex items-center gap-3 ${simResult ? '' : 'bg-(--background-primary)'}`}
-                            style={simResult ? { background: `linear-gradient(to right, ${away.team.primary_color ?? '#374151'}, ${home.team.secondary_color ?? '#374151'})` } : undefined}
-                        >
-                            <BackButton onBack={onBack} />
-                            <div className="flex items-center gap-2">
-                                <h1 className={`hidden sm:inline text-[20px] font-black ${simResult ? 'drop-shadow-sm' : 'text-(--text-primary)'}`} style={simResult ? { color: simLeftTokens.fill } : undefined}>Showdown Live</h1>
-                                <BetaBadge />
-                            </div>
-                            {simResult && (
-                                <span className="hidden min-w-0 truncate whitespace-nowrap text-[11px] font-bold drop-shadow-sm" style={{ color: simLeftTokens.fill }}>
-                                    {simLabel}
-                                    <span className="hidden md:inline font-normal ml-4">{simDetail}</span>
-                                </span>
-                            )}
+                    <GameStage
+                        stage={stage}
+                        game={activeView}
+                        plays={activePlays}
+                        playbackState={playbackState}
+                        playbackControls={playbackControls}
+                        isReplaying={isReplaying}
+                        // A takeover sim is a finished game the user will want to scrub through play
+                        // by play, so its transport strip is shown up front rather than hidden behind
+                        // the Replay toggle.
+                        playbackBar={showPlaybackControls || simResult ? playbackBar : null}
+                        detailedState={detailedState}
+                        cardMap={cardMap}
+                        isLoadingCards={isLoadingCards}
+                        isSim={!!simResult}
+                        gameKey={gamePk}
+                        title="Showdown Live"
+                        titleAccessory={<BetaBadge />}
+                        modeBarColor={isModeBar ? modeBarColor : undefined}
+                        onBack={onBack}
+                        topBarStatus={
+                            <>
+                                {modeLabel && (
+                                    <span className="hidden min-w-0 truncate whitespace-nowrap text-[11px] font-bold" style={{ color: simBarTokens.fill }}>
+                                        {modeLabel}
+                                        <span className="hidden md:inline font-normal ml-4">{modeDetail}</span>
+                                    </span>
+                                )}
 
-                            {simError && <span className="text-[11px] text-(--red)">{simError}</span>}
-                            {isRefreshing && (
-                                <svg className="animate-spin h-3.5 w-3.5 text-(--secondary)" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                                </svg>
-                            )}
-                            <div className="ml-auto flex min-w-0 items-center gap-2">
-                                {simControls}
+                                {simError && <span className="text-[11px] text-(--red)">{simError}</span>}
+                                {isRefreshing && (
+                                    <svg className="animate-spin h-3.5 w-3.5 text-(--secondary)" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                                    </svg>
+                                )}
+                            </>
+                        }
+                        topBarActions={
+                            <>
+                                {simResult && (
+                                    <SimTopBarControls
+                                        cursor={playbackState.cursor}
+                                        controls={playbackControls}
+                                        isMidReplay={simMidReplay}
+                                        onExit={() => { setSimResult(null); setShowPlaybackControls(false); stage.setIsRecapDismissed(false); }}
+                                        buttonClass={modeButtonClass}
+                                    />
+                                )}
+                                {isReplayMode && (
+                                    <TopBarButton
+                                        label="Exit Replay"
+                                        shortLabel="Exit"
+                                        onClick={() => { playbackControls.seekToLive(); exitReplay(); }}
+                                        className={modeButtonClass}
+                                    />
+                                )}
 
                                 {/* Enters replay: reveals the transport bar and, on a live game,
                                     freezes the live cursor so you can scrub back. Once active the
-                                    colored REPLAY banner takes over — its "Exit Replay" is the way
+                                    colored REPLAY top bar takes over — its "Exit Replay" is the way
                                     out — so this button hides to keep a single, obvious control. */}
                                 {!isReviewing && !showPlaybackControls && !isNotStarted && (
                                     <TopBarButton label="Replay" icon={<FaClockRotateLeft size={12} />} onClick={enterReplay} className={OUTLINE_BUTTON_CLASS} />
                                 )}
                                 {/* Independent of `canSimulate` - a finished game can still have
                                     sims run against it while it was live/upcoming, worth revisiting. */}
-                                {!simResult && (
+                                {!isModeBar && (
                                     <TopBarButton
                                         label="Past Sims"
                                         icon={<FaListUl size={12} />}
@@ -490,164 +355,22 @@ export default function GameDetail({ gamePk, sportId, season, showdownSet, isAct
                                         className={OUTLINE_BUTTON_CLASS}
                                     />
                                 )}
-                                {canSimulate && !simResult && (
+                                {canSimulate && !isModeBar && (
                                     <TopBarButton
                                         label="Simulate"
                                         icon={<FaTerminal />}
                                         onClick={() => { setSimError(null); setShowSimSetup(true); }}
-                                        className="rounded-lg animated-showdown-gradient px-3 py-1.5 text-white hover:opacity-90"
+                                        className={FEATURE_BUTTON_CLASS}
                                     />
                                 )}
-                            </div>
-                        </div>
-
-                        {modeBanner}
-
-                        {hasLiveField ? (
-                            <>
-                                {/* Below `md`: one strip swaps between all three columns. `md`–`lg`:
-                                    a 50/50 split — the field pinned left, `MID_TABS` (box score /
-                                    play-by-play) swapping on the right. `lg`+: the strip is gone and
-                                    all three columns show at once. */}
-                                <div className="md:hidden shrink-0">
-                                    <TabButtons tabs={MOBILE_TABS} value={mobileTab} onChange={setMobileTab} className="px-2" fullWidth />
-                                </div>
-
-                                <div className="flex-1 min-h-0 md:grid md:grid-cols-2 md:gap-4 md:px-4 md:overflow-hidden lg:grid-cols-[3fr_4fr_3fr]">
-
-                                    {/* Spotlight column — field, playback bar and matchup. Pinned left
-                                        from `md` up; `lg:order-2` slides it back to the centre once the
-                                        box score gets its own column again. */}
-                                    <div className={`${mobileTab === 'field' ? 'block' : 'hidden'} h-full overflow-y-auto space-y-4 p-0 pb-[calc(6rem+var(--safe-bottom))] scrollbar-hide md:block md:order-1 md:py-4 md:px-0 md:min-w-0 lg:order-2`}>
-                                        {/* Grass backdrop behind the scoreboard, field and matchup as one group —
-                                            faded top/bottom so it blends into the page instead of a hard edge.
-                                            The image is the first child with no z-index of its own, and the
-                                            content wrapper below it is `relative` (so it's a positioned sibling
-                                            too) — later DOM order among same-stacking-level positioned elements
-                                            paints on top, with no negative z-index needed (which can end up
-                                            behind an ancestor's own background instead of just this image). */}
-                                        <div className="relative">
-                                            <img
-                                                src="/images/games/Grass.png"
-                                                alt=""
-                                                className="absolute inset-0 h-full w-full object-cover pointer-events-none select-none"
-                                                style={{
-                                                    maskImage: 'linear-gradient(to bottom, transparent 0%, black 20%, black 80%, transparent 100%)',
-                                                    WebkitMaskImage: 'linear-gradient(to bottom, transparent 0%, black 20%, black 80%, transparent 100%)',
-                                                }}
-                                            />
-
-                                            <div className="relative space-y-4 p-1">
-                                                {/* Scoreboard bleeds over the grass on both breakpoints — compact
-                                                    (no records, smaller type) on mobile, full-size on desktop. */}
-                                                <ScoreHeader game={headerView} compact centerAction={recapToggle} className="lg:hidden" />
-                                                <div className="hidden lg:block">{scoreHeader}</div>
-
-                                                {/* Field and recap share one grid cell, so the cell sizes to
-                                                    the taller of the two and the field sits faded behind the
-                                                    recap rather than pushing it down the column. */}
-                                                <div className="grid *:col-start-1 *:row-start-1">
-                                                <div className={`self-center transition-[opacity,filter] duration-500 ${showRecap ? 'opacity-40 blur-[1px] pointer-events-none' : ''}`} aria-hidden={showRecap}>
-                                                {/* Behind the recap the field is just the diamond — no
-                                                    runners, batter or defense left standing on it. */}
-                                                <GameField
-                                                    game={showRecap ? { ...activeView, situation: undefined } : activeView}
-                                                    cardMap={cardMap}
-                                                    onCardSelect={setSelectedCard}
-                                                    expanded={isFieldExpanded}
-                                                    onToggleExpanded={() => setIsFieldExpanded((expanded) => !expanded)}
-                                                    isLoadingCards={isLoadingCards}
-                                                    transition={playbackState.transition}
-                                                    pendingPlay={playbackState.pendingPlay}
-                                                    phase={playbackState.phase}
-                                                    lastPlay={showRecap ? undefined : activePlays[0]}
-                                                    advantage={advantage}
-                                                    playbackSpeed={playbackState.effectiveSpeed}
-                                                    onPlayClick={simResult && playbackState.cursor === 0 && !simPlayStarted ? () => {
-                                                        setSimPlayStarted(true);
-                                                        playbackControls.seekToStart();
-                                                        playbackControls.play();
-                                                    } : undefined}
-                                                />
-                                                </div>
-                                                {showRecap && (
-                                                    <GameFinalSummary
-                                                        game={activeView}
-                                                        cardMap={cardMap}
-                                                        onCardSelect={setSelectedCard}
-                                                        isLoadingCards={isLoadingCards}
-                                                        className="relative self-start"
-                                                    />
-                                                )}
-                                                </div>
-
-                                                {/* A takeover sim is a finished game the user will want to scrub
-                                                    through play by play, so its transport strip is shown up front
-                                                    rather than hidden behind the Replay toggle. */}
-                                                {(showPlaybackControls || simResult) && playbackBar}
-
-                                                {!simResult && isNotStarted && boxscore.probable_pitchers && (
-                                                    <ProbableStartingPitchers away={away} home={home} probablePitchers={boxscore.probable_pitchers} cardMap={cardMap} onCardSelect={setSelectedCard} isLoadingCards={isLoadingCards} />
-                                                )}
-
-                                                {/* The last matchup of a finished game is stale once the recap
-                                                    is up — it already names who mattered. */}
-                                                {!showRecap && (
-                                                    <GameMatchup
-                                                        game={activeView}
-                                                        cardMap={cardMap}
-                                                        isLoadingCards={isLoadingCards}
-                                                        onCardSelect={setSelectedCard}
-                                                        hideStatlines={isReplaying}
-                                                        advantage={advantage}
-                                                        swingResult={swingResult}
-                                                    />
-                                                )}
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    {/* Right column — box score + play-by-play. `contents` below `md`
-                                        (each panel just obeys the mobile strip); a real flex column
-                                        with its own `MID_TABS` strip between `md` and `lg`; `contents`
-                                        again at `lg` so both panels rejoin the outer grid as their own
-                                        columns. */}
-                                    <div className="contents md:flex md:flex-col md:order-2 md:min-h-0 md:min-w-0 md:overflow-hidden lg:contents">
-                                        <div className="hidden md:block lg:hidden shrink-0 pt-4">
-                                            <TabButtons tabs={MID_TABS} value={midTab} onChange={setMidTab} fullWidth />
-                                        </div>
-
-                                        <div className={`${mobileTab === 'boxscore' ? 'block' : 'hidden'} ${midTab === 'boxscore' ? 'md:block' : 'md:hidden'} h-full min-w-0 overflow-y-auto p-4 pb-[calc(6rem+var(--safe-bottom))] scrollbar-hide md:h-auto md:flex-1 md:min-h-0 md:py-4 md:px-0 md:pb-4 lg:block lg:h-full lg:order-1`}>
-                                            {panels}
-                                        </div>
-
-                                        <div className={`${mobileTab === 'playbyplay' ? 'block' : 'hidden'} ${midTab === 'playbyplay' ? 'md:block' : 'md:hidden'} h-full min-w-0 overflow-y-auto p-4 pb-[calc(6rem+var(--safe-bottom))] scrollbar-hide md:h-auto md:flex-1 md:min-h-0 md:py-4 md:px-0 md:pb-0 lg:block lg:h-full lg:order-3`}>
-                                            {playByPlayPanelDesktop}
-                                        </div>
-                                    </div>
-                                </div>
                             </>
-                        ) : (
-                            <div className="flex-1 overflow-y-auto">
-                                <div className="space-y-4 p-4 pb-[calc(6rem+var(--safe-bottom))] lg:mx-auto lg:max-w-5xl">
-                                    {scoreHeader}
-                                    {playByPlayPanelMobile}
-                                    {panels}
-                                </div>
-                            </div>
+                        }
+                        boxScorePanels={boxScorePanels(activeView, simMidReplay && isBoxscoreFrozen)}
+                        belowPlaybackBar={!simResult && isNotStarted && boxscore.probable_pitchers && (
+                            <ProbableStartingPitchers away={away} home={home} probablePitchers={boxscore.probable_pitchers} cardMap={cardMap} onCardSelect={setSelectedCard} isLoadingCards={isLoadingCards} />
                         )}
-
-                        <div className={selectedCard ? '' : 'hidden pointer-events-none'}>
-                            <Modal onClose={handleModalCardClose} isVisible={!!selectedCard}>
-                                <CardDetail
-                                    showdownBotCardData={selectedCard}
-                                    hideTrendGraphs={true}
-                                    context="game_detail"
-                                    parent='game_detail'
-                                />
-                            </Modal>
-                        </div>
-
+                        className={className}
+                    >
                         {showSimSetup && (
                             <GameSimSetupModal
                                 gamePk={gamePk}
@@ -664,7 +387,7 @@ export default function GameDetail({ gamePk, sportId, season, showdownSet, isAct
                                 onSelect={handleSelectSim}
                             />
                         )}
-                    </div>
+                    </GameStage>
                 );
             }}
         </GameDetailPlayback>

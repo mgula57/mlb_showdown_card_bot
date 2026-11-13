@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
-import { FaSpinner, FaTriangleExclamation } from 'react-icons/fa6';
+import { FaTriangleExclamation } from 'react-icons/fa6';
 import { cancelSimJob, fetchSimJob, fetchSimSeason, type SeasonSimSummary, type SimJob } from '../../api/sim';
 import { SimProgress } from '../team_builder/sim/SimProgress';
-import { SimResult } from '../team_builder/sim/SimResult';
+import { SimResult, SimResultSkeleton } from '../team_builder/sim/SimResult';
 import BackButton from '../shared/BackButton';
+import { PinstripeBackdrop } from '../shared/PinstripeBackdrop';
 
 // Setup phases report no game counts, so polling a little faster keeps the phase label moving.
 const POLL_INTERVAL_MS = 1000;
@@ -117,7 +118,9 @@ export function SeasonSimView({ jobId, token, initialFocusAbbr, onRunAgain, onBa
     }
 
     return (
-        <div className="flex flex-col h-full overflow-y-auto">
+        <div className="relative isolate flex flex-col h-full overflow-y-auto">
+            {/* Card-back pinstripes behind the finished season's headline */}
+            {summary && <PinstripeBackdrop heightClass="h-56" />}
             {onBack && (
                 <div className="px-4 pt-3 shrink-0">
                     <BackButton onBack={onBack} label="Back to seasons" />
@@ -125,13 +128,13 @@ export function SeasonSimView({ jobId, token, initialFocusAbbr, onRunAgain, onBa
             )}
             {error ? (
                 <div className="flex flex-col items-center justify-center gap-3 py-16 px-4 text-center">
-                    <FaTriangleExclamation className="text-red-400 text-2xl" />
+                    <FaTriangleExclamation className="text-(--red) text-2xl" />
                     <p className="text-[13px] text-(--text-secondary) max-w-sm">{error}</p>
                     {onRunAgain && (
                         <button
                             type="button"
                             onClick={onRunAgain}
-                            className="px-3 py-2 rounded-lg bg-(--background-tertiary) text-[12px] font-bold text-(--text-primary) hover:opacity-90 transition-opacity cursor-pointer"
+                            className="px-3 py-2 rounded-control bg-(--background-tertiary) text-[12px] font-bold text-(--text-primary) hover:opacity-90 transition-opacity cursor-pointer"
                         >
                             Try again
                         </button>
@@ -142,9 +145,7 @@ export function SeasonSimView({ jobId, token, initialFocusAbbr, onRunAgain, onBa
             ) : polling ? (
                 <SimProgress job={job} teamName={progressLabel(job)} onCancel={token ? handleCancel : undefined} />
             ) : (
-                <div className="flex items-center justify-center py-16">
-                    <FaSpinner className="animate-spin text-(--text-tertiary) text-2xl" />
-                </div>
+                <SimResultSkeleton />
             )}
         </div>
     );

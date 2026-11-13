@@ -26,7 +26,7 @@ type Props = {
  */
 export default function SimSettingToggle({ label, description, isEnabled, onToggle, isDisabled, disabledReason, children, className = '' }: Props) {
     return (
-        <div className={`flex flex-col gap-2 rounded-xl border border-form-element bg-secondary p-3 ${className}`}>
+        <div className={`flex flex-col gap-2 rounded-card border border-form-element bg-secondary p-3 ${className}`}>
             <FormEnabler label={label} isEnabled={isEnabled} onChange={onToggle} isDisabled={isDisabled} disabledReason={disabledReason} className="self-start" />
             {description && <p className="text-[11px] text-(--text-tertiary)">{description}</p>}
             {isEnabled && children && (

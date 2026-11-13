@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { fetchSimHistory, type SimSeasonListItem } from '../../../api/sim';
 import { SimSeasonRow } from './SimSeasonRow';
 
+import { Heading } from '../../shared/Heading';
 const RECENT_COUNT = 6;
 
 type Props = {
@@ -31,7 +32,7 @@ export function RecentSimsShelf({ token, onOpenSeason }: Props) {
 
     return (
         <div className="flex flex-col gap-2">
-            <h3 className="text-[15px] font-black text-(--text-primary)">Recent Sims</h3>
+            <Heading level="panel">Recent Sims</Heading>
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-2">
                 {seasons.map(entry => (
                     <SimSeasonRow

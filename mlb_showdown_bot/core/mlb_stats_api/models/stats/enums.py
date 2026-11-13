@@ -68,6 +68,7 @@ class StatGroupEnum(str, Enum):
 class GameTypeEnum(str, Enum):
     REGULAR_SEASON = "R"
     PLAYOFFS = "P"
+    WILD_CARD = "F"
     DIVISION_SERIES = "D"
     LEAGUE_CHAMPIONSHIP_SERIES = "L"
     WORLD_SERIES = "W"

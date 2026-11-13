@@ -6,6 +6,9 @@ import CustomSelect, { type SelectOption } from '../shared/CustomSelect';
 import { TeamSearchInput } from './TeamSearchInput';
 import { matchesTeamQuery } from './teamSearch';
 
+import { InlineError } from '../shared/InlineError';
+import { headingClass } from '../shared/headingStyles';
+import { EmptyState } from '../shared/EmptyState';
 // Set ordering for the "by set" shelves — newest curated sets first.
 type SortKey = 'recent' | 'points' | 'name' | 'roster' | 'popular';
 
@@ -108,10 +111,8 @@ export function CommunityTeams({ onOpen, horizontalPadding, hideSearch = false, 
             )}
 
             {error && (
-                <div className={`${px} text-[12px] text-red-400`}>
-                    <div className="px-3 py-2 rounded-lg border border-red-400/30 bg-red-400/5">
-                        {error}
-                    </div>
+                <div className={px}>
+                    <InlineError size="md">{error}</InlineError>
                 </div>
             )}
 
@@ -120,19 +121,18 @@ export function CommunityTeams({ onOpen, horizontalPadding, hideSearch = false, 
                 <TeamShelfSkeleton shelves={3} className={px} />
             ) : results !== null ? (
                 results.length === 0 ? (
-                    <p className="text-[13px] text-(--text-tertiary) py-8 text-center">No public teams match “{query.trim()}”.</p>
+                    <EmptyState size="inline">No public teams match “{query.trim()}”.</EmptyState>
                 ) : (
                     <div className={px}>
                         <div className="flex items-center justify-between mb-3">
-                            <div className="text-[12px] font-semibold text-(--text-secondary) uppercase tracking-wide">
+                            <div className={headingClass('panel')}>
                                 {results.length} result{results.length === 1 ? '' : 's'}
                             </div>
                             <CustomSelect
                                 value={sortBy}
                                 onChange={v => setSortBy(v as SortKey)}
                                 options={SORT_OPTIONS}
-                                buttonClassName="px-2.5 py-1.5 rounded-lg border border-(--divider) bg-(--background-secondary) text-(--text-primary) text-[12px] text-nowrap cursor-pointer flex items-center"
-                                dropdownArrowSize={12}
+                                size="sm"
                             />
                         </div>
                         <div className="flex flex-wrap gap-3">
@@ -143,7 +143,7 @@ export function CommunityTeams({ onOpen, horizontalPadding, hideSearch = false, 
                     </div>
                 )
             ) : shelves.recentlyAdded.length === 0 ? (
-                <p className="text-[13px] text-(--text-tertiary) py-8 text-center">No public teams yet.</p>
+                <EmptyState size="panel" title="No public teams yet.">Make one of your teams public and it shows up here.</EmptyState>
             ) : (
                 /* Browse (shelves) mode — headers indented by `px`, tile rows bleed to the screen edge. */
                 <>

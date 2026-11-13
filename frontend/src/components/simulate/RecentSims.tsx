@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { fetchSimHistory, type SimSeasonListItem } from '../../api/sim';
 import { SimSeasonRow, SimSeasonRowSkeleton } from '../team_builder/sim/SimSeasonRow';
+import { EmptyState } from '../shared/EmptyState';
 
 const RECENT_LIMIT = 8;
 
@@ -57,7 +58,7 @@ export function RecentSims({ token, onOpen, seasonYear, layout, className }: Pro
 
     if (!token || error) {
         return error ? (
-            <div className="text-[12px] text-red-400 px-3 py-2 rounded-lg border border-red-400/30 bg-red-400/5">
+            <div className="text-[12px] text-(--red) px-3 py-2 rounded-card border border-(--red)/30 bg-(--red)/5">
                 {error}
             </div>
         ) : null;
@@ -73,20 +74,17 @@ export function RecentSims({ token, onOpen, seasonYear, layout, className }: Pro
 
     if (seasons.length === 0) {
         return (
-            <p className="text-[13px] text-(--text-tertiary) py-8 text-center px-4">
-                You haven't simulated a season yet — hit Create to start one.
-            </p>
+            <EmptyState size="panel" title="No sims yet.">
+                Simulate a full season, then come back here to replay it.
+            </EmptyState>
         );
     }
 
     if (!visibleSeasons || visibleSeasons.length === 0) {
         return (
-            <div className="flex flex-col items-center gap-2 py-8 px-4 text-center">
-                <p className="text-[13px] text-(--text-tertiary)">
-                    No simulations for {seasonYear} yet.
-                </p>
-                {seasonToggle}
-            </div>
+            <EmptyState size="panel" title={`No ${seasonYear} sims.`} action={seasonToggle}>
+                Nobody has simulated this season yet.
+            </EmptyState>
         );
     }
 

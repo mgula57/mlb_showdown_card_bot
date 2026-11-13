@@ -7,12 +7,14 @@
  * comprehensive player information and statistics.
  */
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useId } from 'react';
 import { FaSearch } from 'react-icons/fa';
 import { FaXmark } from 'react-icons/fa6';
 import { createPortal } from 'react-dom';
-import { SearchGradientBorder } from '../shared/SearchGradientBorder';
+import { SearchFrame } from '../shared/SearchFrame';
+import { Plate } from '../shared/Plate';
 
+import { FIELD_LABEL_CLASS } from '../shared/fieldStyles';
 /**
  * Player search result option with comprehensive metadata
  */
@@ -73,12 +75,15 @@ const MENU_MIN_WIDTH = 380;
 /** Minimum gap in px between the dropdown and the viewport edges */
 const MENU_VIEWPORT_MARGIN = 8;
 
+/** Mouse/trackpad devices, where typing then Enter picks the top result. Touch devices get no auto-highlight. */
+const isFinePointer = () => typeof window !== 'undefined' && !!window.matchMedia?.('(pointer: fine)').matches;
+
 /**
  * Example search queries to cycle through in placeholder text
  * Demonstrates various search capabilities and formats
  */
 const PLACEHOLDER_EXAMPLES = [
-    "Search for a player...",
+    "Search for a player…",
     "Try: Aaron Judge",
     "Try: 2025",
     "Try: NYM",
@@ -170,6 +175,11 @@ export function PlayerSearchInput({
     const programmaticChange = useRef(false);
     /** Timer for cycling placeholder text examples */
     const placeholderInterval = useRef<ReturnType<typeof setInterval> | null>(null);
+    /** True from a keystroke until its search resolves, so Enter can't fall through to a page-level handler mid-search */
+    const isSearchPending = useRef(false);
+
+    /** Listbox id for combobox ARIA wiring; each row's id is `${listboxId}-${index}` */
+    const listboxId = useId();
 
     /**
      * Calculate and set dropdown positioning relative to input field
@@ -247,10 +257,12 @@ export function PlayerSearchInput({
         }
 
         if (query.length < 2) {
+            isSearchPending.current = false;
             setOptions([]);
             setIsOpen(false);
             return;
         }
+        isSearchPending.current = true;
         debounceRef.current = setTimeout(async () => {
             setIsLoading(true);
             try {
@@ -278,12 +290,14 @@ export function PlayerSearchInput({
                 
                 setOptions(results);
                 setIsOpen(results.length > 0);
-                setSelectedIndex(-1);
+                // On desktop, pre-highlight the top hit so type → Enter selects it
+                setSelectedIndex(results.length > 0 && isFinePointer() ? 0 : -1);
             } catch (error) {
                 console.error('Error searching players:', error);
                 setOptions([]);
                 setIsOpen(false);
             } finally {
+                isSearchPending.current = false;
                 setIsLoading(false);
             }
         }, 800); // Debounce delay of 800ms
@@ -293,6 +307,7 @@ export function PlayerSearchInput({
                 clearTimeout(debounceRef.current);
             }
         };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [query]);
 
     // Rotate placeholder examples
@@ -316,25 +331,55 @@ export function PlayerSearchInput({
         };
     }, [isFocused, query]);
 
-    const handleKeyDown = (e: React.KeyboardEvent) => {
-        if (!isOpen) return;
+    // Keep the highlighted row visible as the keyboard moves through a scrolling list
+    useEffect(() => {
+        if (!isOpen || selectedIndex < 0) return;
+        dropdownRef.current?.children[selectedIndex]?.scrollIntoView({ block: 'nearest' });
+    }, [isOpen, selectedIndex]);
 
+    /** Swallow a key so page-level listeners (e.g. the builder's Enter-to-build) never see it */
+    const consumeKey = (e: React.KeyboardEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+        e.nativeEvent.stopImmediatePropagation();
+    };
+
+    const handleKeyDown = (e: React.KeyboardEvent) => {
+        const hasMenu = isOpen && options.length > 0;
+
+        // Enter picks the highlighted row. While results are open or a search is still pending it
+        // never falls through, so it can't build a card from the previous selection.
+        if (e.key === 'Enter') {
+            if (hasMenu) {
+                consumeKey(e);
+                if (selectedIndex >= 0 && selectedIndex < options.length) {
+                    handleSelect(options[selectedIndex]);
+                }
+            } else if (isSearchPending.current) {
+                consumeKey(e);
+            }
+            return;
+        }
+
+        if (!hasMenu) return;
+
+        const last = options.length - 1;
         switch (e.key) {
             case 'ArrowDown':
                 e.preventDefault();
-                setSelectedIndex(prev => 
-                    prev < options.length - 1 ? prev + 1 : prev
-                );
+                setSelectedIndex(prev => Math.min(prev + 1, last));
                 break;
             case 'ArrowUp':
                 e.preventDefault();
                 setSelectedIndex(prev => prev > 0 ? prev - 1 : -1);
                 break;
-            case 'Enter':
+            case 'Tab':
+                // Tab / Shift+Tab step through results (wrapping) instead of leaving the field
                 e.preventDefault();
-                if (selectedIndex >= 0 && selectedIndex < options.length) {
-                    handleSelect(options[selectedIndex]);
-                }
+                setSelectedIndex(prev => e.shiftKey
+                    ? (prev <= 0 ? last : prev - 1)
+                    : (prev >= last ? 0 : prev + 1)
+                );
                 break;
             case 'Escape':
                 setIsOpen(false);
@@ -371,17 +416,17 @@ export function PlayerSearchInput({
     };
 
     // Get current placeholder text
-    const currentPlaceholder = (isFocused || query) ? "Search for a player..." : PLACEHOLDER_EXAMPLES[placeholderIndex];
+    const currentPlaceholder = (isFocused || query) ? "Search for a player…" : PLACEHOLDER_EXAMPLES[placeholderIndex];
 
     return (
         <div className={`relative ${className}`}>
-            <label className="block text-sm font-medium text-secondary">
+            <label className={FIELD_LABEL_CLASS}>
                 {label}
             </label>
 
-            <SearchGradientBorder className="relative">
+            <SearchFrame className="relative">
 
-                <div className="bg-primary rounded-md relative">
+                <div className="bg-primary rounded-[3px] relative">
                     <div className="absolute left-2 top-1/2 transform -translate-y-1/2 text-primary">
                         <FaSearch className="w-4 h-4" />
                     </div>
@@ -389,6 +434,11 @@ export function PlayerSearchInput({
                     <input
                         ref={inputRef}
                         type="text"
+                        role="combobox"
+                        aria-autocomplete="list"
+                        aria-expanded={isOpen && options.length > 0}
+                        aria-controls={listboxId}
+                        aria-activedescendant={isOpen && selectedIndex >= 0 ? `${listboxId}-${selectedIndex}` : undefined}
                         style={{ textTransform: 'capitalize' }}
                         value={query}
                         onChange={(e) => setQuery(e.target.value)}
@@ -399,6 +449,8 @@ export function PlayerSearchInput({
                         }}
                         onBlur={() => {
                             setIsFocused(false);
+                            // Rows keep focus on the input (see the menu's onMouseDown), so any blur means focus left the search
+                            setIsOpen(false);
                         }}
                         placeholder={currentPlaceholder}
                         autoComplete="off"
@@ -407,17 +459,17 @@ export function PlayerSearchInput({
                             w-full pl-8 py-2
                             text-primary
                             focus:outline-none
-                            placeholder-gray-500
+                            placeholder:text-(--text-tertiary)
                             transition-opacity duration-300 ease-in-out
                             font-bold
-                            ${isFocused || query ? 'opacity-100' : 'animate-pulse // Optional: adds subtle pulse effect'}
+                            ${isFocused || query ? 'opacity-100' : 'animate-pulse'}
                         `}
                     />
                     
                     {/* Loading indicator */}
                     {isLoading && (
                         <div className="absolute right-8 top-1/2 transform -translate-y-1/2">
-                            <div className="animate-spin rounded-full h-4 w-4 border-2 border-blue-500 border-t-transparent"></div>
+                            <div className="animate-spin rounded-full h-4 w-4 border-2 border-(--showdown-blue) border-t-transparent"></div>
                         </div>
                     )}
 
@@ -426,11 +478,12 @@ export function PlayerSearchInput({
                         <button
                             type="button"
                             onClick={handleClear}
+                            aria-label="Clear search"
                             className="
                                 absolute right-0 top-1/2 transform -translate-y-1/2
-                                text-secondary hover:text-secondary/80
+                                text-secondary hover:text-(--text-secondary)/80
                                 w-6 h-10 flex items-center justify-center
-                                backdrop-blur-xs rounded-r-md p-1
+                                rounded-r-control p-1 cursor-pointer
                                 text-lg
                             "
                         >
@@ -439,16 +492,20 @@ export function PlayerSearchInput({
                     )}
 
                 </div>
-            </SearchGradientBorder>
+            </SearchFrame>
 
             {isOpen && options.length > 0 && typeof document !== 'undefined' && (
                 createPortal(
                     <div 
                         ref={dropdownRef}
+                        id={listboxId}
+                        role="listbox"
+                        // Keep focus on the input so clicking a row doesn't blur-close the menu before the click lands
+                        onMouseDown={(e) => e.preventDefault()}
                         className="
                             fixed z-5
                             transform
-                            bg-secondary rounded-xl shadow-lg
+                            bg-secondary rounded-card shadow-overlay
                             text-nowrap overflow-auto scrollbar-hide max-h-[40vh]
                             border-2 border-form-element
                         "
@@ -457,12 +514,17 @@ export function PlayerSearchInput({
                         {options.map((option, index) => (
                             <div
                                 key={`${option.year.toString()}-${option.player_id}`}
+                                id={`${listboxId}-${index}`}
+                                role="option"
+                                aria-selected={index === selectedIndex}
                                 onClick={() => handleSelect(option)}
+                                // mousemove (not mouseenter) so keyboard scrolling under a still pointer doesn't steal the highlight
+                                onMouseMove={() => { if (index !== selectedIndex) setSelectedIndex(index); }}
                                 className={`
                                     pl-3 py-3 cursor-pointer border-b border-form-element last:border-b-0
-                                    hover:bg-(--background-tertiary)
-                                    ${index === 0 ? 'rounded-t-lg' : ''}
-                                    ${index === options.length - 1 ? 'rounded-b-lg' : ''}
+                                    ${index === selectedIndex ? 'bg-(--background-tertiary)' : ''}
+                                    ${index === 0 ? 'rounded-t-card' : ''}
+                                    ${index === options.length - 1 ? 'rounded-b-card' : ''}
                                 `}
                             >
                                 <div className="flex-col items-center gap-2">
@@ -470,16 +532,16 @@ export function PlayerSearchInput({
                                     <div className='flex flex-row items-center gap-2'>
                                         <div className="font-medium" style={{ textTransform: 'capitalize' }}>{option.name}</div>
 
-                                        <div className={`flex items-center gap-1 text-sm ${index === selectedIndex ? 'text-blue-100' : 'text-gray-400'}`}>
+                                        <div className={`flex items-center gap-1 text-sm ${index === selectedIndex ? 'text-(--text-secondary)' : 'text-(--text-tertiary)'}`}>
                                             <div className='text-xs'>{option.year_display ? option.year_display : option.year} </div>
                                             {option.team && <div className="text-xs">{option.team}</div>}
                                             {option.award_summary?.includes('AS') && option.year.toString().length < 5 && <div className="text-xs">★</div>}
                                         </div>
                                         
-                                        {option.is_hof && <div className="bg-yellow-300 rounded-md text-xs p-1 text-black">HOF</div>}
+                                        {option.is_hof && <Plate variant="custom" size="sm" className="bg-(--gold) text-(--field-ink)">HOF</Plate>}
                                     </div>
                                     {/* Contextual info */}
-                                    <div className="text-xs text-gray-500">
+                                    <div className="text-xs text-(--text-tertiary)">
                                         {option.player_type_override && <div className='font-bold'>{option.player_type_override.toUpperCase()}</div>}
                                         {option.award_summary && <div>Awards: {option.award_summary}</div>}
                                         {option.war !== undefined && option.war !== null && <div>{option.war_type}: {option.war.toFixed(1)}</div>}

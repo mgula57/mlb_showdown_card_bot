@@ -12,6 +12,7 @@ class CardSource(str, Enum):
     WOTC   = "WOTC"    # card_wotc table (WOTC cards)
     WBC    = "WBC"     # card_wbc table (World Baseball Classic cards)
     CUSTOM = "CUSTOM"  # internal.log_custom_card (user's own generated cards)
+    RELEASE = "RELEASE"  # internal.release_cards (Release Builder edition cards, drafted in leagues)
 
 
 # Sets a team can allow, per card source. WOTC only ever printed 2000-2005 —
@@ -182,9 +183,8 @@ def derive_lineups_rotation(roster: list[dict], stored_lineups: Optional[list[di
 
     starters = [s for s in roster if s.get('roster_position') in ROTATION_ROLES]
     starters.sort(key=lambda s: ROTATION_ROLES.index(s['roster_position']))
-    # The bullpen has no meaningful per-slot role or order — it's drafted free-form and any
-    # legacy 'CL' collapses to a plain 'RP'. Ordered by card points descending so every read
-    # path (builder, sim, MLB-derived teams) sees the same alignment.
+    # Here every reliever is a plain 'RP', ordered by card points descending. A chosen closer and
+    # a custom bullpen order live on the roster itself (`roster_position == 'CL'`, `sort_order`).
     bullpen = [s for s in roster if s.get('roster_position') in BULLPEN_ROLES]
     bullpen.sort(key=lambda s: s.get('points') or 0, reverse=True)
     rotation = (
@@ -214,6 +214,8 @@ class Team(BaseModel):
     min_bullpen: int = 5
     num_starters: int = 5
     bench_pts_multiplier: float = 1.0
+    # True once the owner has ordered the bullpen by hand: roster order is then its ranking.
+    bullpen_order_custom: bool = False
     # Set / source restrictions. `allowed_sets_by_source` is the source of truth — Bot cards exist
     # in every set so a team pins one, while WOTC sets are combinable. `allowed_sets` is kept as
     # the flattened union for list views and for teams saved before the per-source split.
@@ -255,7 +257,7 @@ class Team(BaseModel):
 
     @property
     def starters(self) -> list[TeamRosterSlot]:
-        bench_positions = {"BE", "RP"}
+        bench_positions = {"BE", *BULLPEN_ROLES}
         return [s for s in self.roster if s.roster_position.upper() not in bench_positions]
 
     @property
@@ -264,7 +266,7 @@ class Team(BaseModel):
 
     @property
     def bullpen(self) -> list[TeamRosterSlot]:
-        return [s for s in self.roster if s.roster_position.upper() == "RP"]
+        return [s for s in self.roster if s.roster_position.upper() in BULLPEN_ROLES]
 
     def sets_for_source(self, source: str) -> list[str]:
         """Sets allowed when drafting from one card source.
@@ -299,6 +301,7 @@ class Team(BaseModel):
             'min_bullpen': self.min_bullpen,
             'num_starters': self.num_starters,
             'bench_pts_multiplier': self.bench_pts_multiplier,
+            'bullpen_order_custom': self.bullpen_order_custom,
             'allowed_sets': self.allowed_sets,
             'allowed_sets_by_source': self.allowed_sets_by_source,
             'allowed_card_sources': self.allowed_card_sources,
@@ -356,6 +359,7 @@ class Team(BaseModel):
             min_bullpen=row.get('min_bullpen', 5),
             num_starters=row.get('num_starters', 5),
             bench_pts_multiplier=row.get('bench_pts_multiplier', 1.0),
+            bullpen_order_custom=bool(row.get('bullpen_order_custom')),
             allowed_sets=row.get('allowed_sets') or [],
             allowed_sets_by_source=row.get('allowed_sets_by_source') or {},
             allowed_card_sources=row.get('allowed_card_sources') or [],

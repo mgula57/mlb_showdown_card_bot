@@ -1,0 +1,68 @@
+{
+  "version": "4.5",
+  "eyebrow": "What's new",
+  "headline_lead": "Release",
+  "headline_accent": "Builder",
+  "subhead": "Make your own MLB Showdown card sets, then share them with everyone.",
+  "status_plates": [
+    "Out now"
+  ],
+  "features": [
+    {
+      "title": "Build your own set",
+      "text": "Design a full Showdown set from start to finish. Start from a classic 2000–2005 base set, or from scratch.",
+      "tags": [
+        "Base sets",
+        "Editions"
+      ],
+      "accent": "var(--showdown-blue)"
+    },
+    {
+      "title": "Smart player picks",
+      "text": "Pick the seasons, size and teams, and the bot builds a balanced set. Or pick your own.",
+      "accent": "var(--showdown-blue)"
+    },
+    {
+      "title": "See how it stacks up",
+      "text": "Charts compare points, positions, speed and more against the original WOTC sets.",
+      "accent": "var(--showdown-blue)"
+    },
+    {
+      "title": "Style every card",
+      "text": "One look for the whole set, special looks for groups of cards, and new parallels.",
+      "tags": [
+        "Breakout",
+        "Booster"
+      ],
+      "accent": "var(--showdown-red)"
+    },
+    {
+      "title": "Render every card",
+      "text": "Every card renders while you keep working. Download the whole set at once.",
+      "accent": "var(--showdown-red)"
+    },
+    {
+      "title": "Publish and share",
+      "text": "Share with everyone, by link only, or keep it to yourself. Links show a preview of your set.",
+      "accent": "var(--showdown-red)"
+    },
+    {
+      "title": "Remix, like, comment",
+      "text": "Start your own set from someone else's, save your favorites, and talk shop in the comments.",
+      "accent": "#e0b352"
+    },
+    {
+      "title": "A whole new look",
+      "text": "Showdown Bot's redesign takes its cues from the original late-90s cards.",
+      "accent": "#e0b352"
+    }
+  ],
+  "also": [
+    "Small-sample smoothing",
+    "Postseason round cards",
+    "World Series logos",
+    "Bullpen order"
+  ],
+  "tagline": "Build your set.",
+  "url": "showdownbot.com/release-builder"
+}

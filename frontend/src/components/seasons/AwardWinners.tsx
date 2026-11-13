@@ -8,10 +8,12 @@ import { CardSource } from "../../types/cardSource";
 import { CardItemFromCardDatabaseRecord, CardItemSkeleton } from "../cards/CardItem";
 import { CardDetail } from "../cards/CardDetail";
 import { Modal } from "../shared/Modal";
-import { useTheme } from "../shared/SiteSettingsContext";
 import { CardNotFoundOverlay } from "../shared/CardNotFoundOverlay";
 import { defenseAtPosition } from "../shared/DefenseUtils";
 import { FieldView } from "../team_builder/FieldView";
+import { CAPS_LABEL_CLASS } from "../shared/fieldStyles";
+import { Heading } from "../shared/Heading";
+import { Eyebrow } from "../shared/Eyebrow";
 
 // =============================================================================
 // MARK: - Award Definitions
@@ -55,7 +57,6 @@ type AwardWinnersProps = {
 // =============================================================================
 
 export default function AwardWinners({ seasonId, season, showdownSet, isActive }: AwardWinnersProps) {
-    const { isDark } = useTheme();
 
     const [awards, setAwards] = useState<SeasonAwards | null>(null);
     const [cardMap, setCardMap] = useState<Record<string, CardDatabaseRecord>>({});
@@ -253,16 +254,14 @@ export default function AwardWinners({ seasonId, season, showdownSet, isActive }
         <div className="pb-24">
             {/* Header */}
             <div className="flex items-center gap-2 mb-5 lg:pr-6">
-                <FaMedal className={`text-sm ${isDark ? 'text-yellow-400' : 'text-yellow-500'}`} />
-                <span className={`text-sm font-bold uppercase tracking-wide ${isDark ? 'text-neutral-400' : 'text-neutral-500'}`}>
-                    Award Winners
-                </span>
+                <FaMedal className={`text-sm text-(--gold)`} />
+                <Heading level="section">Award Winners</Heading>
             </div>
 
             {isLoadingAwards && !awards ? (
                 <div className="space-y-6">
                     {[0, 1, 2].map(i => (
-                        <div key={i} className={`h-48 rounded-xl animate-pulse ${isDark ? 'bg-neutral-800' : 'bg-neutral-200'}`} />
+                        <div key={i} className={`h-48 rounded-card animate-pulse bg-(--background-tertiary)`} />
                     ))}
                 </div>
             ) : (
@@ -271,9 +270,7 @@ export default function AwardWinners({ seasonId, season, showdownSet, isActive }
                     {filteredSingleWinnerAwards.map(({ key, label }) => (
                         <div key={key}>
                             <div className="mb-3 lg:pr-6">
-                                <span className={`text-xs font-bold uppercase tracking-wide ${isDark ? 'text-neutral-400' : 'text-neutral-500'}`}>
-                                    {label}
-                                </span>
+                                <Eyebrow>{label}</Eyebrow>
                             </div>
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 lg:pr-6">
                                 {LEAGUES.map(league => {
@@ -281,11 +278,11 @@ export default function AwardWinners({ seasonId, season, showdownSet, isActive }
                                     const card = recipient ? cardMap[cardKey(recipient)] : undefined;
                                     return (
                                         <div key={league} className="flex flex-col gap-1.5">
-                                            <span className={`text-[10px] font-semibold uppercase tracking-wide px-1.5 ${isDark ? 'text-neutral-500' : 'text-neutral-400'}`}>
+                                            <span className={`px-1.5 ${CAPS_LABEL_CLASS} text-(--text-tertiary)`}>
                                                 {league}
                                             </span>
                                             {!recipient ? (
-                                                <div className={`flex items-center justify-center h-48 rounded-xl border border-dashed text-xs ${isDark ? 'border-neutral-700 text-neutral-600' : 'border-neutral-300 text-neutral-400'}`}>
+                                                <div className={`flex items-center justify-center h-48 rounded-card border border-dashed text-xs border-(--divider) text-(--text-tertiary)`}>
                                                     Not yet announced
                                                 </div>
                                             ) : !card && isLoadingCards ? (
@@ -317,14 +314,12 @@ export default function AwardWinners({ seasonId, season, showdownSet, isActive }
                     {showGoldGlove && (
                         <div>
                             <div className="mb-3 lg:pr-6">
-                                <span className={`text-xs font-bold uppercase tracking-wide ${isDark ? 'text-neutral-400' : 'text-neutral-500'}`}>
-                                    Gold Glove
-                                </span>
+                                <Eyebrow>Gold Glove</Eyebrow>
                             </div>
                             <div className="grid grid-cols-1 md:grid-cols-[repeat(auto-fit,minmax(450px,1fr))] gap-6 lg:pr-6">
                                 {LEAGUES.map(league => (
-                                    <div key={league} className="flex flex-col gap-1.5 bg-secondary py-2 rounded-xl shadow-2xl">
-                                        <span className={`text-[10px] font-semibold uppercase tracking-wide px-3 ${isDark ? 'text-neutral-500' : 'text-neutral-400'}`}>
+                                    <div key={league} className="flex flex-col gap-1.5 bg-secondary py-2 rounded-card border border-(--divider)">
+                                        <span className={`px-3 ${CAPS_LABEL_CLASS} text-(--text-tertiary)`}>
                                             {league}
                                         </span>
                                         <FieldView
@@ -348,14 +343,12 @@ export default function AwardWinners({ seasonId, season, showdownSet, isActive }
                     {showSilverSlugger && (
                         <div>
                             <div className="mb-3 lg:pr-6">
-                                <span className={`text-xs font-bold uppercase tracking-wide ${isDark ? 'text-neutral-400' : 'text-neutral-500'}`}>
-                                    Silver Slugger
-                                </span>
+                                <Eyebrow>Silver Slugger</Eyebrow>
                             </div>
                             <div className="grid grid-cols-[repeat(auto-fit,minmax(450px,1fr))] gap-6 lg:pr-6">
                                 {LEAGUES.map(league => (
-                                    <div key={league} className="flex flex-col gap-1.5 bg-secondary py-2 rounded-xl shadow-2xl">
-                                        <span className={`text-[10px] font-semibold uppercase tracking-wide px-3 ${isDark ? 'text-neutral-500' : 'text-neutral-400'}`}>
+                                    <div key={league} className="flex flex-col gap-1.5 bg-secondary py-2 rounded-card border border-(--divider)">
+                                        <span className={`px-3 ${CAPS_LABEL_CLASS} text-(--text-tertiary)`}>
                                             {league}
                                         </span>
                                         <FieldView

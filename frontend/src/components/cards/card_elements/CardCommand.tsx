@@ -1,5 +1,6 @@
 import { useTheme } from "../../shared/SiteSettingsContext";
 import { darkenIfLowContrastOnWhite } from "../../../functions/colors";
+
 /**
  * Props for the CardCommand component
  */
@@ -65,18 +66,19 @@ export default function CardCommand({ isPitcher, primaryColor, secondaryColor, c
                 className="absolute top-0 left-0 w-full h-full object-cover"
             />
 
-            {/* Command rating number with team color styling */}
+            {/* Command rating number in Helvetica Neue Extra Black Condensed, team colored. The font's
+                metrics center its digits in the line box, so the ball (Control) centers it exactly;
+                the home plate (On-Base) lifts it a bit because its visual middle sits above center. */}
             <div
                 className={`
                     absolute top-1/2 left-1/2
                     transform -translate-x-1/2
                     ${isPitcher ? '-translate-y-1/2' : '-translate-y-3/5'}
-                    font-black tracking-tighter
-                    drop-shadow-lg
+                    font-display-black leading-none tracking-tight tabular-nums
                 `}
                 style={{
                     color: colorAdjusted,
-                    fontSize: '60cqw',
+                    fontSize: '62cqw',
                 }}
             >
                 {command != null && !Number.isInteger(command) ? command.toFixed(1) : command}

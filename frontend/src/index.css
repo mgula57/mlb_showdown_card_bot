@@ -1,34 +1,119 @@
 @import "tailwindcss";
 
-/* Tailwind CSS v4 directive; suppress the standard CSS language-service warning. */
-/* css-lint disable unknownAtRules */
+/* Design language: see frontend/DESIGN.md before adding or changing anything below. */
+
+/* Viewport-height gates for height-locked app shells (header pinned, panes scroll inside). Wide but
+   short screens (foldable inner screens, landscape tablets, small laptop windows) pass the width
+   breakpoint but leave too little room under a pinned header, so the lock also requires `tall`;
+   on `short` the header scrolls away and the pane area alone takes the viewport. See DESIGN.md. */
+@custom-variant tall (@media (height >= 45rem));
+@custom-variant short (@media (height < 45rem)); /* mirrored by SHORT_SCREEN_QUERY in hooks/useMediaQuery.ts */
+
 @theme {
     --container-field-split: 600px;
-    --breakpoint-2xs: 22rem; /* or 352px */
     --breakpoint-xs: 30rem; /* or 480px */
     --breakpoint-3xl: 120rem; /* or 1920px */
+    --breakpoint-split: 48rem; /* or 768px: Team Builder field/panel split (e.g. foldable inner screens) */
+
+    /* `font-display`: condensed heavy italic for standalone headlines. `font-display-upright`:
+       condensed bold for player names on cards. `font-display-black`: extra black condensed for
+       command numbers. Their metrics are normalized by scripts/normalize_font_metrics.py so caps
+       center in the line box. See DESIGN.md. */
+    /* Body face: Inter (self-hosted variable font), a neo-grotesque in the Helvetica mold of the
+       card charts, tuned for screen legibility at small sizes. cv05/cv08 give l and I tails so they
+       don't read as 1. Loaded in main.tsx. See DESIGN.md (Type). */
+    --font-sans: 'Inter Variable', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji';
+    --font-sans--font-feature-settings: 'cv05', 'cv08';
+    /* `font-slab`: the heavy slab-serif caps of the 2000 Showdown print ads, only for `EmptyState`
+       headlines. Self-hosted, loaded in main.tsx. */
+    --font-slab: 'Alfa Slab One', 'Rockwell', 'Roboto Slab', Georgia, serif;
+    --font-display: 'ShowdownDisplay', 'Helvetica Neue', 'Arial Narrow', sans-serif;
+    --font-display-upright: 'ShowdownDisplayUpright', 'Helvetica Neue', 'Arial Narrow', sans-serif;
+    --font-display-black: 'ShowdownDisplayBlack', 'Helvetica Neue', 'Arial Narrow', sans-serif;
+
+    /* `rounded-card` for panels and tiles, `rounded-control` for buttons and inputs, `rounded-plate`
+       for plates, badges and skeleton bars. `rounded-trading-card` only on tiles that stand in for a
+       physical card (CardItem, TeamPreviewCard), echoing the printed card's rounded corners. */
+    --radius-trading-card: 10px;
+    --radius-card: 5px;
+    --radius-control: 4px;
+    --radius-plate: 2px;
+
+    /* `shadow-raised` is the hard bottom edge for raised controls; `shadow-overlay` is the only
+       soft shadow, reserved for modals, menus and sheets. `shadow-sheet` is the same overlay cast
+       upward, for sheets anchored to the bottom edge (BottomSheet, SlideOver). */
+    --shadow-raised: 0 2px 0 var(--rule-strong);
+    --shadow-overlay: 0 12px 32px rgb(0 0 0 / 0.18);
+    /* `shadow-feature`: the hard raised edge in Showdown red, for the one feature button per screen. */
+    --shadow-feature: 0 3px 0 var(--showdown-red);
+    /* The feature edge on a floating button (Build Card and Run Algorithm on mobile), which also
+       needs the overlay shadow to lift it off the content scrolling underneath. */
+    --shadow-feature-float: 0 3px 0 var(--showdown-red), 0 12px 32px rgb(0 0 0 / 0.18);
+    --shadow-sheet: 0 -12px 32px rgb(0 0 0 / 0.18);
 }
 
 :root {
-    --primary: #000000;
-    --secondary: #292929;
-    --tertiary: #3c3c3c;
-    --quaternary: #5a5a5a;
+    --primary: #101317;
+    --secondary: #2a2f36;
+    --tertiary: #3e444c;
+    --quaternary: #5c636c;
 
+    /* Text roles. Prefer these over --primary/--secondary in new code. */
+    --text-primary: var(--primary);
+    --text-secondary: var(--secondary);
+    --text-tertiary: #646c77;
 
     --showdown-blue: #1a3b5f;
-    --showdown-red: #9a362f;
+    --showdown-red: #b3342b;
     --showdown-gray: #6e6e73;
-    
-    --background-primary: #f5f3f0;
-    --background-secondary: #fdfcfa;
-    --background-tertiary: #ebe8e3;
-    --background-quaternary: #e0dcd6;
-    --divider: #e2ded8;
-    --background-gradient: linear-gradient(to bottom right, rgb(235, 232, 227), rgb(253, 252, 250), rgb(228, 222, 214));
+    --chart-compare: var(--showdown-red);
+    /* Solid fills that carry white text (primary and feature buttons, navy/red plates, count
+       badges). Same as the brand colors in light; a shade darker in dark so white text keeps 4.5:1. */
+    --showdown-blue-fill: var(--showdown-blue);
+    --showdown-red-fill: var(--showdown-red);
+    /* Keyboard focus outline (see the :focus-visible rule at the end of this file). */
+    --focus-ring: var(--showdown-blue);
 
-    --table-header: #dedad4;
-    --table-banding: #f0ede9;
+    /* Unsaved / algorithm-preview state (e.g. Release Builder preview pools) */
+    --preview-accent: #6d28d9;
+
+    /* Surfaces: a pale 2001 card-back silver page, white panels, silver fills. */
+    --background-primary: #eef0f3;
+    --background-secondary: #ffffff;
+    --background-tertiary: #e2e6ea;
+    --background-quaternary: #d6dbe1;
+    --release-tile-field: var(--background-quaternary);
+    --divider: #d3d8de;
+    --rule-strong: #9aa3ad;
+    /* Outline around set badge lettering (SetBadge): white in both themes, like the printed set
+       logos. A dark outline smeared into the navy and red letters on light surfaces. */
+    --set-outline: #ffffff;
+
+    /* Stat plates: a silver step off the white card in light mode, a raised gray in dark mode, so
+       they read as plates without being the loudest thing on the card. */
+    --plate: #d6dbe1;
+    --plate-ink: #101317;
+
+    /* Highlight gold: starred teams, Hall of Fame, All-Star marks. Never decorative. */
+    --gold: #b7861f;
+    /* Third-place medal, next to --gold (1st) and --text-secondary (2nd). */
+    --bronze: #a0622b;
+
+    /* Team-color fields (team tiles, card fronts) look the same in both themes: a white card
+       edge, near-black plates, and a light red for live states on dark plates. */
+    --card-edge: #f4f5f7;
+    --field-ink: #0b0d10;
+    --field-live: #ff6b5e;
+
+    /* Card-back pinstripe texture (`bg-pinstripe`). */
+    --stripe: rgb(26 59 95 / 0.07);
+
+    --table-header: #dfe3e8;
+    --table-banding: #f2f4f6;
+
+    /* Legacy aliases: used across components but never defined before the design-language pass. */
+    --background-secondary-hover: var(--background-tertiary);
+    --form-element: var(--divider);
 
     --success: #4BB543;
     --warning: #d5ad0c;
@@ -40,9 +125,20 @@
     --challenge-superteam: #7c4dd0;
     --challenge-themed: #e0654f;
 
-
     --green: #287c22;
     --red: #ca443d;
+
+    /* Grade scale for percentile and match-quality readouts, best (a) to worst (d): the points
+       breakdown, percentile gauges and card comps. Data only, never decorative. */
+    --grade-a: #287c22;
+    --grade-b: #6f9417;
+    --grade-c: #c08a0c;
+    --grade-d: #ca443d;
+    /* Hot/cold scale for real-vs-league percentiles, Statcast style. The middle is --rule-strong. */
+    --heat-hot: #c8372d;
+    --heat-warm: #d9752b;
+    --heat-cool: #5f7fae;
+    --heat-cold: #2f5fa8;
 
     /* In-progress games: occupied bases, out pips, the LIVE dot. Previously split between
        yellow-400 (GameItem, Home ticker) and red-500 (GameDetail header). */
@@ -57,30 +153,52 @@
 
     /* Highlight for whichever side won the pitch roll in a sim plate appearance. */
     --advantage: #f5a623;
+
+    /* Shared curve for the side menu's width, the content padding that tracks it, and the
+       active-tab indicator — one curve so they move as a single surface. */
+    --side-menu-ease: cubic-bezier(0.32, 0.72, 0, 1);
 }
 
 .dark {
     --die-body: #000000;
     --die-ink: #ffffff;
-    --primary: #ffffff;
-    --secondary: #dfdfdf;
-    --tertiary: #cfcfcf;
-    --quaternary: #b0b0b0;
+    --primary: #f1f3f5;
+    --secondary: #d5dae0;
+    --tertiary: #c3c9d1;
+    --quaternary: #a3abb5;
 
-    --showdown-blue: #4682e6;
-    --showdown-red: #d04e47;
+    --text-tertiary: #8b939d;
+
+    --showdown-blue: #4f86cf;
+    --showdown-red: #e0574d;
     --showdown-gray: #a0a0a5;
+    --chart-compare: var(--showdown-blue);
+    --showdown-blue-fill: #3775c8;
+    --showdown-red-fill: #da362a;
 
-    --background-primary: #1c1a18;
-    --background-secondary: #25221f;
-    --background-tertiary: #36322d;
-    --background-quaternary: #3f3a34;
-    --background-gradient: linear-gradient(to bottom right, rgb(16, 15, 14), rgb(37, 34, 31), rgb(28 25 23));
+    --preview-accent: #c4b5fd;
 
-    --divider: #47423b;
+    /* Navy-tinted near-black. */
+    --background-primary: #0d1116;
+    --background-secondary: #161b22;
+    --background-tertiary: #212833;
+    --background-quaternary: #2b333e;
+    --release-tile-field: var(--background-tertiary);
 
-    --table-header: #47423b;
-    --table-banding: #1d1b19;
+    --divider: #2f3844;
+    --rule-strong: #4a5461;
+
+    /* A raised gray rather than a white plate, so stat plates don't glare on dark cards. */
+    --plate: #343e4b;
+    --plate-ink: #f1f3f5;
+
+    --stripe: rgb(120 160 220 / 0.06);
+
+    --gold: #e0b352;
+    --bronze: #d08a52;
+
+    --table-header: #2b333e;
+    --table-banding: #12171d;
 
     --success: #4dc545;
     --warning: #e9de3f;
@@ -91,23 +209,52 @@
     --challenge-superteam: #a884e8;
     --challenge-themed: #f0806c;
 
+    --green: #5cc46f;
+    --red: #f0675c;
 
-    --green: #5df452;
-    --red: #fb3232;
+    --grade-a: #5cc46f;
+    --grade-b: #a5cf4f;
+    --grade-c: #e6c13e;
+    --grade-d: #f0675c;
+    --heat-hot: #f0675c;
+    --heat-warm: #f0a05a;
+    --heat-cool: #8aa6d6;
+    --heat-cold: #5b93e8;
 
     --live: #f04438;
 }
 
 /* Custom Fonts */
 @font-face {
-    font-family: 'ShowdownSetItalic';
-    src: url('./assets/fonts/HelveticaNeueCondensedHeavyOblique.otf') format('truetype');
-    font-weight: 400;
-    font-style: italic;
+    font-family: 'ShowdownDisplay';
+    src: url('./assets/fonts/HelveticaNeueCondensedHeavyOblique.otf') format('opentype');
+    font-weight: 400 900;
+    font-style: normal;
+    font-display: swap;
+}
+
+@font-face {
+    font-family: 'ShowdownDisplayBlack';
+    src: url('./assets/fonts/HelveticaNeueExtraBlackCondensed.otf') format('opentype');
+    font-weight: 400 900;
+    font-style: normal;
+    font-display: swap;
+}
+
+@font-face {
+    font-family: 'ShowdownDisplayUpright';
+    src: url('./assets/fonts/HelveticaNeueBoldCondensed.ttf') format('truetype');
+    font-weight: 400 900;
+    font-style: normal;
     font-display: swap;
 }
 
 @layer utilities {
+    /* Card-back pinstripes. Headers and hero bands only (see DESIGN.md). */
+    .bg-pinstripe {
+        background-image: repeating-linear-gradient(90deg, var(--stripe) 0 1px, transparent 1px 12px);
+    }
+
     .bg-primary {
         background-color: var(--background-primary);
     }
@@ -118,14 +265,6 @@
 
     .bg-tertiary {
         background-color: var(--background-tertiary);
-    }
-
-    .bg-quaternary {
-        background-color: var(--background-quaternary);
-    }
-
-    .gradient-page {
-        background-image: var(--background-gradient);
     }
 
     .text-primary {
@@ -144,15 +283,6 @@
         border-color: var(--divider);
     }
 
-    .text-form-element {
-        color: var(--divider);
-    }
-
-    .font-showdown-set-italic {
-        font-family: 'ShowdownSetItalic', serif;
-        font-style: italic;
-    }
-
     .text-outline-double {
         text-shadow: 
             /* Inner outline */
@@ -169,6 +299,32 @@
             2px 0 0 #000000,
             0 -2px 0 #000000,
             0 2px 0 #000000;
+    }
+
+    /* Set badge lettering outline (SetBadge): 16 shadows spaced evenly around a circle of radius
+       `--o`, so the outline is the same width on the sides, top, bottom and diagonals (8 offsets at
+       ±x/±y run ~40% thicker on the diagonals). Scales with the font size; `--set-badge-outline`
+       overrides the theme color (e.g. on team-color fields). */
+    .text-outline-set {
+        --o: 0.06em;
+        --c: var(--set-badge-outline, var(--set-outline));
+        text-shadow:
+            calc(var(--o) * 1) 0 0 var(--c),
+            calc(var(--o) * 0.924) calc(var(--o) * 0.383) 0 var(--c),
+            calc(var(--o) * 0.707) calc(var(--o) * 0.707) 0 var(--c),
+            calc(var(--o) * 0.383) calc(var(--o) * 0.924) 0 var(--c),
+            0 calc(var(--o) * 1) 0 var(--c),
+            calc(var(--o) * -0.383) calc(var(--o) * 0.924) 0 var(--c),
+            calc(var(--o) * -0.707) calc(var(--o) * 0.707) 0 var(--c),
+            calc(var(--o) * -0.924) calc(var(--o) * 0.383) 0 var(--c),
+            calc(var(--o) * -1) 0 0 var(--c),
+            calc(var(--o) * -0.924) calc(var(--o) * -0.383) 0 var(--c),
+            calc(var(--o) * -0.707) calc(var(--o) * -0.707) 0 var(--c),
+            calc(var(--o) * -0.383) calc(var(--o) * -0.924) 0 var(--c),
+            0 calc(var(--o) * -1) 0 var(--c),
+            calc(var(--o) * 0.383) calc(var(--o) * -0.924) 0 var(--c),
+            calc(var(--o) * 0.707) calc(var(--o) * -0.707) 0 var(--c),
+            calc(var(--o) * 0.924) calc(var(--o) * -0.383) 0 var(--c);
     }
 
     .bg-table-header {
@@ -204,21 +360,6 @@
   to { opacity: 1; }
 }
 
-@keyframes slideInFade {
-  from {
-    opacity: 0;
-    transform: translateX(-300px);
-  }
-  to {
-    opacity: 1;
-    transform: translateX(0);
-  }
-}
-
-.slide-in-animation {
-  animation: slideInFade 0.5s ease-out;
-}
-
 /* Slide in/out */
 @keyframes slideInFromRight {
     from {
@@ -252,6 +393,41 @@
 
 .slide-out {
     animation: slideOutToRight 0.3s ease-in forwards;
+}
+
+/* Side menu: active icon nudge when a tab becomes selected. */
+@keyframes side-menu-icon-pop {
+    0%   { transform: scale(1); }
+    40%  { transform: scale(1.18); }
+    100% { transform: scale(1); }
+}
+
+.side-menu-icon-pop {
+    animation: side-menu-icon-pop 0.35s var(--side-menu-ease);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .side-menu-icon-pop { animation: none; }
+}
+
+/* Home: draws the eye to a new feature's nav tile with three red beats, then rests. An inset ring
+   so the overflow-hidden tile doesn't clip it. */
+@keyframes nav-spotlight {
+    0%   { box-shadow: inset 0 0 0 0 transparent; background-color: transparent; }
+    30%  { box-shadow: inset 0 0 0 2px var(--showdown-red); background-color: color-mix(in srgb, var(--showdown-red) 12%, transparent); }
+    100% { box-shadow: inset 0 0 0 0 transparent; background-color: transparent; }
+}
+.nav-spotlight {
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    border-radius: inherit;
+    pointer-events: none;
+    animation: nav-spotlight 1.3s ease-out 0.8s 3 backwards;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .nav-spotlight { animation: none; }
 }
 
 @keyframes card-glow-pulse {
@@ -313,7 +489,8 @@
     );
     -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
     -webkit-mask-composite: xor;
-    mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
+    mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+    mask-composite: exclude;
     animation:
         card-ring-spin 1.6s linear infinite,
         card-ring-fade-in 0.3s ease-out;
@@ -385,6 +562,22 @@
     .card-processing-logo { animation: none; }
 }
 
+/* Release Builder tile for a draft with no rendered images: blank cards deal into the fan back to
+   front, hold, then clear and deal again. Each card's resting fan transform comes in as `--fan-rest`
+   and its turn as `animation-delay`. Fill mode `backwards` keeps a card hidden until its turn; with
+   reduced motion the global rule ends the animation at once and the fan rests in place. */
+@keyframes release-building-deal {
+    0%       { opacity: 0; transform: var(--fan-rest) translateY(28%); }
+    14%      { opacity: 1; transform: var(--fan-rest); }
+    72%      { opacity: 1; transform: var(--fan-rest); }
+    86%, 100% { opacity: 0; transform: var(--fan-rest) translateY(-6%); }
+}
+
+.release-building-card {
+    transform: var(--fan-rest);
+    animation: release-building-deal 3.2s cubic-bezier(0.2, 0.8, 0.3, 1) infinite backwards;
+}
+
 /* Live-game indicators. Was declared in inline <style> blocks inside ScoreHeader and
    MatchupStrip, which re-injected the same keyframes on every render. */
 @keyframes live-pulse {
@@ -396,100 +589,53 @@
     animation: live-pulse 1.6s ease-in-out infinite;
 }
 
-@keyframes live-border-glow {
-    0%, 100% { box-shadow: 0 0 6px color-mix(in srgb, var(--live) 12%, transparent); border-color: color-mix(in srgb, var(--live) 25%, transparent); }
-    50%      { box-shadow: 0 0 18px color-mix(in srgb, var(--live) 35%, transparent); border-color: color-mix(in srgb, var(--live) 60%, transparent); }
+/* Indeterminate progress: a segment sweeps across its track (Release Builder algorithm run). */
+@keyframes indeterminate-sweep {
+    0%   { transform: translateX(-100%); }
+    100% { transform: translateX(250%); }
 }
 
-.live-border-glow {
-    animation: live-border-glow 2s ease-in-out infinite;
+.indeterminate-sweep {
+    animation: indeterminate-sweep 1.4s ease-in-out infinite;
 }
-
-/* Game playback tempo. `--motion-scale` is the one dial: playback speed divides it, reduced
-   motion collapses it. Every animated duration inside the game view is a multiple of these three
-   custom properties rather than a hardcoded duration, so speed and accessibility stay centralized.
-   Scoped to a class (not :root) because the speed value is set inline on a descendant element —
-   a custom property set below :root can't feed a :root-level calc(). */
-.playback-scope {
-    --motion-scale:  calc(1 / var(--playback-speed, 1));
-    --motion-fast:   calc(150ms * var(--motion-scale));
-    --motion-base:   calc(300ms * var(--motion-scale));
-    --motion-runner: calc(700ms * var(--motion-scale));
-}
-
-/* 0.001 rather than 0 - a genuinely-0s transition can skip firing `transitionend`, which would
-   desync usePresenceList's exit timers from what's actually on screen. */
-@media (prefers-reduced-motion: reduce) {
-    .playback-scope { --motion-scale: 0.001; }
-}
-
-@keyframes runner-out {
-    0%   { opacity: 1; transform: scale(1) rotate(0deg); filter: grayscale(0); }
-    100% { opacity: 0; transform: scale(0.8) rotate(-6deg); filter: grayscale(1); }
-}
-.runner-out { animation: runner-out var(--motion-base, 300ms) ease-in forwards; }
-
-@keyframes score-tick {
-    0%, 100% { transform: scale(1); color: var(--primary); }
-    50%      { transform: scale(1.25); color: var(--green); }
-}
-.score-tick { animation: score-tick var(--motion-base, 300ms) ease-out; }
-
-@keyframes log-row-enter {
-    from { opacity: 0; transform: translateY(-8px); }
-    to   { opacity: 1; transform: translateY(0); }
-}
-.log-row-enter { animation: log-row-enter var(--motion-base, 300ms) ease-out; }
 
 @keyframes result-pop {
     0%   { opacity: 0; transform: scale(0.7); }
     60%  { opacity: 1; transform: scale(1.08); }
     100% { opacity: 1; transform: scale(1); }
 }
-.result-pop { animation: result-pop var(--motion-base, 300ms) ease-out; }
+.result-pop { animation: result-pop 300ms ease-out; }
 
-/* Build Card button — the blue/red Showdown gradient drifts continuously so the
-   primary CTA stays alive. Wide background-size + panning background-position. */
-@keyframes showdown-gradient-pan {
-    0%   { background-position:   0% 50%; }
-    50%  { background-position: 100% 50%; }
-    100% { background-position:   0% 50%; }
+/* A field marker dropped onto a freshly mounted `GameField` (`plopIn`): falls in from above,
+   squashes on landing, springs back, and kicks up a dust ring. `transform` only, so it composes
+   with the marker's Tailwind `translate`/`scale` positioning. `backwards` rather than `both` so
+   the marker's own opacity/scale classes take over again once it lands. GameField's PLOP_* timing
+   constants must match the duration here. */
+.field-plop { animation: field-plop 550ms cubic-bezier(0.34, 1.2, 0.64, 1) backwards; }
+.field-plop::after {
+    content: '';
+    position: absolute;
+    left: 5%;
+    right: 5%;
+    bottom: -6px;
+    height: 12px;
+    border-radius: 50%;
+    border: 2px solid rgba(255, 255, 255, 0.75);
+    pointer-events: none;
+    opacity: 0;
+    animation: field-plop-dust 450ms ease-out backwards;
+    animation-delay: inherit;
 }
-
-.animated-showdown-gradient {
-    background-image: linear-gradient(
-        115deg,
-        #3b82f6,            /* blue-500 */
-        var(--showdown-blue),
-        #9a362f,
-        #ef4444,            /* red-500 */
-        var(--showdown-red),
-        #3b82f6
-    );
-    background-size: 300% 300%;
-    animation: showdown-gradient-pan 6s ease-in-out infinite;
+@keyframes field-plop {
+    0%   { opacity: 0; transform: translateY(-70%) scale(1.25); }
+    45%  { opacity: 1; transform: translateY(0) scale(1.1, 0.88); }
+    65%  { transform: translateY(-6%) scale(0.96, 1.05); }
+    100% { opacity: 1; transform: translateY(0) scale(1); }
 }
-
-@media (prefers-reduced-motion: reduce) {
-    .animated-showdown-gradient { animation: none; }
-}
-
-/* Same drifting gradient as .animated-showdown-gradient, but reading its two stops from
-   --team-gradient-from/--team-gradient-to instead of the fixed brand palette — set those inline
-   per element (e.g. a team's primary/secondary colors) to reuse the animation anywhere. */
-.animated-team-gradient {
-    background-image: linear-gradient(
-        115deg,
-        var(--team-gradient-from),
-        var(--team-gradient-to),
-        var(--team-gradient-from)
-    );
-    background-size: 300% 300%;
-    animation: showdown-gradient-pan 6s ease-in-out infinite;
-}
-
-@media (prefers-reduced-motion: reduce) {
-    .animated-team-gradient { animation: none; }
+@keyframes field-plop-dust {
+    0%, 40% { opacity: 0;   transform: scale(0.4); }
+    50%     { opacity: 0.9; transform: scale(0.7); }
+    100%    { opacity: 0;   transform: scale(1.35); }
 }
 
 /* Card highlight for the side that won the advantage on a sim plate appearance (see
@@ -566,6 +712,7 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
+    .field-plop, .field-plop::after,
     .card-advantage, .card-advantage::after, .advantage-badge-pop,
     .chart-cell-landed, .chart-cell-landed > * { animation: none; }
 }
@@ -689,16 +836,39 @@ html, body, #root {
   min-height: 100dvh;
 }
 
-/* Safe-area helpers */
-.pb-safe { padding-bottom: var(--safe-bottom); }
-.mb-safe { margin-bottom: var(--safe-bottom); }
-.fixed-bottom-safe { bottom: var(--safe-bottom); }
-
-/* dvh utility (for Tailwind gap) */
-.min-h-dvh { min-height: 100dvh; }
-
 /* Full device height utility (covers under iOS toolbars) */
 .h-lvh { height: 100lvh; }
 @supports not (height: 100lvh) {
     .h-lvh { height: 100vh; }
+}
+
+/* Keyboard focus: a navy outline, offset from the control, on anything focusable but a text field
+   (fields show focus with their navy border). Unlayered on purpose: unlayered rules beat Tailwind's
+   layered utilities, so this wins over the `outline-none` / `focus:outline-none` classes that would
+   otherwise leave keyboard users with no visible focus. See DESIGN.md (Shape and depth). */
+:where(button, a[href], summary, [role="button"], [role="tab"], [role="checkbox"], [role="switch"], [role="option"], [tabindex]:not([tabindex="-1"])):focus-visible {
+    outline: 2px solid var(--focus-ring);
+    outline-offset: 2px;
+}
+
+/* Reduced motion: decorative animation and transitions collapse to an instant (end events still
+   fire, so collapse and drawer handlers keep working). Spinners keep turning, slower, because
+   they say work is in progress; the card-processing ring keeps its slow 4s turn. Signature
+   effects (dice toss, advantage glow, playback tempo) have their own rules above. Unlayered and
+   `!important` so it beats Tailwind's animate-* and duration-* utilities. See DESIGN.md (Motion). */
+@media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+        scroll-behavior: auto !important;
+    }
+    .animate-spin, .card-processing-spinner {
+        animation-duration: 1.5s !important;
+        animation-iteration-count: infinite !important;
+    }
+    .card-processing-ring {
+        animation-duration: 4s !important;
+        animation-iteration-count: infinite !important;
+    }
 }

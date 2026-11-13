@@ -72,6 +72,8 @@ interface AuthContextType {
     syncSetting: (partial: Partial<UserSettingsDB>) => void;
 }
 
+const SETTINGS_REFETCH_MS = 5 * 60 * 1000;
+
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 /**
@@ -115,7 +117,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     const pendingSettings = useRef<Partial<UserSettingsDB>>({});
     const syncTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
     const lastSettingsFetch = useRef<number>(0);
-    const SETTINGS_REFETCH_MS = 5 * 60 * 1000;
 
     /**
      * Check if user has a username in their profile

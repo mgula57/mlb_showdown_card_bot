@@ -5,7 +5,7 @@ export default function TablePointsSummary({ totalPoints, pointsChange, backgrou
 
     return (
         <>
-            <div className="ml-auto text-[10px] font-bold text-(--quaternary) flex gap-x-2">
+            <div className="ml-auto text-[10px] font-bold tabular-nums text-(--text-tertiary) flex items-center gap-x-2">
                 <span className={`${pointsChange < 0 ? 'text-(--red)' : pointsChange > 0 ? 'text-(--green)' : ''}`}>{pointsChange > 0 ? '▲' : pointsChange < 0 ? '▼' : ''}{pointsChange !== 0 ? Math.abs(pointsChange) : ''}</span>
                 <PointsBadge points={totalPoints} bg_color={backgroundColor} className="text-[10px]"/>
             </div>

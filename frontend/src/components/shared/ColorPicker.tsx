@@ -1,3 +1,4 @@
+import { FIELD_LABEL_CLASS } from './fieldStyles';
 type ColorPickerProps = {
     label: string;
     value: string;       // "rgb(r, g, b)" or "#rrggbb"
@@ -33,7 +34,7 @@ export default function ColorPicker({ label, value, onChange }: ColorPickerProps
 
     return (
         <div className="flex flex-col gap-1">
-            <label className="text-[11px] font-semibold text-(--text-secondary) uppercase tracking-wide">
+            <label className={FIELD_LABEL_CLASS}>
                 {label}
             </label>
             <div className="flex items-center gap-2">
@@ -41,7 +42,7 @@ export default function ColorPicker({ label, value, onChange }: ColorPickerProps
                     type="color"
                     value={toInputHex(value)}
                     onChange={handleChange}
-                    className="w-8 h-8 rounded border border-(--divider) cursor-pointer p-0"
+                    className="w-8 h-8 rounded-control border border-(--divider) cursor-pointer p-0"
                 />
                 <span className="text-[12px] text-(--text-secondary) font-mono">{value}</span>
             </div>

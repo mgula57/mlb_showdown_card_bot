@@ -1,5 +1,6 @@
 import os
-from flask import Flask, jsonify, send_from_directory, request
+import traceback
+from flask import Flask, Response, jsonify, send_from_directory, request
 from flask_cors import CORS
 from dotenv import load_dotenv
 from config import Config
@@ -13,6 +14,10 @@ load_dotenv()
 
 app = Flask(__name__, static_folder='frontend/dist', static_url_path='/static')
 
+# USER IMAGE PATHS COME FROM REQUEST/CARD JSON HERE, SO ONLY ALLOW THIS REQUEST'S TEMP UPLOADS
+from mlb_showdown_bot.core.card.images import ImageSource
+ImageSource.restrict_paths_to(Config.UPLOAD_FOLDER)
+
 # CORS SETUP FOR DEVELOPMENT
 if Config.FLASK_ENV != 'production':
     CORS(app, resources={r"/*": {"origins": Config.FRONTEND_ORIGIN}})
@@ -23,6 +28,7 @@ if Config.FLASK_ENV != 'production':
 
 # Register blueprints
 from mlb_showdown_bot.api.cards import cards_bp
+from mlb_showdown_bot.core.set_builder.release_share import ReleaseOpenGraph
 from mlb_showdown_bot.api.search import search_bp
 from mlb_showdown_bot.api.card_db import card_db_bp
 from mlb_showdown_bot.api.feature_status import feature_status_bp
@@ -37,6 +43,8 @@ from mlb_showdown_bot.api.user_teams import user_teams_bp
 from mlb_showdown_bot.api.admin_teams import admin_teams_bp
 from mlb_showdown_bot.api.admin_challenges import admin_challenges_bp
 from mlb_showdown_bot.api.sim import sim_bp
+from mlb_showdown_bot.api.releases import releases_bp
+from mlb_showdown_bot.api.comments import comments_bp
 
 app.register_blueprint(cards_bp, url_prefix='/api')
 app.register_blueprint(search_bp, url_prefix='/api')
@@ -53,6 +61,8 @@ app.register_blueprint(user_teams_bp, url_prefix='/api')
 app.register_blueprint(admin_teams_bp, url_prefix='/api')
 app.register_blueprint(admin_challenges_bp, url_prefix='/api')
 app.register_blueprint(sim_bp, url_prefix='/api')
+app.register_blueprint(releases_bp, url_prefix='/api')
+app.register_blueprint(comments_bp, url_prefix='/api')
 
 # Warm up DB connection pools at startup so the first request doesn't
 # pay the TCP + SSL handshake cost.
@@ -106,6 +116,20 @@ def add_cache_headers(resp):
 
     return resp
 
+_index_html_cache: dict[str, tuple[float, str]] = {}
+
+def _index_html() -> str | None:
+    """The built index.html, re-read only when a new build replaces it."""
+    index_path = os.path.join(app.static_folder, 'index.html')
+    if not os.path.exists(index_path):
+        return None
+    modified = os.path.getmtime(index_path)
+    cached = _index_html_cache.get(index_path)
+    if not cached or cached[0] != modified:
+        with open(index_path, encoding='utf-8') as file:
+            _index_html_cache[index_path] = (modified, file.read())
+    return _index_html_cache[index_path][1]
+
 @app.route('/', defaults={'path': ''})
 @app.route('/<path:path>')
 def serve_react(path):
@@ -126,6 +150,15 @@ def serve_react(path):
     if path and os.path.exists(os.path.join(app.static_folder, path)):
         return send_from_directory(app.static_folder, path)
     
+    # Release pages get link-preview tags, since chat apps don't run the app's JavaScript
+    try:
+        index_html = _index_html()
+        page = ReleaseOpenGraph.page(path, index_html, request.host_url) if index_html else None
+        if page:
+            return Response(page, mimetype='text/html')
+    except Exception:
+        traceback.print_exc()
+
     # Serve index.html for all other routes
     try:
         return send_from_directory(app.static_folder, 'index.html')

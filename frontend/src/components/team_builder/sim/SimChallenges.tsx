@@ -3,6 +3,8 @@ import { fetchChallenges, type ChallengeInstance } from '../../../api/sim';
 import { ChallengeCard, ChallengeCardSkeleton } from './ChallengeCard';
 import { byChallengeCategory } from './challengeCategory';
 
+import { InlineError } from '../../shared/InlineError';
+import { EmptyState } from '../../shared/EmptyState';
 /** As many placeholder cards as the "usually 3-6 live at once" set `ChallengeCard` is sized for. */
 const SKELETON_COUNT = 4;
 
@@ -28,9 +30,9 @@ export function SimChallenges({ token, onNewTeam, onUseExistingTeam, onSelectCha
 
     if (error) {
         return (
-            <div className="mx-4 text-[12px] text-red-400 px-3 py-2 rounded-lg border border-red-400/30 bg-red-400/5">
+            <InlineError size="md" className="mx-4">
                 {error}
-            </div>
+            </InlineError>
         );
     }
 
@@ -44,9 +46,9 @@ export function SimChallenges({ token, onNewTeam, onUseExistingTeam, onSelectCha
 
     if (challenges.length === 0) {
         return (
-            <p className="text-[13px] text-(--text-tertiary) py-8 text-center">
-                No challenges are live right now — check back soon.
-            </p>
+            <EmptyState size="panel" title="No live challenges.">
+                New challenges rotate in every week. Check back soon.
+            </EmptyState>
         );
     }
 

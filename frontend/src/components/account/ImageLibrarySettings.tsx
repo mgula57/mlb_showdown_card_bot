@@ -2,7 +2,8 @@
  * @fileoverview Image Library Settings
  *
  * Account section for connecting Google Drive folders as player image libraries and choosing
- * the order libraries are searched when a card uses "Auto" player images.
+ * the order libraries are searched when a card uses "Auto" player images. Its pieces
+ * (`ConnectDriveButton`, `ImageLibraryList`) are also used by `ImageLibrariesModal`.
  */
 
 import React, { useEffect, useState } from 'react';
@@ -16,20 +17,24 @@ import { IMAGE_LIBRARIES_SECTION_ID, useImageLibraries } from './useImageLibrari
 import type { OrderedImageLibrary } from './useImageLibraries';
 import { deleteImageLibrary, saveImageLibrary, updateImageLibraryOrder } from '../../api/imageLibraries';
 
+import { FIELD_LABEL_CLASS } from '../shared/fieldStyles';
+import { buttonClass } from '../shared/buttonStyles';
+import { smoothScrollBehavior } from '../../hooks/usePrefersReducedMotion';
+import { EmptyState } from '../shared/EmptyState';
 const MAX_LIBRARIES = 5; // Matches UserImageLibraries.MAX_LIBRARIES
 
-const iconButton = 'p-1.5 rounded-md text-gray-500 hover:text-secondary hover:bg-background-tertiary cursor-pointer disabled:cursor-not-allowed disabled:opacity-30';
+const iconButton = 'p-1.5 rounded-control text-(--text-tertiary) hover:text-(--text-secondary) hover:bg-(--background-tertiary) cursor-pointer disabled:cursor-not-allowed disabled:opacity-30';
 
 const formatDate = (iso: string | null) => iso
     ? new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
     : 'never';
 
 const LibraryRowSkeleton: React.FC = () => (
-    <div className="flex items-center gap-3 rounded-lg border border-form-element p-3 animate-pulse">
-        <div className="w-6 h-6 rounded-full bg-background-tertiary" />
+    <div className="flex items-center gap-3 rounded-card border border-form-element p-3 animate-pulse">
+        <div className="w-6 h-6 rounded-plate bg-(--background-tertiary)" />
         <div className="flex-1 space-y-1.5">
-            <div className="h-4 w-40 rounded bg-background-tertiary" />
-            <div className="h-3 w-56 rounded bg-background-tertiary" />
+            <div className="h-4 w-40 rounded-plate bg-(--background-tertiary)" />
+            <div className="h-3 w-56 rounded-plate bg-(--background-tertiary)" />
         </div>
     </div>
 );
@@ -52,15 +57,15 @@ const LibraryRow: React.FC<LibraryRowProps> = ({ entry, rank, isFirst, isLast, i
         ? `${library.recognized_image_count} of ${library.image_count} images usable · verified ${formatDate(library.verified_at)}`
         : 'Official Showdown Bot player images';
     return (
-        <div className="rounded-lg border border-form-element p-3">
+        <div className="rounded-card border border-form-element p-3">
             <div className="flex items-center gap-3">
-                <span className="w-6 h-6 shrink-0 rounded-full bg-accent text-primary text-xs font-bold flex items-center justify-center">{rank}</span>
+                <span className="w-6 h-6 shrink-0 rounded-plate bg-(--showdown-blue-fill) text-white text-xs font-bold tabular-nums flex items-center justify-center">{rank}</span>
                 {entry.isShowdownBot
-                    ? <FaRobot className="shrink-0 text-gray-500" />
-                    : <FaGoogleDrive className="shrink-0 text-gray-500" />}
+                    ? <FaRobot className="shrink-0 text-(--text-tertiary)" />
+                    : <FaGoogleDrive className="shrink-0 text-(--text-tertiary)" />}
                 <div className="flex-1 min-w-0">
                     <ImageLibraryName name={entry.name} isShowdownBot={entry.isShowdownBot} className="text-secondary font-medium" />
-                    <p className="text-xs text-gray-500 truncate">{subtitle}</p>
+                    <p className="text-xs text-(--text-tertiary) truncate">{subtitle}</p>
                 </div>
                 <div className="flex items-center shrink-0">
                     {library && (
@@ -81,31 +86,58 @@ const LibraryRow: React.FC<LibraryRowProps> = ({ entry, rank, isFirst, isLast, i
                     </button>
                 </div>
             </div>
-            {rowError && <p className="text-xs text-red-500 mt-2 pl-9">{rowError}</p>}
+            {rowError && <p className="text-xs text-(--red) mt-2 pl-9">{rowError}</p>}
         </div>
     );
 };
 
-export const ImageLibrarySettings: React.FC = () => {
-    const { token, overview, ordered, error, isLoading, setOverview } = useImageLibraries();
-    const [isSetupOpen, setIsSetupOpen] = useState(false);
-    const [busyId, setBusyId] = useState<string | null>(null);
-    const [rowErrors, setRowErrors] = useState<Record<string, string>>({});
-    const [orderError, setOrderError] = useState<string | null>(null);
-    const location = useLocation();
+/** One line on what image libraries do, with a link to the image guide. */
+export const ImageLibrariesDescription: React.FC = () => (
+    <>Use player images from your own Google Drive folders when a card's Player Image is set to Auto. <ImageLibraryGuideLink>How to make images</ImageLibraryGuideLink></>
+);
 
-    // Pages stay mounted (hidden) across routes, so the browser won't jump to the hash on its own
-    useEffect(() => {
-        if (location.pathname !== '/account' || location.hash !== `#${IMAGE_LIBRARIES_SECTION_ID}`) return;
-        const timeout = setTimeout(() => {
-            document.getElementById(IMAGE_LIBRARIES_SECTION_ID)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-        }, 50);
-        return () => clearTimeout(timeout);
-    }, [location.pathname, location.hash, location.key]);
+/** Opens the Google Drive folder setup flow. */
+export const ConnectDriveButton: React.FC<{ size?: 'sm' | 'md' }> = ({ size = 'md' }) => {
+    const { token, overview, isLoading, setOverview } = useImageLibraries();
+    const [isSetupOpen, setIsSetupOpen] = useState(false);
 
     const libraryCount = overview?.libraries.length ?? 0;
     const isUnavailable = !!overview && !overview.service_account_email;
 
+    return (
+        <>
+            <button
+                type="button"
+                onClick={() => setIsSetupOpen(true)}
+                disabled={isLoading || isUnavailable || libraryCount >= MAX_LIBRARIES}
+                title={libraryCount >= MAX_LIBRARIES ? `You can connect up to ${MAX_LIBRARIES} folders` : undefined}
+                className={buttonClass('primary', size)}
+            >
+                <FaPlus className="w-3 h-3" />
+                <span className="hidden sm:inline">Connect Google Drive</span>
+                <span className="sm:hidden">Connect</span>
+            </button>
+            {isSetupOpen && token && overview?.service_account_email && (
+                <DriveLibrarySetupModal
+                    token={token}
+                    serviceAccountEmail={overview.service_account_email}
+                    onClose={() => setIsSetupOpen(false)}
+                    onSaved={setOverview}
+                />
+            )}
+        </>
+    );
+};
+
+/** The user's libraries in search order, with reorder, re-test and remove controls. */
+export const ImageLibraryList: React.FC = () => {
+    const { token, overview, ordered, error, isLoading, setOverview } = useImageLibraries();
+    const [busyId, setBusyId] = useState<string | null>(null);
+    const [rowErrors, setRowErrors] = useState<Record<string, string>>({});
+    const [orderError, setOrderError] = useState<string | null>(null);
+
+    const libraryCount = overview?.libraries.length ?? 0;
+    const isUnavailable = !!overview && !overview.service_account_email;
     const setRowError = (id: string, message: string | null) => setRowErrors(prev => {
         const next = { ...prev };
         if (message) next[id] = message; else delete next[id];
@@ -154,30 +186,10 @@ export const ImageLibrarySettings: React.FC = () => {
         }
     };
 
-    const connectButton = (
-        <button
-            type="button"
-            onClick={() => setIsSetupOpen(true)}
-            disabled={isLoading || isUnavailable || libraryCount >= MAX_LIBRARIES}
-            title={libraryCount >= MAX_LIBRARIES ? `You can connect up to ${MAX_LIBRARIES} folders` : undefined}
-            className="shrink-0 flex items-center gap-2 px-3 py-2 rounded-lg bg-accent text-primary text-sm font-semibold cursor-pointer disabled:cursor-not-allowed disabled:opacity-50"
-        >
-            <FaPlus className="w-3 h-3" />
-            <span className="hidden sm:inline">Connect Google Drive</span>
-            <span className="sm:hidden">Connect</span>
-        </button>
-    );
-
     return (
-        <AccountSection
-            id={IMAGE_LIBRARIES_SECTION_ID}
-            title="Image Libraries"
-            icon={<FaImages />}
-            description={<>Use player images from your own Google Drive folders when a card's Player Image is set to Auto. <ImageLibraryGuideLink>How to make images</ImageLibraryGuideLink></>}
-            action={connectButton}
-        >
-            {error && <p className="text-sm text-red-500">{error}</p>}
-            {isUnavailable && <p className="text-sm text-gray-500 mb-3">Google Drive libraries are temporarily unavailable.</p>}
+        <>
+            {error && <p className="text-sm text-(--red)">{error}</p>}
+            {isUnavailable && <p className="text-sm text-(--text-tertiary) mb-3">Google Drive libraries are temporarily unavailable.</p>}
 
             {isLoading ? (
                 <div className="space-y-2">
@@ -186,8 +198,8 @@ export const ImageLibrarySettings: React.FC = () => {
                 </div>
             ) : overview && (
                 <div className="space-y-2">
-                    <p className="text-sm font-medium text-secondary">Search order</p>
-                    <p className="text-xs text-gray-500 -mt-1 mb-2">
+                    <p className={FIELD_LABEL_CLASS}>Search order</p>
+                    <p className="text-xs text-(--text-tertiary) -mt-1 mb-2">
                         Libraries are checked top to bottom and the first one with a matching image is used.
                     </p>
                     {ordered.map((entry, index) => (
@@ -204,23 +216,39 @@ export const ImageLibrarySettings: React.FC = () => {
                             onRemove={() => handleRemove(entry)}
                         />
                     ))}
-                    {orderError && <p className="text-xs text-red-500">{orderError}</p>}
+                    {orderError && <p className="text-xs text-(--red)">{orderError}</p>}
                     {libraryCount === 0 && (
-                        <p className="text-xs text-gray-500 pt-1">
-                            No folders connected yet. Connect a Google Drive folder to use your own player images.
-                        </p>
+                        <EmptyState size="panel" title="No folders yet.">
+                            Connect a Google Drive folder to use your own player images on cards.
+                        </EmptyState>
                     )}
                 </div>
             )}
+        </>
+    );
+};
 
-            {isSetupOpen && token && overview?.service_account_email && (
-                <DriveLibrarySetupModal
-                    token={token}
-                    serviceAccountEmail={overview.service_account_email}
-                    onClose={() => setIsSetupOpen(false)}
-                    onSaved={setOverview}
-                />
-            )}
+export const ImageLibrarySettings: React.FC = () => {
+    const location = useLocation();
+
+    // Pages stay mounted (hidden) across routes, so the browser won't jump to the hash on its own
+    useEffect(() => {
+        if (location.pathname !== '/account' || location.hash !== `#${IMAGE_LIBRARIES_SECTION_ID}`) return;
+        const timeout = setTimeout(() => {
+            document.getElementById(IMAGE_LIBRARIES_SECTION_ID)?.scrollIntoView({ behavior: smoothScrollBehavior(), block: 'start' });
+        }, 50);
+        return () => clearTimeout(timeout);
+    }, [location.pathname, location.hash, location.key]);
+
+    return (
+        <AccountSection
+            id={IMAGE_LIBRARIES_SECTION_ID}
+            title="Image Libraries"
+            icon={<FaImages />}
+            description={<ImageLibrariesDescription />}
+            action={<ConnectDriveButton />}
+        >
+            <ImageLibraryList />
         </AccountSection>
     );
 };
