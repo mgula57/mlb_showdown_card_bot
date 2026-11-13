@@ -71,7 +71,7 @@ class Bullpen(PlayerGroup):
     players: list[SimPitcher]
     pitching_log: PitchingLog = Field(default_factory=PitchingLog)
     closer_id: Optional[str] = None            # EXPLICIT CLOSER FROM BUILDER TEAM "CP" ROLE
-    role_order: dict[str, int] = {}            # OPTIONAL EXPLICIT BULLPEN RANKING FROM BUILDER ROLES (SU < MR < LONG)
+    role_order: dict[str, int] = {}            # OPTIONAL BULLPEN RANKING CHOSEN BY THE BUILDER TEAM'S OWNER (LOWER RANKS HIGHER)
     # ARMS ONLY USED ONCE EVERY OTHER AVAILABLE RELIEVER IS GONE - E.G. A REAL MLB GAME'S OFF-DAY
     # STARTERS, WHO SIT ON THE ACTIVE ROSTER BUT AREN'T REALLY PART OF TONIGHT'S BULLPEN.
     last_resort_ids: set[str] = set()
@@ -208,6 +208,16 @@ class Rotation(PlayerGroup):
     @property
     def current_pitcher(self) -> SimPitcher:
         return self.players[self.pitcher_index]
+
+    def move_to_front(self, player_id: str) -> bool:
+        """Puts one pitcher first in the rotation, for a game where his start is chosen. Returns
+        False, changing nothing, if he isn't in it."""
+        pitcher = self.player_by_id(player_id)
+        if pitcher is None:
+            return False
+        self.players.remove(pitcher)
+        self.players.insert(0, pitcher)
+        return True
 
     # "4 DAYS REST" IN BASEBALL PARLANCE = 5 CALENDAR DAYS BETWEEN STARTS. USED ONLY FOR
     # POSTSEASON STARTER SELECTION (`starter_for_date`) - THE REGULAR SEASON STILL USES THE PLAIN

@@ -13,7 +13,7 @@ import type { SimGameLogEntryJson } from "./fromSim";
 /** Mirrors `stats.py`'s `_BUILDER_ID_PREFIX` / `real_card_id` — the log carries the engine's
  *  (possibly builder-prefixed) ids, the box score carries the bare card id. */
 const BUILDER_ID_PREFIX = "builder@";
-const realCardId = (simId: string): string =>
+export const realCardId = (simId: string): string =>
     simId.startsWith(BUILDER_ID_PREFIX) ? simId.slice(simId.lastIndexOf("@") + 1) : simId;
 
 const HIT_RESULTS = new Set(["1b", "1b+", "2b", "3b", "hr"]);

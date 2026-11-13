@@ -1,6 +1,14 @@
 @import "tailwindcss";
 
 /* Design language: see frontend/DESIGN.md before adding or changing anything below. */
+
+/* Viewport-height gates for height-locked app shells (header pinned, panes scroll inside). Wide but
+   short screens (foldable inner screens, landscape tablets, small laptop windows) pass the width
+   breakpoint but leave too little room under a pinned header, so the lock also requires `tall`;
+   on `short` the header scrolls away and the pane area alone takes the viewport. See DESIGN.md. */
+@custom-variant tall (@media (height >= 45rem));
+@custom-variant short (@media (height < 45rem)); /* mirrored by SHORT_SCREEN_QUERY in hooks/useMediaQuery.ts */
+
 @theme {
     --container-field-split: 600px;
     --breakpoint-xs: 30rem; /* or 480px */

@@ -7,9 +7,12 @@ export const COMMUNITY_PAGE_SIZE = 24;
 const SEARCH_DEBOUNCE_MS = 300;
 
 /** Every listed community release for the Community list, the viewer's own included, sorted and searched on the server,
- *  a page at a time. A new sort or search starts over from the first page; coming back to the list (re-enabling)
- *  keeps the pages already loaded. */
-export function useCommunityReleases(sort: PublicReleaseSort, search: string, enabled: boolean) {
+ *  a page at a time. Holds the list's sort and search. A new sort, search or viewer starts over from the first page;
+ *  coming back to the list (re-enabling) keeps the pages already loaded. Keyed on the user id, not the token, so routine
+ *  token refreshes don't reload it. */
+export function useCommunityReleases(enabled: boolean, token?: string, userId?: string) {
+    const [sort, setSort] = useState<PublicReleaseSort>('popular');
+    const [search, setSearch] = useState('');
     const [releases, setReleases] = useState<Release[] | null>(null);
     const [loading, setLoading] = useState(false);
     const [hasMore, setHasMore] = useState(false);
@@ -18,7 +21,7 @@ export function useCommunityReleases(sort: PublicReleaseSort, search: string, en
     const requestSeq = useRef(0);
     // The sort + search the loaded pages are for, so re-enabling with the same ones doesn't refetch
     const loadedQueryRef = useRef<string | null>(null);
-    const query = `${sort}|${debouncedSearch}`;
+    const query = `${sort}|${debouncedSearch}|${userId ?? ''}`;
 
     useEffect(() => {
         const timer = setTimeout(() => setDebouncedSearch(search), SEARCH_DEBOUNCE_MS);
@@ -33,7 +36,7 @@ export function useCommunityReleases(sort: PublicReleaseSort, search: string, en
         try {
             const page = await fetchPublicReleases(COMMUNITY_PAGE_SIZE, offset, {
                 section: 'community', sort, search: debouncedSearch,
-            });
+            }, token);
             if (seq !== requestSeq.current) return;
             setReleases(prev => {
                 if (offset === 0 || !prev) return page;
@@ -50,7 +53,7 @@ export function useCommunityReleases(sort: PublicReleaseSort, search: string, en
         } finally {
             if (seq === requestSeq.current) setLoading(false);
         }
-    }, [query, sort, debouncedSearch]);
+    }, [query, sort, debouncedSearch, token]);
 
     useEffect(() => {
         if (enabled && loadedQueryRef.current !== query) load(0);
@@ -64,5 +67,14 @@ export function useCommunityReleases(sort: PublicReleaseSort, search: string, en
         setReleases(prev => prev && prev.flatMap(release => fn(release) ?? []));
     }, []);
 
-    return { releases, loading, hasMore, error, loadMore, mapReleases, searching: debouncedSearch.trim() !== '' };
+    /** Reloads from the first page the next time the list is shown, for a change `mapReleases` can't
+     *  apply in place (a release that should now join the list). */
+    const invalidate = useCallback(() => { loadedQueryRef.current = null; }, []);
+
+    return {
+        releases, loading, hasMore, error, loadMore, mapReleases, invalidate,
+        sort, setSort, search, setSearch, searching: debouncedSearch.trim() !== '',
+    };
 }
+
+export type CommunityReleases = ReturnType<typeof useCommunityReleases>;

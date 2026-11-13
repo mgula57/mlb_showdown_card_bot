@@ -1779,9 +1779,11 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
                     className="relative flex-1 min-w-0 md:overflow-y-auto"
                     style={{ marginRight: showPlayerDetailSidebar ? sidebarWidth : 0 }}
                 >
+                    {/* auto-fill (not auto-fit) keeps the empty tracks, so one or two results stay
+                        column-width instead of stretching across the whole results area. */}
                     <div className={`py-2 px-3 grid gap-3 md:gap-4 ${isThumbnailView
                         ? 'grid-cols-[repeat(auto-fill,minmax(140px,1fr))] md:grid-cols-[repeat(auto-fill,minmax(170px,1fr))]'
-                        : 'grid-cols-[repeat(auto-fit,minmax(300px,1fr))]'}`}
+                        : 'grid-cols-[repeat(auto-fill,minmax(300px,1fr))]'}`}
                     >
                         {/* Skeleton placeholders while loading with no cards yet */}
                         {showSkeletons && Array.from({ length: 30 }, (_, i) => (

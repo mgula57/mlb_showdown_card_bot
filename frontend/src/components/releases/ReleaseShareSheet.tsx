@@ -5,26 +5,29 @@ import { cardImagePublicUrl } from '../../api/supabase';
 import { Modal } from '../shared/Modal';
 import { Eyebrow } from '../shared/Eyebrow';
 import { InlineError } from '../shared/InlineError';
+import { RetryableError } from '../shared/RetryableError';
 import { buttonClass } from '../shared/buttonStyles';
 import { fieldClass } from '../shared/fieldStyles';
 import { useCopyReleaseLink } from './useCopyReleaseLink';
 import { ReleaseSharingSettings } from './ReleaseSharingSettings';
+import { isPrivateRelease } from './releaseVisibility';
 
 type ReleaseShareSheetProps = {
     release: Release;
     onClose: () => void;
     /** Shown above the title, e.g. "Published · v1" right after publishing. */
     eyebrow?: string;
-    /** The owner's session, to switch between listed and link-only from here. */
+    /** The owner's session, to change who can find it from here. */
     ownerToken?: string;
     onReleaseUpdated?: (release: Release) => void;
 };
 
 /** The release's preview image, asked for when the sheet opens: the server renders it if it's missing
- *  or out of date (e.g. a release published before share images, or a render that failed at publish). */
-function useShareImage(release: Release) {
+ *  or out of date (e.g. a release published before share images, or a render that failed at publish).
+ *  Not while `enabled` is false (a private release has no public preview). */
+function useShareImage(release: Release, enabled: boolean) {
     const [path, setPath] = useState<string | null>(release.share_image_path);
-    const [loading, setLoading] = useState(true);
+    const [loading, setLoading] = useState(enabled);
     const [error, setError] = useState<string | null>(null);
 
     const load = useCallback(async () => {
@@ -39,7 +42,7 @@ function useShareImage(release: Release) {
         }
     }, [release.id]);
 
-    useEffect(() => { load(); }, [load]);
+    useEffect(() => { if (enabled) load(); }, [load, enabled]);
 
     return { path, loading, error, retry: load };
 }
@@ -47,10 +50,11 @@ function useShareImage(release: Release) {
 /** Everything for sending a release to someone: its short link (copied, or handed to the phone's
  *  share sheet) and the preview image chat apps show for it, which can also be saved. */
 export function ReleaseShareSheet({ release, onClose, eyebrow, ownerToken, onReleaseUpdated }: ReleaseShareSheetProps) {
-    const link = useCopyReleaseLink(release.slug);
+    const link = useCopyReleaseLink(release.share_path);
     const [downloading, setDownloading] = useState(false);
     const [error, setError] = useState<string | null>(null);
-    const shareImage = useShareImage(release);
+    const isPrivate = isPrivateRelease(release);
+    const shareImage = useShareImage(release, !isPrivate);
     const imageUrl = shareImage.path ? cardImagePublicUrl(shareImage.path) : null;
     const [loadedUrl, setLoadedUrl] = useState<string | null>(null);
     const imageReady = !!imageUrl && loadedUrl === imageUrl;
@@ -99,6 +103,12 @@ export function ReleaseShareSheet({ release, onClose, eyebrow, ownerToken, onRel
             }
         >
             <div className="flex flex-col gap-4 p-4">
+                {isPrivate ? (
+                    <p className="text-[13px] text-(--text-secondary)">
+                        Only you can open this release. Pick Listed or Link only to share it; the link stays the same.
+                    </p>
+                ) : (
+                <>
                 {imageUrl ? (
                     <div className="relative w-full aspect-1200/630 rounded-card bg-(--background-tertiary) overflow-hidden">
                         <img
@@ -116,10 +126,7 @@ export function ReleaseShareSheet({ release, onClose, eyebrow, ownerToken, onRel
                         )}
                     </div>
                 ) : shareImage.error ? (
-                    <div className="flex flex-col items-start gap-2">
-                        <InlineError size="md" icon>{shareImage.error}</InlineError>
-                        <button type="button" onClick={shareImage.retry} className={buttonClass('secondary', 'sm')}>Try again</button>
-                    </div>
+                    <RetryableError onRetry={shareImage.retry}>{shareImage.error}</RetryableError>
                 ) : (
                     <div className="flex flex-col gap-1.5">
                         <div aria-hidden className={`w-full aspect-1200/630 rounded-card bg-(--background-tertiary) flex items-center justify-center ${shareImage.loading ? 'animate-pulse' : ''}`}>
@@ -156,6 +163,8 @@ export function ReleaseShareSheet({ release, onClose, eyebrow, ownerToken, onRel
                         </button>
                     )}
                 </div>
+                </>
+                )}
 
                 {ownerToken && onReleaseUpdated && (
                     <ReleaseSharingSettings release={release} token={ownerToken} onReleaseUpdated={onReleaseUpdated} />

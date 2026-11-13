@@ -45,6 +45,7 @@ from mlb_showdown_bot.api.admin_challenges import admin_challenges_bp
 from mlb_showdown_bot.api.sim import sim_bp
 from mlb_showdown_bot.api.releases import releases_bp
 from mlb_showdown_bot.api.leagues import leagues_bp
+from mlb_showdown_bot.api.comments import comments_bp
 
 app.register_blueprint(cards_bp, url_prefix='/api')
 app.register_blueprint(search_bp, url_prefix='/api')
@@ -63,6 +64,7 @@ app.register_blueprint(admin_challenges_bp, url_prefix='/api')
 app.register_blueprint(sim_bp, url_prefix='/api')
 app.register_blueprint(releases_bp, url_prefix='/api')
 app.register_blueprint(leagues_bp, url_prefix='/api')
+app.register_blueprint(comments_bp, url_prefix='/api')
 
 # Warm up DB connection pools at startup so the first request doesn't
 # pay the TCP + SSL handshake cost.

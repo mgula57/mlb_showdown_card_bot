@@ -3,8 +3,8 @@ import os
 import threading
 import uuid
 import re
-import secrets
 from contextlib import contextmanager
+from urllib.parse import quote
 from pprint import pprint
 import psycopg2
 import traceback
@@ -404,14 +404,27 @@ class PostgresDB:
         if pool is not None:
             conn = None
             try:
-                conn = pool.getconn()
-                # Validate the connection is still alive (catches stale connections after dyno sleep)
-                try:
-                    conn.cursor().execute("SELECT 1")
-                except Exception:
-                    pool.putconn(conn, close=True)
-                    conn = None
+                # Validate the connection is still alive (catches stale connections after dyno
+                # sleep or the pooler dropping idle SSL connections). Several pooled connections
+                # can be dead at once, so keep validating replacements instead of trusting the
+                # second one.
+                last_probe_error: Exception | None = None
+                for _ in range(pool.maxconn + 1):
                     conn = pool.getconn()
+                    try:
+                        if conn.closed:
+                            raise psycopg2.OperationalError("connection closed")
+                        with conn.cursor() as probe:
+                            probe.execute("SELECT 1")
+                        break
+                    except Exception as probe_error:
+                        last_probe_error = probe_error
+                        pool.putconn(conn, close=True)
+                        conn = None
+                if conn is None:
+                    raise psycopg2.OperationalError(
+                        f"no live pooled connection available (last probe error: {last_probe_error!r})"
+                    )
                 # Roll back any open transaction before setting autocommit
                 # (psycopg2 starts a transaction implicitly; setting autocommit inside one raises ProgrammingError)
                 if not conn.autocommit:
@@ -944,6 +957,27 @@ class PostgresDB:
 
         return {row['bref_id']: row['career_war'] or 0.0 for row in raw_data}
 
+    def count_all_stars(self, years: List[int], teams: Optional[List[str]] = None) -> int:
+        """Distinct All-Star cards in `years` (optionally on `teams`) - the size of an All-Star Game
+        set's pool. A player counts once across showdown sets and years, but a two-way player
+        (ex: Ohtani) with both a hitter and a pitcher card counts once per player type."""
+
+        if not years:
+            return 0
+
+        team_clause = sql.SQL("AND team::text = ANY(%s)") if teams else sql.SQL("")
+        query = sql.SQL("""
+            SELECT COUNT(DISTINCT (bref_id, player_type))::int AS all_star_count
+            FROM card_bot
+            WHERE
+                year::int = ANY(%s)
+                AND 'AS' = ANY(awards_list)
+                {team_clause}
+        """).format(team_clause=team_clause)
+        filter_values = (list(years), list(teams)) if teams else (list(years),)
+        raw_data = self.execute_query(query=query, filter_values=filter_values)
+        return raw_data[0]['all_star_count'] if raw_data else 0
+
     def fetch_cards_bot(self, filters: dict = {}) -> list[ExploreDataRecord]:
         """Fetch all explore data from the database with support for lists and min/max filtering."""
 
@@ -1036,7 +1070,7 @@ class PostgresDB:
         if not edition_ids and not lookup_ids:
             return None
         if edition_ids:
-            scope_clause = sql.SQL("e.id::text = ANY(%s) AND rc.retired_at IS NULL AND (e.is_published OR r.created_by = %s)")
+            scope_clause = sql.SQL("e.id::text = ANY(%s) AND rc.retired_at IS NULL AND ((e.is_published AND r.visibility <> 'private') OR r.created_by = %s)")
             scope_values = [edition_ids, user_id]
         else:
             scope_clause = sql.SQL("rc.id::text = ANY(%s)")
@@ -4597,7 +4631,7 @@ class PostgresDB:
                 PRIMARY KEY (id, showdown_set, showdown_bot_version)
             );
         """
-        added_columns = ['points_vs integer', 'points_change_yoy_vs integer', 'speed_vs integer', 'speed_letter_vs text', 'speed_full_vs text', 'speed_or_ip_vs integer']
+        added_columns = ["status text DEFAULT 'final'",'points_vs integer','points_change_yoy_vs integer', 'speed_vs integer', 'speed_letter_vs text', 'speed_full_vs text', 'speed_or_ip_vs integer']
 
         # SHOOT MESSAGE TO USER WHILE THE VIEW IS REBUILDING (IF DROPPED)
         if drop_existing:
@@ -4906,8 +4940,10 @@ class PostgresDB:
             ("sim_lobby",                 self.build_sim_lobby_tables),
             ("challenge tables",          self.build_challenge_tables),
             ("sim_game",                  self.build_sim_game_table),
+            ("sim_faceoff",               self.build_sim_faceoff_tables),
             ("releases",                  self.build_releases_table),
             ("league tables",             self.build_league_tables),
+            ("comments",                  self.build_comments_table),
             ("historical team tables",   self.build_historical_team_tables),
             ("era team tables",           self.build_era_team_tables),
             ("card_bot indexes",          self.build_card_bot_indexes),
@@ -5750,6 +5786,7 @@ class PostgresDB:
             t.primary_color, t.secondary_color,
             t.is_public, t.source, t.logo_url, t.is_archived,
             t.pts_limit, t.roster_size, t.min_bench, t.min_bullpen, t.num_starters, t.bench_pts_multiplier,
+            t.bullpen_order_custom,
             t.created_at, t.updated_at, t.allowed_sets, t.allowed_sets_by_source, t.player_filters, t.allowed_card_sources,
             t.origin_template_id, t.creation_source,
             t.view_count, t.like_count, t.fork_count, t.forked_from_id,
@@ -6016,6 +6053,14 @@ class PostgresDB:
             cur.execute("""
                 ALTER TABLE internal.user_teams
                     ADD COLUMN IF NOT EXISTS is_archived BOOLEAN NOT NULL DEFAULT FALSE;
+            """)
+            # Whether the owner has ordered the bullpen by hand. The order itself is the roster's
+            # `sort_order`, which exists on every team, so this is what separates a chosen order
+            # from a roster that merely happens to sit in draft order. FALSE leaves the sim's
+            # default ranking alone, so a team that never touches it plays exactly as before.
+            cur.execute("""
+                ALTER TABLE internal.user_teams
+                    ADD COLUMN IF NOT EXISTS bullpen_order_custom BOOLEAN NOT NULL DEFAULT FALSE;
             """)
             # How the team was first created, so it can be filtered later. Free-form text set by
             # the create route: 'new_team' (plain New Team button), 'challenge' (the New Team
@@ -6612,6 +6657,7 @@ class PostgresDB:
         'name', 'abbreviation', 'primary_color', 'secondary_color',
         'is_public', 'logo_url', 'is_archived',
         'pts_limit', 'roster_size', 'min_bench', 'min_bullpen', 'num_starters', 'bench_pts_multiplier',
+        'bullpen_order_custom',
         'allowed_sets', 'allowed_sets_by_source', 'player_filters', 'allowed_card_sources',
         'origin_template_id', 'creation_source', 'forked_from_id',
     }
@@ -6748,7 +6794,8 @@ class PostgresDB:
                     created_by      TEXT NOT NULL,
                     is_official     BOOLEAN NOT NULL DEFAULT FALSE,
                     fork_parent_id  UUID REFERENCES internal.releases(id) ON DELETE SET NULL,
-                    slug            TEXT UNIQUE NOT NULL,
+                    -- Unique per owner (uq_releases_owner_slug), see `_generate_release_slug`
+                    slug            TEXT NOT NULL,
                     default_showdown_set TEXT,
                     created_at      TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
                     updated_at      TIMESTAMP WITH TIME ZONE DEFAULT NOW()
@@ -6772,6 +6819,25 @@ class PostgresDB:
             cur.execute("""
                 CREATE INDEX IF NOT EXISTS idx_releases_fork_parent_id
                     ON internal.releases (fork_parent_id);
+            """)
+            # Admin-curated groupings of official releases, shown as their own shelf on the Release Builder
+            # list (like team collections). A release joins one through `collection_slug`; `collection_sort_index`
+            # orders its tile within the shelf.
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS internal.release_collection (
+                    slug         TEXT PRIMARY KEY,
+                    title        TEXT NOT NULL,
+                    description  TEXT,
+                    sort_index   INT NOT NULL DEFAULT 0,
+                    is_visible   BOOLEAN NOT NULL DEFAULT TRUE,
+                    created_at   TIMESTAMP WITHOUT TIME ZONE DEFAULT NOW(),
+                    updated_at   TIMESTAMP WITHOUT TIME ZONE DEFAULT NOW()
+                );
+            """)
+            cur.execute("""
+                ALTER TABLE internal.releases
+                    ADD COLUMN IF NOT EXISTS collection_slug       TEXT,
+                    ADD COLUMN IF NOT EXISTS collection_sort_index INT;
             """)
             cur.execute("""
                 CREATE TABLE IF NOT EXISTS internal.release_editions (
@@ -6841,8 +6907,29 @@ class PostgresDB:
             """)
             # The link-preview image (see `ReleaseShareImage`), rendered when the release is published
             cur.execute("ALTER TABLE internal.releases ADD COLUMN IF NOT EXISTS share_image_path TEXT;")
-            # Link-only releases (FALSE) open from their link but stay out of the public list and card search
+            # Superseded by `visibility` below (kept so older deploys reading it don't break; no longer written)
             cur.execute("ALTER TABLE internal.releases ADD COLUMN IF NOT EXISTS is_listed BOOLEAN NOT NULL DEFAULT TRUE;")
+            # Who can open the published release: 'listed' (Community and search), 'link' (anyone with
+            # the link) or 'private' (only the owner: published for their own teams and card search).
+            # Backfilled once from `is_listed`, while the column is still null.
+            cur.execute("ALTER TABLE internal.releases ADD COLUMN IF NOT EXISTS visibility TEXT;")
+            cur.execute("""
+                UPDATE internal.releases SET visibility = CASE WHEN is_listed THEN 'listed' ELSE 'link' END
+                 WHERE visibility IS NULL;
+            """)
+            cur.execute("""
+                ALTER TABLE internal.releases
+                    ALTER COLUMN visibility SET DEFAULT 'listed',
+                    ALTER COLUMN visibility SET NOT NULL;
+            """)
+            cur.execute("""
+                DO $$ BEGIN
+                    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'releases_visibility_check') THEN
+                        ALTER TABLE internal.releases ADD CONSTRAINT releases_visibility_check
+                            CHECK (visibility IN ('listed', 'link', 'private'));
+                    END IF;
+                END $$;
+            """)
             # Owner's toggle for "Remix" (see `remix_release`): others may start a release from this one.
             # Remixes record their source in `fork_parent_id`
             cur.execute("ALTER TABLE internal.releases ADD COLUMN IF NOT EXISTS allow_remix BOOLEAN NOT NULL DEFAULT TRUE;")
@@ -7019,6 +7106,75 @@ class PostgresDB:
                     ON internal.release_image_jobs (edition_id, created_at DESC);
             """)
         self._migrate_edition_slugs_per_release()
+        self._migrate_release_slugs_per_owner()
+        self._build_username_history()
+
+    def _migrate_release_slugs_per_owner(self) -> None:
+        """One-time: release slugs used to be unique across every user's releases (so a second
+        "2026 Base" got `2026-base-3fa9c1`). Links are now `/r/<owner>/<slug>`, so slugs only need to be
+        unique per owner: rewrites them from each release's name, oldest first (so it keeps the plain
+        slug), and keeps the old one in `legacy_slug` so links shared before (`/r/<slug>`) still resolve.
+        Runs only while the old constraint exists, in one transaction so a failure changes nothing."""
+        with self.transaction() as cur:
+            cur.execute("ALTER TABLE internal.releases ADD COLUMN IF NOT EXISTS legacy_slug TEXT;")
+            cur.execute("""
+                SELECT 1 FROM pg_constraint
+                 WHERE conname = 'releases_slug_key' AND conrelid = 'internal.releases'::regclass
+            """)
+            if cur.fetchone():
+                cur.execute("UPDATE internal.releases SET legacy_slug = slug;")
+                cur.execute("ALTER TABLE internal.releases DROP CONSTRAINT releases_slug_key;")
+                cur.execute("""
+                    SELECT id, created_by, name FROM internal.releases
+                     ORDER BY created_by, retired_at NULLS FIRST, created_at
+                """)
+                taken: dict = {}
+                for release_id, owner_id, name in cur.fetchall():
+                    # Retired releases keep a slug too (their rows stay for rosters), after the live ones
+                    slug = self._next_free_slug(self._slugify(name, 'release'), taken.setdefault(owner_id, set()))
+                    taken[owner_id].add(slug)
+                    cur.execute("UPDATE internal.releases SET slug = %s WHERE id = %s", (slug, release_id))
+            cur.execute("""
+                CREATE UNIQUE INDEX IF NOT EXISTS uq_releases_owner_slug
+                    ON internal.releases (created_by, slug);
+            """)
+            cur.execute("""
+                CREATE UNIQUE INDEX IF NOT EXISTS uq_releases_legacy_slug
+                    ON internal.releases (legacy_slug) WHERE legacy_slug IS NOT NULL;
+            """)
+
+    def _build_username_history(self) -> None:
+        """Usernames a user had before, so release links made under an old one (`/r/<old>/<slug>`)
+        still resolve after a rename (see `get_release_id_by_owner_slug`). Usernames are changed from
+        the app straight through Supabase, so a trigger on `public.profiles` records them. It runs as
+        the app's own role (SECURITY DEFINER), since the user's role can't write to `internal`. If an
+        old username is later taken by someone else, the new owner's releases win."""
+        with self.connection.cursor() as cur:
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS internal.username_history (
+                    username    TEXT PRIMARY KEY,
+                    user_id     TEXT NOT NULL,
+                    changed_at  TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+                );
+            """)
+            cur.execute("""
+                CREATE OR REPLACE FUNCTION internal.record_username_change() RETURNS trigger
+                LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $$
+                BEGIN
+                    IF OLD.username IS NOT NULL AND OLD.username IS DISTINCT FROM NEW.username THEN
+                        INSERT INTO internal.username_history (username, user_id)
+                        VALUES (OLD.username, OLD.id::text)
+                        ON CONFLICT (username) DO UPDATE SET user_id = EXCLUDED.user_id, changed_at = NOW();
+                    END IF;
+                    RETURN NEW;
+                END;
+                $$;
+            """)
+            cur.execute("DROP TRIGGER IF EXISTS trg_profiles_username_history ON public.profiles;")
+            cur.execute("""
+                CREATE TRIGGER trg_profiles_username_history AFTER UPDATE OF username ON public.profiles
+                FOR EACH ROW EXECUTE FUNCTION internal.record_username_change();
+            """)
 
     def _migrate_edition_slugs_per_release(self) -> None:
         """One-time: edition slugs used to be unique across every release (so most were `main-3fa9c1`).
@@ -7095,19 +7251,25 @@ class PostgresDB:
     # Profiles are keyed by the auth user id as text; a subquery keeps it out of the GROUP BY
     _RELEASE_SELECT_TEMPLATE = """
         SELECT
-            r.id, r.name, r.description, r.created_by, r.is_official,
+            r.id, r.name, r.description, r.created_by, r.is_official, r.collection_slug, r.collection_sort_index,
             r.fork_parent_id, r.slug, r.default_showdown_set, r.created_at, r.updated_at,
-            r.published_at, r.published_version, r.share_image_path, r.view_count, r.like_count, r.is_listed, r.allow_remix, r.is_wip,
+            r.published_at, r.published_version, r.share_image_path, r.view_count, r.like_count, r.visibility, r.allow_remix, r.is_wip, r.allow_comments,
+            (SELECT COUNT(*) FROM internal.comments cm
+              WHERE cm.subject_type = 'release' AND cm.subject_id = r.id AND cm.deleted_at IS NULL) AS comment_count,
             -- The release this one was remixed from, for its credit. Linked only while anyone can find it
-            -- (published, listed, not retired), so a remix never exposes a link-only release
+            -- (published, listed, not retired), so a remix never exposes a link-only or private release
             (SELECT json_build_object(
                         'id', fp.id, 'name', fp.name,
                         'creator_username', (SELECT p.username FROM public.profiles p WHERE p.id::text = fp.created_by),
-                        'is_linkable', fp.retired_at IS NULL AND fp.is_listed
+                        'is_linkable', fp.retired_at IS NULL AND fp.visibility = 'listed'
                                        AND EXISTS (SELECT 1 FROM internal.release_editions fe WHERE fe.release_id = fp.id AND fe.is_published)
                     )
                FROM internal.releases fp WHERE fp.id = r.fork_parent_id) AS fork_parent,
             (SELECT MAX(v.published_at) FROM internal.release_versions v WHERE v.release_id = r.id) AS version_published_at,
+            -- What the current version changed, for the header's "what's new" line
+            (SELECT v.changes FROM internal.release_versions v WHERE v.release_id = r.id
+              ORDER BY v.version DESC LIMIT 1) AS latest_version_changes,
+            {cards_added_at} AS cards_added_at,
             -- Unpublished work the owner hasn't published yet: an edited working copy, or a new edition
             -- of an already-published release
             EXISTS (
@@ -7119,6 +7281,9 @@ class PostgresDB:
                         OR (pe.draft_of IS NULL AND pe.pending_removal))
             ) AS has_pending_changes,
             (SELECT p.username FROM public.profiles p WHERE p.id::text = r.created_by) AS creator_username,
+            -- The creator's avatar, or the color behind their initials when they haven't uploaded one
+            (SELECT us.avatar_url FROM internal.user_settings us WHERE us.user_id = r.created_by) AS creator_avatar_url,
+            (SELECT us.default_primary_color FROM internal.user_settings us WHERE us.user_id = r.created_by) AS creator_primary_color,
             {extra_columns}
             COALESCE(
                 json_agg(
@@ -7129,6 +7294,12 @@ class PostgresDB:
                         'slug',          e.slug,
                         'is_published',  e.is_published,
                         'published_at',  e.published_at,
+                        -- Went live with an update rather than the first publish: a version is stamped in the
+                        -- same transaction (same NOW()) as the editions it publishes
+                        'added_in_update', EXISTS (
+                            SELECT 1 FROM internal.release_versions v
+                             WHERE v.release_id = r.id AND v.version > 1 AND v.published_at = e.published_at
+                        ),
                         'card_count',    (SELECT COUNT(*) FROM internal.release_cards rc WHERE rc.edition_id = e.id AND rc.retired_at IS NULL),
                         -- The owner deleted it; it stays live until they publish (see `remove_edition`)
                         'pending_removal', e.pending_removal,
@@ -7147,6 +7318,17 @@ class PostgresDB:
         FROM internal.releases r
         LEFT JOIN internal.release_editions e ON e.release_id = r.id AND e.draft_of IS NULL AND e.retired_at IS NULL
     """
+    # When an update last added cards (a new edition or cards added to one). The first publish records no
+    # changes, so this is null until a later version adds something; a republish that only edits doesn't count
+    _RELEASE_CARDS_ADDED_AT = """(
+        SELECT MAX(v.published_at) FROM internal.release_versions v
+         WHERE v.release_id = r.id
+           AND EXISTS (
+               SELECT 1 FROM jsonb_array_elements(v.changes) c
+                WHERE COALESCE((c->>'is_new')::boolean, FALSE) OR COALESCE((c->>'added')::int, 0) > 0
+           )
+    )"""
+    _RELEASE_SELECT_TEMPLATE = _RELEASE_SELECT_TEMPLATE.replace('{cards_added_at}', _RELEASE_CARDS_ADDED_AT)
     _RELEASE_BASE_SELECT = _RELEASE_SELECT_TEMPLATE.format(extra_columns='')
 
     @classmethod
@@ -7185,14 +7367,85 @@ class PostgresDB:
             (SELECT COUNT(*) FROM internal.release_likes l
               WHERE l.release_id = r.id AND l.created_at > NOW() - INTERVAL '30 days') DESC,
             r.like_count DESC, r.view_count DESC, r.published_at DESC NULLS LAST""",
-        'new': "r.published_at DESC NULLS LAST, r.updated_at DESC",
+        # A release comes back to the top when an update adds cards, not for edits alone
+        'new': f"COALESCE({_RELEASE_CARDS_ADDED_AT}, r.published_at) DESC NULLS LAST, r.updated_at DESC",
         'updated': "r.updated_at DESC",
     }
 
+    def get_release_collections(self, include_hidden: bool = False) -> list[dict]:
+        """Release collections ordered by sort_index, each with a `release_count` of the listed, published,
+        official releases in it. `include_hidden=False` (the public path) drops hidden collections."""
+        if not self.connection:
+            return []
+        where = "" if include_hidden else "WHERE c.is_visible = TRUE"
+        with self.connection.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute(f"""
+                SELECT c.slug, c.title, c.description, c.sort_index, c.is_visible,
+                       COUNT(r.id) FILTER (
+                           WHERE r.is_official AND r.visibility = 'listed' AND r.retired_at IS NULL
+                             AND EXISTS (SELECT 1 FROM internal.release_editions pe WHERE pe.release_id = r.id AND pe.is_published)
+                       ) AS release_count
+                  FROM internal.release_collection c
+                  LEFT JOIN internal.releases r ON r.collection_slug = c.slug
+                {where}
+                 GROUP BY c.slug
+                 ORDER BY c.sort_index ASC, c.title ASC
+            """)
+            rows = [dict(r) for r in cur.fetchall()]
+        for row in rows:
+            row['release_count'] = int(row.get('release_count') or 0)
+        return rows
+
+    def upsert_release_collection(self, slug: str, **fields) -> dict:
+        """Insert or update a collection. `fields` may include title, description, sort_index, is_visible."""
+        if not self.connection:
+            raise RuntimeError("No database connection")
+        data = {k: v for k, v in fields.items() if k in {'title', 'description', 'sort_index', 'is_visible'} and v is not None}
+        cols = ['slug'] + list(data.keys())
+        updates = ', '.join(f"{k} = EXCLUDED.{k}" for k in data) or "slug = EXCLUDED.slug"
+        with self.connection.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute(
+                f"""INSERT INTO internal.release_collection ({', '.join(cols)})
+                    VALUES ({', '.join(['%s'] * len(cols))})
+                    ON CONFLICT (slug) DO UPDATE SET {updates}, updated_at = NOW()
+                    RETURNING slug, title, description, sort_index, is_visible""",
+                [slug] + list(data.values()),
+            )
+            return dict(cur.fetchone())
+
+    def delete_release_collection(self, slug: str) -> str | None:
+        """'in_use' while any release is in it, 'deleted', or None if there's no such collection."""
+        if not self.connection:
+            return None
+        with self.connection.cursor() as cur:
+            cur.execute("SELECT 1 FROM internal.releases WHERE collection_slug = %s LIMIT 1", (slug,))
+            if cur.fetchone():
+                return 'in_use'
+            cur.execute("DELETE FROM internal.release_collection WHERE slug = %s", (slug,))
+            return 'deleted' if cur.rowcount > 0 else None
+
+    def set_release_collection(self, release_id: str, slug: Optional[str], sort_index: Optional[int] = None) -> Optional[bool]:
+        """Put an official release in a collection (or take it out with `slug` None). Doesn't touch
+        `updated_at`, so it never reorders the lists. False if the release isn't official, None if the
+        collection doesn't exist."""
+        if not self.connection:
+            return False
+        with self.connection.cursor() as cur:
+            if slug is not None:
+                cur.execute("SELECT 1 FROM internal.release_collection WHERE slug = %s", (slug,))
+                if not cur.fetchone():
+                    return None
+            cur.execute("""
+                UPDATE internal.releases SET collection_slug = %s, collection_sort_index = %s
+                 WHERE id = %s AND is_official AND retired_at IS NULL
+            """, (slug, sort_index if slug is not None else None, release_id))
+            return cur.rowcount > 0
+
     def get_public_releases(self, limit: int = 50, offset: int = 0, section: Optional[str] = None, sort: str = 'updated',
-                            search: Optional[str] = None) -> list[dict]:
+                            search: Optional[str] = None, viewer_id: Optional[str] = None) -> list[dict]:
         """Listed releases with at least one published edition. `section` 'official' / 'community' splits on
-        `is_official`; `search` matches the name or creator's username."""
+        `is_official`, except that 'community' keeps `viewer_id`'s own official releases; `search` matches
+        the name or creator's username."""
         if not self.connection:
             return []
         # Escape LIKE wildcards so a search for "100%" means the text
@@ -7203,8 +7456,9 @@ class PostgresDB:
                 SELECT 1 FROM internal.release_editions pe
                 WHERE pe.release_id = r.id AND pe.is_published = TRUE
             )
-              AND r.is_listed AND r.retired_at IS NULL
-              AND (%(section)s::text IS NULL OR r.is_official = (%(section)s = 'official'))
+              AND r.visibility = 'listed' AND r.retired_at IS NULL
+              AND (%(section)s::text IS NULL OR r.is_official = (%(section)s = 'official')
+                   OR (%(section)s = 'community' AND r.created_by = %(viewer_id)s::text))
               AND (%(pattern)s::text IS NULL
                    OR r.name ILIKE %(pattern)s
                    OR EXISTS (SELECT 1 FROM public.profiles p WHERE p.id::text = r.created_by AND p.username ILIKE %(pattern)s))
@@ -7215,24 +7469,26 @@ class PostgresDB:
         with self.connection.cursor(cursor_factory=RealDictCursor) as cur:
             cur.execute(query, {
                 'section': section if section in ('official', 'community') else None,
-                'pattern': pattern, 'limit': limit, 'offset': offset,
+                'pattern': pattern, 'limit': limit, 'offset': offset, 'viewer_id': viewer_id,
             })
-            return [self._serialize_release_row(self._visitor_release_row(dict(r))) for r in cur.fetchall()]
+            rows = [self._visitor_release_row(dict(r)) for r in cur.fetchall()]
+        self._add_viewer_engagement(rows, viewer_id)
+        return [self._serialize_release_row(row) for row in rows]
 
     def get_release(self, release_id: str, user_id: str | None = None) -> dict | None:
         """Return a single release (with metadata-only editions). Enforces ownership unless
-        it has at least one published edition. Its `preview_images` and `showdown_sets` come from
-        published editions only, for the public header."""
+        it has at least one published edition and isn't private. Its `preview_images` and `showdown_sets`
+        come from published editions only, for the public header."""
         if not self.connection:
             return None
         query = self._release_list_select(published_only=True) + """
             WHERE r.id = %s AND r.retired_at IS NULL
               AND (
                   r.created_by = %s
-                  OR EXISTS (
+                  OR (r.visibility <> 'private' AND EXISTS (
                       SELECT 1 FROM internal.release_editions pe
                       WHERE pe.release_id = r.id AND pe.is_published = TRUE
-                  )
+                  ))
               )
             GROUP BY r.id
         """
@@ -7243,12 +7499,31 @@ class PostgresDB:
                 print(f"Release {release_id} not found or access denied for user {user_id}.")
                 return None
             row = dict(row)
-            if user_id is None or row['created_by'] != user_id:
-                row = self._visitor_release_row(row)
-            if user_id is not None:
-                row['liked_by_me'] = self._is_liked_by('internal.release_likes', 'release_id', release_id, user_id)
-                row['saved_by_me'] = self._is_liked_by('internal.release_saves', 'release_id', release_id, user_id)
-            return self._serialize_release_row(row)
+        if user_id is None or row['created_by'] != user_id:
+            row = self._visitor_release_row(row)
+        self._add_viewer_engagement([row], user_id)
+        return self._serialize_release_row(row)
+
+    def _add_viewer_engagement(self, rows: list[dict], viewer_id: str | None) -> None:
+        """Sets `liked_by_me` / `saved_by_me` on release rows for a signed-in viewer, in one lookup
+        for the whole list (so a list tile opens with its header's like and save state already known).
+        Left unset for an anonymous viewer."""
+        if viewer_id is None or not rows:
+            return
+        release_ids = [str(row['id']) for row in rows]
+        with self.connection.cursor() as cur:
+            cur.execute("""
+                SELECT release_id::text, 'liked' FROM internal.release_likes
+                 WHERE user_id = %(viewer_id)s AND release_id = ANY(%(ids)s::uuid[])
+                UNION ALL
+                SELECT release_id::text, 'saved' FROM internal.release_saves
+                 WHERE user_id = %(viewer_id)s AND release_id = ANY(%(ids)s::uuid[])
+            """, {'viewer_id': viewer_id, 'ids': release_ids})
+            engaged = set(cur.fetchall())
+        for row in rows:
+            release_id = str(row['id'])
+            row['liked_by_me'] = (release_id, 'liked') in engaged
+            row['saved_by_me'] = (release_id, 'saved') in engaged
 
     def create_release(self, user_id: str, payload: dict, with_main_edition: bool = False) -> str:
         """Insert a new release row and return the generated release id (UUID string). With
@@ -7258,7 +7533,7 @@ class PostgresDB:
             raise RuntimeError("No database connection")
         fields = self._release_payload_fields(payload)
         with self.transaction() as cur:
-            slug = self._generate_unique_slug(cur, 'internal.releases', payload.get('name', ''))
+            slug = self._generate_release_slug(cur, user_id, payload.get('name', ''))
             cols = ', '.join(['created_by', 'slug'] + list(fields.keys()))
             placeholders = ', '.join(['%s'] * (2 + len(fields)))
             values = [user_id, slug] + list(fields.values())
@@ -7280,7 +7555,7 @@ class PostgresDB:
         `attributes`), their live cards, and their image rows, sharing the same files (every file
         delete checks no other row points to it, see `_unshared_release_image_paths`). Nothing is
         published; the new release credits the source via `fork_parent_id`. Returns its id, or None if
-        the source isn't published, is the user's own, or its owner turned remixes off."""
+        the source isn't published, is private, is the user's own, or its owner turned remixes off."""
         if not self.connection:
             raise RuntimeError("No database connection")
         fields = self._release_payload_fields(payload)
@@ -7289,13 +7564,13 @@ class PostgresDB:
             # copy to commit, so the remix copies one version of it
             cur.execute("""
                 SELECT r.id FROM internal.releases r
-                 WHERE r.id = %s AND r.created_by <> %s AND r.allow_remix AND r.retired_at IS NULL
+                 WHERE r.id = %s AND r.created_by <> %s AND r.allow_remix AND r.visibility <> 'private' AND r.retired_at IS NULL
                    AND EXISTS (SELECT 1 FROM internal.release_editions e WHERE e.release_id = r.id AND e.is_published)
                    FOR SHARE
             """, (source_release_id, user_id))
             if not cur.fetchone():
                 return None
-            slug = self._generate_unique_slug(cur, 'internal.releases', payload.get('name', ''))
+            slug = self._generate_release_slug(cur, user_id, payload.get('name', ''))
             cols = ', '.join(['created_by', 'slug', 'fork_parent_id'] + list(fields.keys()))
             placeholders = ', '.join(['%s'] * (3 + len(fields)))
             cur.execute(
@@ -7381,13 +7656,14 @@ class PostgresDB:
             return True
 
     def get_saved_releases(self, user_id: str) -> list[dict]:
-        """Releases user_id saved that are still published, most recently saved first. Link-only ones
-        count (the user opened them from the link); tiles and editions come from published editions."""
+        """Releases user_id saved that are still published and not private, most recently saved first.
+        Link-only ones count (the user opened them from the link); tiles and editions come from published
+        editions. A save on a release that went private is kept, and returns if it's shared again."""
         if not self.connection:
             return []
         query = self._release_list_select(published_only=True) + """
             JOIN internal.release_saves s ON s.release_id = r.id AND s.user_id = %s
-            WHERE r.retired_at IS NULL AND EXISTS (
+            WHERE r.retired_at IS NULL AND r.visibility <> 'private' AND EXISTS (
                 SELECT 1 FROM internal.release_editions pe
                 WHERE pe.release_id = r.id AND pe.is_published = TRUE
             )
@@ -7396,7 +7672,9 @@ class PostgresDB:
         """
         with self.connection.cursor(cursor_factory=RealDictCursor) as cur:
             cur.execute(query, (user_id,))
-            return [self._serialize_release_row(self._visitor_release_row({**dict(r), 'saved_by_me': True})) for r in cur.fetchall()]
+            rows = [self._visitor_release_row(dict(r)) for r in cur.fetchall()]
+        self._add_viewer_engagement(rows, user_id)
+        return [self._serialize_release_row(row) for row in rows]
 
     def get_release_versions(self, release_id: str) -> list[dict]:
         """Every published version of a release, newest first, with its note and change summary."""
@@ -7408,20 +7686,39 @@ class PostgresDB:
         """, (release_id,))
         return [{**dict(row), 'published_at': row['published_at'].isoformat() if row.get('published_at') else None} for row in rows or []]
 
-    def get_release_id_by_slug(self, slug: str) -> str | None:
-        """The id behind a release's short link (`/r/<slug>`). Visibility is checked by `get_release`."""
+    def get_release_id_by_owner_slug(self, owner: str, slug: str) -> str | None:
+        """The id behind a release link, `/r/<owner>/<slug>`. `owner` is the creator's username, a
+        username they had before (`internal.username_history`), or their user id when they have no
+        username. A current username wins over an old one someone else has since taken. Visibility is
+        checked by `get_release`."""
         if not self.connection:
             return None
-        rows = self.execute_query("SELECT id::text AS id FROM internal.releases WHERE slug = %s", (slug,))
+        rows = self.execute_query("""
+            WITH owners AS (
+                SELECT p.id::text AS user_id, 0 AS rank FROM public.profiles p WHERE p.username = %(owner)s
+                UNION ALL SELECT %(owner)s, 1
+                UNION ALL SELECT h.user_id, 2 FROM internal.username_history h WHERE h.username = %(owner)s
+            )
+            SELECT r.id::text AS id FROM internal.releases r JOIN owners o ON o.user_id = r.created_by
+             WHERE r.slug = %(slug)s
+             ORDER BY o.rank LIMIT 1
+        """, {'owner': owner, 'slug': slug})
+        return rows[0]['id'] if rows else None
+
+    def get_release_id_by_legacy_slug(self, slug: str) -> str | None:
+        """The id behind a link shared before slugs were per owner (`/r/<slug>`)."""
+        if not self.connection:
+            return None
+        rows = self.execute_query("SELECT id::text AS id FROM internal.releases WHERE legacy_slug = %s", (slug,))
         return rows[0]['id'] if rows else None
 
     def get_public_release_tile(self, release_id: str) -> dict | None:
         """A published release as anyone sees its tile (published editions only), for link previews
-        and its share image. None if it doesn't exist or nothing is published."""
+        and its share image. None if it doesn't exist, nothing is published, or it's private."""
         if not self.connection:
             return None
         query = self._release_list_select(published_only=True) + """
-            WHERE r.id::text = %s AND r.retired_at IS NULL
+            WHERE r.id::text = %s AND r.retired_at IS NULL AND r.visibility <> 'private'
               AND EXISTS (SELECT 1 FROM internal.release_editions pe WHERE pe.release_id = r.id AND pe.is_published)
             GROUP BY r.id
         """
@@ -7441,6 +7738,7 @@ class PostgresDB:
                    e.name AS edition_name, i.storage_path
               FROM internal.release_cards rc
               JOIN internal.release_editions e ON e.id = rc.edition_id
+              JOIN internal.releases r ON r.id = e.release_id AND r.visibility <> 'private'
               LEFT JOIN internal.release_card_images i ON i.edition_id = rc.edition_id AND i.source_card_id = rc.source_card_id
              WHERE e.release_id::text = %s AND e.slug = %s AND e.is_published AND e.draft_of IS NULL
                AND rc.retired_at IS NULL
@@ -7595,11 +7893,13 @@ class PostgresDB:
         """, ([str(edition_id) for edition_id in edition_ids],))
         return cur.fetchone()[0]
 
-    def publish_release(self, release_id: str, user_id: str, bump_version: bool, note: Optional[str] = None, changes: Optional[list] = None) -> Optional[list[str]]:
+    def publish_release(self, release_id: str, user_id: str, bump_version: bool, note: Optional[str] = None, changes: Optional[list] = None,
+                        is_official: bool = False) -> Optional[list[str]]:
         """Publish the release in one transaction: fold each working copy into its edition (name,
         settings, cards with removed ones retired, image rows), publish every edition, and when
-        `bump_version`, record a new version with the owner's note and `changes`. Returns image paths
-        nothing points to any more, or None if the release isn't the user's."""
+        `bump_version`, record a new version with the owner's note and `changes`. `is_official` marks
+        it official (never unmarks it). Returns image paths nothing points to any more, or None if the
+        release isn't the user's."""
         with self.transaction() as cur:
             version = self._lock_owned_release(cur, release_id, user_id)
             if version is None:
@@ -7644,9 +7944,10 @@ class PostgresDB:
             next_version = version + 1 if bump_version or version == 0 else version
             cur.execute("""
                 UPDATE internal.releases
-                   SET published_version = %s, published_at = COALESCE(published_at, NOW()), updated_at = NOW()
+                   SET published_version = %s, published_at = COALESCE(published_at, NOW()), updated_at = NOW(),
+                       is_official = is_official OR %s
                  WHERE id = %s
-            """, (next_version, release_id))
+            """, (next_version, is_official, release_id))
             if next_version != version:
                 cur.execute("""
                     INSERT INTO internal.release_versions (release_id, version, note, changes, published_by)
@@ -7693,7 +7994,7 @@ class PostgresDB:
             return True, orphaned_paths
 
     def get_edition(self, edition_id: str, user_id: str | None = None) -> dict | None:
-        """Return a single edition with its full card list. Enforces ownership unless published."""
+        """Return a single edition with its full card list. Enforces ownership unless published (and not private)."""
         if not self.connection:
             return None
         edition_query = """
@@ -7702,7 +8003,7 @@ class PostgresDB:
             FROM internal.release_editions e
             JOIN internal.releases r ON r.id = e.release_id
             WHERE e.id = %s AND e.retired_at IS NULL AND r.retired_at IS NULL
-              AND (e.is_published = TRUE OR r.created_by = %s)
+              AND ((e.is_published = TRUE AND r.visibility <> 'private') OR r.created_by = %s)
         """
         # Cards are fetched as rows, not json_agg'd: aggregating with ORDER BY sorts every wide
         # card_snapshot and spills to temp files, so rows come back in natural card_number order
@@ -8365,19 +8666,19 @@ class PostgresDB:
         """, (release_id, edition_id, base_slug, f"{base_slug}-%"))
         return cls._next_free_slug(base_slug, {row[0] for row in cur.fetchall()})
 
-    @staticmethod
-    def _generate_unique_slug(cur, table: str, name: str) -> str:
-        """Slugify name, appending a short random suffix on collision. `table` must be a
-        trusted internal identifier (never user input) — it's interpolated into the query."""
-        base_slug = PostgresDB._slugify(name, 'release')
-        slug = base_slug
-        while True:
-            cur.execute(f"SELECT 1 FROM {table} WHERE slug = %s", (slug,))
-            if not cur.fetchone():
-                return slug
-            slug = f"{base_slug}-{secrets.token_hex(3)}"
+    @classmethod
+    def _generate_release_slug(cls, cur, owner_id: str, name: str) -> str:
+        """A readable slug for a release, unique among its owner's releases (`2026-base`, then
+        `2026-base-2`): links are `/r/<owner>/<slug>`, so other users' releases don't count.
+        Retired releases count too, so an old link never lands on a different release."""
+        base_slug = cls._slugify(name, 'release')
+        cur.execute("""
+            SELECT slug FROM internal.releases WHERE created_by = %s AND (slug = %s OR slug LIKE %s)
+        """, (owner_id, base_slug, f"{base_slug}-%"))
+        return cls._next_free_slug(base_slug, {row[0] for row in cur.fetchall()})
 
-    _RELEASE_ALLOWED_FIELDS = frozenset({'name', 'description', 'default_showdown_set', 'is_listed', 'allow_remix', 'is_wip'})
+    _RELEASE_ALLOWED_FIELDS = frozenset({'name', 'description', 'default_showdown_set', 'visibility', 'allow_remix', 'allow_comments', 'is_wip'})
+    RELEASE_VISIBILITIES = ('listed', 'link', 'private')
 
     @staticmethod
     def _release_payload_fields(payload: dict) -> dict:
@@ -8400,6 +8701,9 @@ class PostgresDB:
     @staticmethod
     def _serialize_release_row(row: dict) -> dict:
         row['id'] = str(row['id'])
+        if row.get('slug') and row.get('created_by'):
+            # The release's link is `/r/<share_path>`; the owner's id stands in when they have no username
+            row['share_path'] = f"{quote(row.get('creator_username') or row['created_by'], safe='')}/{row['slug']}"
         if row.get('fork_parent_id'):
             row['fork_parent_id'] = str(row['fork_parent_id'])
         if row.get('created_at'):
@@ -8410,6 +8714,8 @@ class PostgresDB:
             row['published_at'] = row['published_at'].isoformat()
         if row.get('version_published_at'):
             row['version_published_at'] = row['version_published_at'].isoformat()
+        if row.get('cards_added_at'):
+            row['cards_added_at'] = row['cards_added_at'].isoformat()
         return row
 
     @staticmethod
@@ -8436,6 +8742,270 @@ class PostgresDB:
         if row.get('updated_at'):
             row['updated_at'] = row['updated_at'].isoformat()
         return row
+
+# ------------------------------------------------------------------------
+# COMMENTS
+# ------------------------------------------------------------------------
+
+    # What can be commented on. Who may read and post is decided per subject in `api/comments.py`
+    COMMENT_SUBJECT_TYPES = ('release', 'team')
+
+    def build_comments_table(self) -> None:
+        """Comments on anything in `COMMENT_SUBJECT_TYPES`, one level deep: a reply's `parent_id` is always a
+        top-level comment, and `reply_to_user_id` names whose reply it answered. Deleting soft-deletes, so a
+        deleted comment with replies can stay as a placeholder. Also adds the releases' owner toggle."""
+        if not self.connection:
+            return
+        with self.connection.cursor() as cur:
+            cur.execute("CREATE SCHEMA IF NOT EXISTS internal;")
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS internal.comments (
+                    id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                    subject_type     TEXT NOT NULL,
+                    subject_id       UUID NOT NULL,
+                    parent_id        UUID REFERENCES internal.comments(id) ON DELETE CASCADE,
+                    user_id          TEXT NOT NULL,
+                    reply_to_user_id TEXT,
+                    body             TEXT NOT NULL,
+                    created_at       TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+                    edited_at        TIMESTAMP WITH TIME ZONE,
+                    deleted_at       TIMESTAMP WITH TIME ZONE,
+                    deleted_by       TEXT
+                );
+            """)
+            cur.execute("""
+                DO $$ BEGIN
+                    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'comments_subject_type_check') THEN
+                        ALTER TABLE internal.comments ADD CONSTRAINT comments_subject_type_check
+                            CHECK (subject_type IN ('release', 'team'));
+                    END IF;
+                END $$;
+            """)
+            # A subject's top-level comments, newest first (and its `comment_count`)
+            cur.execute("""
+                CREATE INDEX IF NOT EXISTS idx_comments_subject_created_at
+                    ON internal.comments (subject_type, subject_id, created_at DESC);
+            """)
+            # A thread's replies, oldest first
+            cur.execute("""
+                CREATE INDEX IF NOT EXISTS idx_comments_parent_id_created_at
+                    ON internal.comments (parent_id, created_at) WHERE parent_id IS NOT NULL;
+            """)
+            # Owner's toggle for comments on a release (see `ReleaseCommentSubject`). Turning it off hides
+            # them; they come back if it's turned on again
+            cur.execute("ALTER TABLE internal.releases ADD COLUMN IF NOT EXISTS allow_comments BOOLEAN NOT NULL DEFAULT TRUE;")
+            # `subject_id` can't be a foreign key to several tables, so deleting a subject's row deletes its
+            # comments here, whichever code path deletes it (teams are hard-deleted from the app, admin and
+            # CLI; releases are normally retired instead). Args: the subject type and its id column
+            cur.execute("""
+                CREATE OR REPLACE FUNCTION internal.delete_subject_comments() RETURNS trigger AS $$
+                BEGIN
+                    DELETE FROM internal.comments
+                     WHERE subject_type = TG_ARGV[0]
+                       AND subject_id = (to_jsonb(OLD) ->> TG_ARGV[1])::uuid;
+                    RETURN OLD;
+                END;
+                $$ LANGUAGE plpgsql;
+            """)
+            for table, subject_type, id_column in (
+                ('internal.user_teams', 'team', 'team_id'),
+                ('internal.releases', 'release', 'id'),
+            ):
+                trigger = f"trg_{subject_type}_delete_comments"
+                cur.execute(f"DROP TRIGGER IF EXISTS {trigger} ON {table};")
+                cur.execute(f"""
+                    CREATE TRIGGER {trigger} AFTER DELETE ON {table}
+                    FOR EACH ROW EXECUTE FUNCTION internal.delete_subject_comments('{subject_type}', '{id_column}');
+                """)
+
+    # The author's name and avatar ride along on every comment. A deleted comment keeps its place (and
+    # id, for its replies) but none of its content
+    _COMMENT_COLUMNS = """
+        c.id, c.subject_type, c.subject_id, c.parent_id, c.created_at, c.edited_at,
+        c.deleted_at IS NOT NULL AS is_deleted,
+        CASE WHEN c.deleted_at IS NULL THEN c.user_id END AS user_id,
+        CASE WHEN c.deleted_at IS NULL THEN c.body END AS body,
+        CASE WHEN c.deleted_at IS NULL THEN p.username END AS username,
+        CASE WHEN c.deleted_at IS NULL THEN us.avatar_url END AS avatar_url,
+        CASE WHEN c.deleted_at IS NULL THEN us.default_primary_color END AS primary_color,
+        CASE WHEN c.deleted_at IS NULL THEN rp.username END AS reply_to_username
+    """
+    _COMMENT_JOINS = """
+        LEFT JOIN public.profiles p ON p.id::text = c.user_id
+        LEFT JOIN internal.user_settings us ON us.user_id = c.user_id
+        LEFT JOIN public.profiles rp ON rp.id::text = c.reply_to_user_id
+    """
+    # Live replies to the top-level comment `c`
+    _COMMENT_REPLY_COUNT = """
+        (SELECT COUNT(*) FROM internal.comments r WHERE r.parent_id = c.id AND r.deleted_at IS NULL)
+    """
+
+    @staticmethod
+    def _serialize_comment_row(row: dict) -> dict:
+        for key in ('id', 'subject_id', 'parent_id'):
+            if row.get(key):
+                row[key] = str(row[key])
+        for key in ('created_at', 'edited_at'):
+            if row.get(key):
+                row[key] = row[key].isoformat()
+        return row
+
+    def get_comment(self, comment_id: str, include_deleted: bool = False) -> dict | None:
+        """One comment's raw row (for permission checks), or None if it's gone. `include_deleted` also finds
+        deleted ones, e.g. a deleted top-level comment whose thread still has live replies."""
+        if not self.connection:
+            return None
+        deleted_clause = "" if include_deleted else "AND deleted_at IS NULL"
+        with self.connection.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute(f"""
+                SELECT id, subject_type, subject_id, parent_id, user_id, deleted_at IS NOT NULL AS is_deleted
+                  FROM internal.comments WHERE id = %s {deleted_clause}
+            """, (comment_id,))
+            row = cur.fetchone()
+            return self._serialize_comment_row(dict(row)) if row else None
+
+    def get_comments(self, subject_type: str, subject_id: str, limit: int = 20, before: tuple[str, str] | None = None,
+                     reply_preview: int = 3) -> dict:
+        """A page of a subject's top-level comments, newest first, each with its first `reply_preview` replies
+        (oldest first) and `reply_count`. A deleted comment only shows while it has live replies. `before` is
+        the (created_at, id) of the last comment on the previous page. Returns `comments`, `next_cursor`, `total`."""
+        if not self.connection:
+            return {'comments': [], 'next_cursor': None, 'total': 0}
+        cursor_clause = "AND (c.created_at, c.id) < (%(before_at)s::timestamptz, %(before_id)s::uuid)" if before else ""
+        params = {
+            'subject_type': subject_type, 'subject_id': subject_id, 'limit': limit + 1,
+            'before_at': before[0] if before else None, 'before_id': before[1] if before else None,
+        }
+        with self.connection.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute(f"""
+                SELECT {self._COMMENT_COLUMNS}, {self._COMMENT_REPLY_COUNT} AS reply_count
+                  FROM internal.comments c
+                  {self._COMMENT_JOINS}
+                 WHERE c.subject_type = %(subject_type)s AND c.subject_id = %(subject_id)s AND c.parent_id IS NULL
+                   AND (c.deleted_at IS NULL OR {self._COMMENT_REPLY_COUNT} > 0)
+                   {cursor_clause}
+                 ORDER BY c.created_at DESC, c.id DESC
+                 LIMIT %(limit)s
+            """, params)
+            rows = [dict(r) for r in cur.fetchall()]
+            has_more = len(rows) > limit
+            rows = rows[:limit]
+
+            replies_by_parent: dict[str, list[dict]] = {}
+            parent_ids = [r['id'] for r in rows if r['reply_count']]
+            if parent_ids and reply_preview > 0:
+                cur.execute(f"""
+                    SELECT * FROM (
+                        SELECT {self._COMMENT_COLUMNS},
+                               ROW_NUMBER() OVER (PARTITION BY c.parent_id ORDER BY c.created_at, c.id) AS position
+                          FROM internal.comments c
+                          {self._COMMENT_JOINS}
+                         WHERE c.parent_id = ANY(%s::uuid[]) AND c.deleted_at IS NULL
+                    ) ranked
+                     WHERE position <= %s
+                     ORDER BY created_at, id
+                """, ([str(pid) for pid in parent_ids], reply_preview))
+                for reply in cur.fetchall():
+                    reply = dict(reply)
+                    reply.pop('position', None)
+                    replies_by_parent.setdefault(str(reply['parent_id']), []).append(self._serialize_comment_row(reply))
+
+
+        total = self.count_comments(subject_type, subject_id)
+        comments = []
+        for row in rows:
+            row = self._serialize_comment_row(row)
+            row['replies'] = replies_by_parent.get(row['id'], [])
+            comments.append(row)
+        last = comments[-1] if has_more and comments else None
+        return {
+            'comments': comments,
+            'next_cursor': f"{last['created_at']}|{last['id']}" if last else None,
+            'total': total,
+        }
+
+    def count_comments(self, subject_type: str, subject_id: str) -> int:
+        """Live comments and replies on a subject (the release list carries its own `comment_count`)."""
+        if not self.connection:
+            return 0
+        with self.connection.cursor() as cur:
+            cur.execute("""
+                SELECT COUNT(*) FROM internal.comments
+                 WHERE subject_type = %s AND subject_id = %s AND deleted_at IS NULL
+            """, (subject_type, subject_id))
+            return cur.fetchone()[0]
+
+    def get_comment_replies(self, parent_id: str, after: tuple[str, str] | None = None, limit: int = 50) -> dict:
+        """A page of a thread's live replies, oldest first, after the (created_at, id) `after`.
+        Returns `replies` and `next_cursor`."""
+        if not self.connection:
+            return {'replies': [], 'next_cursor': None}
+        cursor_clause = "AND (c.created_at, c.id) > (%(after_at)s::timestamptz, %(after_id)s::uuid)" if after else ""
+        with self.connection.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute(f"""
+                SELECT {self._COMMENT_COLUMNS}
+                  FROM internal.comments c
+                  {self._COMMENT_JOINS}
+                 WHERE c.parent_id = %(parent_id)s AND c.deleted_at IS NULL
+                   {cursor_clause}
+                 ORDER BY c.created_at, c.id
+                 LIMIT %(limit)s
+            """, {
+                'parent_id': parent_id, 'limit': limit + 1,
+                'after_at': after[0] if after else None, 'after_id': after[1] if after else None,
+            })
+            rows = [self._serialize_comment_row(dict(r)) for r in cur.fetchall()]
+        has_more = len(rows) > limit
+        rows = rows[:limit]
+        last = rows[-1] if has_more and rows else None
+        return {'replies': rows, 'next_cursor': f"{last['created_at']}|{last['id']}" if last else None}
+
+    def create_comment(self, subject_type: str, subject_id: str, user_id: str, body: str, parent_id: str | None = None) -> dict | None:
+        """Add a comment, or a reply when `parent_id` is set. Replying to a reply attaches to its thread's
+        top-level comment and records whose reply it answered. Returns the new comment as `get_comments`
+        shows it, or None if the parent isn't a live comment on the same subject."""
+        if not self.connection:
+            return None
+        reply_to_user_id = None
+        with self.connection.cursor(cursor_factory=RealDictCursor) as cur:
+            if parent_id:
+                cur.execute("""
+                    SELECT id, parent_id, user_id FROM internal.comments
+                     WHERE id = %s AND subject_type = %s AND subject_id = %s AND deleted_at IS NULL
+                """, (parent_id, subject_type, subject_id))
+                parent = cur.fetchone()
+                if parent is None:
+                    return None
+                if parent['parent_id']:
+                    # A reply to a reply: same thread, aimed at that reply's author
+                    reply_to_user_id = parent['user_id']
+                    parent_id = str(parent['parent_id'])
+            cur.execute("""
+                INSERT INTO internal.comments (subject_type, subject_id, parent_id, user_id, reply_to_user_id, body)
+                VALUES (%s, %s, %s, %s, %s, %s)
+                RETURNING id
+            """, (subject_type, subject_id, parent_id, user_id, reply_to_user_id, body))
+            new_id = cur.fetchone()['id']
+            cur.execute(f"""
+                SELECT {self._COMMENT_COLUMNS}, 0 AS reply_count
+                  FROM internal.comments c
+                  {self._COMMENT_JOINS}
+                 WHERE c.id = %s
+            """, (new_id,))
+            row = self._serialize_comment_row(dict(cur.fetchone()))
+        row['replies'] = []
+        return row
+
+    def delete_comment(self, comment_id: str, deleted_by: str) -> bool:
+        """Soft-delete a live comment. Its replies stay (under a placeholder) until they're deleted too."""
+        if not self.connection:
+            return False
+        with self.connection.cursor() as cur:
+            cur.execute("""
+                UPDATE internal.comments SET deleted_at = NOW(), deleted_by = %s
+                 WHERE id = %s AND deleted_at IS NULL
+            """, (deleted_by, comment_id))
+            return cur.rowcount > 0
 
 # -----------------------------------------------------------------------
 # LOGGING TABLES
@@ -9407,7 +9977,11 @@ class PostgresDB:
 
     def fetch_latest_spotlight_cards(self, set:str, limit:int=4) -> list[dict]:
         """Fetch latest spotlight cards from the card_spotlight table.
-        
+
+        Only rows from the newest publish are returned, so a spotlight with fewer
+        cards than `limit` never backfills with cards from an older spotlight.
+        Every row in one publish shares a timestamp (one insert transaction).
+
         Args:
             set: The showdown set to filter spotlight cards by.
             limit: Number of spotlight cards to fetch.
@@ -9420,10 +9994,15 @@ class PostgresDB:
             SELECT *
             FROM public.card_spotlight
             WHERE showdown_set = %s
-            ORDER BY spotlight_published_date DESC, sort_index
+              AND spotlight_published_date = (
+                  SELECT MAX(spotlight_published_date)
+                  FROM public.card_spotlight
+                  WHERE showdown_set = %s
+              )
+            ORDER BY sort_index
             LIMIT %s
         """)
-        raw_data = self.execute_query(query=sql_query, filter_values=(set, limit))
+        raw_data = self.execute_query(query=sql_query, filter_values=(set, set, limit))
         return raw_data
 
     def fetch_card_of_the_day(self, set:str) -> dict[str, any]:
@@ -13114,7 +13693,7 @@ class PostgresDB:
               FROM internal.release_editions e
               JOIN internal.releases r ON r.id = e.release_id
               LEFT JOIN internal.release_cards rc ON rc.edition_id = e.id
-             WHERE e.id = ANY(%s::uuid[]) AND (e.is_published OR r.created_by = %s)
+             WHERE e.id = ANY(%s::uuid[]) AND ((e.is_published AND r.visibility <> 'private') OR r.created_by = %s)
              GROUP BY e.id, r.name
             """,
             (edition_ids, user_id),
@@ -13377,6 +13956,210 @@ class PostgresDB:
             cur.execute("CREATE INDEX IF NOT EXISTS idx_sim_game_user ON internal.sim_game (user_id, created_at DESC);")
             # BACKS "OTHER PEOPLE'S SIMS OF THIS GAME", WHICH IS THE ONLY WAY TO DISCOVER ONE.
             cur.execute("CREATE INDEX IF NOT EXISTS idx_sim_game_game_pk ON internal.sim_game (game_pk, created_at DESC);")
+
+    def build_sim_faceoff_tables(self) -> None:
+        """Create the Faceoff tables: one `sim_faceoff` per matchup and one `sim_faceoff_game` per
+        game played, so a series needs no schema change.
+
+        Team ids deliberately carry no foreign key. A replay is built entirely from the snapshot in
+        `teams`, so it has to outlive the teams that played it.
+        """
+        if not self.connection:
+            return
+        with self.connection.cursor() as cur:
+            cur.execute("CREATE SCHEMA IF NOT EXISTS internal;")
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS internal.sim_faceoff (
+                    faceoff_id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                    user_id             TEXT NOT NULL,
+                    challenger_team_id  UUID,
+                    opponent_team_id    UUID,
+                    best_of             INT NOT NULL DEFAULT 1,
+                    challenger_wins     INT NOT NULL DEFAULT 0,
+                    opponent_wins       INT NOT NULL DEFAULT 0,
+                    winner_side         TEXT,
+                    is_own_matchup      BOOLEAN NOT NULL DEFAULT FALSE,
+                    seed                BIGINT,
+                    teams               JSONB NOT NULL,
+                    created_at          TIMESTAMP WITHOUT TIME ZONE DEFAULT NOW()
+                );
+            """)
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS internal.sim_faceoff_game (
+                    faceoff_id        UUID NOT NULL REFERENCES internal.sim_faceoff(faceoff_id) ON DELETE CASCADE,
+                    game_number       INT NOT NULL,
+                    home_side         TEXT NOT NULL,
+                    challenger_score  INT NOT NULL DEFAULT 0,
+                    opponent_score    INT NOT NULL DEFAULT 0,
+                    result            JSONB NOT NULL,
+                    PRIMARY KEY (faceoff_id, game_number)
+                );
+            """)
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_sim_faceoff_user ON internal.sim_faceoff (user_id, created_at DESC);")
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_sim_faceoff_challenger ON internal.sim_faceoff (challenger_team_id, created_at DESC);")
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_sim_faceoff_opponent ON internal.sim_faceoff (opponent_team_id, created_at DESC);")
+
+    # Readable by its creator, or by anyone while both teams are public. Joined live, like sim
+    # history: making a team private hides its Faceoffs, and a deleted team (no row to join) leaves
+    # them with the creator alone.
+    _SIM_FACEOFF_VISIBLE = """
+        (f.user_id = %(viewer)s OR (challenger.is_public IS TRUE AND opponent.is_public IS TRUE))
+    """
+    _SIM_FACEOFF_COLUMNS = """
+               f.faceoff_id, f.user_id, f.challenger_team_id, f.opponent_team_id, f.best_of,
+               f.challenger_wins, f.opponent_wins, f.winner_side, f.is_own_matchup, f.created_at,
+               f.teams #> '{challenger,identity}' AS challenger_identity,
+               f.teams #> '{opponent,identity}' AS opponent_identity,
+               (f.user_id = %(viewer)s) IS TRUE AS is_mine,
+               (
+                   SELECT json_agg(json_build_object(
+                       'game_number', g.game_number, 'home_side', g.home_side,
+                       'challenger_score', g.challenger_score, 'opponent_score', g.opponent_score
+                   ) ORDER BY g.game_number)
+                     FROM internal.sim_faceoff_game g
+                    WHERE g.faceoff_id = f.faceoff_id
+               ) AS game_scores
+    """
+    _SIM_FACEOFF_JOINS = """
+          FROM internal.sim_faceoff f
+          LEFT JOIN internal.user_teams challenger ON challenger.team_id = f.challenger_team_id
+          LEFT JOIN internal.user_teams opponent ON opponent.team_id = f.opponent_team_id
+    """
+
+    def record_sim_faceoff(self, user_id: str, result: dict, is_own_matchup: bool) -> str | None:
+        """Store a played Faceoff and its games together, returning its id.
+
+        Args:
+          result: A `FaceoffResult` dumped in JSON mode. Its games go to their own rows; everything
+            else is projected into `sim_faceoff`, so listing Faceoffs never parses a game log.
+        """
+        if not self.connection:
+            return None
+        teams = {side: result[side] for side in ('challenger', 'opponent')}
+        with self.transaction() as cur:
+            cur.execute(
+                """
+                INSERT INTO internal.sim_faceoff (
+                    user_id, challenger_team_id, opponent_team_id, best_of, challenger_wins,
+                    opponent_wins, winner_side, is_own_matchup, seed, teams
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                RETURNING faceoff_id
+                """,
+                (
+                    user_id, teams['challenger'].get('team_id'), teams['opponent'].get('team_id'),
+                    result.get('best_of'), result.get('challenger_wins'), result.get('opponent_wins'),
+                    result.get('winner_side'), is_own_matchup, result.get('seed'), extras.Json(teams),
+                ),
+            )
+            faceoff_id = str(cur.fetchone()[0])
+            games = result.get('games') or []
+            scores = [self._faceoff_game_scores(entry) for entry in games]
+            execute_values(
+                cur,
+                """
+                INSERT INTO internal.sim_faceoff_game (
+                    faceoff_id, game_number, home_side, challenger_score, opponent_score, result
+                ) VALUES %s
+                """,
+                [
+                    (faceoff_id, entry['game_number'], entry['home_side'], challenger, opponent, extras.Json(entry['game']))
+                    for entry, (challenger, opponent) in zip(games, scores)
+                ],
+            )
+        return faceoff_id
+
+    @staticmethod
+    def _faceoff_game_scores(entry: dict) -> tuple[int, int]:
+        """(challenger, opponent) runs for one game, which home/away alone doesn't say."""
+        game = entry.get('game') or {}
+        home, away = game.get('home_score', 0), game.get('away_score', 0)
+        return (away, home) if entry.get('home_side') == 'opponent' else (home, away)
+
+    def fetch_sim_faceoff(self, faceoff_id: str, viewer: str | None = None) -> dict | None:
+        """One Faceoff with its team snapshots and every game, or None if the viewer can't see it."""
+        if not self.connection:
+            return None
+        rows = self.execute_query(
+            f"""
+            SELECT f.teams, f.seed, {self._SIM_FACEOFF_COLUMNS}
+            {self._SIM_FACEOFF_JOINS}
+             WHERE f.faceoff_id = %(faceoff_id)s::uuid AND {self._SIM_FACEOFF_VISIBLE}
+            """,
+            {'faceoff_id': faceoff_id, 'viewer': viewer},
+        )
+        if not rows:
+            return None
+        faceoff = self._stringify_sim_faceoff_ids(rows)[0]
+        faceoff['games'] = self.execute_query(
+            """
+            SELECT game_number, home_side, challenger_score, opponent_score, result AS game
+              FROM internal.sim_faceoff_game
+             WHERE faceoff_id = %s::uuid
+             ORDER BY game_number
+            """,
+            (faceoff_id,),
+        )
+        return faceoff
+
+    def fetch_sim_faceoffs_for_user(self, user_id: str, limit: int = 20) -> list[dict]:
+        """A user's own Faceoffs, newest first, including games between their own teams."""
+        if not self.connection:
+            return []
+        rows = self.execute_query(
+            f"""
+            SELECT {self._SIM_FACEOFF_COLUMNS}
+            {self._SIM_FACEOFF_JOINS}
+             WHERE f.user_id = %(viewer)s
+             ORDER BY f.created_at DESC
+             LIMIT %(limit)s
+            """,
+            {'viewer': user_id, 'limit': limit},
+        )
+        return self._stringify_sim_faceoff_ids(rows)
+
+    def fetch_sim_faceoffs_for_team(self, team_id: str, viewer: str | None = None, limit: int = 20) -> list[dict]:
+        """Faceoffs a team played against other users' teams, newest first. Games between one
+        user's own teams stay out of this: they're practice, and live in that user's history."""
+        if not self.connection:
+            return []
+        rows = self.execute_query(
+            f"""
+            SELECT {self._SIM_FACEOFF_COLUMNS}
+            {self._SIM_FACEOFF_JOINS}
+             WHERE (f.challenger_team_id = %(team_id)s::uuid OR f.opponent_team_id = %(team_id)s::uuid)
+               AND NOT f.is_own_matchup
+               AND {self._SIM_FACEOFF_VISIBLE}
+             ORDER BY f.created_at DESC
+             LIMIT %(limit)s
+            """,
+            {'team_id': team_id, 'viewer': viewer, 'limit': limit},
+        )
+        return self._stringify_sim_faceoff_ids(rows)
+
+    def count_recent_faceoff_games(self, user_id: str, hours: int = 1) -> int:
+        """Games a user has played in the last `hours`, which is what a Faceoff rate limit counts:
+        a best-of-7 costs up to seven."""
+        if not self.connection:
+            return 0
+        rows = self.execute_query(
+            """
+            SELECT COUNT(*) AS count
+              FROM internal.sim_faceoff_game g
+              JOIN internal.sim_faceoff f ON f.faceoff_id = g.faceoff_id
+             WHERE f.user_id = %s AND f.created_at > NOW() - make_interval(hours => %s)
+            """,
+            (user_id, hours),
+        )
+        return int(rows[0]['count']) if rows else 0
+
+    @staticmethod
+    def _stringify_sim_faceoff_ids(rows: list[dict]) -> list[dict]:
+        """UUIDs and timestamps come back as objects `jsonify` won't take."""
+        for row in rows:
+            for key in ('faceoff_id', 'challenger_team_id', 'opponent_team_id', 'created_at'):
+                if row.get(key) is not None:
+                    row[key] = str(row[key])
+        return rows
 
     def record_sim_game(self, user_id: str | None, result: dict) -> str | None:
         """Store one simulated game and return its id.

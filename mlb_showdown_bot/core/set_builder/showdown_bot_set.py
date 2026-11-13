@@ -447,11 +447,24 @@ class ShowdownBotSet(BaseModel):
                     row['is_variable_speed_00_01'] = True
 
         recomputed_count = len(target_rows) - len(failed_names)
-        actions = [label for label, enabled in [('Re-ran', rerun_cards and not season_half), (f'built the {season_half.card_text.lower()} of', season_half), ('applied variable speed to', variable_speed)] if enabled]
+        half_label = f'built the {season_half.card_text.lower()} of' if season_half else ''
+        actions = [label for label, enabled in [('Re-ran', rerun_cards and not season_half), (half_label, season_half), ('applied variable speed to', variable_speed)] if enabled]
         warnings = [f"{' and '.join(actions).capitalize()} {recomputed_count} cards ({changed_count} changed points)."]
         if failed_names:
-            warnings.append(f"Could not recompute {len(failed_names)} cards, kept archived versions: {', '.join(failed_names)}")
+            warnings.append(self._failed_recompute_warning(failed_names, season_half))
         return warnings
+
+    @staticmethod
+    def _failed_recompute_warning(failed_names: list[str], season_half=None) -> str:
+        """Short warning for cards that could not be recomputed. Lists a few names, not every reason."""
+        count = len(failed_names)
+        plural = '' if count == 1 else 's'
+        if count <= 3:
+            return f"Could not recompute {count} card{plural}, kept archived version{plural}: {', '.join(failed_names)}"
+        # Many failures usually share one cause (ex: no game logs archived for the season)
+        shown = ', '.join(name.split(' (')[0] for name in failed_names[:3])
+        cause = ' Game logs are not archived for this season.' if season_half and all('game logs' in n.lower() for n in failed_names) else ''
+        return f"Could not recompute {count} cards, kept archived versions (ex: {shown}, and {count - 3} more).{cause}"
 
     def _generate_card_with_year_override(self, player: ShowdownBotSetPlayer, year_override: str) -> Optional[ShowdownPlayerCard]:
         """Generate a card live for a player whose stats should come from a different year combo (ex: '2025-2026').

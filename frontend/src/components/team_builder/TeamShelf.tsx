@@ -3,9 +3,14 @@ import { FaChevronRight } from 'react-icons/fa6';
 import { TeamPreviewCardSkeleton } from './TeamPreviewCard';
 
 import { Heading } from '../shared/Heading';
+import { SLANT_ROOM_CLASS } from '../shared/headingStyles';
 type TeamShelfProps = {
     title: string;
     subtitle?: string;
+    /** Let a long subtitle wrap to its full length instead of truncating to one line. */
+    wrapSubtitle?: boolean;
+    /** Title weight: `panel` for shelves under a page-level search, `section` where it sits among a page's other section titles. */
+    headingLevel?: 'panel' | 'section';
     className?: string;
     /** Optional "See all" affordance shown on the right of the header. */
     onSeeAll?: () => void;
@@ -19,12 +24,12 @@ type TeamShelfProps = {
 };
 
 /** A titled, horizontally-scrolling row of team tiles — the music-app "shelf" pattern. */
-export function TeamShelf({ title, subtitle, onSeeAll, children, className, bleed }: TeamShelfProps) {
+export function TeamShelf({ title, subtitle, wrapSubtitle, headingLevel = 'panel', onSeeAll, children, className, bleed }: TeamShelfProps) {
     return (
         <section className="flex flex-col">
             <div className={`flex flex-col gap-0.5 mb-1.5 ${className ?? ''}`}>
                 <div className="flex items-baseline justify-between min-w-0">
-                    <Heading level="panel" className="truncate">{title}</Heading>
+                    <Heading level={headingLevel} as={headingLevel === 'section' ? 'h2' : undefined} className={`truncate ${SLANT_ROOM_CLASS}`}>{title}</Heading>
                     {onSeeAll && (
                         <button
                             type="button"
@@ -35,7 +40,7 @@ export function TeamShelf({ title, subtitle, onSeeAll, children, className, blee
                         </button>
                     )}
                 </div>
-                {subtitle && <p className="text-[11px] text-(--text-tertiary) truncate">{subtitle}</p>}
+                {subtitle && <p className={`text-[11px] text-(--text-tertiary) ${wrapSubtitle ? 'max-w-4xl' : 'truncate'}`}>{subtitle}</p>}
             </div>
             <div
                 className={`flex gap-3 overflow-y-hidden overflow-x-scroll pb-1 py-2 scrollbar-hide ${className ?? ''}`}

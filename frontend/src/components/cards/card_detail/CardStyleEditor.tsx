@@ -31,7 +31,7 @@ export type CardStyleEditorConfig = {
     onSave: (style: CardStyleSettings) => Promise<void> | void;
     /** Revert button tooltip, e.g. "Revert to the edition style" */
     revertTitle?: string;
-    /** Offers Set Year, for cards printed as part of a release */
+    /** Offers Set Year, for cards made as part of a release */
     showSetYear?: boolean;
     /** Adds a Chart section for switching the card's chart version (Bot cards only). Leave out
      * where the card itself can't change. */

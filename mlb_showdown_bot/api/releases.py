@@ -4,24 +4,28 @@ import traceback
 from datetime import datetime
 from flask import Blueprint, g, jsonify, request
 from pydantic import ValidationError
+from config import Config
 from ..core.card.images import ImageLibrary
+from ..core.card.utils.shared_functions import convert_year_string_to_list
 from ..core.database.postgres_db import PostgresDB, StaleEditionError
 from ..core.set_builder.foil_selection import FoilSetType, FoilSuggester
 from ..core.set_builder.image_match_classifier import ImageMatchCard, ImageMatchClassifier
 from ..core.set_builder.release_card_rebuilder import ReleaseCardRebuilder, ReleaseCardRebuildError
 from ..core.card.stats.stats_period import SeasonHalf
 from ..core.set_builder.release_card_period import ReleaseCardPeriod, ReleaseCardPeriodError
+from ..core.set_builder.release_link import ReleaseLink
 from ..core.set_builder.release_images import EditionImagePlan, EditionImageRenderer, ReleaseImageJobCancelled, ReleaseImageStorage
 from ..core.set_builder.release_custom_card import ReleaseCustomCard, ReleaseCustomCardError
 from ..core.set_builder.release_card_patch import ReleaseCardNumbers, ReleaseCardPatch
 from ..core.set_builder.release_draft import ReleaseDraft
+from ..core.set_builder.release_edition_duplicate import ReleaseEditionDuplicateError, ReleaseEditionDuplicator
 from ..core.set_builder.release_review import ReleaseReview
 from ..core.set_builder.release_share import ReleaseShareImage
 from ..core.set_builder.selection import OtherEditionsRule
 from ..core.set_builder.showdown_bot_set import AlgorithmPreviewRequest
 from ..core.set_builder.wotc_set_profile import WotcSetProfile
 from .image_libraries import UserImageLibraries
-from .user_settings import require_auth, optional_user_id
+from .user_settings import require_auth, require_admin, optional_user_id
 from .utils.view_counter import RecentViews
 
 releases_bp = Blueprint('releases', __name__)
@@ -68,16 +72,17 @@ def create_release():
         return jsonify({'error': str(exc)}), 500
 
 
-@releases_bp.route('/releases/by-slug/<slug>', methods=['GET'])
-def get_release_by_slug(slug: str):
-    """The release behind a short link (`/r/<slug>`), if the caller can see it."""
+@releases_bp.route('/releases/by-link/<path:link_path>', methods=['GET'])
+def get_release_by_link(link_path: str):
+    """The release behind a short link (the part after `/r/`, see `ReleaseLink`), if the caller can
+    see it, with the edition slug and card the link points into."""
     try:
         with PostgresDB() as db:
-            release_id = db.get_release_id_by_slug(slug)
-            release = db.get_release(release_id, optional_user_id()) if release_id else None
+            link = ReleaseLink.resolve(db, link_path)
+            release = db.get_release(link.release_id, optional_user_id()) if link else None
         if release is None:
             return jsonify({'error': 'Release not found'}), 404
-        return jsonify(release), 200
+        return jsonify({'release': release, 'edition_slug': link.edition_slug, 'card_ref': link.card_ref}), 200
     except Exception as exc:
         traceback.print_exc()
         return jsonify({'error': str(exc)}), 500
@@ -105,9 +110,11 @@ def update_release(release_id: str):
         payload = request.get_json(silent=True)
         if not payload or not isinstance(payload, dict):
             return jsonify({'error': 'Request body must be a JSON object'}), 400
-        for flag in ('is_listed', 'allow_remix', 'is_wip'):
+        for flag in ('allow_remix', 'allow_comments', 'is_wip'):
             if flag in payload and not isinstance(payload[flag], bool):
                 return jsonify({'error': f'{flag} must be true or false'}), 400
+        if 'visibility' in payload and payload['visibility'] not in PostgresDB.RELEASE_VISIBILITIES:
+            return jsonify({'error': f"visibility must be one of {', '.join(PostgresDB.RELEASE_VISIBILITIES)}"}), 400
         if 'name' in payload:
             if not isinstance(payload['name'], str) or not payload['name'].strip():
                 return jsonify({'error': 'Release name cannot be blank'}), 400
@@ -223,6 +230,7 @@ def publish_release(release_id: str):
                 release_id, g.user_id,
                 bump_version=changes is None or changes.has_changes, note=note,
                 changes=[edition.summary() for edition in changes.editions if edition.has_changes] if changes else None,
+                is_official=(g.user_email or '').lower() == Config.OFFICIAL_RELEASE_EMAIL,
             )
             try:
                 # The link preview should show what was just published
@@ -432,10 +440,99 @@ def get_public_releases():
         releases = db.get_public_releases(
             limit=limit, offset=offset,
             section=request.args.get('section'), sort=request.args.get('sort', 'updated'),
-            search=request.args.get('q'),
+            search=request.args.get('q'), viewer_id=optional_user_id(),
         )
         db.close_connection()
         return jsonify(releases), 200
+    except Exception as exc:
+        traceback.print_exc()
+        return jsonify({'error': str(exc)}), 500
+
+
+@releases_bp.route('/releases/collections', methods=['GET'])
+def get_release_collections():
+    """The shelves official releases are grouped into on the Release Builder list (visible ones only)."""
+    try:
+        with PostgresDB() as db:
+            return jsonify(db.get_release_collections()), 200
+    except Exception as exc:
+        traceback.print_exc()
+        return jsonify({'error': str(exc)}), 500
+
+
+@releases_bp.route('/admin/release-collections', methods=['GET'])
+@require_admin
+def list_release_collections_admin():
+    """Every collection, hidden ones included."""
+    try:
+        with PostgresDB() as db:
+            return jsonify(db.get_release_collections(include_hidden=True)), 200
+    except Exception as exc:
+        traceback.print_exc()
+        return jsonify({'error': str(exc)}), 500
+
+
+@releases_bp.route('/admin/release-collections', methods=['POST'])
+@require_admin
+def upsert_release_collection():
+    """Create or update a collection. Body: {slug, title, description?, sort_index?, is_visible?}."""
+    try:
+        payload = request.get_json(silent=True) or {}
+        slug = (payload.get('slug') or '').strip().lower()
+        title = (payload.get('title') or '').strip()
+        if not slug or not title:
+            return jsonify({'error': 'slug and title are required'}), 400
+        if not slug.replace('-', '').replace('_', '').isalnum():
+            return jsonify({'error': 'slug must be alphanumeric with dashes/underscores'}), 400
+        description = payload.get('description')
+        with PostgresDB() as db:
+            collection = db.upsert_release_collection(
+                slug, title=title,
+                description=description.strip() if isinstance(description, str) else None,
+                sort_index=payload.get('sort_index'), is_visible=payload.get('is_visible'),
+            )
+        return jsonify(collection), 200
+    except Exception as exc:
+        traceback.print_exc()
+        return jsonify({'error': str(exc)}), 500
+
+
+@releases_bp.route('/admin/release-collections/<slug>', methods=['DELETE'])
+@require_admin
+def delete_release_collection(slug: str):
+    try:
+        with PostgresDB() as db:
+            result = db.delete_release_collection(slug)
+        if result == 'in_use':
+            return jsonify({'error': 'Collection still has releases. Move them out first.'}), 409
+        if result is None:
+            return jsonify({'error': 'Collection not found'}), 404
+        return jsonify({'success': True}), 200
+    except Exception as exc:
+        traceback.print_exc()
+        return jsonify({'error': str(exc)}), 500
+
+
+@releases_bp.route('/admin/releases/<release_id>/collection', methods=['PUT'])
+@require_admin
+def set_release_collection(release_id: str):
+    """Put an official release in a collection, or take it out. Body: {collection_slug: str | null, sort_index?: int}."""
+    try:
+        payload = request.get_json(silent=True) or {}
+        slug = payload.get('collection_slug')
+        if slug is not None and not isinstance(slug, str):
+            return jsonify({'error': 'collection_slug must be a string or null'}), 400
+        sort_index = payload.get('sort_index')
+        if sort_index is not None and (isinstance(sort_index, bool) or not isinstance(sort_index, int)):
+            return jsonify({'error': 'sort_index must be a whole number'}), 400
+        with PostgresDB() as db:
+            result = db.set_release_collection(release_id, (slug or '').strip().lower() or None, sort_index)
+            if result is None:
+                return jsonify({'error': 'Unknown collection'}), 400
+            if not result:
+                return jsonify({'error': 'Only official releases can join a collection'}), 404
+            release = db.get_release(release_id, g.user_id)
+        return jsonify(release), 200
     except Exception as exc:
         traceback.print_exc()
         return jsonify({'error': str(exc)}), 500
@@ -588,12 +685,58 @@ def restore_edition(release_id: str, edition_id: str):
         return jsonify({'error': str(exc)}), 500
 
 
+@releases_bp.route('/releases/<release_id>/editions/<edition_id>/duplicate', methods=['POST'])
+@require_auth
+def duplicate_edition(release_id: str, edition_id: str):
+    """A new edition with this one's player list in another Showdown set (see `ReleaseEditionDuplicator`).
+    Body: `name` and `showdown_set`. Returns the new `edition` and the `skipped` cards with no card in that set."""
+    try:
+        payload = request.get_json(silent=True) or {}
+        name = str(payload.get('name') or '').strip()
+        if not name:
+            return jsonify({'error': 'name is required'}), 400
+        with PostgresDB() as db:
+            source = _owned_edition(db, release_id, edition_id, g.user_id)
+            if source is None:
+                return jsonify({'error': 'Edition not found or not owned by user'}), 404
+            try:
+                duplicated = ReleaseEditionDuplicator(db).duplicate(source, str(payload.get('showdown_set') or ''), name)
+            except ReleaseEditionDuplicateError as exc:
+                return jsonify({'error': str(exc)}), 400
+            new_edition_id = db.create_edition(release_id, g.user_id, duplicated.payload)
+            if new_edition_id is None:
+                return jsonify({'error': 'Release not found or not owned by user'}), 404
+            edition = db.get_edition(new_edition_id, g.user_id)
+        return jsonify({'edition': edition, 'skipped': duplicated.skipped}), 201
+    except Exception as exc:
+        traceback.print_exc()
+        return jsonify({'error': str(exc)}), 500
+
+
 @releases_bp.route('/releases/algorithm/wotc_profiles', methods=['GET'])
 def get_wotc_set_profiles():
     """Position counts and average points of each WOTC base set, used as Algorithm blueprints"""
     try:
         profiles = WotcSetProfile.load_all()
         return jsonify([profile.model_dump() for profile in profiles.values()]), 200
+    except Exception as exc:
+        traceback.print_exc()
+        return jsonify({'error': str(exc)}), 500
+
+
+@releases_bp.route('/releases/algorithm/all_star_count', methods=['GET'])
+def get_all_star_count():
+    """Players with an All-Star selection in `years` (a year string), optionally limited to
+    comma-separated `teams`. Sizes the All-Stars template's set to the full All-Star roster."""
+    try:
+        years = convert_year_string_to_list(request.args.get('years', ''))
+    except ValueError:
+        return jsonify({'error': 'Invalid years'}), 400
+    teams = [team for team in request.args.get('teams', '').split(',') if team]
+    try:
+        with PostgresDB() as db:
+            count = db.count_all_stars(years, teams or None)
+        return jsonify({'count': count}), 200
     except Exception as exc:
         traceback.print_exc()
         return jsonify({'error': str(exc)}), 500

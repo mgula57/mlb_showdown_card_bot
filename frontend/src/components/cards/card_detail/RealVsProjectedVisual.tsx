@@ -63,12 +63,6 @@ const INVERTED_STATS: Record<'HITTER' | 'PITCHER', Set<string>> = {
 };
 
 function PercentileBar({ stat, real, statRanges, hasRanges, isLoading, playerType, className }: { stat: string; real: number | null; statRanges: StatRanges; hasRanges: boolean; isLoading?: boolean; playerType?: 'HITTER' | 'PITCHER'; className?: string }) {
-    if (isLoading) return (
-        <div className={`flex-1 relative h-5 flex items-center ${className || ''}`}>
-            <div className="absolute inset-x-0 h-1 rounded-full animate-pulse bg-(--background-tertiary)" />
-            <div className="absolute left-0 h-5 w-5 rounded-full animate-pulse bg-(--background-tertiary)" />
-        </div>
-    );
     // Compute target pct unconditionally so hooks are always called in the same order
     const key = rangeKey(stat);
     const range = (real !== null && real !== undefined) ? statRanges[key] : undefined;
@@ -91,6 +85,12 @@ function PercentileBar({ stat, real, statRanges, hasRanges, isLoading, playerTyp
     }, [targetPct, hasValidRange]);
 
     // Early returns after all hooks
+    if (isLoading) return (
+        <div className={`flex-1 relative h-5 flex items-center ${className || ''}`}>
+            <div className="absolute inset-x-0 h-1 rounded-full animate-pulse bg-(--background-tertiary)" />
+            <div className="absolute left-0 h-5 w-5 rounded-full animate-pulse bg-(--background-tertiary)" />
+        </div>
+    );
     if (real === null || real === undefined) return <div className="flex-1" />;
     if (!hasValidRange) {
         if (!hasRanges) return (

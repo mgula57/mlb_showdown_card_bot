@@ -45,7 +45,7 @@ type StyleFieldsProps = {
 type SetStyleFieldsProps = StyleFieldsProps & {
     /** Slots per-card inputs (e.g. Set Number) between Edition and the toggles */
     afterEdition?: ReactNode;
-    /** Offers Set Year, for cards printed as part of a release */
+    /** Offers Set Year, for cards made as part of a release */
     showSetYear?: boolean;
 };
 

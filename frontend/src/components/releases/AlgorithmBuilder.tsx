@@ -1,7 +1,7 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { FaWandMagicSparkles, FaSpinner, FaTriangleExclamation, FaStar, FaLayerGroup, FaFloppyDisk, FaCheck, FaSliders, FaRotateLeft, FaCodeBranch, FaXmark } from 'react-icons/fa6';
 import type { ReleaseEdition, AlgorithmConfig, AlgorithmPlayerTypeDistribution, AlgorithmPreviewResult, AlgorithmSelectionWeights, AlgorithmTeamMinimums, AlgorithmTeamWeighting, WotcSetProfile } from '../../api/releases';
-import { fetchWotcSetProfiles, previewAlgorithm, updateEdition } from '../../api/releases';
+import { fetchAllStarCount, fetchWotcSetProfiles, previewAlgorithm, updateEdition } from '../../api/releases';
 import FormInput from '../customs/FormInput';
 import FormEnabler from '../customs/FormEnabler';
 import FormDropdown from '../customs/FormDropdown';
@@ -11,6 +11,8 @@ import { Heading } from '../shared/Heading';
 import { choiceClass } from '../shared/choiceStyles';
 import { useAuth } from '../auth/AuthContext';
 import { useBeforeUnloadWarning } from '../../hooks/useBeforeUnloadWarning';
+import { useStableCallback } from '../../hooks/useStableCallback';
+import { isSingleYear, parseYearsValue, validateYears } from './years';
 import PointBucketsEditor from './PointBucketsEditor';
 import { validatePointBuckets } from './pointBuckets';
 import { SettingsGroup, SettingsLabel } from './SettingsGroup';
@@ -116,10 +118,11 @@ const CUSTOM_TEMPLATE: AlgorithmTemplate = {
 const ALL_STARS_TEMPLATE: AlgorithmTemplate = {
     id: ALL_STARS_TEMPLATE_ID,
     name: 'All-Stars',
-    description: 'An All-Star Game set: every All-Star from the chosen years, numbered AL then NL. Team/type balance is fixed by the template.',
+    description: 'An All-Star Game set: every All-Star from the chosen season, numbered AL then NL. Set size matches the number of All-Stars; team/type balance is fixed by the template.',
     icon: <FaStar />,
     preset: {
         ...SELECTION_DEFAULTS,
+        // Placeholder until the All-Star count for the chosen years loads
         set_size: 60,
         min_pa_hitters: 75,
         min_ip_starters: 30,
@@ -244,6 +247,36 @@ export function AlgorithmBuilder({ releaseId, edition, token, defaultShowdownSet
     const isFieldLocked = (field: LockableField) => !!activeTemplate?.lockedFields?.includes(field);
 
     const isAllStarSet = config.all_stars_only ?? false;
+    // An All-Star set is one season's All-Star Game, so the template is offered only for a single year
+    // (kept while active, so an older multi-year All-Star edition still shows what it is)
+    const showAllStarsTemplate = isSingleYear(config.years) || config.template_id === ALL_STARS_TEMPLATE_ID;
+
+    // All-Star sets hold every All-Star from the chosen years, so the set size follows that count: when the
+    // template is picked and when the years or teams change under it. Only the latest request applies.
+    const allStarCountRequest = useRef(0);
+    const sizeToAllStars = useStableCallback(async (years: string, teams: string[]) => {
+        const validation = validateYears(parseYearsValue(years));
+        if (validation.error || validation.isBlank) return;
+        const requestId = ++allStarCountRequest.current;
+        try {
+            const count = await fetchAllStarCount(years, teams);
+            if (requestId === allStarCountRequest.current && count > 0) onScopeChange({ set_size: count });
+        } catch {
+            // Keep the current size; the user can still set it by hand
+        }
+    });
+    const allStarScopeKey = isAllStarSet ? JSON.stringify([config.years.trim(), config.teams ?? []]) : null;
+    // Starts at the loaded scope, so opening a saved All-Star edition keeps its size
+    const sizedAllStarScopeKey = useRef(allStarScopeKey);
+    useEffect(() => {
+        if (allStarScopeKey === sizedAllStarScopeKey.current) return;
+        sizedAllStarScopeKey.current = allStarScopeKey;
+        if (allStarScopeKey === null) return;
+        const [years, teams] = JSON.parse(allStarScopeKey) as [string, string[]];
+        // Waits out typing in the years field
+        const timer = window.setTimeout(() => { void sizeToAllStars(years, teams); }, 400);
+        return () => window.clearTimeout(timer);
+    }, [allStarScopeKey, sizeToAllStars]);
 
     const positionTargets = config.position_targets ?? [];
     const hasPositionTargets = positionTargets.length > 0;
@@ -329,6 +362,8 @@ export function AlgorithmBuilder({ releaseId, edition, token, defaultShowdownSet
         const definedScopePatch = Object.fromEntries(Object.entries(scopePatch).filter(([, value]) => value !== undefined));
         if (Object.keys(definedScopePatch).length > 0) onScopeChange(definedScopePatch);
         setRules(prev => ({ ...prev, ...rulePreset, template_id: template.id }));
+        // Re-applying (Reset) doesn't change the years, so it won't trigger the effect above
+        if (template.preset.all_stars_only && isAllStarSet) void sizeToAllStars(config.years.trim(), config.teams ?? []);
     }
 
     async function handleSave() {
@@ -386,7 +421,9 @@ export function AlgorithmBuilder({ releaseId, edition, token, defaultShowdownSet
                             <TemplateChip key={template.id} template={template} isActive={config.template_id === template.id} onSelect={() => config.template_id !== template.id && applyTemplate(template)} />
                         ))}
                     <TemplateChip template={EXPANSION_TEMPLATE} isActive={config.template_id === EXPANSION_TEMPLATE_ID} onSelect={() => config.template_id !== EXPANSION_TEMPLATE_ID && applyTemplate(EXPANSION_TEMPLATE)} />
-                    <TemplateChip template={ALL_STARS_TEMPLATE} isActive={config.template_id === ALL_STARS_TEMPLATE_ID} onSelect={() => config.template_id !== ALL_STARS_TEMPLATE_ID && applyTemplate(ALL_STARS_TEMPLATE)} />
+                    {showAllStarsTemplate && (
+                        <TemplateChip template={ALL_STARS_TEMPLATE} isActive={config.template_id === ALL_STARS_TEMPLATE_ID} onSelect={() => config.template_id !== ALL_STARS_TEMPLATE_ID && applyTemplate(ALL_STARS_TEMPLATE)} />
+                    )}
                 </div>
                 {activeTemplate && (
                     <p className="text-[11px] text-(--text-tertiary)">{activeTemplate.description}</p>

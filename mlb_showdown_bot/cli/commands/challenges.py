@@ -216,6 +216,7 @@ def social(
     headline: str = typer.Option(None, "--headline", help="Hero title, e.g. 'Sixties Week'. Default: \"This week's challenges\""),
     subhead: str = typer.Option(None, "--subhead", help="Line under the hero title"),
     start_date: datetime = typer.Option(None, "--start-date", "-d", formats=["%Y-%m-%d"], help="The 'Week of' date shown on the slide (YYYY-MM-DD). Default: today"),
+    theme: str = typer.Option("light", "--theme", "-t", help="Slide color theme: 'light' or 'dark'", case_sensitive=False),
     out: str = typer.Option(None, "--out", "-o", help="Output directory. Defaults to sim_output/challenges_{start date}/"),
     image_format: str = typer.Option("png", "--image-format", "-img", help="Image format for the slide export (challenges_1.<ext>), or 'none' to skip it.", case_sensitive=False),
 ):
@@ -230,7 +231,7 @@ def social(
     out_dir = Path(out or f"sim_output/challenges_{week_start.isoformat()}")
     db = _open_db(env)
     try:
-        week = ChallengeWeek(db=db, showdown_set=showdown_set, out_dir=out_dir, slugs=slugs, card_ids=card_ids, headline=headline, subhead=subhead, start_date=week_start)
+        week = ChallengeWeek(db=db, showdown_set=showdown_set, out_dir=out_dir, slugs=slugs, card_ids=card_ids, headline=headline, subhead=subhead, start_date=week_start, theme=theme.lower())
         try:
             html_path = week.write_outputs(image_format=image_format_normalized, status_callback=typer.echo)
         except ValueError as exc:

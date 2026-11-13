@@ -703,7 +703,8 @@ function CustomCardBuilder({ isHidden, embed }: CustomCardBuilderProps) {
 
         const handleKeyDown = (event: KeyboardEvent) => {
             // Dont run if the tab is not active
-            if (document.hidden || isHidden) return;
+            // Skip keys a focused control already handled (e.g. Enter picking a player search result)
+            if (document.hidden || isHidden || event.defaultPrevented) return;
 
             if (event.key === 'Enter' && !event.shiftKey) {
                 // Don't trigger if user is typing in a textarea or input that should allow Enter

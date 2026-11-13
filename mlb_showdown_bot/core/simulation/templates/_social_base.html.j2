@@ -100,6 +100,31 @@
 
   footer { margin-top: 32px; display: flex; justify-content: space-between; align-items: center; color: var(--showdown-gray); font-size: 13px; border-top: 1px solid var(--divider); padding-top: 16px; }
   footer strong { color: var(--showdown-blue); font-weight: 900; }
+{% if theme == 'dark' %}
+  /* DARK THEME (`theme='dark'`): MIRRORS THE FRONTEND'S `.dark` TOKENS (frontend/src/index.css). */
+  :root {
+    --primary: #f1f3f5;
+    --secondary: #d5dae0;
+    --text-tertiary: #8b939d;
+    --showdown-blue: #4f86cf;
+    --showdown-blue-fill: #3775c8;
+    --showdown-red: #e0574d;
+    --showdown-gray: #a0a0a5;
+    --background-primary: #0d1116;
+    --background-secondary: #161b22;
+    --background-tertiary: #212833;
+    --divider: #2f3844;
+    --rule-strong: #4a5461;
+    --plate: #343e4b;
+    --plate-ink: #f1f3f5;
+    --stripe: rgb(120 160 220 / 0.07);
+    --challenge-legendary: #e0b352;
+    --challenge-budget: #5a97f0;
+    --challenge-superteam: #a884e8;
+    --challenge-themed: #f0806c;
+    --shadow-overlay: 0 18px 44px rgb(0 0 0 / 0.55);
+  }
+{% endif %}
 {% block styles %}{% endblock %}
   /* SHEETS. IN THE NORMAL VIEW THEY READ AS ONE CONTINUOUS PAGE. OPENED AS `page.html#pdf`
      (WHICH IS WHAT THE PDF EXPORT PRINTS) EACH SHEET BECOMES A FIXED 1080x1350 (4:5 PORTRAIT,

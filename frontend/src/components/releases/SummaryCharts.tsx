@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
-import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ReferenceLine, type TooltipContentProps } from 'recharts';
+import { ResponsiveContainer, BarChart, Bar, ScatterChart, Scatter, ZAxis, XAxis, YAxis, CartesianGrid, Tooltip, ReferenceLine, type TooltipContentProps } from 'recharts';
 import { fetchWotcBaseSet, WOTC_BASE_SETS, type ReleaseCard, type WotcBaseSet } from '../../api/releases';
 import type { CardDatabaseRecord } from '../../api/card_db/cardDatabase';
 import { defenseAtPosition } from '../shared/DefenseUtils';
@@ -9,6 +9,8 @@ import { headingClass } from '../shared/headingStyles';
 import { CAPS_LABEL_CLASS } from '../shared/fieldStyles';
 import { choiceClass } from '../shared/choiceStyles';
 import { EmptyState } from '../shared/EmptyState';
+import { FOIL_TAG } from './ReleaseCardTags';
+import { DEFENSE_POSITION_ORDER, FRANCHISE_CODE, HAND_ORDER, PARENT_POSITION_ORDER, POSITION_ORDER, handLabel, parentPositionGroup, type ParentPositionGroup } from './cardGroups';
 
 type SummaryChartsProps = {
     cards: ReleaseCard[];
@@ -27,12 +29,16 @@ const COMPARE_ACCENT = 'var(--chart-compare)';
 
 type BreakdownKey = string | number;
 
-/** One bar group. `compare` is the WOTC count scaled to this set's size; `compareRaw` is unscaled. */
+/** One bar group. `compare` is the WOTC count scaled to this set's size; `compareRaw` is unscaled.
+ * Average breakdowns put the average in `count`/`compare` (no `compareRaw`) and the number of cards
+ * behind it in `sampleSize`/`compareSampleSize`. */
 type BreakdownRow = {
     label: string;
     count: number;
     compare?: number;
     compareRaw?: number;
+    sampleSize?: number;
+    compareSampleSize?: number;
     /** Section the row belongs to; horizontal charts draw a divider wherever it changes. */
     group?: string;
     /** Blank spacer row that holds a section divider, not data. */
@@ -42,7 +48,8 @@ type BreakdownRow = {
 /** How to bucket cards for one chart. `sort: 'key'` orders ascending by key (numeric stats like
  * command/IP); `'count'` orders by frequency descending (categorical fields); a function sorts keys directly. */
 type BreakdownSpec = {
-    keyFn: (snapshot: CardDatabaseRecord) => BreakdownKey | null | undefined;
+    /** A list counts the card once under each key (e.g. every icon on it). */
+    keyFn: (snapshot: CardDatabaseRecord) => BreakdownKey | BreakdownKey[] | null | undefined;
     labelFn?: (key: BreakdownKey) => string;
     sort: 'key' | 'count' | ((a: BreakdownKey, b: BreakdownKey) => number);
     /** Optional section for each key, e.g. the position of a "SS +5" defense key. */
@@ -58,11 +65,56 @@ type Comparison = { snapshots: CardDatabaseRecord[] };
 function countBy(snapshots: CardDatabaseRecord[], keyFn: BreakdownSpec['keyFn']): Map<BreakdownKey, number> {
     const counts = new Map<BreakdownKey, number>();
     for (const snapshot of snapshots) {
-        const key = keyFn(snapshot);
-        if (key === null || key === undefined || key === '') continue;
-        counts.set(key, (counts.get(key) ?? 0) + 1);
+        const keys = keyFn(snapshot);
+        for (const key of Array.isArray(keys) ? keys : [keys]) {
+            if (key === null || key === undefined || key === '') continue;
+            counts.set(key, (counts.get(key) ?? 0) + 1);
+        }
     }
     return counts;
+}
+
+const roundTenth = (value: number) => Math.round(value * 10) / 10;
+
+/** How to average a value per key, e.g. each position's average points. `entries` yields a card's
+ * [key, value] pairs; a card can feed several keys (one per chart result). */
+type AverageSpec = {
+    entries: (snapshot: CardDatabaseRecord) => [BreakdownKey, number][];
+    sort: (a: BreakdownKey, b: BreakdownKey) => number;
+    labelFn?: (key: BreakdownKey) => string;
+    groupFn?: (key: BreakdownKey) => string;
+};
+
+function averagesBy(snapshots: CardDatabaseRecord[], entries: AverageSpec['entries']): Map<BreakdownKey, { sum: number; cards: number }> {
+    const totals = new Map<BreakdownKey, { sum: number; cards: number }>();
+    for (const snapshot of snapshots) {
+        for (const [key, value] of entries(snapshot)) {
+            const total = totals.get(key) ?? { sum: 0, cards: 0 };
+            totals.set(key, { sum: total.sum + value, cards: total.cards + 1 });
+        }
+    }
+    return totals;
+}
+
+/** Average per key for this set and the comparison set (unscaled: an average needs no size scaling). */
+function buildAverageBreakdown(snapshots: CardDatabaseRecord[], spec: AverageSpec, comparison: Comparison | null): BreakdownRow[] {
+    const totals = averagesBy(snapshots, spec.entries);
+    const compareTotals = comparison ? averagesBy(comparison.snapshots, spec.entries) : null;
+    const keys = [...new Set([...totals.keys(), ...(compareTotals?.keys() ?? [])])].sort(spec.sort);
+    const averageOf = (total?: { sum: number; cards: number }) => total && total.cards > 0 ? roundTenth(total.sum / total.cards) : 0;
+    return keys.map(key => {
+        const row: BreakdownRow = {
+            label: spec.labelFn ? spec.labelFn(key) : String(key),
+            count: averageOf(totals.get(key)),
+            sampleSize: totals.get(key)?.cards ?? 0,
+            group: spec.groupFn?.(key),
+        };
+        if (compareTotals) {
+            row.compare = averageOf(compareTotals.get(key));
+            row.compareSampleSize = compareTotals.get(key)?.cards ?? 0;
+        }
+        return row;
+    });
 }
 
 function compareKeys(a: BreakdownKey, b: BreakdownKey): number {
@@ -113,19 +165,10 @@ function buildBreakdown(snapshots: CardDatabaseRecord[], spec: BreakdownSpec, co
         };
         if (compareCounts) {
             row.compareRaw = compareCounts.get(key) ?? 0;
-            row.compare = Math.round(row.compareRaw * scaleFor(key) * 10) / 10;
+            row.compare = roundTenth(row.compareRaw * scaleFor(key));
         }
         return row;
     });
-}
-
-export const PARENT_POSITION_ORDER = ['Position Player', 'Starting Pitcher', 'Relief Pitcher'] as const;
-type ParentPositionGroup = typeof PARENT_POSITION_ORDER[number];
-
-/** Closers (and any other non-starter pitcher) roll up into Relief Pitcher. */
-export function parentPositionGroup(snapshot: CardDatabaseRecord): ParentPositionGroup {
-    if (!snapshot.is_pitcher) return 'Position Player';
-    return (snapshot.positions_list ?? []).includes('STARTER') ? 'Starting Pitcher' : 'Relief Pitcher';
 }
 
 // Command keys pack [hitter flag][command][outs] into one sortable number so pitchers (Control)
@@ -138,15 +181,13 @@ function commandKey(c: CardDatabaseRecord, includeOuts: boolean): number {
     return (c.is_pitcher ? 0 : COMMAND_HITTER_OFFSET) + command + (includeOuts ? (c.outs ?? 0) : 0);
 }
 
-const COMMAND_GROUP_PITCHERS = 'Pitchers';
-const COMMAND_GROUP_HITTERS = 'Hitters';
+const GROUP_HITTERS = 'Hitters';
+const GROUP_PITCHERS = 'Pitchers';
+const sideGroup = (snapshot: CardDatabaseRecord) => snapshot.is_pitcher ? GROUP_PITCHERS : GROUP_HITTERS;
 
 function commandKeyGroup(key: BreakdownKey): string {
-    return Number(key) >= COMMAND_HITTER_OFFSET ? COMMAND_GROUP_HITTERS : COMMAND_GROUP_PITCHERS;
+    return Number(key) >= COMMAND_HITTER_OFFSET ? GROUP_HITTERS : GROUP_PITCHERS;
 }
-
-// Scorecard order (C through RF), with the grouped IF/OF/LF-RF ratings older sets use slotted in beside their members.
-const DEFENSE_POSITION_ORDER = ['C', 'CA', '1B', '2B', '3B', 'SS', 'IF', 'LF', 'LF/RF', 'CF', 'RF', 'OF'];
 
 // IP is split by role; starters and relievers work on very different innings scales.
 const IP_ROLE_ORDER = ['Starters', 'Relievers'];
@@ -171,16 +212,40 @@ function compareGroupedKeys(groupOrder: string[], descending: boolean) {
         groupIndex(a) - groupIndex(b) || (groupedKeyValue(a) - groupedKeyValue(b)) * (descending ? -1 : 1);
 }
 
-/** Historical team codes (as on WOTC cards) mapped to the franchise's current code, so the Teams
- * breakdown groups e.g. WOTC's MON with WSN. Applies to both sets, which keeps the comparison aligned. */
-export const FRANCHISE_CODE: Record<string, string> = {
-    MON: 'WSN',
-    FLA: 'MIA',
-    CAL: 'LAA',
-    ANA: 'LAA',
-    TBD: 'TBR',
-    OAK: 'ATH',
-};
+function comparePositions(a: BreakdownKey, b: BreakdownKey): number {
+    const index = (key: BreakdownKey) => POSITION_ORDER.includes(String(key)) ? POSITION_ORDER.indexOf(String(key)) : POSITION_ORDER.length;
+    return index(a) - index(b) || String(a).localeCompare(String(b));
+}
+
+// Hitter icons, then pitcher icons, then the ones both can carry.
+const ICON_ORDER = ['S', 'G', 'HR', 'SB', 'CY', '20', 'K', 'RP', 'V', 'R', 'RY'];
+
+// Outs, then walks and hits, in the order they run down a card's chart.
+const CHART_RESULT_ORDER = ['PU', 'SO', 'GB', 'FB', 'BB', '1B', '1B+', '2B', '3B', 'HR'];
+const CHART_GROUP_ORDER = [GROUP_PITCHERS, GROUP_HITTERS];
+const chartResultOf = (key: BreakdownKey) => String(key).split(' ')[1];
+
+/** Each chart result's slot count on the card, keyed "Hitters HR"; results not on the chart count as 0. */
+function chartResultEntries(snapshot: CardDatabaseRecord): [BreakdownKey, number][] {
+    const values: Record<string, number> | null | undefined = snapshot.chart_values;
+    if (!values) return [];
+    return CHART_RESULT_ORDER.map(result => [`${sideGroup(snapshot)} ${result}`, Number(values[result] ?? 0)]);
+}
+
+const AVERAGE_SPECS = {
+    pointsByPosition: {
+        entries: c => [[c.positions_list?.[0] ?? c.player_type, c.points ?? 0]],
+        sort: comparePositions,
+        groupFn: key => ['STARTER', 'RELIEVER', 'CLOSER'].includes(String(key)) ? GROUP_PITCHERS : GROUP_HITTERS,
+    },
+    chartResults: {
+        entries: chartResultEntries,
+        sort: (a, b) => CHART_GROUP_ORDER.indexOf(groupedKeyGroup(a)) - CHART_GROUP_ORDER.indexOf(groupedKeyGroup(b))
+            || CHART_RESULT_ORDER.indexOf(chartResultOf(a)) - CHART_RESULT_ORDER.indexOf(chartResultOf(b)),
+        labelFn: chartResultOf,
+        groupFn: groupedKeyGroup,
+    },
+} satisfies Record<string, AverageSpec>;
 
 const SPECS = {
     parentPosition: {
@@ -230,7 +295,55 @@ const SPECS = {
         groupFn: groupedKeyGroup,
         scaleWithinGroup: true,
     },
+    hand: {
+        keyFn: handLabel,
+        sort: (a, b) => HAND_ORDER.indexOf(String(a)) - HAND_ORDER.indexOf(String(b)),
+        groupFn: key => String(key).endsWith('HP') ? GROUP_PITCHERS : GROUP_HITTERS,
+        scaleWithinGroup: true,
+    },
+    icons: {
+        keyFn: c => [...new Set(c.icons_list ?? [])],
+        sort: (a, b) => {
+            const index = (key: BreakdownKey) => ICON_ORDER.includes(String(key)) ? ICON_ORDER.indexOf(String(key)) : ICON_ORDER.length;
+            return index(a) - index(b);
+        },
+    },
+    // DH doesn't count as a fielding position; 0 means the hitter is a DH only.
+    positionCount: {
+        keyFn: c => c.is_pitcher ? null : Math.min(Object.keys(c.positions_and_defense ?? {}).filter(p => p !== 'DH').length, MAX_POSITION_COUNT),
+        labelFn: key => key === 0 ? 'DH only' : `${key}${key === MAX_POSITION_COUNT ? '+' : ''} position${key === 1 ? '' : 's'}`,
+        sort: 'key',
+    },
 } satisfies Record<string, BreakdownSpec>;
+
+/** Hitters with this many fielding positions or more share one column. */
+const MAX_POSITION_COUNT = 3;
+
+/** More distinct years than this and the Years chart counts by decade instead. */
+const MAX_YEAR_COLUMNS = 15;
+
+/** Leading year of a card's year string ("2006+2014" → 2006); null for non-numeric years like "CAREER". */
+function cardYear(snapshot: CardDatabaseRecord): number | null {
+    const year = parseInt(String(snapshot.year), 10);
+    return Number.isNaN(year) ? null : year;
+}
+
+/** Cards by player year, or by decade when the years spread wide. Null when every card shares one year,
+ * since a single bar says nothing. */
+function yearSpec(snapshots: CardDatabaseRecord[]): BreakdownSpec | null {
+    const years = new Set(snapshots.map(c => cardYear(c) ?? String(c.year)));
+    if (years.size <= 1) return null;
+    const byDecade = years.size > MAX_YEAR_COLUMNS;
+    return {
+        keyFn: c => {
+            const year = cardYear(c);
+            if (year === null) return String(c.year);
+            return byDecade ? Math.floor(year / 10) * 10 : year;
+        },
+        labelFn: key => byDecade && typeof key === 'number' ? `${key}s` : String(key),
+        sort: 'key',
+    };
+}
 
 function average(
     snapshots: CardDatabaseRecord[],
@@ -243,10 +356,11 @@ function average(
     return Math.round((sum / snapshots.length) * factor) / factor;
 }
 
-type SummaryAverages = { points: number; onBase: number; control: number; speed: number; ip: number };
+type SummaryAverages = { points: number; onBase: number; control: number; speed: number; ip: number; icons: number };
 
 function buildAverages(snapshots: CardDatabaseRecord[]): SummaryAverages {
     return {
+        icons: average(snapshots, c => new Set(c.icons_list ?? []).size, 2),
         points: average(snapshots, c => c.points, 0),
         onBase: average(snapshots.filter(c => !c.is_pitcher), c => c.command, 1),
         control: average(snapshots.filter(c => c.is_pitcher), c => c.command, 1),
@@ -268,6 +382,11 @@ const FIT_RANK: Record<Fit, number> = { ok: 0, warn: 1, off: 2 };
 
 const COMMAND_AVERAGE_TOLERANCE: Tolerance = { warn: 0.4, off: 0.8 };
 const IP_AVERAGE_TOLERANCE: Tolerance = { warn: 0.4, off: 0.8 };
+const POINTS_AVERAGE_TOLERANCE: Tolerance = { warn: 20, off: 40 };
+const SPEED_AVERAGE_TOLERANCE: Tolerance = { warn: 1, off: 2 };
+const ICONS_AVERAGE_TOLERANCE: Tolerance = { warn: 0.15, off: 0.3 };
+/** Share of chart slots that would have to change result to match WOTC; 5% is one slot of a 20-slot chart. */
+const CHART_RESULTS_TOLERANCE: Tolerance = { warn: 0.05, off: 0.1 };
 
 /** Share of cards that would have to move buckets to match WOTC's shape (total variation distance). */
 const DISTRIBUTION_TOLERANCE: Tolerance = { warn: 0.15, off: 0.3 };
@@ -282,16 +401,43 @@ function fitFor(delta: number, tolerance: Tolerance): Fit {
     return delta >= tolerance.off ? 'off' : delta >= tolerance.warn ? 'warn' : 'ok';
 }
 
+/** Total variation distance between two sets of bucket amounts, each taken as shares of its own total. */
+function shareDistance(pairs: [number, number][]): number {
+    const total = pairs.reduce((sum, [value]) => sum + value, 0);
+    const compareTotal = pairs.reduce((sum, [, compare]) => sum + compare, 0);
+    if (total === 0 || compareTotal === 0) return 1;
+    return pairs.reduce((sum, [value, compare]) => sum + Math.abs(value / total - compare / compareTotal), 0) / 2;
+}
+
 /** Compares one chart's bucket shares against WOTC's (raw counts, so scaling doesn't matter).
  * Null when there are fewer than `minCards` cards to judge. */
-function distributionCheck(rows: BreakdownRow[], minCards = MIN_CARDS_TO_SCORE, tolerance = DISTRIBUTION_TOLERANCE): FitCheck | null {
+function distributionCheck(rows: BreakdownRow[], minCards = MIN_CARDS_TO_SCORE, tolerance = DISTRIBUTION_TOLERANCE, label = 'Distribution'): FitCheck | null {
     const count = rows.reduce((sum, row) => sum + row.count, 0);
     if (count < minCards) return null;
-    const compareCount = rows.reduce((sum, row) => sum + (row.compareRaw ?? 0), 0);
-    const distance = compareCount === 0
-        ? 1
-        : rows.reduce((sum, row) => sum + Math.abs(row.count / count - (row.compareRaw ?? 0) / compareCount), 0) / 2;
-    return { fit: fitFor(distance, tolerance), detail: `Distribution ${Math.round(distance * 100)}% off` };
+    const distance = shareDistance(rows.map(row => [row.count, row.compareRaw ?? 0]));
+    return { fit: fitFor(distance, tolerance), detail: `${label} ${Math.round(distance * 100)}% off` };
+}
+
+/** Compares a panel's average chart (slots per result) against WOTC's; null below `MIN_PANEL_CARDS_TO_SCORE` cards. */
+function chartResultsCheck(rows: BreakdownRow[]): FitCheck | null {
+    if ((rows[0]?.sampleSize ?? 0) < MIN_PANEL_CARDS_TO_SCORE) return null;
+    const distance = shareDistance(rows.map(row => [row.count, row.compare ?? 0]));
+    return { fit: fitFor(distance, CHART_RESULTS_TOLERANCE), detail: `Chart ${Math.round(distance * 100)}% off` };
+}
+
+/** Card-weighted average gap between this set's per-key averages and WOTC's (e.g. points per position). */
+function averageGapCheck(rows: BreakdownRow[], tolerance: Tolerance, unit: string): FitCheck | null {
+    const judged = rows.filter(row => (row.sampleSize ?? 0) > 0 && (row.compareSampleSize ?? 0) > 0);
+    const cards = judged.reduce((sum, row) => sum + (row.sampleSize ?? 0), 0);
+    if (cards < MIN_CARDS_TO_SCORE) return null;
+    const gap = judged.reduce((sum, row) => sum + Math.abs(row.count - (row.compare ?? 0)) * (row.sampleSize ?? 0), 0) / cards;
+    return { fit: fitFor(gap, tolerance), detail: `Off by ${Math.round(gap)} ${unit} on average` };
+}
+
+/** Worst of several checks that each stand alone (e.g. one per hitter/pitcher section); null when none can be judged. */
+function worstCheck(checks: (FitCheck | null)[]): FitCheck | null {
+    const [first, ...rest] = checks.filter((check): check is FitCheck => check !== null);
+    return first ? combineChecks(first, ...rest) : null;
 }
 
 function averageCheck(label: string, value: number, compareValue: number, tolerance: Tolerance): FitCheck {
@@ -366,32 +512,48 @@ function pluralizeCards(count: number): string {
     return `${count} card${count === 1 ? '' : 's'}`;
 }
 
-/** Tooltip for both single-series and comparison charts; `compareLabel` names the WOTC series. */
-function makeChartTooltip(compareLabel: string | null, compareLoading: boolean) {
+/** " (12 cards)" after an average, or nothing for a plain count. */
+function sampleSuffix(cards: number | undefined): string {
+    return cards === undefined ? '' : ` (${pluralizeCards(cards)})`;
+}
+
+/** Wraps a chart tooltip's lines in the shared tooltip box. */
+function TooltipBox({ title, children }: { title: ReactNode; children: ReactNode }) {
+    return (
+        <div className="bg-(--background-primary) border border-(--divider) px-2 py-1.5 rounded-card text-[11px]">
+            <div className="font-bold text-(--text-primary)">{title}</div>
+            {children}
+        </div>
+    );
+}
+
+/** Tooltip for both single-series and comparison charts; `compareLabel` names the WOTC series and
+ * `formatAmount` renders a bar's value (card counts by default, or an average). */
+function makeChartTooltip(compareLabel: string | null, compareLoading: boolean, formatAmount: (value: number) => string) {
     return ({ active, payload, label }: TooltipContentProps) => {
         if (!active || !payload?.length) return null;
         const row: BreakdownRow = payload[0].payload as BreakdownRow;
         if (row.isDivider) return null;
+        const thisSet = `${formatAmount(row.count)}${sampleSuffix(row.sampleSize)}`;
+        const compare = row.compareRaw === undefined
+            ? `${formatAmount(row.compare ?? 0)}${sampleSuffix(row.compareSampleSize)}`
+            : `${row.compare ?? 0} scaled (${row.compareRaw} actual)`;
         return (
-            <div className="bg-(--background-primary) border border-(--divider) px-2 py-1.5 rounded-card text-[11px]">
-                <div className="font-bold text-(--text-primary)">{label}</div>
+            <TooltipBox title={label}>
                 {compareLoading ? (
                     <>
-                        <LegendEntry color={CHART_ACCENT} label={`This set: ${pluralizeCards(row.count)}`} />
+                        <LegendEntry color={CHART_ACCENT} label={`This set: ${thisSet}`} />
                         <LegendEntry color={PLACEHOLDER_FILL} label="WOTC: loading…" />
                     </>
                 ) : compareLabel === null ? (
-                    <div className="text-(--text-secondary)">{pluralizeCards(row.count)}</div>
+                    <div className="text-(--text-secondary)">{thisSet}</div>
                 ) : (
                     <>
-                        <LegendEntry color={CHART_ACCENT} label={`This set: ${pluralizeCards(row.count)}`} />
-                        <LegendEntry
-                            color={COMPARE_ACCENT}
-                            label={`${compareLabel}: ${row.compare ?? 0} scaled (${row.compareRaw ?? 0} actual)`}
-                        />
+                        <LegendEntry color={CHART_ACCENT} label={`This set: ${thisSet}`} />
+                        <LegendEntry color={COMPARE_ACCENT} label={`${compareLabel}: ${compare}`} />
                     </>
                 )}
-            </div>
+            </TooltipBox>
         );
     };
 }
@@ -415,8 +577,15 @@ function LegendEntrySkeleton({ label }: { label: string }) {
     );
 }
 
-/** `compareLoading` swaps the WOTC series for pulsing placeholder bars while a comparison set loads. */
-type ChartProps = { data: BreakdownRow[]; emptyMessage: string; compareLabel: string | null; compareLoading: boolean };
+/** `compareLoading` swaps the WOTC series for pulsing placeholder bars while a comparison set loads.
+ * `formatAmount` renders a bar's value in the tooltip (defaults to a card count). */
+type ChartProps = {
+    data: BreakdownRow[];
+    emptyMessage: string;
+    compareLabel: string | null;
+    compareLoading: boolean;
+    formatAmount?: (value: number) => string;
+};
 
 const PLACEHOLDER_FILL = 'var(--background-quaternary)';
 
@@ -435,6 +604,8 @@ function compareBarProps(compareLabel: string | null, compareLoading: boolean, r
 // barGap/barCategoryGap keep a small surface gap between the paired bars.
 const BAR_GAP = 2;
 const DIVIDER_STROKE = 'var(--quaternary)';
+const CHART_GRID_STROKE = 'var(--table-header)';
+const CHART_CURSOR = { fill: CHART_GRID_STROKE, opacity: 0.3 };
 
 const DIVIDER_LABEL_PREFIX = '__divider-';
 
@@ -458,7 +629,7 @@ function hideDividerTick(label: string): string {
 /** Default height of a VerticalBarChart; charts sitting beside one can match it. */
 const VERTICAL_CHART_HEIGHT = 200;
 
-function VerticalBarChart({ data, emptyMessage, compareLabel, compareLoading, scrollable = false, height = VERTICAL_CHART_HEIGHT }: ChartProps & { scrollable?: boolean; height?: number }) {
+function VerticalBarChart({ data, emptyMessage, compareLabel, compareLoading, formatAmount = pluralizeCards, scrollable = false, height = VERTICAL_CHART_HEIGHT }: ChartProps & { scrollable?: boolean; height?: number }) {
     if (data.length === 0) return <EmptyChartState message={emptyMessage} />;
     const rows = withSectionDividers(data);
     const compareBar = compareBarProps(compareLabel, compareLoading, [4, 4, 0, 0]);
@@ -468,10 +639,10 @@ function VerticalBarChart({ data, emptyMessage, compareLabel, compareLoading, sc
             <div style={scrollable ? { minWidth: rows.length * columnWidth } : undefined}>
                 <ResponsiveContainer width="100%" height={height}>
                     <BarChart data={rows} margin={{ top: 4, right: 8, left: 0, bottom: 4 }} barGap={BAR_GAP}>
-                        <CartesianGrid strokeDasharray="3 3" stroke="var(--table-header)" vertical={false} />
+                        <CartesianGrid strokeDasharray="3 3" stroke={CHART_GRID_STROKE} vertical={false} />
                         <XAxis dataKey="label" fontSize={11} tickLine={false} interval={0} tickFormatter={hideDividerTick} />
                         <YAxis fontSize={11} width={28} allowDecimals={false} tickLine={false} />
-                        <Tooltip content={makeChartTooltip(compareLabel, compareLoading)} cursor={{ fill: 'var(--table-header)', opacity: 0.3 }} />
+                        <Tooltip content={makeChartTooltip(compareLabel, compareLoading, formatAmount)} cursor={CHART_CURSOR} />
                         {rows.filter(row => row.isDivider).map(row => (
                             <ReferenceLine key={row.label} x={row.label} stroke={DIVIDER_STROKE} strokeWidth={1} />
                         ))}
@@ -499,10 +670,10 @@ function averageGroupedValue(rows: BreakdownRow[], useCompare: boolean): number 
 const formatRating = (rating: number) => `${rating >= 0 ? '+' : ''}${rating}`;
 
 /** "Avg X · WOTC Y" label shown above a chart; omits the WOTC part when there's no comparison. */
-function ChartAverage({ value, compareValue }: { value: string | null; compareValue?: string | null }) {
+function ChartAverage({ value, compareValue, label = 'Avg' }: { value: string | null; compareValue?: string | null; label?: string }) {
     return (
         <span className="text-[10px] text-(--text-tertiary)">
-            {`Avg ${value ?? '–'}`}
+            {`${label} ${value ?? '–'}`}
             {compareValue != null && ` · WOTC ${compareValue}`}
         </span>
     );
@@ -514,7 +685,7 @@ function rowGroups(rows: BreakdownRow[]): string[] {
 }
 
 /** Bordered card holding one titled chart, with its average vs WOTC's in the header. */
-function ChartPanel({ title, average, fit, className, children }: { title: string; average: ReactNode; fit?: FitCheck | null; className?: string; children: ReactNode }) {
+function ChartPanel({ title, average, fit, className, children }: { title: string; average?: ReactNode; fit?: FitCheck | null; className?: string; children: ReactNode }) {
     return (
         <div className={`rounded-card border border-(--divider) p-2 min-w-0 ${className ?? ''}`}>
             <div className="flex items-baseline justify-between gap-2 px-1">
@@ -575,39 +746,93 @@ function GroupedColumnCharts({ data, emptyMessage, compareLabel, compareLoading,
 }
 
 const COMMAND_PANELS: Record<string, { title: string; averageKey: keyof SummaryAverages }> = {
-    [COMMAND_GROUP_PITCHERS]: { title: 'Pitchers · Control', averageKey: 'control' },
-    [COMMAND_GROUP_HITTERS]: { title: 'Hitters · On-Base', averageKey: 'onBase' },
+    [GROUP_PITCHERS]: { title: 'Pitchers · Control', averageKey: 'control' },
+    [GROUP_HITTERS]: { title: 'Hitters · On-Base', averageKey: 'onBase' },
 };
 
-/** Separate Control and On-Base charts: side by side, or stacked on their own lines when
- * `includesOuts` widens them into scrollable command/outs columns. */
-function CommandCharts({ data, emptyMessage, compareLabel, compareLoading, includesOuts, averages, compareAverages, fits }: ChartProps & {
-    includesOuts: boolean;
-    /** WOTC fit per panel group, judged on On-Base/Control alone so "Include Outs" doesn't change it. */
-    fits: Record<string, FitCheck | null> | null;
-    averages: SummaryAverages;
-    compareAverages: SummaryAverages | null;
-}) {
-    if (data.length === 0) return <EmptyChartState message={emptyMessage} />;
+type PanelInfo = { title: string; average?: ReactNode; fit?: FitCheck | null };
+
+/** One column chart per row `group` (e.g. Hitters / Pitchers): side by side, or stacked on their own
+ * lines with scrolling columns when `stacked`. `panels` titles each group. */
+function PanelCharts({ data, panels, stacked = false, ...chartProps }: ChartProps & { panels: Record<string, PanelInfo>; stacked?: boolean }) {
+    if (data.length === 0) return <EmptyChartState message={chartProps.emptyMessage} />;
     return (
-        <div className={`flex gap-4 ${includesOuts ? 'flex-col' : 'flex-wrap'}`}>
-            {rowGroups(data).map(group => {
-                const { title, averageKey } = COMMAND_PANELS[group];
+        <div className={`flex gap-4 ${stacked ? 'flex-col' : 'flex-wrap'}`}>
+            {rowGroups(data).map(group => (
+                <ChartPanel
+                    key={group}
+                    title={panels[group]?.title ?? group}
+                    fit={panels[group]?.fit}
+                    className={stacked ? undefined : 'flex-1 basis-64'}
+                    average={panels[group]?.average}
+                >
+                    <VerticalBarChart data={data.filter(row => row.group === group)} scrollable={stacked} {...chartProps} />
+                </ChartPanel>
+            ))}
+        </div>
+    );
+}
+
+/** One scatter dot: a card's command against its points. */
+type ScatterPoint = { x: number; y: number; name: string; year: string | number; command: number };
+
+// Cards share whole-number commands, so dots spread sideways a little to stay visible.
+const SCATTER_JITTER = 0.5;
+
+function scatterPoints(snapshots: CardDatabaseRecord[]): ScatterPoint[] {
+    return snapshots.filter(c => c.command != null).map((c, index) => ({
+        // Golden-ratio spacing spreads neighbours evenly without randomness, so dots don't jump on re-render.
+        x: c.command + ((index * 0.618) % 1 - 0.5) * SCATTER_JITTER,
+        y: c.points ?? 0,
+        name: c.name,
+        year: c.year,
+        command: c.command,
+    }));
+}
+
+function ScatterTooltip({ active, payload }: TooltipContentProps) {
+    if (!active || !payload?.length) return null;
+    const point = payload[0].payload as ScatterPoint;
+    return (
+        <TooltipBox title={`${point.year} ${point.name}`}>
+            <div className="text-(--text-secondary)">{`Command ${point.command} · ${point.y} PTS`}</div>
+        </TooltipBox>
+    );
+}
+
+/** Points against On-Base (hitters) and Control (pitchers), one panel each, with the WOTC set's cards behind. */
+function PointsCommandScatter({ snapshots, compareSnapshots, compareLoading }: {
+    snapshots: CardDatabaseRecord[];
+    compareSnapshots: CardDatabaseRecord[] | null;
+    compareLoading: boolean;
+}) {
+    return (
+        <div className="flex flex-wrap gap-4">
+            {CHART_GROUP_ORDER.map(group => {
+                const ofGroup = (cards: CardDatabaseRecord[]) => cards.filter(c => sideGroup(c) === group);
+                const points = scatterPoints(ofGroup(snapshots));
+                if (points.length === 0) return null;
+                const comparePoints = compareSnapshots ? scatterPoints(ofGroup(compareSnapshots)) : [];
                 return (
-                    <ChartPanel
-                        key={group}
-                        title={title}
-                        fit={fits?.[group]}
-                        className={includesOuts ? undefined : 'flex-1 basis-64'}
-                        average={<ChartAverage value={String(averages[averageKey])} compareValue={compareAverages && String(compareAverages[averageKey])} />}
-                    >
-                        <VerticalBarChart
-                            data={data.filter(row => row.group === group)}
-                            emptyMessage={emptyMessage}
-                            compareLabel={compareLabel}
-                            compareLoading={compareLoading}
-                            scrollable={includesOuts}
-                        />
+                    <ChartPanel key={group} title={COMMAND_PANELS[group].title} className="flex-1 basis-64">
+                        <ResponsiveContainer width="100%" height={240}>
+                            <ScatterChart margin={{ top: 8, right: 8, left: 0, bottom: 4 }}>
+                                <CartesianGrid strokeDasharray="3 3" stroke={CHART_GRID_STROKE} />
+                                <XAxis type="number" dataKey="x" fontSize={11} tickLine={false} allowDecimals={false} domain={['dataMin - 1', 'dataMax + 1']} />
+                                <YAxis type="number" dataKey="y" fontSize={11} width={36} tickLine={false} />
+                                <ZAxis range={[28, 28]} />
+                                <Tooltip content={ScatterTooltip} cursor={false} />
+                                {comparePoints.length > 0 && (
+                                    <Scatter
+                                        data={comparePoints}
+                                        fill={compareLoading ? PLACEHOLDER_FILL : COMPARE_ACCENT}
+                                        fillOpacity={0.35}
+                                        className={compareLoading ? 'animate-pulse' : undefined}
+                                    />
+                                )}
+                                <Scatter data={points} fill={CHART_ACCENT} fillOpacity={0.8} />
+                            </ScatterChart>
+                        </ResponsiveContainer>
                     </ChartPanel>
                 );
             })}
@@ -646,7 +871,7 @@ function SubsetFilterBar({ value, onChange }: { value: SubsetFilter; onChange: (
 }
 
 /** `minHeight` lets a short chart (few rows) stretch its bars to match a neighbouring chart's height. */
-function HorizontalBarChart({ data, emptyMessage, compareLabel, compareLoading, minHeight = 120 }: ChartProps & { minHeight?: number }) {
+function HorizontalBarChart({ data, emptyMessage, compareLabel, compareLoading, formatAmount = pluralizeCards, minHeight = 120 }: ChartProps & { minHeight?: number }) {
     if (data.length === 0) return <EmptyChartState message={emptyMessage} />;
     const rows = withSectionDividers(data);
     const compareBar = compareBarProps(compareLabel, compareLoading, [0, 4, 4, 0]);
@@ -654,7 +879,7 @@ function HorizontalBarChart({ data, emptyMessage, compareLabel, compareLoading, 
     return (
         <ResponsiveContainer width="100%" height={Math.max(minHeight, rows.length * rowHeight)}>
             <BarChart data={rows} layout="vertical" margin={{ top: 4, right: 16, left: 8, bottom: 4 }} barGap={BAR_GAP}>
-                <CartesianGrid strokeDasharray="3 3" stroke="var(--table-header)" horizontal={false} />
+                <CartesianGrid strokeDasharray="3 3" stroke={CHART_GRID_STROKE} horizontal={false} />
                 <XAxis type="number" fontSize={11} allowDecimals={false} tickLine={false} />
                 <YAxis
                     type="category"
@@ -665,7 +890,7 @@ function HorizontalBarChart({ data, emptyMessage, compareLabel, compareLoading, 
                     interval={0}
                     tickFormatter={hideDividerTick}
                 />
-                <Tooltip content={makeChartTooltip(compareLabel, compareLoading)} cursor={{ fill: 'var(--table-header)', opacity: 0.3 }} />
+                <Tooltip content={makeChartTooltip(compareLabel, compareLoading, formatAmount)} cursor={CHART_CURSOR} />
                 {rows.filter(row => row.isDivider).map(row => (
                     <ReferenceLine key={row.label} y={row.label} stroke={DIVIDER_STROKE} strokeWidth={1} />
                 ))}
@@ -762,8 +987,31 @@ export function SummaryCharts({ cards, editionId }: SummaryChartsProps) {
             speed: build(SPECS.speed),
             ip: build(SPECS.ip),
             defense: build(SPECS.defense),
+            hand: build(SPECS.hand),
+            icons: build(SPECS.icons),
+            positionCount: build(SPECS.positionCount),
+            pointsByPosition: buildAverageBreakdown(filteredSnapshots, AVERAGE_SPECS.pointsByPosition, comparison),
+            // A result neither set's charts use (e.g. PU for hitters) gets no column.
+            chartResults: buildAverageBreakdown(filteredSnapshots, AVERAGE_SPECS.chartResults, comparison)
+                .filter(row => row.count > 0 || (row.compare ?? 0) > 0),
         };
     }, [filteredSnapshots, comparison]);
+
+    // Years and foils are this set's own choices, so they're charted without a WOTC comparison.
+    const yearBreakdown = useMemo(() => {
+        const spec = yearSpec(filteredSnapshots);
+        return spec ? buildBreakdown(filteredSnapshots, spec, null) : null;
+    }, [filteredSnapshots]);
+
+    const hasFoils = cards.some(c => c.tags.includes(FOIL_TAG));
+    const foilBreakdowns = useMemo(() => {
+        const foils = filterToSubset(cards.filter(c => c.tags.includes(FOIL_TAG)).map(c => c.card_snapshot), subsetFilter);
+        return {
+            count: foils.length,
+            position: buildBreakdown(foils, SPECS.position, null),
+            points: buildBreakdown(foils, SPECS.points, null),
+        };
+    }, [cards, subsetFilter]);
 
     const averages = buildAverages(filteredSnapshots);
     const compareAverages = comparison ? buildAverages(comparison.snapshots) : null;
@@ -773,7 +1021,8 @@ export function SummaryCharts({ cards, editionId }: SummaryChartsProps) {
     const fits = compareAverages ? {
         parentPosition: combineChecks(distributionCheck(breakdowns.parentPosition)),
         points: combineChecks(distributionCheck(breakdowns.points),
-            averageCheck('Avg PTS', averages.points, compareAverages.points, { warn: 20, off: 40 })),
+            averageCheck('Avg PTS', averages.points, compareAverages.points, POINTS_AVERAGE_TOLERANCE)),
+        // Judged on On-Base/Control alone so "Include Outs" doesn't change it.
         command: Object.fromEntries(Object.entries(COMMAND_PANELS).map(([group, { averageKey }]) => [
             group,
             combineChecks(
@@ -781,9 +1030,20 @@ export function SummaryCharts({ cards, editionId }: SummaryChartsProps) {
                 averageCheck('Avg', averages[averageKey], compareAverages[averageKey], COMMAND_AVERAGE_TOLERANCE),
             ),
         ])),
+        chartResults: Object.fromEntries(CHART_GROUP_ORDER.map(group => [
+            group,
+            chartResultsCheck(breakdowns.chartResults.filter(row => row.group === group)),
+        ])),
         position: combineChecks(distributionCheck(breakdowns.position)),
+        pointsByPosition: averageGapCheck(breakdowns.pointsByPosition, POINTS_AVERAGE_TOLERANCE, 'PTS'),
         speed: combineChecks(distributionCheck(breakdowns.speed),
-            averageCheck('Avg Speed', averages.speed, compareAverages.speed, { warn: 1, off: 2 })),
+            averageCheck('Avg Speed', averages.speed, compareAverages.speed, SPEED_AVERAGE_TOLERANCE)),
+        hand: worstCheck(CHART_GROUP_ORDER.map(group => distributionCheck(
+            breakdowns.hand.filter(row => row.group === group), MIN_PANEL_CARDS_TO_SCORE, DISTRIBUTION_TOLERANCE, group,
+        ))),
+        positionCount: combineChecks(distributionCheck(breakdowns.positionCount)),
+        icons: combineChecks(distributionCheck(breakdowns.icons),
+            averageCheck('Icons per card', averages.icons, compareAverages.icons, ICONS_AVERAGE_TOLERANCE)),
     } : null;
 
     if (cards.length === 0) {
@@ -855,7 +1115,7 @@ export function SummaryCharts({ cards, editionId }: SummaryChartsProps) {
                             action={<ChartAverage value={String(averages.points)} compareValue={compareAverages && String(compareAverages.points)} />}
                             className="flex-[2_1_0%] min-w-[min(20rem,100%)]"
                         >
-                            <VerticalBarChart data={breakdowns.points} emptyMessage="No point data yet." {...chartProps} />
+                            <VerticalBarChart data={breakdowns.points} emptyMessage="No point data yet." scrollable {...chartProps} />
                         </Section>
                     </div>
 
@@ -863,13 +1123,29 @@ export function SummaryCharts({ cards, editionId }: SummaryChartsProps) {
                         title="Command (Control / On-Base)"
                         action={<FormEnabler label="Include Outs" isEnabled={commandIncludesOuts} onChange={enabled => setCommandIncludesOuts(!enabled)} />}
                     >
-                        <CommandCharts
+                        <PanelCharts
                             data={commandIncludesOuts ? breakdowns.commandOuts : breakdowns.command}
                             emptyMessage="No command data yet."
-                            includesOuts={commandIncludesOuts}
-                            averages={averages}
-                            compareAverages={compareAverages}
-                            fits={fits?.command ?? null}
+                            stacked={commandIncludesOuts}
+                            panels={Object.fromEntries(Object.entries(COMMAND_PANELS).map(([group, { title, averageKey }]) => [group, {
+                                title,
+                                fit: fits?.command[group],
+                                average: <ChartAverage value={String(averages[averageKey])} compareValue={compareAverages && String(compareAverages[averageKey])} />,
+                            }]))}
+                            {...chartProps}
+                        />
+                    </Section>
+
+                    <Section title="Points vs Command">
+                        <PointsCommandScatter snapshots={filteredSnapshots} compareSnapshots={comparison?.snapshots ?? null} compareLoading={wotc.loading} />
+                    </Section>
+
+                    <Section title="Chart Results (Avg Slots)">
+                        <PanelCharts
+                            data={breakdowns.chartResults}
+                            emptyMessage="No chart data yet."
+                            panels={Object.fromEntries(CHART_GROUP_ORDER.map(group => [group, { title: group, fit: fits?.chartResults[group] }]))}
+                            formatAmount={value => `${value} avg slots`}
                             {...chartProps}
                         />
                     </Section>
@@ -878,9 +1154,34 @@ export function SummaryCharts({ cards, editionId }: SummaryChartsProps) {
                         <HorizontalBarChart data={breakdowns.position} emptyMessage="No position data yet." {...chartProps} />
                     </Section>
 
+                    <Section title="Avg Points by Position" fit={fits?.pointsByPosition}>
+                        <HorizontalBarChart data={breakdowns.pointsByPosition} emptyMessage="No position data yet." formatAmount={value => `${value} PTS avg`} {...chartProps} />
+                    </Section>
+
+                    <div className="flex flex-wrap gap-6">
+                        <Section title="Handedness" fit={fits?.hand} className="flex-[1_1_0%] min-w-[min(20rem,100%)]">
+                            <HorizontalBarChart data={breakdowns.hand} emptyMessage="No handedness data yet." minHeight={VERTICAL_CHART_HEIGHT} {...chartProps} />
+                        </Section>
+
+                        <Section
+                            title="Icons"
+                            fit={fits?.icons}
+                            action={<ChartAverage label="Per card" value={String(averages.icons)} compareValue={compareAverages && String(compareAverages.icons)} />}
+                            className="flex-[2_1_0%] min-w-[min(20rem,100%)]"
+                        >
+                            <VerticalBarChart data={breakdowns.icons} emptyMessage="No cards with icons." {...chartProps} />
+                        </Section>
+                    </div>
+
                     <Section title="Teams">
                         <VerticalBarChart data={breakdowns.team} emptyMessage="No team data yet." scrollable {...chartProps} />
                     </Section>
+
+                    {yearBreakdown && (
+                        <Section title="Player Years">
+                            <VerticalBarChart data={yearBreakdown} emptyMessage="No year data yet." scrollable compareLabel={null} compareLoading={false} />
+                        </Section>
+                    )}
 
                     <Section title="Speed" fit={fits?.speed} action={<ChartAverage value={String(averages.speed)} compareValue={compareAverages && String(compareAverages.speed)} />}>
                         <VerticalBarChart data={breakdowns.speed} emptyMessage="No hitters with speed yet." {...chartProps} />
@@ -893,6 +1194,33 @@ export function SummaryCharts({ cards, editionId }: SummaryChartsProps) {
                     <Section title="Defense">
                         <GroupedColumnCharts data={breakdowns.defense} emptyMessage="No defensive ratings yet." formatValue={formatRating} distributionTolerance={DEFENSE_DISTRIBUTION_TOLERANCE} {...chartProps} />
                     </Section>
+
+                    <Section title="Positions per Hitter" fit={fits?.positionCount}>
+                        <VerticalBarChart data={breakdowns.positionCount} emptyMessage="No hitters in this subset." {...chartProps} />
+                    </Section>
+
+                    {hasFoils && (
+                        <Section
+                            title="Foils"
+                            action={<ChartAverage
+                                label="Foils"
+                                value={`${foilBreakdowns.count} (${Math.round(foilBreakdowns.count / filteredSnapshots.length * 100)}% of cards)`}
+                            />}
+                        >
+                            {foilBreakdowns.count === 0 ? (
+                                <EmptyChartState message="No foils in this subset." />
+                            ) : (
+                                <div className="flex flex-wrap gap-4">
+                                    <ChartPanel title="By Position" className="flex-1 basis-64">
+                                        <VerticalBarChart data={foilBreakdowns.position} emptyMessage="No foils yet." compareLabel={null} compareLoading={false} />
+                                    </ChartPanel>
+                                    <ChartPanel title="By Points" className="flex-1 basis-64">
+                                        <VerticalBarChart data={foilBreakdowns.points} emptyMessage="No foils yet." compareLabel={null} compareLoading={false} />
+                                    </ChartPanel>
+                                </div>
+                            )}
+                        </Section>
+                    )}
                 </>
             )}
         </div>

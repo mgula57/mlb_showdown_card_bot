@@ -196,7 +196,8 @@ export function useGameDetailData({
         const isCurrentSeason = new Date().getFullYear() === season;
         const useLastYear = new Date().getMonth() < 3; // Months are 0-indexed
         const adjustedSeason = (sportId === 1 && isCurrentSeason && useLastYear) ? season - 1 : season;
-        const gameDate = new Date(boxscore.datetime.official_date ?? "") || new Date();
+        const officialDate = boxscore.datetime.official_date;
+        const gameDate = officialDate ? new Date(officialDate) : new Date();
         const yesterday = new Date(gameDate);
         yesterday.setDate(yesterday.getDate() - 1);
 

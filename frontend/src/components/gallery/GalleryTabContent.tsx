@@ -110,6 +110,7 @@ const GalleryStackCell: React.FC<{
     const count = items.length;
     const thumbUrl = top.thumbnail_public_url ?? top.public_url ?? top.storage_path;
     const label = [top.player_name, top.year, top.set_name].filter(Boolean).join(' · ');
+    const [isHovered, setIsHovered] = useState(false);
     const stackTextLabel = [top.player_name, top.year].filter(Boolean).join(' · ');
 
     if (isExpanded) {
@@ -142,7 +143,6 @@ const GalleryStackCell: React.FC<{
         );
     }
 
-    const [isHovered, setIsHovered] = useState(false);
     const thumb2 = items[1] ? (items[1].thumbnail_public_url ?? items[1].public_url ?? items[1].storage_path) : null;
 
     const t = 'transform 0.2s ease';

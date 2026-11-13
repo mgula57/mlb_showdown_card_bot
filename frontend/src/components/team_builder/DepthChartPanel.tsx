@@ -5,7 +5,7 @@ import type { CardDatabaseRecord } from '../../api/card_db/cardDatabase';
 import { CardItemFromCardDatabaseRecord, CardItemSkeleton } from '../cards/CardItem';
 import { FaPlus, FaPencil, FaChevronUp, FaChevronDown, FaArrowsUpDownLeftRight } from 'react-icons/fa6';
 import { defenseAtPosition, OF_POSITIONS, IF_POSITIONS } from '../shared/DefenseUtils';
-import { effectiveBenchBullpenMinimums, benchBullpenSlotCounts, twoWayPtsMultipliers } from '../../domain/roster';
+import { effectiveBenchBullpenMinimums, benchBullpenSlotCounts, twoWayPtsMultipliers, orderedBullpen, withBullpenOrder, withToggledCloser } from '../../domain/roster';
 import { buildLineupKpis, buildBenchKpis, buildPitcherKpis } from './TeamKpiUtils';
 import { Modal } from '../shared/Modal';
 import { SectionHeader } from '../shared/SectionHeader';
@@ -16,7 +16,7 @@ import { type RosterMoveControls, type RosterMoveSlotState, moveSlotClass } from
 const FIELD_POSITIONS = ['C', '1B', '2B', '3B', 'SS', 'LF', 'CF', 'RF', 'DH'] as const;
 
 /** The slice of a `Team` the depth chart reads - lets a league draft roster render here too. */
-export type DepthChartTeam = Pick<Team, 'roster' | 'lineups' | 'rotation' | 'num_starters' | 'roster_size' | 'min_bench' | 'min_bullpen' | 'bench_pts_multiplier'> & {
+export type DepthChartTeam = Pick<Team, 'roster' | 'lineups' | 'rotation' | 'num_starters' | 'roster_size' | 'min_bench' | 'min_bullpen' | 'bench_pts_multiplier' | 'bullpen_order_custom'> & {
     /** Discount for a two-way player's pitching card (`teamTwoWayPtsMultiplier`); unset = none. */
     two_way_pts_multiplier?: number;
 };
@@ -30,8 +30,8 @@ type DepthChartPanelProps = {
     onBullpenClick: (current: PitcherAssignment | null) => void;
     /** Bench is free-form: `current` is the row being replaced, or null to add a new one. */
     onBenchClick: (current: TeamRosterSlot | null) => void;
-    /** Called when a rotation reorder changes the roster. Partial update merged into the team. */
-    onReorder?: (updates: Pick<TeamUpdatePayload, 'roster' | 'rotation'>) => void;
+    /** Called when a rotation or bullpen edit changes the roster. Partial update merged into the team. */
+    onReorder?: (updates: Pick<TeamUpdatePayload, 'roster' | 'rotation' | 'bullpen_order_custom'>) => void;
     readOnly?: boolean;
     /** Keeps the editable layout (empty rows, reorder) but turns off picking a slot to fill or
      *  replace — no "+", no pencil, no Draft in the card modal. Used while Guided Draft picks
@@ -73,6 +73,9 @@ function PositionRow({
     onMoveDown,
     moveState,
     onStartMove,
+    onLabelClick,
+    labelTitle,
+    isLabelHighlighted,
 }: {
     label: string;
     card: CardDatabaseRecord | null | undefined;
@@ -97,6 +100,10 @@ function PositionRow({
     moveState?: RosterMoveSlotState;
     /** Picks this row's player up to move - offered when the row has no Replace. */
     onStartMove?: () => void;
+    /** Turns the row's label into a toggle, e.g. a reliever's RP/CL role. */
+    onLabelClick?: () => void;
+    labelTitle?: string;
+    isLabelHighlighted?: boolean;
 }) {
     const isMoveUnderway = !!moveState && (moveState.isMoving || moveState.isTarget || moveState.isDimmed);
     const isHighlighted = isActive || !!moveState?.isMoving;
@@ -120,7 +127,20 @@ function PositionRow({
                 onMouseEnter={onMouseEnter}
                 onMouseLeave={onMouseLeave}
             >
-            <span className={`text-[11px] font-bold w-5 shrink-0 text-right ${isHighlighted || moveState?.isTarget ? 'text-(--showdown-blue)' : 'text-(--text-tertiary)'}`}>{label}</span>
+            {onLabelClick && !readOnly && card ? (
+                <button
+                    type="button"
+                    onClick={onLabelClick}
+                    aria-pressed={!!isLabelHighlighted}
+                    aria-label={labelTitle}
+                    title={labelTitle}
+                    className={`text-[11px] font-bold w-5 shrink-0 text-right cursor-pointer hover:underline ${isLabelHighlighted ? 'text-(--showdown-blue)' : 'text-(--text-tertiary)'}`}
+                >
+                    {label}
+                </button>
+            ) : (
+                <span className={`text-[11px] font-bold w-5 shrink-0 text-right ${isHighlighted || moveState?.isTarget || isLabelHighlighted ? 'text-(--showdown-blue)' : 'text-(--text-tertiary)'}`}>{label}</span>
+            )}
             {card ? (
                 <div className={`flex-1 min-w-0 transition-transform ${isPeerHovered ? 'scale-[1.02]' : 'hover:scale-[1.02]'} active:scale-[0.98]`}>
                     <CardItemFromCardDatabaseRecord
@@ -211,16 +231,19 @@ export function DepthChartPanel({
 
     const ACTIVE_ROTATION_ROLES = ROTATION_ROLES.slice(0, team.num_starters ?? 5);
 
-    // Bench and bullpen are free-form: sorted by card points descending, with a fixed number
-    // of rows (filled cards + trailing empty "add" placeholders). The placeholder count comes
-    // from `benchBullpenSlotCounts` while editing; a read-only view just shows the filled rows.
+    // Bench and bullpen are free-form, with a fixed number of rows (filled cards + trailing empty
+    // "add" placeholders). The bench sorts by card points; the bullpen does too until the owner
+    // orders it. The placeholder count comes from `benchBullpenSlotCounts` while editing; a
+    // read-only view just shows the filled rows.
     const pts = (cardId: string) => cardMap[cardId]?.points ?? 0;
     const twoWayMultiplier = twoWayPtsMultipliers(team.roster.map(slot => slot.card_id), cardMap, team.two_way_pts_multiplier);
     const pitcherPts = (card: CardDatabaseRecord) => Math.round((card.points ?? 0) * twoWayMultiplier(card.card_id));
     const byPointsDesc = <T extends { card_id: string }>(a: T, b: T) => pts(b.card_id) - pts(a.card_id);
     const { bench: benchTarget, bullpen: bullpenTarget } = effectiveBenchBullpenMinimums(team);
     const benchSlots   = team.roster.filter(s => s.roster_position.toUpperCase() === 'BE').slice().sort(byPointsDesc);
-    const bullpenSlots = team.rotation.filter(r => !r.role.startsWith('SP')).slice().sort(byPointsDesc);
+    const bullpenSlots = orderedBullpen(team.roster, team.bullpen_order_custom, pts);
+    // The closer stays pinned on top, so the reorderable rows start below it.
+    const firstMovableBullpenRow = bullpenSlots[0]?.role === 'CL' ? 1 : 0;
 
     const filledStarters = ACTIVE_ROTATION_ROLES.filter(role => roleByKey[role]).length;
     const draftRows = readOnly ? null : benchBullpenSlotCounts({
@@ -237,7 +260,7 @@ export function DepthChartPanel({
     const bullpenRowCount  = draftRows ? draftRows.bullpen : bullpenSlots.length;
 
     // -------------------------------------------------------------------------
-    // Reorder helpers (rotation only — bench/bullpen order is always by points)
+    // Reorder helpers (rotation and bullpen — bench order is always by points)
     // -------------------------------------------------------------------------
 
     function swapRotation(roleA: string, roleB: string) {
@@ -249,6 +272,13 @@ export function DepthChartPanel({
             return s;
         });
         onReorder({ roster });
+    }
+
+    function swapBullpen(rowA: number, rowB: number) {
+        if (!onReorder) return;
+        const cardIds = bullpenSlots.map(slot => slot.card_id);
+        [cardIds[rowA], cardIds[rowB]] = [cardIds[rowB], cardIds[rowA]];
+        onReorder({ roster: withBullpenOrder(team.roster, cardIds), bullpen_order_custom: true });
     }
 
     // Defense totals for lineup KPIs
@@ -384,10 +414,12 @@ export function DepthChartPanel({
                     {Array.from({ length: bullpenRowCount }).map((_, i) => {
                         const assignment = bullpenSlots[i] ?? null;
                         const card = assignment ? cardMap[assignment.card_id] : null;
+                        const isCloser = assignment?.role === 'CL';
+                        const canMove = !!onReorder && !!assignment && !isCloser;
                         return (
                             <PositionRow
                                 key={`bullpen-${i}`}
-                                label="RP"
+                                label={isCloser ? 'CL' : 'RP'}
                                 card={card}
                                 isPending={!card && !!assignment && isLoadingCards}
                                 onClick={() => onBullpenClick(assignment)}
@@ -401,6 +433,11 @@ export function DepthChartPanel({
                                 onMouseEnter={card ? () => onCardHover?.(card.card_id) : undefined}
                                 onMouseLeave={() => onCardHover?.(null)}
                                 ptsMultiplier={card ? twoWayMultiplier(card.card_id) : undefined}
+                                onMoveUp={canMove && i > firstMovableBullpenRow ? () => swapBullpen(i, i - 1) : undefined}
+                                onMoveDown={canMove && i < bullpenSlots.length - 1 ? () => swapBullpen(i, i + 1) : undefined}
+                                onLabelClick={onReorder && assignment ? () => onReorder({ roster: withToggledCloser(team.roster, assignment.card_id) }) : undefined}
+                                labelTitle={isCloser ? 'Remove as closer' : 'Set as closer'}
+                                isLabelHighlighted={isCloser}
                             />
                         );
                     })}

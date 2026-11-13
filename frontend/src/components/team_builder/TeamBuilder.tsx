@@ -34,6 +34,9 @@ import { SimSeasonView } from './sim/SimSeasonView';
 import { SimulationsTab } from './sim/SimulationsTab';
 import { RecentSimsShelf } from './sim/RecentSimsShelf';
 import { ChallengeDetail } from './sim/ChallengeDetail';
+import { FaceoffView } from './faceoff/FaceoffView';
+import { RecentFaceoffsShelf } from './faceoff/RecentFaceoffsShelf';
+import { FACEOFFS_ENABLED } from '../../api/faceoff';
 import { AdminChallengesView } from './sim/admin/AdminChallengesView';
 import { Tabs, type TabItem } from '../shared/Tabs';
 import BackButton from '../shared/BackButton';
@@ -45,6 +48,7 @@ import { Heading } from '../shared/Heading';
 import { buttonClass } from '../shared/buttonStyles';
 import { EmptyState } from '../shared/EmptyState';
 import { PinstripeBackdrop } from '../shared/PinstripeBackdrop';
+import { PageSubtitle } from '../shared/PageSubtitle';
 // A team can be addressed by URL four ways: a saved UUID, a historical MLB team, an All-Star
 // team, or an Era Roster (all-time or all-decade).
 type TeamRef =
@@ -55,7 +59,7 @@ type TeamRef =
 
 // Path segments reserved for non-"saved" team refs and other top-level Team Builder screens —
 // none of these should ever fall through to being parsed as a saved team's UUID.
-const RESERVED_TEAM_PATH_SEGMENTS = ['historical', 'asg', 'era', 'challenges', 'all', 'collections', 'admin'];
+const RESERVED_TEAM_PATH_SEGMENTS = ['historical', 'asg', 'era', 'challenges', 'faceoffs', 'all', 'collections', 'admin'];
 
 function parseTeamRef(pathname: string): TeamRef | null {
     const parts = pathname.split('/').filter(Boolean);
@@ -87,6 +91,14 @@ function parseSimJobId(pathname: string): string | null {
 function parseChallengeInstanceId(pathname: string): string | null {
     const parts = pathname.split('/').filter(Boolean);
     return parts[0] === 'teams' && parts[1] === 'challenges' && parts[2] ? parts[2] : null;
+}
+
+// A Faceoff's replay has its own shareable URL (/teams/faceoffs/:faceoffId), independent of the team
+// editor/list state below, just like a challenge.
+function parseFaceoffId(pathname: string): string | null {
+    if (!FACEOFFS_ENABLED) return null;
+    const parts = pathname.split('/').filter(Boolean);
+    return parts[0] === 'teams' && parts[1] === 'faceoffs' && parts[2] ? parts[2] : null;
 }
 
 // The full "My Teams" list (with search) is its own screen at /teams/all — shareable, and the
@@ -255,6 +267,7 @@ export default function TeamBuilder() {
     const teamRef = parseTeamRef(location.pathname);
     const simJobId = parseSimJobId(location.pathname);
     const challengeInstanceId = parseChallengeInstanceId(location.pathname);
+    const faceoffId = parseFaceoffId(location.pathname);
     const allTeamsView = isAllTeamsView(location.pathname);
     const collectionSlug = parseCollectionSlug(location.pathname);
     const eraAllView = isEraAllPath(location.pathname);
@@ -279,7 +292,7 @@ export default function TeamBuilder() {
     // Load the (lightweight) teams list lazily — only when viewing the list, so a direct
     // visit to a team URL opens the team without first loading every team.
     useEffect(() => {
-        if (teamRef || challengeInstanceId || listLoaded) return;
+        if (teamRef || challengeInstanceId || faceoffId || listLoaded) return;
         loadTeams();
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [location.pathname, listLoaded, token]);
@@ -552,6 +565,21 @@ export default function TeamBuilder() {
         );
     }
 
+    // A Faceoff's replay takes over the view, and resolves on a cold link like a challenge does.
+    if (faceoffId) {
+        return (
+            <div className="flex flex-col h-full">
+                <FaceoffView
+                    key={faceoffId}
+                    faceoffId={faceoffId}
+                    token={token}
+                    onBack={() => navigate('/teams')}
+                    onOpenFaceoff={id => navigate('/teams/faceoffs/' + id)}
+                />
+            </div>
+        );
+    }
+
     // A curated collection's own shareable page.
     if (collectionSlug) {
         return (
@@ -624,10 +652,10 @@ export default function TeamBuilder() {
                     <BackButton onBack={() => { setTeamSearch(''); navigate('/teams'); }} />
                     <div>
                         <Heading level="page">My Teams</Heading>
-                        <p className="text-[12px] text-(--text-secondary)">
+                        <PageSubtitle size="sm">
                             {sortedUserTeams.length} team{sortedUserTeams.length === 1 ? '' : 's'}
                             {archivedCount > 0 && ` · ${archivedCount} archived`}
-                        </p>
+                        </PageSubtitle>
                     </div>
                 </div>
 
@@ -771,9 +799,9 @@ export default function TeamBuilder() {
             <div className={`flex items-center ${px} justify-between`}>
                 <div>
                     <Heading level="page">Team Builder</Heading>
-                    <p className="text-[12px] text-(--text-secondary)">
+                    <PageSubtitle size="sm">
                         Build your team, compete in challenges, and explore community creations.
-                    </p>
+                    </PageSubtitle>
                 </div>
                 {token && (
                     <button
@@ -810,6 +838,11 @@ export default function TeamBuilder() {
                     {!loading && token && (
                         <div className={px}>
                             <RecentSimsShelf token={token} onOpenSeason={openSeason} />
+                        </div>
+                    )}
+                    {FACEOFFS_ENABLED && !loading && token && (
+                        <div className={px}>
+                            <RecentFaceoffsShelf token={token} onOpenFaceoff={id => navigate('/teams/faceoffs/' + id)} />
                         </div>
                     )}
                     {loading ? (

@@ -173,6 +173,7 @@ def publish_team():
                 'min_bullpen': source.get('min_bullpen'),
                 'num_starters': source.get('num_starters'),
                 'bench_pts_multiplier': source.get('bench_pts_multiplier'),
+                'bullpen_order_custom': bool(source.get('bullpen_order_custom')),
                 'allowed_sets': source.get('allowed_sets') or [],
                 'allowed_sets_by_source': source.get('allowed_sets_by_source') or {},
                 'allowed_card_sources': source.get('allowed_card_sources') or [],

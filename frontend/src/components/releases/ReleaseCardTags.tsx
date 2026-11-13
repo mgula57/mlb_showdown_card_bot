@@ -1,6 +1,6 @@
 /**
  * @fileoverview User tags on a Release Builder card (e.g. "FOIL" to track which cards will be
- * printed as foils): a read-only chip list for the pool grid and an editor for the card detail modal.
+ * marked as foils): a read-only chip list for the pool grid and an editor for the card detail modal.
  */
 
 import { useState } from 'react';
@@ -8,7 +8,7 @@ import { FaPlus, FaXmark } from 'react-icons/fa6';
 import { FIELD_LABEL_CLASS, fieldClass } from '../shared/fieldStyles';
 import { choiceClass } from '../shared/choiceStyles';
 
-/** The tag for cards that will be printed as foils (see `FoilSuggestions`). */
+/** The tag for cards marked as foils (see `FoilSuggestions`). */
 export const FOIL_TAG = 'FOIL';
 /** Always offered in the editor, even before any card in the edition uses them. */
 const DEFAULT_TAG_SUGGESTIONS = [FOIL_TAG];

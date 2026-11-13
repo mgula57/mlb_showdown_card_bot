@@ -8,6 +8,9 @@ type Props = {
     /** Heading above the four dropdowns. Defaults to "Manager style"; the single-game modal
      *  passes "Away manager" / "Home manager" to tell the two sides apart. */
     title?: string;
+    /** Line under the heading. Defaults to the single-club wording; a form managing both clubs
+     *  should pass its own. */
+    description?: string;
     disabled?: boolean;
     /** Extra classes on the wrapper — pass `col-span-full` when dropped into a `FormSection` grid. */
     className?: string;
@@ -19,14 +22,13 @@ type Props = {
  * no-op in the engine. Only the club being taken over is affected — every other team plays its
  * default style.
  */
-export default function ManagerStyleFields({ value, onChange, title = 'Manager style', disabled, className = '' }: Props) {
+export default function ManagerStyleFields({
+    value, onChange, title = 'Manager style', description = 'Sets how this club manages — Only the club you control is affected.', disabled, className = '',
+}: Props) {
     return (
         <div className={`flex flex-col gap-2 ${className}`}>
             <Heading level="panel" as="div">{title}</Heading>
-            <p className="text-[11px] text-(--text-tertiary)">
-                Sets how this club manages — Only the club you
-                control is affected.
-            </p>
+            <p className="text-[11px] text-(--text-tertiary)">{description}</p>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 {MANAGER_FIELDS.map(field => (
                     <FormDropdown

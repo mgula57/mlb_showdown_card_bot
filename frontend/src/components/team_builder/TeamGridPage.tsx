@@ -4,6 +4,7 @@ import { TeamPreviewCard, TeamPreviewCardSkeleton, type TeamPreviewData } from '
 
 import { InlineError } from '../shared/InlineError';
 import { Heading } from '../shared/Heading';
+import { PageSubtitle } from '../shared/PageSubtitle';
 const PAGE_SIZE = 60;
 
 type TeamGridPageProps<T> = {
@@ -66,7 +67,7 @@ export function TeamGridPage<T>({
                 <BackButton onBack={onBack} />
                 <div>
                     <Heading level="page">{title}</Heading>
-                    {subtitle && <p className="text-[12px] text-(--text-secondary)">{subtitle}</p>}
+                    {subtitle && <PageSubtitle size="sm">{subtitle}</PageSubtitle>}
                 </div>
             </div>
 

@@ -1,6 +1,6 @@
 import { useState, type ImgHTMLAttributes, type SyntheticEvent } from 'react';
 
-/** Printable border around a bordered render (`Set.card_border_padding`), and the card inside it. */
+/** Border around a bordered render (`Set.card_border_padding`), and the card inside it. */
 const CARD_BORDER_PX = 72;
 const CARD_SIZE_PX = { width: 1500, height: 2100 };
 
@@ -25,20 +25,25 @@ const BORDER_CROP_STYLE = {
 type BorderCroppedImageProps = Omit<ImgHTMLAttributes<HTMLImageElement>, 'style'> & {
     /** Whether the image includes the border. Detected from the loaded image when omitted. */
     isBordered?: boolean;
+    /** Called once the image loads with whether it includes the border (by its aspect ratio),
+     * whatever `isBordered` says — e.g. to offer a "Show Border" toggle only for bordered renders. */
+    onBorderDetected?: (isBordered: boolean) => void;
 };
 
 /**
- * A card image that hides the printable border of bordered renders, showing just the 1500x2100 card.
+ * A card image that hides the border of bordered renders, showing just the 1500x2100 card.
  * The parent must be `relative overflow-hidden` with the card's 5:7 aspect ratio. `className` styles
  * the plain (unbordered) image; a bordered one is positioned by the crop instead.
  */
-export function BorderCroppedImage({ isBordered, className = '', onLoad, ...props }: BorderCroppedImageProps) {
+export function BorderCroppedImage({ isBordered, onBorderDetected, className = '', onLoad, ...props }: BorderCroppedImageProps) {
     const [detected, setDetected] = useState(false);
     const cropped = isBordered ?? detected;
 
     function handleLoad(event: SyntheticEvent<HTMLImageElement>) {
         const { naturalWidth, naturalHeight } = event.currentTarget;
-        setDetected(isBorderedAspect(naturalWidth, naturalHeight));
+        const bordered = isBorderedAspect(naturalWidth, naturalHeight);
+        setDetected(bordered);
+        onBorderDetected?.(bordered);
         onLoad?.(event);
     }
 

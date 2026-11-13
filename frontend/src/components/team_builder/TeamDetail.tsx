@@ -4,6 +4,7 @@ import * as Tabs from '@radix-ui/react-tabs';
 import type { Team, TeamUpdatePayload, TeamRosterSlot, AutofillStrategy, AutofillResult, PickSource, GuidedOption, GuidedFillOrder } from '../../api/userTeams';
 import { fetchTeam, autofillTeam, isTeamDrafting, isTeamSetupValid, uploadTeamLogo, deleteTeamLogo, adminDeleteTeam, validateTeamLogoFile, recordTeamView, ROTATION_ROLES, DEFAULT_LINEUP_NAME } from '../../api/userTeams';
 import { useAuth } from '../auth/AuthContext';
+import { CommentsPanel } from '../shared/comments/CommentsPanel';
 import { PublishToFeaturedModal } from './PublishToFeaturedModal';
 import { AutofillPanel } from './AutofillPanel';
 import { GuidedDraftPanel, GUIDED_DOCK_HEIGHT_CLASS } from './GuidedDraftPanel';
@@ -17,7 +18,7 @@ import type { CardDatabaseRecord } from '../../api/card_db/cardDatabase';
 import type { CardSource as CardSourceType } from '../../types/cardSource';
 import { CardSource } from '../../types/cardSource';
 import { useCardMap } from '../../hooks/useCardMap';
-import { useMediaQuery } from '../../hooks/useMediaQuery';
+import { SHORT_SCREEN_QUERY, useMediaQuery } from '../../hooks/useMediaQuery';
 import { bannerTokens, getContrastTextColor } from "../../functions/colors";
 import { FieldView, FIELD_POSITIONS } from './FieldView';
 import type { FieldViewRosterData } from './FieldView';
@@ -32,15 +33,18 @@ import { tabButtonClass, radixTabTriggerClass } from '../shared/tabStyles';
 import ShowdownCardSearch, { type FilterSelections } from '../cards/ShowdownCardSearch';
 import {
     FaSpinner, FaArrowLeft, FaPlus, FaCircleCheck, FaWandMagicSparkles,
-    FaShuffle, FaPenToSquare, FaStar, FaRegStar, FaGear, FaUsers,
+    FaShuffle, FaPenToSquare, FaStar, FaRegStar, FaRegComment, FaGear, FaUsers,
     FaList, FaRing, FaClipboardList, FaListOl, FaCodeFork, FaPlay, FaChartLine,
-    FaRobot, FaBaseball, FaHatWizard, FaMagnifyingGlass, FaArrowRight, FaTrash,
+    FaRobot, FaBaseball, FaBaseballBatBall, FaHatWizard, FaMagnifyingGlass, FaArrowRight, FaTrash,
     FaHandPointer, FaFileImport, FaHeart, FaRegHeart, FaEye, FaGaugeHigh, FaCompass, FaPeopleGroup
 } from 'react-icons/fa6';
 import type { IconType } from 'react-icons';
 import { useNavigate } from 'react-router-dom';
 import { fetchTeamSimSeasons, cancelSimJob, fetchActiveSimJob, type SimSeasonListItem, type ActiveSimJob, type ChallengeInstance } from '../../api/sim';
 import { PlayModal } from './sim/PlayModal';
+import { FaceoffModal } from './faceoff/FaceoffModal';
+import { FaceoffRow } from './faceoff/FaceoffRow';
+import { FACEOFFS_ENABLED, fetchTeamFaceoffs, type FaceoffSummary } from '../../api/faceoff';
 import { SimSeasonRow } from './sim/SimSeasonRow';
 import PointsEstimateComparison from '../cards/card_elements/PointsEstimateComparison';
 import { CardItemCompactFromCardDatabaseRecord } from '../cards/CardItemCompact';
@@ -137,7 +141,7 @@ function HeaderAction({ icon: Icon, label, onClick, tone = 'neutral', busy = fal
             disabled={busy}
             title={title ?? label}
             aria-label={label}
-            className={`flex flex-1 md:flex-none items-center justify-center md:min-w-24 gap-2 h-10 px-4 rounded-control text-[13px] font-semibold whitespace-nowrap transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${HEADER_ACTION_TONES[tone]}`}
+            className={`flex flex-1 md:flex-none items-center justify-center md:min-w-24 gap-2 h-10 split:short:h-8 px-4 rounded-control text-[13px] font-semibold whitespace-nowrap transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${HEADER_ACTION_TONES[tone]}`}
         >
             {busy ? <FaSpinner className="h-4 w-4 shrink-0 animate-spin" /> : <Icon className="h-4 w-4 shrink-0" />}
             {label}
@@ -236,6 +240,15 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
     const { isAdmin, user } = useAuth();
     const [showPublishModal, setShowPublishModal] = useState(false);
     const [unpublishing, setUnpublishing] = useState(false);
+    const [showComments, setShowComments] = useState(false);
+    // Kept here, since saves replace `team` with a copy that has no count. Reset for a different team
+    const [commentCount, setCommentCount] = useState(team.comment_count ?? 0);
+    const [commentCountTeamId, setCommentCountTeamId] = useState(team.team_id);
+    if (commentCountTeamId !== team.team_id) {
+        setCommentCountTeamId(team.team_id);
+        setCommentCount(team.comment_count ?? 0);
+        setShowComments(false);
+    }
     // Setup flow: a freshly created (or still-empty) team opens on the "Team Settings" step;
     // otherwise straight into "Drafting". Steps are freely navigable via the banner chips.
     // Challenge-created teams skip Settings entirely — the challenge already supplied every
@@ -293,6 +306,8 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
     const [pendingSettings, setPendingSettings] = useState<TeamUpdatePayload | null>(null);
     const [showSettingsModal, setShowSettingsModal] = useState(false);
     const [showPlayModal, setShowPlayModal] = useState(false);
+    const [showFaceoffModal, setShowFaceoffModal] = useState(false);
+    const [teamFaceoffs, setTeamFaceoffs] = useState<FaceoffSummary[]>([]);
     const [logoUploading, setLogoUploading] = useState(false);
     const [logoError, setLogoError] = useState<string | null>(null);
     // null = not loaded yet. The Sims tab only appears once this comes back non-empty, so a
@@ -310,6 +325,8 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
     const saveImmediatelyRef = useRef(false);
     const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const isSplit = useMediaQuery(SPLIT_SCREEN_QUERY);
+    // Wide but short (foldable inner screen, phone in landscape): the header compacts to match `split:short:`.
+    const isShortSplit = useMediaQuery(`${SPLIT_SCREEN_QUERY} and ${SHORT_SCREEN_QUERY}`);
 
     // Crossing down into the mobile SlideOver layout: clear any pending slot left over
     // from the desktop panel so the slideover doesn't spring open immediately.
@@ -406,6 +423,16 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [team.team_id, token]);
 
+    // Faceoffs this team has played against other users' teams. Only saved teams can play one.
+    useEffect(() => {
+        if (!FACEOFFS_ENABLED || !team.team_id || (team.source !== 'user' && team.source !== 'official')) return;
+        let stale = false;
+        fetchTeamFaceoffs(team.team_id, token)
+            .then(faceoffs => { if (!stale) setTeamFaceoffs(faceoffs); })
+            .catch(() => { if (!stale) setTeamFaceoffs([]); });
+        return () => { stale = true; };
+    }, [team.team_id, team.source, token]);
+
     // The user's own in-flight job (at most one can exist) - lets the Sims tab surface it, so a
     // stuck run can be found and cancelled without having to trigger the blocked-start 429 first.
     useEffect(() => {
@@ -441,18 +468,24 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [draft, dirty]);
 
-    // Flush any pending debounced save before navigating away, so a change made in the last
-    // 1.5s isn't lost — and, for a just-created team, so the abandon-cleanup on the parent sees
-    // the real roster rather than deleting a team that does have picks.
+    /** Saves a change still waiting on the auto-save debounce, for anything that's about to read
+     *  the team from the server. Rejects if the save fails. */
+    async function flushPendingSave() {
+        if (!dirty || readOnly) return;
+        if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        const { team_id, user_id, created_at, updated_at, total_points, ...payload } = draft;
+        await onSave(payload);
+        setDirty(false);
+    }
+
+    // Flush before navigating away, so a change made in the last 1.5s isn't lost — and, for a
+    // just-created team, so the abandon-cleanup on the parent sees the real roster rather than
+    // deleting a team that does have picks.
     async function handleBack() {
-        if (dirty && !readOnly) {
-            if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
-            try {
-                // eslint-disable-next-line @typescript-eslint/no-unused-vars
-                const { team_id, user_id, created_at, updated_at, total_points, ...payload } = draft;
-                await onSave(payload);
-            } catch { /* leaving anyway */ }
-        }
+        try {
+            await flushPendingSave();
+        } catch { /* leaving anyway */ }
         onBack?.();
     }
 
@@ -501,7 +534,11 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
     function acceptAutofillPreview() {
         if (!autofillPreview) return;
         const { strategy, result } = autofillPreview;
-        update({ roster: result.roster, lineups: result.lineups, rotation: result.rotation });
+        update({
+            roster: result.roster, lineups: result.lineups, rotation: result.rotation,
+            // A rebuilt roster has no order the owner chose.
+            ...(strategy.replace_existing ? { bullpen_order_custom: false } : {}),
+        });
         setLastAutofillStrategy(strategy);
         if (strategy.replace_existing) {
             const n = result.roster.length;
@@ -579,22 +616,22 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
     }
 
     /** Bench and bullpen are drafted free-form: the pick is appended with a generic
-     *  roster_position ('BE' / 'RP'), and — when replacing an existing row — the old card is
-     *  pruned from the roster and any lineup/rotation slot first. The server re-derives the
-     *  rotation (points-ordered) on save; we mirror the bullpen change locally so it shows
-     *  immediately. */
+     *  roster_position ('BE' / 'RP'), and — when replacing an existing row — the new card takes
+     *  the old one's place in the roster, keeping a custom bullpen order and a closer's role, and
+     *  the old card is pruned from any lineup/rotation slot. The server re-derives the rotation
+     *  (points-ordered) on save; we mirror the bullpen change locally so it shows immediately. */
     function addGenericSlot(position: 'BE' | 'RP', card: CardDatabaseRecord, replacing: { card_id: string } | null, pickSource: PickSource = 'MANUAL') {
         addCard(card);
+        const replacedSlot = replacing ? draft.roster.find(s => s.card_id === replacing.card_id) : undefined;
         const rosterSlot: TeamRosterSlot = {
             ...slotRefForCard(card),
-            roster_position: position,
+            roster_position: replacedSlot?.roster_position === 'CL' ? 'CL' : position,
             draft_order: nextDraftOrder(),
             pick_source: pickSource,
         };
-        const roster = [
-            ...draft.roster.filter(s => !replacing || s.card_id !== replacing.card_id),
-            rosterSlot,
-        ];
+        const roster = replacedSlot
+            ? draft.roster.map(s => (s === replacedSlot ? rosterSlot : s))
+            : [...draft.roster, rosterSlot];
         const lineups = replacing
             ? draft.lineups.map(ln => ({ ...ln, slots: ln.slots.filter(s => s.card_id !== replacing.card_id) }))
             : draft.lineups;
@@ -686,6 +723,10 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
     // Only the team's own owner can start a sim with it — someone browsing another user's team
     // shouldn't see a Sim action they're not allowed to use.
     const canSimulate = !!token && !isMlbTeam && !isDrafting && team.source === 'user' && !!team.team_id && isMyOwnTeam;
+    // Unlike a season, a Faceoff can start from someone else's team: their public team is the opponent.
+    const canFaceoff = FACEOFFS_ENABLED && !!token && !isDrafting && !!team.team_id
+        && (team.source === 'user' || team.source === 'official') && (isMyOwnTeam || team.is_public);
+    const hasFaceoffs = teamFaceoffs.length > 0;
     // Scoped to this team so a job started from a different team's page doesn't show up here.
     const activeJobForTeam = activeJob && activeJob.team_id === team.team_id ? activeJob : null;
     const hasSims = (!!teamSeasons && teamSeasons.length > 0) || !!activeJobForTeam;
@@ -699,6 +740,9 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
     const canPublish = adminCanCurate && isMyOwnTeam;
     // Views/likes are only meaningful for teams reachable from Browse.
     const showSocialStats = (team.is_public || isOfficialTeam) && !isMyOwnTeam;
+    // Comments go on saved teams reachable from Browse, the owner's own included. Synthetic MLB rosters
+    // have no saved id to hang them on (the server's `TeamCommentSubject` is the source of truth)
+    const hasComments = !!team.team_id && !embedded && ((team.source === 'user' && team.is_public) || isOfficialTeam);
     /** What kind of team this is, above the name (like a release's Official / Community line). */
     const headerEyebrow = teamMode === 'drafting' ? 'Drafting'
         : isOfficialTeam ? 'Featured team'
@@ -974,11 +1018,12 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
         rotation: draft.rotation,
         benchPtsMultiplier: draft.bench_pts_multiplier,
         twoWayPtsMultiplier,
+        bullpenOrderCustom: draft.bullpen_order_custom,
         minBench: effectiveBucketMins.bench,
         minBullpen: effectiveBucketMins.bullpen,
         maxRotation: draft.num_starters,
         draftSlots: showEditControls ? draftSlotCounts : undefined,
-    }), [draft.roster, draft.rotation, draft.bench_pts_multiplier, twoWayPtsMultiplier, effectiveBucketMins, draft.num_starters, showEditControls, draftSlotCounts]);
+    }), [draft.roster, draft.rotation, draft.bench_pts_multiplier, twoWayPtsMultiplier, draft.bullpen_order_custom, effectiveBucketMins, draft.num_starters, showEditControls, draftSlotCounts]);
 
     const previewRosterData: FieldViewRosterData | null = useMemo(() => {
         if (!autofillPreview) return null;
@@ -1231,6 +1276,14 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
         }
     }
 
+    const faceoffsContent = (
+        <div className="grid grid-cols-1 @lg:grid-cols-2 gap-1.5 p-4">
+            {teamFaceoffs.map(faceoff => (
+                <FaceoffRow key={faceoff.faceoff_id} faceoff={faceoff} onOpen={() => navigate(`/teams/faceoffs/${faceoff.faceoff_id}`)} />
+            ))}
+        </div>
+    );
+
     const simsContent = (
         <div className="flex flex-col gap-1.5 p-4">
             {activeJobForTeam && (
@@ -1322,8 +1375,11 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
         })
         : [];
 
+    // Height-locked (header pinned, panes scroll inside) only on split screens tall enough for it.
+    // Split but short (e.g. a foldable's inner screen): the page scrolls so the header and banner
+    // move away, and the roster area below takes the full viewport with its own pane scrolling.
     return (
-        <div className={`flex flex-col ${embedded ? '' : 'split:h-[calc(100dvh-2.5rem)] split:overflow-hidden'}`}>
+        <div className={`flex flex-col ${embedded ? '' : 'split:tall:h-[calc(100dvh-2.5rem)] split:tall:overflow-hidden'}`}>
             
             {/* Header: the release header's pinstripe band, with a team-color rule along the top. Info on the
                 left (eyebrow, crest + name, meta, points plates), the actions bottom-right; below md the
@@ -1332,7 +1388,7 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                 <div aria-hidden className="absolute inset-0 -z-10 bg-pinstripe" />
                 <div aria-hidden className="absolute inset-x-0 top-0 h-0.75" style={{ backgroundColor: primary }} />
                 <div className="flex flex-wrap md:flex-nowrap items-stretch">
-                <div className="flex flex-col gap-2 basis-full md:basis-auto md:flex-1 min-w-0 px-4 pt-3.5 pb-3 md:pb-3.5">
+                <div className="flex flex-col gap-2 split:short:gap-1 basis-full md:basis-auto md:flex-1 min-w-0 px-4 pt-3.5 pb-3 md:pb-3.5 split:short:py-2">
                     <div className="flex items-center gap-3 min-w-0">
                         {onBack && (
                             <button type="button" onClick={handleBack} aria-label="Back" className="text-(--text-tertiary) opacity-70 hover:text-(--text-primary) transition-colors shrink-0 cursor-pointer">
@@ -1363,10 +1419,10 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                             uploading={logoUploading}
                             onUpload={handleLogoUpload}
                             onRemove={handleLogoRemove}
-                            size="lg"
+                            size={isShortSplit ? 'md' : 'lg'}
                         />
 
-                        <div className="flex flex-col gap-1.5 flex-1 min-w-0">
+                        <div className="flex flex-col gap-1.5 split:short:gap-1 flex-1 min-w-0">
                             <div className="flex items-center gap-2 min-w-0">
                                 <Heading level="page" as="h1" fit>{draft.name || 'Untitled Team'}</Heading>
                                 <div className="flex items-center gap-0.5 shrink-0">
@@ -1378,7 +1434,7 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                             </div>
 
                             {(draft.subtitle || draft.credit || (showSocialStats && team.view_count > 0) || draft.roster.length === draft.roster_size) && (
-                                <div className="flex flex-wrap items-center gap-x-1.5 text-[13px] text-(--text-secondary) min-w-0">
+                                <div className="flex split:short:hidden flex-wrap items-center gap-x-1.5 text-[13px] text-(--text-secondary) min-w-0">
                                     {[
                                         draft.subtitle && <span key="subtitle" className="font-semibold text-(--text-primary)">{draft.subtitle}</span>,
                                         draft.credit && <span key="credit">{draft.credit}</span>,
@@ -1449,8 +1505,8 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
 
                 {/* Action toolbar: one filled Sim CTA plus a uniform strip of tinted actions. Sized for a
                     thumb on mobile, wrapping onto a second line rather than shrinking. */}
-                {((onToggleStar || onFork || onToggleLike || !readOnly || canSimulate || adminCanCurate) && teamMode === 'complete') && (
-                    <div className="flex flex-wrap items-center gap-2 basis-full md:basis-auto shrink-0 self-end px-4 pb-3.5">
+                {((onToggleStar || onFork || onToggleLike || !readOnly || canSimulate || canFaceoff || adminCanCurate || hasComments) && teamMode === 'complete') && (
+                    <div className="flex flex-wrap items-center gap-2 basis-full md:basis-auto shrink-0 self-end split:short:self-center px-4 pb-3.5 split:short:pb-0">
 
                         {onToggleStar && (
                             <HeaderAction
@@ -1477,6 +1533,15 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                                     }
                                 }}
                                 title={team.liked_by_me ? `Unlike ${draft.name}` : `Like ${draft.name}`}
+                            />
+                        )}
+                        {hasComments && (
+                            <HeaderAction
+                                icon={FaRegComment}
+                                label="Comments"
+                                count={commentCount}
+                                onClick={() => setShowComments(open => !open)}
+                                title={`Comments on ${draft.name}`}
                             />
                         )}
                         {!readOnly && teamMode === 'complete' && (
@@ -1527,12 +1592,21 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                             />
                         )}
 
+                        {canFaceoff && teamMode === 'complete' && (
+                            <HeaderAction
+                                icon={FaBaseballBatBall}
+                                label="Faceoff"
+                                onClick={() => setShowFaceoffModal(true)}
+                                title={isMyOwnTeam ? `Play ${draft.name} against another team` : `Play one of your teams against ${draft.name}`}
+                            />
+                        )}
+
                         {canSimulate && teamMode === 'complete' && (
                             <>
                                 <button
                                     type="button"
                                     onClick={() => setShowPlayModal(true)}
-                                    className="flex flex-1 md:flex-none items-center justify-center md:justify-start gap-2 h-10 px-4 rounded-control shadow-raised text-[13px] font-bold whitespace-nowrap hover:brightness-110 active:translate-y-px active:shadow-none cursor-pointer transition"
+                                    className="flex flex-1 md:flex-none items-center justify-center md:justify-start gap-2 h-10 split:short:h-8 px-4 rounded-control shadow-raised text-[13px] font-bold whitespace-nowrap hover:brightness-110 active:translate-y-px active:shadow-none cursor-pointer transition"
                                     style={{
                                         backgroundColor: draft.primary_color,
                                         color: getContrastTextColor(draft.primary_color),
@@ -1563,7 +1637,7 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
             {teamMode !== 'complete' && (
                 // Wraps the controls onto a second row (right-aligned) rather than letting the
                 // step chips squeeze under them on narrow screens.
-                <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 px-2 py-2.5 shrink-0" style={bannerStyle}>
+                <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 px-2 py-2.5 split:short:py-1.5 shrink-0" style={bannerStyle}>
                     <div className="flex items-center gap-1 min-w-0">
                         <span className={`hidden md:block w-2 h-2 rounded-full shrink-0 ${teamMode === 'drafting' ? 'animate-pulse' : ''}`} style={{ backgroundColor: bannerInk.dot }} />
                         <span className="text-[10px] md:text-[11px] font-bold flex items-center gap-2 min-w-0" style={{ color: bannerInk.fill }}>
@@ -1695,7 +1769,7 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
             )}
 
             {/* Team Roster Content */}
-            <div className={`flex flex-1 ${embedded ? '' : 'split:min-h-0 split:overflow-hidden'}`}>
+            <div className={`flex flex-1 ${embedded ? '' : 'split:min-h-0 split:overflow-hidden split:short:flex-none split:short:h-[calc(100dvh-2.5rem)]'}`}>
                 {showEditControls && setupStep === 'settings' ? (
                     /* Setup step 1: team settings, edited inline (auto-saved) before drafting */
                     <div className="flex flex-col flex-1 min-w-0 split:min-h-0 split:overflow-y-auto scrollbar-hide">
@@ -1740,6 +1814,7 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                                     {rosterFull && <Tabs.Trigger value="lineup"   className={TAB_TRIGGER_CLASS}><FaListOl className="inline mr-1" /> Lineup</Tabs.Trigger>}
                                     <Tabs.Trigger value="draft"    className={TAB_TRIGGER_CLASS}><FaList className="inline mr-1" /> Draft</Tabs.Trigger>
                                     {hasSims && <Tabs.Trigger value="sims" className={TAB_TRIGGER_CLASS}><FaChartLine className="inline mr-1" /> Sims</Tabs.Trigger>}
+                                    {hasFaceoffs && <Tabs.Trigger value="faceoffs" className={TAB_TRIGGER_CLASS}><FaBaseballBatBall className="inline mr-1" /> Faceoffs</Tabs.Trigger>}
                                 </Tabs.List>
                             )}
                             <Tabs.Content value="depth" className="focus:outline-none flex-1 overflow-y-auto scrollbar-hide" onClick={() => setPendingSlot(null)}>
@@ -1758,6 +1833,11 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                             {hasSims && (
                                 <Tabs.Content value="sims" className="focus:outline-none flex-1 overflow-y-auto scrollbar-hide">
                                     {simsContent}
+                                </Tabs.Content>
+                            )}
+                            {hasFaceoffs && (
+                                <Tabs.Content value="faceoffs" className="focus:outline-none flex-1 overflow-y-auto scrollbar-hide">
+                                    {faceoffsContent}
                                 </Tabs.Content>
                             )}
                         </Tabs.Root>
@@ -1780,6 +1860,7 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                                 {rosterFull && <Tabs.Trigger value="lineup"   className={TAB_TRIGGER_CLASS}><FaListOl className="inline mr-1" /> Lineup</Tabs.Trigger>}
                                 {!isMlbTeam && <Tabs.Trigger value="draft"    className={TAB_TRIGGER_CLASS}><FaList className="inline mr-1" />Draft</Tabs.Trigger>}
                                 {hasSims && <Tabs.Trigger value="sims" className={TAB_TRIGGER_CLASS}><FaChartLine className="inline mr-1" />Sims</Tabs.Trigger>}
+                                {hasFaceoffs && <Tabs.Trigger value="faceoffs" className={TAB_TRIGGER_CLASS}><FaBaseballBatBall className="inline mr-1" />Faceoffs</Tabs.Trigger>}
                             </Tabs.List>
 
                             <Tabs.Content value="field" className="focus:outline-none" onClick={() => setPendingSlot(null)}>
@@ -1808,6 +1889,13 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                             {hasSims && (
                                 <Tabs.Content value="sims" className="focus:outline-none">
                                     {simsContent}
+                                    {showEditControls && !isSplit && <div className="h-48" />}
+                                </Tabs.Content>
+                            )}
+
+                            {hasFaceoffs && (
+                                <Tabs.Content value="faceoffs" className="focus:outline-none">
+                                    {faceoffsContent}
                                     {showEditControls && !isSplit && <div className="h-48" />}
                                 </Tabs.Content>
                             )}
@@ -1900,6 +1988,19 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                 />
             )}
 
+            {hasComments && (
+                <CommentsPanel
+                    isOpen={showComments}
+                    onClose={() => setShowComments(false)}
+                    subtitle={draft.name}
+                    subject={{ type: 'team', id: team.team_id }}
+                    token={token}
+                    viewerId={user?.id}
+                    ownerId={team.user_id}
+                    isAdmin={isAdmin}
+                    onTotalChange={setCommentCount}
+                />
+            )}
             {showPublishModal && token && (
                 <PublishToFeaturedModal
                     token={token}
@@ -1908,6 +2009,20 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                     onPublished={published => {
                         setShowPublishModal(false);
                         navigate(`/teams/${published.team_id}`);
+                    }}
+                />
+            )}
+
+            {showFaceoffModal && token && (
+                <FaceoffModal
+                    team={draft}
+                    isOwnTeam={isMyOwnTeam}
+                    token={token}
+                    onBeforeStart={flushPendingSave}
+                    onClose={() => setShowFaceoffModal(false)}
+                    onStarted={faceoffId => {
+                        setShowFaceoffModal(false);
+                        navigate(`/teams/faceoffs/${faceoffId}`);
                     }}
                 />
             )}

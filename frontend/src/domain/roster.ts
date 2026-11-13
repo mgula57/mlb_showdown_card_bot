@@ -5,8 +5,7 @@
  * file does not invent a new roster type; it just gives that type a domain-facing name and a
  * `TeamIdentity` projection so a roster and an MLB team can render through the same `TeamChip`.
  */
-import type { Team } from "../api/userTeams";
-import { ROTATION_ROLES, MAX_STARTERS } from "../api/userTeams";
+import { BULLPEN_ROLES, ROTATION_ROLES, MAX_STARTERS, type PitcherAssignment, type Team, type TeamRosterSlot } from "../api/userTeams";
 import type { CardDatabaseRecord } from "../api/card_db/cardDatabase";
 import type { TeamIdentity } from "./team";
 
@@ -20,6 +19,44 @@ export const toTeamIdentity = (team: RosterView): TeamIdentity => ({
     primaryColor: team.primary_color,
     secondaryColor: team.secondary_color,
 });
+
+const CLOSER_ROLE = 'CL';
+const isCloserSlot = (slot: TeamRosterSlot) => slot.roster_position.toUpperCase() === CLOSER_ROLE;
+const isBullpenSlot = (slot: TeamRosterSlot) => BULLPEN_ROLES.includes(slot.roster_position.toUpperCase());
+
+/** The bullpen as the team page shows it: the closer on top, then the owner's order if they've set
+ *  one, otherwise highest points first. Read from the roster rather than `Team.rotation`, which
+ *  reports every reliever as a plain 'RP'. */
+export function orderedBullpen(
+    roster: TeamRosterSlot[], isCustomOrder: boolean | undefined, pointsOf: (cardId: string) => number,
+): PitcherAssignment[] {
+    const bullpen = roster.filter(isBullpenSlot);
+    const ordered = isCustomOrder
+        ? bullpen
+        : [...bullpen].sort((a, b) => pointsOf(b.card_id) - pointsOf(a.card_id));
+    return [...ordered.filter(isCloserSlot), ...ordered.filter(slot => !isCloserSlot(slot))].map(slot => ({
+        card_id: slot.card_id,
+        card_source: slot.card_source,
+        role: isCloserSlot(slot) ? CLOSER_ROLE : 'RP',
+    }));
+}
+
+/** Rewrites the roster so its bullpen slots follow `cardIds`, leaving every other slot in place. */
+export function withBullpenOrder(roster: TeamRosterSlot[], cardIds: string[]): TeamRosterSlot[] {
+    const slotById = new Map(roster.map(slot => [slot.card_id, slot]));
+    const reordered = cardIds.flatMap(cardId => slotById.get(cardId) ?? []);
+    let next = 0;
+    return roster.map(slot => (isBullpenSlot(slot) ? reordered[next++] ?? slot : slot));
+}
+
+/** Makes `cardId` the team's one closer, or removes the role if it's already theirs. */
+export function withToggledCloser(roster: TeamRosterSlot[], cardId: string): TeamRosterSlot[] {
+    return roster.map(slot => {
+        if (!isBullpenSlot(slot)) return slot;
+        const becomesCloser = slot.card_id === cardId && !isCloserSlot(slot);
+        return { ...slot, roster_position: becomesCloser ? CLOSER_ROLE : 'RP' };
+    });
+}
 
 const LINEUP_SLOTS = 9;
 

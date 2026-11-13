@@ -1,7 +1,7 @@
 import type { ReleaseCard } from '../../api/releases';
 import { IMAGE_MATCH_TYPE_OPTIONS } from '../../api/card_db/cardDatabase';
 import { CardSource } from '../../types/cardSource';
-import { FRANCHISE_CODE, PARENT_POSITION_ORDER, parentPositionGroup } from './SummaryCharts';
+import { FRANCHISE_CODE, HAND_ORDER, PARENT_POSITION_ORDER, POSITION_ORDER, handLabel, parentPositionGroup } from './cardGroups';
 
 export type PoolGroupBy = 'none' | 'team' | 'league' | 'position' | 'type' | 'hand' | 'year' | 'hof' | 'awards' | 'nationality'
     | 'points' | 'command' | 'speed' | 'ip' | 'chart_version' | 'image_match' | 'tag';
@@ -115,9 +115,6 @@ export const POOL_SORT_DEFAULT_DIRECTION: Record<PoolSortBy, PoolSortDirection> 
     // Closest to the cut line first: who barely made it
     match_margin: 'asc',
 };
-
-// Scorecard order for hitters, then pitchers, so position groups read like a lineup card.
-const POSITION_ORDER = ['C', 'CA', '1B', '2B', '3B', 'SS', 'IF', 'LF', 'LF/RF', 'CF', 'RF', 'OF', 'DH', 'STARTER', 'RELIEVER', 'CLOSER'];
 
 function primaryPosition(card: ReleaseCard): string {
     return card.card_snapshot.positions_list?.[0] ?? card.card_snapshot.player_type ?? 'Unknown';
@@ -261,16 +258,6 @@ function pointsTierLabel(card: ReleaseCard): string {
     return `${floor}-${floor + PTS_TIER_SIZE - 1} PTS`;
 }
 
-/** "Bats L/R/S" for hitters, "LHP/RHP" for pitchers. Hand is stored as "Left"/"Right"/"Both" or a single letter. */
-function handLabel(card: ReleaseCard): string {
-    const letter = (card.card_snapshot.hand ?? '').trim().charAt(0).toUpperCase();
-    if (!letter) return 'Unknown';
-    if (card.card_snapshot.is_pitcher) return `${letter}HP`;
-    return `Bats ${letter === 'B' ? 'S' : letter}`;
-}
-
-const HAND_ORDER = ['Bats R', 'Bats L', 'Bats S', 'RHP', 'LHP', 'Unknown'];
-
 /** Orders group keys by their leading number ("2001", "300-399 PTS") descending; non-numeric keys ("Unknown") last. */
 function descendingNumericKeys(a: string, b: string): number {
     const parse = (key: string) => { const n = parseInt(key, 10); return Number.isNaN(n) ? -Infinity : n; };
@@ -351,7 +338,7 @@ const GROUPERS: Record<Exclude<PoolGroupBy, 'none'>, GroupKeyer> = {
         keyFn: card => parentPositionGroup(card.card_snapshot),
         compareKeys: (a, b) => PARENT_POSITION_ORDER.indexOf(a as typeof PARENT_POSITION_ORDER[number]) - PARENT_POSITION_ORDER.indexOf(b as typeof PARENT_POSITION_ORDER[number]),
     },
-    hand: { keyFn: handLabel, compareKeys: (a, b) => HAND_ORDER.indexOf(a) - HAND_ORDER.indexOf(b) },
+    hand: { keyFn: card => handLabel(card.card_snapshot) ?? 'Unknown', compareKeys: (a, b) => HAND_ORDER.indexOf(a) - HAND_ORDER.indexOf(b) },
     year: { keyFn: card => String(cardYear(card) || 'Unknown'), compareKeys: descendingNumericKeys },
     hof: { keyFn: card => card.card_snapshot.is_hof ? HOF_LABEL : NOT_HOF_LABEL, compareKeys: alphabeticalWithLast(NOT_HOF_LABEL) },
     // A card with several awards appears in each award's group

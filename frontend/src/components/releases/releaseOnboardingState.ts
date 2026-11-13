@@ -1,13 +1,25 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 
 /** The first-build tour, in the order tips get their turn. `welcome` is the opening modal. */
-export const RELEASE_TIP_ORDER = ['welcome', 'buildMethod', 'savePreview', 'cardStyle', 'imagesStep', 'imageLibraries', 'render', 'publish'] as const;
+export const RELEASE_TIP_ORDER = ['welcome', 'setup', 'buildMethod', 'summaryTab', 'cutoffTab', 'savePreview', 'cardStyle', 'imagesStep', 'imageLibraries', 'render', 'publish'] as const;
 export type ReleaseTipId = typeof RELEASE_TIP_ORDER[number];
 
 export const RELEASE_TIP_COPY: Record<Exclude<ReleaseTipId, 'welcome'>, { title: string; body: string }> = {
+    setup: {
+        title: 'Start with the setup',
+        body: 'Choose the seasons, showdown sets and size this edition draws from. Changes save as you go. Continue to the Player Pool when you are ready, and come back here any time from this bar.',
+    },
     buildMethod: {
-        title: 'Start with the player pool',
+        title: 'Fill the player pool',
         body: 'Pick how to fill this edition. Algorithm builds a balanced set from points and position targets, Manual searches for players one at a time, and Customs adds cards you made in the Card Builder.',
+    },
+    summaryTab: {
+        title: 'See the set at a glance',
+        body: 'Summary charts the pool by points, positions, command, speed, teams and defense, and can compare it against a WOTC base set. Use it to spot gaps before you save.',
+    },
+    cutoffTab: {
+        title: 'See who just missed',
+        body: "Cutoff shows where the algorithm drew the line in each group: the last players in, the closest calls left out, and why each one scored where it did. To force someone in or out, use Manual Picks in the Algorithm settings.",
     },
     savePreview: {
         title: "Nothing's saved yet",
@@ -19,7 +31,7 @@ export const RELEASE_TIP_COPY: Record<Exclude<ReleaseTipId, 'welcome'>, { title:
     },
     imagesStep: {
         title: 'Next: card images',
-        body: 'When the pool looks right, render an image for every card in step 3.',
+        body: 'When the pool looks right, render an image for every card in the Images tab.',
     },
     imageLibraries: {
         title: 'Bring your own player images',
@@ -31,7 +43,7 @@ export const RELEASE_TIP_COPY: Record<Exclude<ReleaseTipId, 'welcome'>, { title:
     },
     publish: {
         title: 'Ready to go public?',
-        body: 'Publish opens the Review step, which checks the release for problems before anything goes live. Until you publish, only you can see it.',
+        body: 'Publish opens the Review step, which checks the release for problems before anything goes live and lets you pick who can find it. Until you publish, only you can see it.',
     },
 };
 
@@ -69,6 +81,10 @@ export type ReleaseOnboarding = {
     markSeen: (id: ReleaseTipId) => void;
     /** Ends the tour for good: "Skip tips", or the first publish. */
     finish: () => void;
+    /** Clears what was seen so the tour runs again from the welcome modal. */
+    restart: () => void;
+    /** Whether this release could run the tour at all (an owner's never-published release), finished or not. */
+    canRestart: boolean;
 };
 
 export const ReleaseOnboardingContext = createContext<ReleaseOnboarding | null>(null);
@@ -89,6 +105,7 @@ export function useReleaseOnboardingState(enabled: boolean): ReleaseOnboarding {
         update(prev => prev.seen.includes(id) ? prev : { ...prev, seen: [...prev.seen, id] });
     }, [update]);
     const finish = useCallback(() => update(prev => ({ ...prev, done: true })), [update]);
+    const restart = useCallback(() => update(() => ({ seen: [], done: false })), [update]);
     const register = useCallback((id: ReleaseTipId) => {
         setEligibleCounts(prev => ({ ...prev, [id]: (prev[id] ?? 0) + 1 }));
         return () => setEligibleCounts(prev => ({ ...prev, [id]: (prev[id] ?? 1) - 1 }));
@@ -99,8 +116,8 @@ export function useReleaseOnboardingState(enabled: boolean): ReleaseOnboarding {
     const hasSeen = useCallback((id: ReleaseTipId) => stored.seen.includes(id), [stored.seen]);
 
     return useMemo(
-        () => ({ enabled: isOn, current, hasSeen, register, markSeen, finish }),
-        [isOn, current, hasSeen, register, markSeen, finish]
+        () => ({ enabled: isOn, current, hasSeen, register, markSeen, finish, restart, canRestart: enabled }),
+        [isOn, current, hasSeen, register, markSeen, finish, restart, enabled]
     );
 }
 

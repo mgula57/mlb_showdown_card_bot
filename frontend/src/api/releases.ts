@@ -17,6 +17,8 @@ export type ReleaseEditionSummary = {
     is_published: boolean;
     /** When the edition first went public. Once set, the owner edits it through a working copy. */
     published_at: string | null;
+    /** Went live with an update to an already-published release, not with its first publish. */
+    added_in_update: boolean;
     card_count: number;
     /** The owner's private working copy of this published edition, while they edit it. */
     draft: ReleaseEditionDraftSummary | null;
@@ -39,12 +41,15 @@ export type ReleasePreviewImage = {
     name: string | null;
 };
 
+/** Who can open a published release: listed in Community and search, anyone with the link, or only its owner. */
+export type ReleaseVisibility = 'listed' | 'link' | 'private';
+
 /** The release a remix was started from, for its "Remixed from" credit. */
 export type ReleaseForkParent = {
     id: string;
     name: string;
     creator_username: string | null;
-    /** Published, listed and not deleted, so the credit can link to it (a link-only source stays unlinked). */
+    /** Published, listed and not deleted, so the credit can link to it (a link-only or private source stays unlinked). */
     is_linkable: boolean;
 };
 
@@ -54,14 +59,25 @@ export type Release = {
     description: string | null;
     created_by: string;
     is_official: boolean;
+    /** Official releases only: the shelf it's grouped under on the Release Builder list. */
+    collection_slug: string | null;
+    /** Its place within that shelf (lowest first). */
+    collection_sort_index: number | null;
     /** Set on a remix: the release it was started from. */
     fork_parent_id: string | null;
     fork_parent: ReleaseForkParent | null;
     /** The owner lets others remix it (start their own release from it). On by default. */
     allow_remix: boolean;
+    /** The owner lets people comment on it once it's published and not private. On by default. */
+    allow_comments: boolean;
+    /** Live comments and replies (comments are kept, just hidden, while they're turned off). */
+    comment_count: number;
     /** Owner-set "work in progress" label. */
     is_wip: boolean;
+    /** Unique among its owner's releases only; links use `share_path`. */
     slug: string;
+    /** Its short link's path after `/r/`: `<owner username>/<slug>` (the owner's id when they have no username). */
+    share_path: string;
     default_showdown_set: string | null;
     editions: ReleaseEditionSummary[];
     /** Up to 3 rendered card images — user-ranked cards (`preview_rank`) first, then first edition
@@ -69,6 +85,9 @@ export type Release = {
     preview_images?: ReleasePreviewImage[];
     /** Creator's profile username (null if they haven't set one). */
     creator_username?: string | null;
+    /** Creator's uploaded avatar; null when they haven't set one (show initials on `creator_primary_color`). */
+    creator_avatar_url?: string | null;
+    creator_primary_color?: string | null;
     /** Distinct Showdown sets across the release's cards (published editions only in public lists).
      * List endpoints only. */
     showdown_sets?: string[];
@@ -82,13 +101,17 @@ export type Release = {
     share_image_path: string | null;
     /** When the current version was published (null for releases published before versions were kept). */
     version_published_at: string | null;
+    /** What the current version changed, per edition (null before versions were kept; empty for v1). */
+    latest_version_changes: ReleaseVersionChange[] | null;
+    /** The last time an update added cards (a new edition or cards in one). Null until an update adds some. */
+    cards_added_at: string | null;
     view_count: number;
     like_count: number;
-    /** False for a link-only release: it opens from its link but stays out of the public list and search. */
-    is_listed: boolean;
-    /** Single-release fetches with a signed-in viewer only. */
+    /** Who can open it once published (see `RELEASE_VISIBILITY`). */
+    visibility: ReleaseVisibility;
+    /** Signed-in viewers only: single-release fetches and the public and saved lists (not My Releases). */
     liked_by_me?: boolean;
-    /** Saved to the viewer's card search. Single-release fetches with a signed-in viewer, and the saved list. */
+    /** Saved to the viewer's card search. Signed-in viewers only, like `liked_by_me`. */
     saved_by_me?: boolean;
     created_at: string;
     updated_at: string;
@@ -107,7 +130,7 @@ export type ReleaseCard = {
     source_card_type: string | null;
     /** Cards saved from an Algorithm run also carry how they were picked (see `AlgorithmPickFields`) */
     card_snapshot: CardDatabaseRecord & Partial<AlgorithmPickFields>;
-    /** User labels, e.g. "FOIL" to track which cards will be printed as foils. Stored uppercase. */
+    /** User labels, e.g. "FOIL" to track which cards are foils. Stored uppercase. */
     tags: string[];
     /** User-chosen slot (1-3, 1 = front) on the release's list tile; null leaves it to the default pick. */
     preview_rank: number | null;
@@ -140,6 +163,7 @@ export const editionSummaryOf = (edition: ReleaseEdition): ReleaseEditionSummary
     slug: edition.slug,
     is_published: edition.is_published,
     published_at: edition.published_at,
+    added_in_update: false,
     card_count: edition.cards.length,
     draft: null,
     pending_removal: false,
@@ -152,8 +176,9 @@ export type ReleaseCreatePayload = {
 };
 
 export type ReleaseUpdatePayload = Partial<ReleaseCreatePayload> & {
-    is_listed?: boolean;
+    visibility?: ReleaseVisibility;
     allow_remix?: boolean;
+    allow_comments?: boolean;
     is_wip?: boolean;
 };
 
@@ -179,6 +204,9 @@ export type ReleaseEditionUpdatePayload = Partial<Omit<ReleaseEditionCreatePaylo
 
 /** A card save was refused because the edition's cards changed elsewhere (another tab or device). */
 export class StaleEditionError extends Error {}
+
+/** The release doesn't exist, or isn't open to this viewer (unpublished or private). */
+export class ReleaseNotFoundError extends Error {}
 
 /** The error an edition save failed with: a `StaleEditionError` for the server's stale-cards 409. */
 async function editionSaveError(res: Response, fallback: string): Promise<Error> {
@@ -428,7 +456,7 @@ export async function fetchSavedReleases(token: string): Promise<Release[]> {
 export type PublicReleaseSort = 'popular' | 'new';
 
 export type PublicReleaseQuery = {
-    /** `official` (curated) or `community` (everyone else's); both when left out. */
+    /** `official` (curated) or `community` (everyone else's, plus the signed-in viewer's own official ones); both when left out. */
     section?: 'official' | 'community';
     /** Most recently updated first when left out. */
     sort?: PublicReleaseSort;
@@ -436,30 +464,90 @@ export type PublicReleaseQuery = {
     search?: string;
 };
 
-export async function fetchPublicReleases(limit = 50, offset = 0, query: PublicReleaseQuery = {}): Promise<Release[]> {
+export async function fetchPublicReleases(limit = 50, offset = 0, query: PublicReleaseQuery = {}, token?: string): Promise<Release[]> {
     const params = new URLSearchParams({ limit: String(limit), offset: String(offset) });
     if (query.section) params.set('section', query.section);
     if (query.sort) params.set('sort', query.sort);
     if (query.search?.trim()) params.set('q', query.search.trim());
-    const res = await fetch(`${API_BASE}/releases/public?${params}`);
+    const headers: Record<string, string> = {};
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+    const res = await fetch(`${API_BASE}/releases/public?${params}`, { headers });
     if (!res.ok) throw new Error(`Failed to fetch public releases: ${res.status}`);
     return res.json();
 }
+
+/** An admin-curated shelf of official releases on the Release Builder list. */
+export type ReleaseCollection = {
+    slug: string;
+    title: string;
+    description: string | null;
+    sort_index: number;
+    is_visible: boolean;
+    /** Listed, published official releases in it. */
+    release_count: number;
+};
+
+async function adminJson<T>(path: string, method: string, token: string, body?: unknown): Promise<T> {
+    const res = await fetch(`${API_BASE}${path}`, {
+        method,
+        headers: { Authorization: `Bearer ${token}`, ...(body !== undefined ? { 'Content-Type': 'application/json' } : {}) },
+        body: body !== undefined ? JSON.stringify(body) : undefined,
+    });
+    if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || `Request failed: ${res.status}`);
+    }
+    return res.json();
+}
+
+/** The visible shelves, in display order. */
+export async function fetchReleaseCollections(): Promise<ReleaseCollection[]> {
+    const res = await fetch(`${API_BASE}/releases/collections`);
+    if (!res.ok) throw new Error(`Failed to fetch release collections: ${res.status}`);
+    return res.json();
+}
+
+/** Admin: every collection, hidden ones included. */
+export const fetchAllReleaseCollections = (token: string) =>
+    adminJson<ReleaseCollection[]>('/admin/release-collections', 'GET', token);
+
+/** Admin: create a collection, or update the one with this slug. */
+export const saveReleaseCollection = (
+    collection: Pick<ReleaseCollection, 'slug' | 'title'> & Partial<Pick<ReleaseCollection, 'description' | 'sort_index' | 'is_visible'>>,
+    token: string,
+) => adminJson<ReleaseCollection>('/admin/release-collections', 'POST', token, collection);
+
+/** Admin: put an official release in a collection, or take it out (`null`). Returns the release. */
+export const setReleaseCollection = (releaseId: string, collectionSlug: string | null, token: string, sortIndex?: number) =>
+    adminJson<Release>(`/admin/releases/${releaseId}/collection`, 'PUT', token, { collection_slug: collectionSlug, sort_index: sortIndex });
 
 export async function fetchRelease(releaseId: string, token?: string): Promise<Release> {
     const headers: Record<string, string> = {};
     if (token) headers['Authorization'] = `Bearer ${token}`;
     const res = await fetch(`${API_BASE}/releases/${releaseId}`, { headers });
+    if (res.status === 404) throw new ReleaseNotFoundError('Release not found');
     if (!res.ok) throw new Error(`Failed to fetch release: ${res.status}`);
     return res.json();
 }
+
+/** What one version changed in one edition: counts of added / removed / changed cards (see `EditionChanges.summary`). */
+export type ReleaseVersionChange = {
+    name: string;
+    renamed_from: string | null;
+    is_new: boolean;
+    is_removed?: boolean;
+    added: number;
+    removed: number;
+    changed: number;
+    renumbered: number;
+};
 
 /** One published version, from `internal.release_versions`. */
 export type ReleaseVersion = {
     version: number;
     note: string | null;
-    /** Per edition that changed: counts of added / removed / changed cards (see `EditionChanges.summary`). */
-    changes: Array<{ name: string; renamed_from: string | null; is_new: boolean; is_removed?: boolean; added: number; removed: number; changed: number; renumbered: number }>;
+    /** Per edition that changed. */
+    changes: ReleaseVersionChange[];
     published_at: string | null;
 };
 
@@ -503,11 +591,19 @@ export async function recordReleaseView(releaseId: string, token?: string): Prom
     await fetch(`${API_BASE}/releases/${releaseId}/view`, { method: 'POST', headers });
 }
 
-/** The release behind a short link (`/r/<slug>`). */
-export async function fetchReleaseBySlug(slug: string, token?: string): Promise<Release> {
+/** Where a short link points: its release, and the edition and card it opens, if any. */
+export type ReleaseLinkTarget = {
+    release: Release;
+    edition_slug: string | null;
+    card_ref: string | null;
+};
+
+/** The release behind a short link. `linkPath` is the path after `/r/`, as it appears in the URL
+ *  (still percent-encoded): `<owner>/<release>[/<edition>[/<card>]]`, or the older `<release>[/...]`. */
+export async function fetchReleaseByLink(linkPath: string, token?: string): Promise<ReleaseLinkTarget> {
     const headers: Record<string, string> = {};
     if (token) headers['Authorization'] = `Bearer ${token}`;
-    const res = await fetch(`${API_BASE}/releases/by-slug/${encodeURIComponent(slug)}`, { headers });
+    const res = await fetch(`${API_BASE}/releases/by-link/${linkPath}`, { headers });
     if (!res.ok) throw new Error(res.status === 404 ? 'Release not found' : `Failed to fetch release: ${res.status}`);
     return res.json();
 }
@@ -523,9 +619,9 @@ export async function ensureReleaseShareImage(releaseId: string): Promise<string
 }
 
 /** The short link to share a release by, or one of its editions, or one card (by release card id,
- *  which stays the same through renumbering and republishing). */
-export const releaseShareUrl = (slug: string, editionSlug?: string | null, releaseCardId?: string | null): string =>
-    `${window.location.origin}/r/${slug}${editionSlug ? `/${editionSlug}${releaseCardId ? `/${releaseCardId}` : ''}` : ''}`;
+ *  which stays the same through renumbering and republishing). `sharePath` is the release's `share_path`. */
+export const releaseShareUrl = (sharePath: string, editionSlug?: string | null, releaseCardId?: string | null): string =>
+    `${window.location.origin}/r/${sharePath}${editionSlug ? `/${editionSlug}${releaseCardId ? `/${releaseCardId}` : ''}` : ''}`;
 
 export async function createRelease(payload: ReleaseCreatePayload, token: string): Promise<Release> {
     const res = await fetch(`${API_BASE}/releases`, {
@@ -654,6 +750,27 @@ export async function createEdition(releaseId: string, payload: ReleaseEditionCr
     if (!res.ok) {
         const err = await res.json().catch(() => ({}));
         throw new Error(err.error || `Failed to create edition: ${res.status}`);
+    }
+    return res.json();
+}
+
+/** A new edition with an edition's players in another Showdown set: V1 cards in the same stats period
+ *  (half-season cards are rebuilt for that half), its card style and style rules and card numbers,
+ *  nothing rendered. `skipped` names the cards with no card in that set or that couldn't be rebuilt. */
+export async function duplicateEdition(
+    releaseId: string, editionId: string, payload: { name: string; showdown_set: string }, token: string,
+): Promise<{ edition: ReleaseEdition; skipped: string[] }> {
+    const res = await fetch(`${API_BASE}/releases/${releaseId}/editions/${editionId}/duplicate`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(payload),
+    });
+    if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || `Failed to duplicate edition: ${res.status}`);
     }
     return res.json();
 }
@@ -970,6 +1087,18 @@ export function fetchWotcSetProfiles(): Promise<WotcSetProfile[]> {
         _wotcSetProfilesRequest.catch(() => { _wotcSetProfilesRequest = null; });
     }
     return _wotcSetProfilesRequest;
+}
+
+/** Players with an All-Star selection in `years` (a year string), optionally limited to `teams`. */
+export async function fetchAllStarCount(years: string, teams: string[] = []): Promise<number> {
+    const params = new URLSearchParams({ years });
+    if (teams.length > 0) params.set('teams', teams.join(','));
+    const res = await fetch(`${API_BASE}/releases/algorithm/all_star_count?${params}`);
+    if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || `Failed to count All-Stars: ${res.status}`);
+    }
+    return (await res.json()).count;
 }
 
 /** Every card in a WOTC base set (expansion `BS` — excludes promos, Pennant Run, Trading Deadline, etc.). */

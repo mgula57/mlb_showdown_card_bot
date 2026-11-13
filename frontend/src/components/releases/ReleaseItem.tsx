@@ -5,9 +5,14 @@ import { BorderCroppedImage } from '../cards/BorderCroppedImage';
 import { SetBadgeRow } from '../shared/SetBadge';
 import { FaHeart, FaLayerGroup, FaPlus } from 'react-icons/fa6';
 import { SLANT_ROOM_CLASS } from '../shared/headingStyles';
+import { MdVerified } from 'react-icons/md';
 import { Plate } from '../shared/Plate';
 import { FramedTile } from '../shared/FramedTile';
 import { CAPS_LABEL_CLASS } from '../shared/fieldStyles';
+import { ReleaseVisibilityPlate } from './ReleaseVisibilityPlate';
+import { isReleasePublished } from './releaseVisibility';
+import { releaseUpdateLabel } from './releaseUpdates';
+import { UserAvatar } from '../shared/UserAvatar';
 
 /** Tile frame shared by ReleaseItem and its skeleton — sized like TeamPreviewCard's 'md' tile on
  *  wider screens, filling a 2-column grid cell on phones. */
@@ -51,9 +56,9 @@ type ReleaseItemProps = {
 export function ReleaseItem({ release, onClick, showPublishStatus = false }: ReleaseItemProps) {
     const totalCards = release.editions.reduce((sum, e) => sum + e.card_count, 0);
     const editionCount = release.editions.length;
-    // Matches the public list: a release is visible to others once any edition is published
-    const isPublished = release.editions.some(e => e.is_published);
+    const isPublished = isReleasePublished(release);
     const images = (release.preview_images ?? []).slice(0, 3);
+    const updateLabel = releaseUpdateLabel(release);
     // Sets actually in the release's cards; before any cards are added, the default set it was created with
     const sets = release.showdown_sets?.length ? release.showdown_sets : [release.default_showdown_set];
 
@@ -62,8 +67,9 @@ export function ReleaseItem({ release, onClick, showPublishStatus = false }: Rel
             {/* Official plate + every included set, wrapping onto a second row when there are many */}
             <div className="absolute top-0.5 inset-x-0.5 z-1 flex items-start justify-between gap-1 pointer-events-none">
                 <div className="flex flex-wrap items-start gap-1">
-                    {release.is_official && <Plate variant="navy" size="sm">Official</Plate>}
+                    {release.is_official && <Plate variant="navy" size="sm"><MdVerified className="text-[10px]" aria-hidden />Official</Plate>}
                     {release.is_wip && <Plate variant="outline" size="sm" className="bg-(--background-secondary)">WIP</Plate>}
+                    {updateLabel && <Plate variant="red" size="sm">{updateLabel}</Plate>}
                 </div>
                 <SetBadgeRow
                     sets={sets}
@@ -97,7 +103,17 @@ export function ReleaseItem({ release, onClick, showPublishStatus = false }: Rel
                 {/* Counts drop to their own line when the creator name is too long to sit beside them */}
                 <div className="flex flex-wrap items-center justify-between gap-x-1.5 gap-y-0.5 min-w-0">
                     <span className="flex items-center gap-1 min-w-0 max-w-full text-[11px] font-medium text-(--text-tertiary)">
-                        <span className="truncate">{release.creator_username ? `by ${release.creator_username}` : ''}</span>
+                        {release.creator_username && (
+                            <>
+                                <UserAvatar
+                                    name={release.creator_username}
+                                    avatarUrl={release.creator_avatar_url}
+                                    primaryColor={release.creator_primary_color}
+                                    size={14}
+                                />
+                                <span className="truncate">by {release.creator_username}</span>
+                            </>
+                        )}
                         {release.like_count > 0 && (
                             <span
                                 className="flex items-center gap-0.5 shrink-0 tabular-nums"
@@ -117,7 +133,7 @@ export function ReleaseItem({ release, onClick, showPublishStatus = false }: Rel
                         <Plate variant={isPublished ? 'success' : 'outline'} size="sm">
                             {isPublished ? 'Published' : 'Draft'}
                         </Plate>
-                        {isPublished && !release.is_listed && <Plate variant="outline" size="sm">Link only</Plate>}
+                        <ReleaseVisibilityPlate release={release} show={isPublished} />
                         {release.has_pending_changes && <Plate variant="outline" size="sm">Unpublished changes</Plate>}
                     </div>
                 )}

@@ -523,7 +523,7 @@ export type ShowdownBotCard = {
     /** Flag indicating if the card is a WOTC card */
     is_wotc?: boolean;
 
-    /** User labels for tracking, e.g. "FOIL" for cards that will be printed as foils */
+    /** User labels for tracking, e.g. "FOIL" for cards marked as foils */
     tags?: string[] | null;
 
     /** Data quality and edge case warnings */
@@ -614,7 +614,7 @@ export type ShowdownBotCardImage = {
     /** Set number within the expansion */
     set_number?: number | null;
 
-    /** Image includes the printable border around the 1500x2100 card */
+    /** Image includes the border around the 1500x2100 card */
     is_bordered?: boolean;
 
     /** Supabase storage path for the card image */

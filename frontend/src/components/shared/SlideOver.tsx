@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { FaCaretDown } from 'react-icons/fa6';
+import { FaCaretDown, FaCaretRight } from 'react-icons/fa6';
 import { FloatingActionButton, type FloatingSide } from './FloatingActionButton';
 import { Heading } from './Heading';
 import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
@@ -17,16 +17,20 @@ type SlideOverProps = {
     handleContent?: React.ReactNode;
     /** Corner for the floating dismiss button - match the button that opened the panel. */
     dismissSide?: FloatingSide;
+    /** Edge it slides in from: `bottom` (default, a ~90% tall sheet) or `right` (a full-height panel
+     *  that leaves a strip of the page showing, for side content like comments). */
+    side?: 'bottom' | 'right';
 };
 
 /**
  * Full-height mobile slideover: hidden until triggered, then slides up from the
- * bottom over a flat scrim. Unlike BottomSheet there's no drag
+ * bottom (or in from the right with `side="right"`) over a flat scrim. Unlike BottomSheet there's no drag
  * gesture or peek snap point — it's either open (~90% of the screen) or closed.
  * Dismiss via the backdrop or the floating circular button in a bottom corner
  * (right unless `dismissSide` says otherwise). Hidden on lg+ (use the desktop panel instead).
  */
-export function SlideOver({ isOpen, onClose, title, children, handleContent, dismissSide = 'right' }: SlideOverProps) {
+export function SlideOver({ isOpen, onClose, title, children, handleContent, dismissSide = 'right', side = 'bottom' }: SlideOverProps) {
+    const fromRight = side === 'right';
     // Lock the background while open: overflow lock for scrolling, plus cutting pointer-events to
     // everything except the panel/backdrop themselves.
     useBodyScrollLock(isOpen);
@@ -53,18 +57,21 @@ export function SlideOver({ isOpen, onClose, title, children, handleContent, dis
             />
             {isOpen && <UnderToolbarFill zIndex={40} className="left-0 w-full bg-black/50 lg:hidden" />}
 
-            {/* Panel — slides up from fully off-screen. Height uses lvh (same reasoning as
+            {/* Panel — slides in from fully off-screen. Height uses lvh (same reasoning as
                 the backdrop) rather than dvh so it never exposes a gap at the bottom edge
                 as Safari's URL bar animates. */}
             <div
                 className={`
-                    lg:hidden fixed bottom-0 left-0 right-0 z-49
-                    bg-(--background-primary) rounded-t-card flex flex-col
-                    shadow-sheet border-t border-(--divider)
+                    lg:hidden fixed z-49
+                    bg-(--background-primary) flex flex-col
                     transition-transform duration-300 ease-[cubic-bezier(0.32,0.72,0,1)]
-                    ${isOpen ? 'translate-y-0 pointer-events-auto' : 'translate-y-full pointer-events-none'}
+                    ${fromRight
+                        ? `top-0 right-0 w-[88vw] max-w-md pt-[env(safe-area-inset-top)] shadow-overlay border-l border-(--divider)
+                           ${isOpen ? 'translate-x-0 pointer-events-auto' : 'translate-x-full pointer-events-none'}`
+                        : `bottom-0 left-0 right-0 rounded-t-card shadow-sheet border-t border-(--divider)
+                           ${isOpen ? 'translate-y-0 pointer-events-auto' : 'translate-y-full pointer-events-none'}`}
                 `}
-                style={{ height: '90lvh' }}
+                style={{ height: fromRight ? '100lvh' : '90lvh' }}
             >
                 {(title || handleContent) && (
                     <div className="flex flex-col items-center pt-3 pb-1 shrink-0">
@@ -93,7 +100,7 @@ export function SlideOver({ isOpen, onClose, title, children, handleContent, dis
                             cursor-pointer hover:opacity-90 transition-opacity
                         "
                     >
-                        <FaCaretDown className="text-[24px]" />
+                        {fromRight ? <FaCaretRight className="text-[24px]" /> : <FaCaretDown className="text-[24px]" />}
                     </button>
                 </FloatingActionButton>
             )}

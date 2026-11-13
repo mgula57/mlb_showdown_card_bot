@@ -68,6 +68,8 @@ export type Team = {
     min_bullpen: number;
     num_starters: number;
     bench_pts_multiplier: number;
+    /** True once the owner has ordered the bullpen by hand: roster order is then its ranking. */
+    bullpen_order_custom?: boolean;
     allowed_sets: string[] | null;
     /** Per-source set restrictions — the source of truth; `allowed_sets` mirrors its union. */
     allowed_sets_by_source?: Record<string, string[]> | null;
@@ -86,6 +88,8 @@ export type Team = {
     fork_count: number;
     /** Whether the current viewer has liked this team. Always false when signed out. */
     liked_by_me: boolean;
+    /** Live comments and replies. Single-team fetches only (`GET /user/teams/:id`). */
+    comment_count?: number;
     /** Curation fields — set only on admin-published (`source: 'official'`) teams. */
     collection_slug?: string | null;
     subtitle?: string | null;
@@ -233,7 +237,7 @@ export function isTeamSetupValid(team: Partial<Team>): boolean {
 }
 
 // Denormalized stat counters are server-only — never accepted on create or update.
-type TeamStatFields = 'view_count' | 'like_count' | 'fork_count' | 'liked_by_me';
+type TeamStatFields = 'view_count' | 'like_count' | 'fork_count' | 'liked_by_me' | 'comment_count';
 
 export type TeamCreatePayload = Partial<Omit<Team, 'team_id' | 'user_id' | 'created_at' | 'updated_at' | TeamStatFields>> & {
     name: string;
@@ -391,6 +395,7 @@ export function buildForkPayload(source: Team): TeamCreatePayload {
         min_bullpen: source.min_bullpen,
         num_starters: source.num_starters,
         bench_pts_multiplier: source.bench_pts_multiplier,
+        bullpen_order_custom: source.bullpen_order_custom,
         allowed_sets: source.allowed_sets,
         allowed_sets_by_source: source.allowed_sets_by_source,
         allowed_card_sources: source.allowed_card_sources,

@@ -12,6 +12,7 @@ import { RecentSims } from './RecentSims';
 import BackButton from '../shared/BackButton';
 
 import { Heading } from '../shared/Heading';
+import { PageSubtitle } from '../shared/PageSubtitle';
 // A running/finished simulation gets its own URL (/simulate/:jobId), the same pattern
 // team_builder's SimSeasonView uses at /teams/:teamId/sim/:jobId - a refresh mid-run reconnects
 // to the job instead of losing it, since the job's state lives in Postgres. `/simulate/lobby` and
@@ -125,9 +126,9 @@ export default function SeasonSimulator() {
         <div className="flex flex-col gap-4 max-w-2xl mx-auto w-full p-4">
             <div>
                 <Heading level="page">Simulate</Heading>
-                <p className="text-[13px] text-(--text-secondary) mt-1">
+                <PageSubtitle className="mt-1">
                     Play out any MLB season, solo or with friends.
-                </p>
+                </PageSubtitle>
             </div>
 
             <div className="grid grid-cols-2 gap-3">

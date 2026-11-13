@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef, useEffect, useLayoutEffect, useCallback, memo, type ReactNode, type Ref } from 'react';
+import { useState, useMemo, useRef, useEffect, useLayoutEffect, useCallback, memo, type ReactNode } from 'react';
 import * as Tabs from '@radix-ui/react-tabs';
 import type { ReleaseEdition, ReleaseCard, AlgorithmPreviewResult, AlgorithmPreviewPlayer, ReleaseCardImageStatus, FoilSuggestion } from '../../api/releases';
 import { updateEdition, patchEditionCards, rebuildEditionCard, customEditionCard, periodEditionCard, StaleEditionError } from '../../api/releases';
@@ -51,9 +51,11 @@ import {
 } from './poolGrouping';
 import { PoolFilterPanel } from './PoolFilterPanel';
 import { ReleaseTip } from './ReleaseOnboarding';
+import { ReleaseGuide, ReleaseGuideButton } from './ReleaseGuide';
+import type { ReleaseGuideSectionId } from './releaseGuideContent';
 import { TeamSearchInput } from '../team_builder/TeamSearchInput';
 import { FaGripVertical } from 'react-icons/fa';
-import { FaCheck, FaLink, FaPlus, FaXmark, FaSpinner, FaWandMagicSparkles, FaCircleCheck, FaMagnifyingGlass, FaArrowsRotate, FaGear, FaArrowUp, FaArrowDown, FaTriangleExclamation, FaTableCellsLarge, FaList, FaAnglesLeft, FaAnglesRight, FaListCheck, FaChartColumn, FaPalette, FaFilter, FaScissors, FaPenRuler } from 'react-icons/fa6';
+import { FaCheck, FaLink, FaPlus, FaXmark, FaSpinner, FaWandMagicSparkles, FaCircleCheck, FaMagnifyingGlass, FaArrowsRotate, FaGear, FaArrowUp, FaArrowDown, FaTriangleExclamation, FaTableCellsLarge, FaList, FaAnglesLeft, FaAnglesRight, FaListCheck, FaChartColumn, FaPalette, FaFilter, FaScissors, FaPenRuler, FaImage } from 'react-icons/fa6';
 
 import { InlineError } from '../shared/InlineError';
 import { Plate } from '../shared/Plate';
@@ -75,15 +77,17 @@ const DEFAULT_BUILD_PANEL_WIDTH = { algorithm: 480, manual: 560, custom: 560 } a
 type EditionBuilderProps = {
     releaseId: string;
     releaseName: string;
+    /** The release is marked work in progress; image exports warn that it may change. */
+    isWip?: boolean;
     edition: ReleaseEdition;
     readOnly: boolean;
     token?: string;
     defaultShowdownSet?: string | null;
     onEditionUpdated: (edition: ReleaseEdition) => void;
-    /** The release-wide Review step (step 4). Owners only: leave `onReviewOpenChange` out when browsing. */
+    /** The release-wide Review step (step 3). Owners only: leave `onReviewOpenChange` out when browsing. */
     reviewOpen?: boolean;
     onReviewOpenChange?: (open: boolean) => void;
-    /** What step 4 shows; only passed to the edition on screen. */
+    /** What step 3 shows; only passed to the edition on screen. */
     review?: ReactNode;
     /** Opens a step from outside (a Review fix link). A new object re-applies the same request. */
     navRequest?: EditionNavRequest | null;
@@ -94,7 +98,8 @@ type EditionBuilderProps = {
     /** A card link's release card id to open on arrival; `onCardLinkOpened` fires once handled. */
     openCardRef?: string | null;
     onCardLinkOpened?: () => void;
-    /** Slugs for a card's short link; null hides "Copy card link" (e.g. in a working copy, whose cards aren't live). */
+    /** For a card's short link: the release's `share_path` and the edition's slug; null hides "Copy card link"
+     *  (e.g. in a working copy, whose cards aren't live). */
     cardLinkSlugs?: { release: string; edition: string } | null;
 };
 
@@ -397,12 +402,13 @@ const BUILD_PANEL_WIDTH_STORAGE_KEY = 'releaseBuilder.buildPanelWidth';
 
 type BuildMethod = 'algorithm' | 'manual' | 'custom';
 const BUILD_METHODS: readonly BuildMethod[] = ['algorithm', 'manual', 'custom'];
-type EditionStep = 'setup' | 'pool' | 'images';
+type EditionStep = 'setup' | 'pool';
 /** Set once the owner dismisses the "connect Google Drive" notice. */
 const DRIVE_NOTICE_DISMISSED_KEY = 'releaseBuilderDriveNoticeDismissed';
 /** `build` only exists below md, where the Build Method panel moves from a side column into its own tab.
+ * `images` renders the pool's cards and shows each image as it lands.
  * `cutoff` is owners only: it explains an Algorithm run, which browsers never see. */
-type PoolTab = 'build' | 'cards' | 'summary' | 'cutoff';
+type PoolTab = 'build' | 'cards' | 'images' | 'summary' | 'cutoff';
 /** Per-viewer, per-edition Algorithm/Manual/Customs tab, so returning to an edition reopens the last-used method. */
 const buildMethodStorageKey = (editionId: string) => `releaseBuilder.buildMethod.${editionId}`;
 
@@ -433,7 +439,7 @@ type PendingCardSave = {
     waiters: ((saved: boolean) => void)[];
 };
 
-export function EditionBuilder({ releaseId, releaseName, edition, readOnly, token, defaultShowdownSet, onEditionUpdated, reviewOpen = false, onReviewOpenChange, review, navRequest, onUnsavedPreviewChange, onReloadRequested, openCardRef, onCardLinkOpened, cardLinkSlugs }: EditionBuilderProps) {
+export function EditionBuilder({ releaseId, releaseName, isWip, edition, readOnly, token, defaultShowdownSet, onEditionUpdated, reviewOpen = false, onReviewOpenChange, review, navRequest, onUnsavedPreviewChange, onReloadRequested, openCardRef, onCardLinkOpened, cardLinkSlugs }: EditionBuilderProps) {
     const [cards, setCards] = useState<ReleaseCard[]>(edition.cards);
     // Latest cards, for saves that land after an await (e.g. a chart rebuild)
     const cardsRef = useRef(cards);
@@ -476,13 +482,6 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
     }
     // A new, empty edition starts on Setup; one with cards is already past it
     const [step, setStep] = useState<EditionStep>(() => !readOnly && edition.cards.length === 0 ? 'setup' : 'pool');
-    // Images mount lazily on first open, then stay mounted so a running render keeps polling
-    const [imagesMounted, setImagesMounted] = useState(false);
-    function handleOpenImagesStep() {
-        setImagesMounted(true);
-        setStep('images');
-        onReviewOpenChange?.(false);
-    }
     function handleOpenSetupStep() {
         setStep('setup');
         onReviewOpenChange?.(false);
@@ -540,6 +539,8 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
     const [buildPanelWidth, setBuildPanelWidth] = useState<number>(() => loadSavedBuildPanelWidth() ?? DEFAULT_BUILD_PANEL_WIDTH[buildMethod]);
     // Summary mounts lazily on first open, then stays mounted so its filters/WOTC comparison survive tab switches.
     const [summaryMounted, setSummaryMounted] = useState(false);
+    // Images mount lazily on first open, then stay mounted so a running render keeps polling
+    const [imagesMounted, setImagesMounted] = useState(false);
     const [poolTab, setPoolTab] = useState<PoolTab>('cards');
     const isDesktop = useMediaQuery('(min-width: 768px)');
     // The Build tab has nothing to show on desktop (the panel sits beside the pool) or when browsing
@@ -547,6 +548,11 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
     function handlePoolTabChange(tab: PoolTab) {
         setPoolTab(tab);
         if (tab === 'summary') setSummaryMounted(true);
+        if (tab === 'images') setImagesMounted(true);
+    }
+    function handleOpenImagesTab() {
+        handleOpenPoolStep();
+        handlePoolTabChange('images');
     }
     const [detailCard, setDetailCard] = useState<ReleaseCard | null>(null);
     // A card link (`/r/<slug>/<edition>/<release card id>`) opens its card once
@@ -798,7 +804,7 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
         if (navRequest.step === 'style') {
             setShowStyleModal(true);
         } else if (navRequest.step === 'images') {
-            handleOpenImagesStep();
+            handleOpenImagesTab();
             if (navRequest.imageStatus) setImagesStatusRequest({ status: navRequest.imageStatus });
         } else {
             handleOpenPoolStep();
@@ -1051,7 +1057,7 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
     const detailCardPreviewRank = detailCardCurrent?.preview_rank ?? null;
     const editionTags = useMemo(() => [...new Set(cards.flatMap(c => c.tags))].sort(), [cards]);
 
-    // The detail modal renders the release card as it will print: edition style, matching rules and
+    // The detail modal renders the release card as it appears in the release: edition style, matching rules and
     // the card's own overrides, plus the formatted set number. BOT snapshots don't embed card_data,
     // so CardDetail hydrates those by card_id. Keyed on the styles' content: every save returns fresh
     // card objects (and a tag edit can change which rules match), and a new style object would
@@ -1267,29 +1273,51 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
     }
 
     // First-build tour anchors (see ReleaseOnboarding)
+    const [setupStepButton, setSetupStepButton] = useState<HTMLButtonElement | null>(null);
     const [buildMethodTabs, setBuildMethodTabs] = useState<HTMLDivElement | null>(null);
     const [buildPanelRail, setBuildPanelRail] = useState<HTMLButtonElement | null>(null);
     const [phoneBuildTab, setPhoneBuildTab] = useState<HTMLButtonElement | null>(null);
     const [previewSaveActions, setPreviewSaveActions] = useState<HTMLDivElement | null>(null);
     const [styleButton, setStyleButton] = useState<HTMLButtonElement | null>(null);
-    const [imagesStepButton, setImagesStepButton] = useState<HTMLButtonElement | null>(null);
+    const [imagesTab, setImagesTab] = useState<HTMLButtonElement | null>(null);
+    const [summaryTab, setSummaryTab] = useState<HTMLButtonElement | null>(null);
+    const [cutoffTab, setCutoffTab] = useState<HTMLButtonElement | null>(null);
+    // The guide opens on the step on screen, and follows it while open
+    const [isGuideOpen, setIsGuideOpen] = useState(false);
+    const guideSection: ReleaseGuideSectionId = reviewOpen ? 'publish' : step === 'pool' && activePoolTab === 'images' ? 'images' : step;
     const buildMethodAnchor = isDesktop
         ? (buildPanelHidden ? buildPanelRail : buildMethodTabs)
         : (activePoolTab === 'build' ? buildMethodTabs : phoneBuildTab);
 
-    // Shared by the desktop pool tab strip and the phone strip (which adds Build in front)
-    const poolTabTriggers = (
+    // Shared by the desktop pool tab strip and the phone strip (which adds Build in front). Only the strip
+    // on screen anchors the Images tip: the phone strip below md, otherwise the desktop one (browsing has only that one)
+    const renderPoolTabTriggers = (isPhoneStrip: boolean) => (
         <>
             <Tabs.Trigger value="cards" className={TAB_TRIGGER_CLASS}>
                 {activePreview ? <FaWandMagicSparkles className="text-[10px] text-(--preview-accent)" /> : <FaListCheck className="text-[10px]" />}
                 {readOnly ? 'List' : activePreview ? 'Preview' : 'Selected'}
                 <Plate variant={activePreview ? 'custom' : 'ink'} size="sm" className={activePreview ? 'bg-(--preview-accent)/12 text-(--preview-accent)' : ''}>{displayCards.length}</Plate>
             </Tabs.Trigger>
-            <Tabs.Trigger value="summary" className={TAB_TRIGGER_CLASS}>
+            <Tabs.Trigger
+                ref={isPhoneStrip === (!isDesktop && !readOnly) ? setImagesTab : undefined}
+                value="images"
+                className={TAB_TRIGGER_CLASS}
+            >
+                <FaImage className="text-[10px]" /> Images
+            </Tabs.Trigger>
+            <Tabs.Trigger
+                ref={isPhoneStrip === (!isDesktop && !readOnly) ? setSummaryTab : undefined}
+                value="summary"
+                className={TAB_TRIGGER_CLASS}
+            >
                 <FaChartColumn className="text-[10px]" /> Summary
             </Tabs.Trigger>
             {!readOnly && (
-                <Tabs.Trigger value="cutoff" className={TAB_TRIGGER_CLASS}>
+                <Tabs.Trigger
+                    ref={isPhoneStrip === (!isDesktop && !readOnly) ? setCutoffTab : undefined}
+                    value="cutoff"
+                    className={TAB_TRIGGER_CLASS}
+                >
                     <FaScissors className="text-[10px]" /> Cutoff
                 </Tabs.Trigger>
             )}
@@ -1298,28 +1326,22 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
 
     return (
         <div className="flex flex-col flex-1 min-h-0">
-            {/* Step indicator */}
+            {/* Step indicator. Browsing has nothing to step through (Images is a pool tab), so it's editing only */}
+            {!readOnly && (
             <div className={`flex items-center gap-x-2 sm:flex-wrap sm:gap-x-3 gap-y-2 px-3 sm:px-4 py-3 border-b border-(--divider) shrink-0 ${CHROME_SURFACE_CLASS}`}>
-                {/* Numbered as a workflow while editing; plain views while browsing */}
-                {!readOnly && (
-                    <>
-                        <StepButton number={1} label="Setup" isActive={!reviewOpen && step === 'setup'} onClick={handleOpenSetupStep} />
-                        <div className="w-3 sm:w-8 h-px bg-(--divider) shrink-0" />
-                    </>
-                )}
-                <StepButton number={readOnly ? undefined : 2} label={readOnly ? 'Cards' : 'Player Pool'} mobileLabel={readOnly ? undefined : 'Pool'} isActive={!reviewOpen && step === 'pool'} onClick={handleOpenPoolStep} />
-                <div className={`${readOnly ? 'w-2 sm:w-3' : 'w-3 sm:w-8'} h-px bg-(--divider) shrink-0`} />
-                <StepButton ref={setImagesStepButton} number={readOnly ? undefined : 3} label="Images" isActive={!reviewOpen && step === 'images'} onClick={handleOpenImagesStep} />
+                <StepButton ref={setSetupStepButton} number={1} label="Setup" isActive={!reviewOpen && step === 'setup'} onClick={handleOpenSetupStep} />
+                <div className="w-3 sm:w-8 h-px bg-(--divider) shrink-0" />
+                <StepButton number={2} label="Player Pool" mobileLabel="Pool" isActive={!reviewOpen && step === 'pool'} onClick={handleOpenPoolStep} />
                 {onReviewOpenChange && (
                     <>
                         <div className="w-3 sm:w-8 h-px bg-(--divider) shrink-0" />
-                        <StepButton number={4} label="Review" isActive={reviewOpen} onClick={() => onReviewOpenChange(true)} />
+                        <StepButton number={3} label="Review" isActive={reviewOpen} onClick={() => onReviewOpenChange(true)} />
                     </>
                 )}
 
-                {!readOnly && (
-                    <div className="flex items-center gap-1.5 sm:gap-2 ml-auto">
-                        <ImageLibrariesButton onClose={liveImageMatches.refresh} tipMoment={!reviewOpen && step === 'images' && cards.length > 0} />
+                <div className="flex items-center gap-1.5 sm:gap-2 ml-auto">
+                        <ReleaseGuideButton onClick={() => setIsGuideOpen(true)} className="min-h-5" />
+                        <ImageLibrariesButton onClose={liveImageMatches.refresh} tipMoment={!reviewOpen && step === 'pool' && activePoolTab === 'images' && cards.length > 0} />
                         <button
                             ref={setStyleButton}
                             type="button"
@@ -1332,20 +1354,25 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
                             <span className="hidden sm:inline">Card Style</span>
                             <span className="hidden sm:contents">{formSectionSummary(styleSummary)}</span>
                         </button>
-                    </div>
-                )}
+                </div>
 
                 {saving && (
-                    <span className={`${readOnly ? 'ml-auto' : ''} flex items-center gap-1 text-[11px] text-(--text-tertiary)`}>
+                    <span className="flex items-center gap-1 text-[11px] text-(--text-tertiary)">
                         <FaSpinner className="animate-spin text-[10px]" /> <span className="hidden sm:inline">Saving…</span>
                     </span>
                 )}
             </div>
+            )}
 
+            <ReleaseTip id="setup" show={!readOnly && !reviewOpen && step === 'setup'} anchor={setupStepButton} placement="bottom-start" />
             <ReleaseTip id="buildMethod" show={cards.length === 0 && !activePreview && !isAlgorithmRunning} anchor={buildMethodAnchor} placement={isDesktop ? 'right-start' : 'bottom-start'} />
+            {/* While a preview is up: check it before saving. Each counts as seen once its tab is opened */}
+            <ReleaseTip id="summaryTab" show={!!activePreview && !isAlgorithmRunning && step === 'pool' && activePoolTab !== 'summary'} anchor={summaryTab} placement="bottom" />
+            <ReleaseTip id="cutoffTab" show={!!activePreview && !isAlgorithmRunning && step === 'pool' && activePoolTab !== 'cutoff'} anchor={cutoffTab} placement="bottom" />
             <ReleaseTip id="savePreview" show={!!activePreview && !isAlgorithmRunning} anchor={previewSaveActions} placement="bottom-start" />
             <ReleaseTip id="cardStyle" show={cards.length > 0 && !showStyleModal} anchor={styleButton} placement="bottom-end" />
-            <ReleaseTip id="imagesStep" show={cards.length > 0 && step === 'pool'} anchor={imagesStepButton} placement="bottom-start" />
+            <ReleaseTip id="imagesStep" show={cards.length > 0 && step === 'pool' && activePoolTab !== 'images'} anchor={imagesTab} placement="bottom-start" />
+            {!readOnly && <ReleaseGuide section={isGuideOpen ? guideSection : null} onClose={() => setIsGuideOpen(false)} />}
 
             {!readOnly && !isDriveNoticeDismissed && (
                 <ReleaseDriveNotice
@@ -1368,24 +1395,8 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
                 </InlineError>
             )}
 
-            {/* Images step: mounts on first open, then stays mounted (hidden) so a running render keeps reporting */}
             {/* Review step: release-wide, so its content comes from ReleaseDetail */}
             {reviewOpen && review}
-
-            {imagesMounted && (
-                <div className={`flex-col flex-1 min-h-0 ${!reviewOpen && step === 'images' ? 'flex' : 'hidden'}`}>
-                    <EditionImages
-                        releaseId={releaseId}
-                        releaseName={releaseName}
-                        edition={edition}
-                        readOnly={readOnly}
-                        token={token}
-                        previewRanks={previewRanks}
-                        onPreviewRankChange={handlePreviewRankChange}
-                        statusFilterRequest={imagesStatusRequest}
-                    />
-                </div>
-            )}
 
             {/* Setup step: just the scope form, so it mounts only while open (its state lives here) */}
             {!readOnly && !reviewOpen && step === 'setup' && (
@@ -1404,7 +1415,7 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
                     <Tabs.Trigger ref={setPhoneBuildTab} value="build" className={TAB_TRIGGER_CLASS}>
                         <FaWandMagicSparkles className="text-[10px]" /> Build
                     </Tabs.Trigger>
-                    {poolTabTriggers}
+                    {renderPoolTabTriggers(true)}
                 </Tabs.List>
             )}
             <div ref={splitContainerRef} className="flex flex-1 min-h-0">
@@ -1414,11 +1425,11 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
                         ref={setBuildPanelRail}
                         type="button"
                         onClick={toggleBuildPanelHidden}
-                        title="Show build method"
+                        title="Show build panel"
                         className="hidden md:flex flex-col items-center gap-3 w-9 shrink-0 py-3 border-r border-(--divider) text-(--text-tertiary) hover:text-(--text-primary) hover:bg-(--background-secondary) transition-colors cursor-pointer"
                     >
                         <FaAnglesRight className="text-[12px]" />
-                        <span className={`${FIELD_LABEL_CLASS} text-inherit! [writing-mode:vertical-rl]`}>Build Method</span>
+                        <span className={`${FIELD_LABEL_CLASS} text-inherit! [writing-mode:vertical-rl]`}>Build</span>
                     </button>
                 )}
 
@@ -1435,25 +1446,26 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
                             md:flex-none md:shrink-0 md:w-(--build-panel-width) md:max-w-(--build-panel-max-width) md:border-r md:border-(--divider)
                             ${buildPanelHidden ? 'md:hidden' : 'md:flex'}`}
                     >
+                        {/* Panel header first: hiding collapses everything below it, the scope included */}
+                        <div className={`px-3 pt-2 pb-1 shrink-0 flex items-center justify-between gap-2 ${CHROME_SURFACE_CLASS}`}>
+                            <div className="flex items-center gap-1.5">
+                                <button
+                                    type="button"
+                                    onClick={toggleBuildPanelHidden}
+                                    title="Hide build panel"
+                                    className="hidden md:flex items-center justify-center w-5 h-5 rounded-control text-(--text-tertiary) hover:text-(--text-primary) hover:bg-(--divider) transition-colors cursor-pointer"
+                                >
+                                    <FaAnglesLeft className="text-[11px]" />
+                                </button>
+                                <span className={FIELD_LABEL_CLASS}>Build</span>
+                            </div>
+                        </div>
                         <ScopeSummary
                             scope={scope}
                             outside={outsideScope}
                             onSetSizeChange={set_size => changeScope({ set_size })}
                             onEdit={handleOpenSetupStep}
                         />
-                        <div className={`px-3 pt-2 pb-1 shrink-0 flex items-center justify-between gap-2 ${CHROME_SURFACE_CLASS}`}>
-                            <div className="flex items-center gap-1.5">
-                                <button
-                                    type="button"
-                                    onClick={toggleBuildPanelHidden}
-                                    title="Hide build method"
-                                    className="hidden md:flex items-center justify-center w-5 h-5 rounded-control text-(--text-tertiary) hover:text-(--text-primary) hover:bg-(--divider) transition-colors cursor-pointer"
-                                >
-                                    <FaAnglesLeft className="text-[11px]" />
-                                </button>
-                                <span className={FIELD_LABEL_CLASS}>Build Method</span>
-                            </div>
-                        </div>
                         <Tabs.Root
                             value={buildMethod}
                             onValueChange={v => handleBuildMethodChange(v as BuildMethod)}
@@ -1571,7 +1583,7 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
                     <div className="flex flex-col flex-1 min-h-0">
                         {/* Phones get the strip above the split instead (it includes Build) — except when browsing */}
                         <Tabs.List className={`${readOnly ? '' : 'hidden! md:flex!'} ${TAB_LIST_CLASS}`}>
-                            {poolTabTriggers}
+                            {renderPoolTabTriggers(false)}
                             <SetBadgeRow
                                 sets={displayCards.map(c => c.card_snapshot.showdown_set)}
                                 size="md"
@@ -2009,6 +2021,28 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
                             </div>
                         </Tabs.Content>
 
+                        {/* Mounts on first open, then stays mounted (hidden) so a running render keeps reporting */}
+                        {imagesMounted && (
+                            <Tabs.Content
+                                value="images"
+                                forceMount
+                                className="flex-1 min-h-0 flex flex-col focus:outline-none data-[state=inactive]:hidden"
+                            >
+                                <EditionImages
+                                    releaseId={releaseId}
+                                    releaseName={releaseName}
+                                    isWip={isWip}
+                                    edition={edition}
+                                    readOnly={readOnly}
+                                    token={token}
+                                    previewRanks={previewRanks}
+                                    onPreviewRankChange={handlePreviewRankChange}
+                                    statusFilterRequest={imagesStatusRequest}
+                                    liveImageMatches={liveImageMatches.matches}
+                                />
+                            </Tabs.Content>
+                        )}
+
                         {summaryMounted && (
                             <Tabs.Content
                                 value="summary"
@@ -2102,15 +2136,15 @@ export function EditionBuilder({ releaseId, releaseName, edition, readOnly, toke
     );
 }
 
-function StepButton({ number, label, mobileLabel, isActive, onClick, ref }: { number?: number; label: string; mobileLabel?: string; isActive: boolean; onClick: () => void; ref?: Ref<HTMLButtonElement> }) {
+function StepButton({ number, label, mobileLabel, isActive, onClick, ref }: { number: number; label: string; mobileLabel?: string; isActive: boolean; onClick: () => void; ref?: React.Ref<HTMLButtonElement> }) {
     return (
         <button ref={ref} type="button" onClick={onClick} aria-label={label} aria-current={isActive ? 'step' : undefined} className="group flex items-center gap-1.5 sm:gap-2 cursor-pointer">
-            {number !== undefined && <span className={`flex items-center justify-center w-5 h-5 rounded-full text-[11px] font-semibold tabular-nums shrink-0 transition-colors
+            <span className={`flex items-center justify-center w-5 h-5 rounded-full text-[11px] font-semibold tabular-nums shrink-0 transition-colors
                 ${isActive ? 'bg-(--showdown-blue-fill) text-white' : 'border border-(--text-tertiary) text-(--text-tertiary) group-hover:border-(--text-secondary) group-hover:text-(--text-secondary)'}`}>
                 {number}
-            </span>}
+            </span>
             {/* Phones keep one row: a numbered step shows its label only while active, the rest are just the number */}
-            <span className={`${headingClass('panel')} transition-colors ${isActive ? '' : `text-(--text-tertiary)! group-hover:text-(--text-secondary)! ${number !== undefined ? 'hidden sm:inline' : ''}`}`}>
+            <span className={`${headingClass('panel')} transition-colors ${isActive ? '' : `text-(--text-tertiary)! group-hover:text-(--text-secondary)! hidden sm:inline`}`}>
                 {mobileLabel ? <><span className="sm:hidden">{mobileLabel}</span><span className="hidden sm:inline">{label}</span></> : label}
             </span>
         </button>
@@ -2167,7 +2201,7 @@ type PoolCardRowProps = {
 /** One pool grid card. Memoized (with stable callbacks from the builder) because the pool can be
  * hundreds of cards, and loading another page or opening a card shouldn't re-render all of them. */
 const PoolCardRow = memo(function PoolCardRow({ card, showFullCards, editionStyle, styleRules, numberLabel, setNumber, numberInputValue, numberPrefix, numberIssue, showMatchBadge, onOpen, onRemove, onNumberChange, onNumberBlur, foilSuggestion, onSkipFoilSuggestion }: PoolCardRowProps) {
-    // Full cards show the style (edition, rules, overrides) and set number they'll print with
+    // Full cards show the style (edition, rules, overrides) and set number they'll have in the release
     const styleOverrides = useMemo<CardStyleOverrides>(
         () => ({ style: releaseCardStyle(editionStyle, styleRules, card), setNumber }),
         [editionStyle, styleRules, card, setNumber]

@@ -257,28 +257,28 @@
   "2003": {
     "chart": {
       "command": 7,
-      "is_command_out_anomaly": true,
-      "outs": 7.8,
-      "outs_full": 8,
+      "is_command_out_anomaly": false,
+      "outs": 6.825,
+      "outs_full": 7,
       "ranges": {
-        "1B": "9\u201322",
+        "1B": "8\u201322",
         "1B+": "\u2014",
         "2B": "\u2014",
         "3B": "\u2014",
         "BB": "\u2014",
-        "FB": "7\u20138",
+        "FB": "7",
         "GB": "3\u20136",
         "HR": "23+",
         "SO": "1\u20132"
       },
       "sb": 0.0,
       "values": {
-        "1B": 12.2,
+        "1B": 13.175,
         "1B+": 0,
         "2B": 0,
         "3B": 0,
         "BB": 0,
-        "FB": 1.95,
+        "FB": 0.975,
         "GB": 3.9,
         "HR": 0.0,
         "SO": 1.95
@@ -312,15 +312,15 @@
       "C": 6
     },
     "projected": {
-      "1B": 2.9555,
+      "1B": 3.0959,
       "2B": 0.3885,
       "3B": 0.0368,
       "AB": 16.0577,
       "BB": 0.9423,
-      "FB": 4.0111,
+      "FB": 3.8707,
       "G": 7.0,
       "GB": 4.9184,
-      "H": 3.4309,
+      "H": 3.5714,
       "HR": 0.0502,
       "IBB": 0.0,
       "PA": 17,
@@ -328,14 +328,14 @@
       "SF": 0.0,
       "SH": 0.0,
       "SO": 3.1867,
-      "batting_avg": 0.2137,
+      "batting_avg": 0.2224,
       "g": 7.0,
-      "onbase_perc": 0.2572,
-      "onbase_plus_slugging": 0.509,
-      "onbase_plus_slugging_plus": 34.0,
-      "slugging_perc": 0.2518
+      "onbase_perc": 0.2655,
+      "onbase_plus_slugging": 0.5261,
+      "onbase_plus_slugging_plus": 38.0,
+      "slugging_perc": 0.2606
     },
-    "selected_command_outs": "7-8",
+    "selected_command_outs": "7-7",
     "speed": {
       "letter": "C",
       "speed": 8
@@ -345,28 +345,28 @@
     "chart": {
       "command": 7,
       "is_command_out_anomaly": false,
-      "outs": 6.825,
-      "outs_full": 7,
+      "outs": 5.85,
+      "outs_full": 6,
       "ranges": {
-        "1B": "9\u201322",
+        "1B": "8\u201322",
         "1B+": "\u2014",
         "2B": "\u2014",
         "3B": "\u2014",
-        "BB": "8",
-        "FB": "6\u20137",
-        "GB": "2\u20135",
+        "BB": "7",
+        "FB": "5\u20136",
+        "GB": "2\u20134",
         "HR": "23+",
         "SO": "1"
       },
       "sb": 0.0,
       "values": {
-        "1B": 12.2,
+        "1B": 13.175,
         "1B+": 0,
         "2B": 0,
         "3B": 0,
         "BB": 0.975,
         "FB": 1.95,
-        "GB": 3.9,
+        "GB": 2.925,
         "HR": 0.0,
         "SO": 0.975
       }
@@ -382,12 +382,12 @@
     "points": 10,
     "points_breakdown": {
       "breakdowns": {
-        "AVERAGE": -36.686,
+        "AVERAGE": -29.571,
         "DEFENSE-C": 47.727,
         "HOME_RUNS": -13.086,
         "ICON-R": 0.0,
-        "ONBASE": -73.47,
-        "SLUGGING": -141.222,
+        "ONBASE": -61.939,
+        "SLUGGING": -132.0,
         "SPEED": -12.0
       },
       "command_out_multiplier": 1.0,
@@ -399,15 +399,15 @@
       "C": 6
     },
     "projected": {
-      "1B": 2.8308,
+      "1B": 2.9646,
       "2B": 0.3787,
       "3B": 0.0294,
       "AB": 15.9479,
       "BB": 1.0521,
       "FB": 4.1045,
       "G": 7.0,
-      "GB": 4.9039,
-      "H": 3.3097,
+      "GB": 4.77,
+      "H": 3.4436,
       "HR": 0.0708,
       "IBB": 0.0,
       "PA": 17,
@@ -415,14 +415,14 @@
       "SF": 0.0,
       "SH": 0.0,
       "SO": 3.0836,
-      "batting_avg": 0.2075,
+      "batting_avg": 0.2159,
       "g": 7.0,
-      "onbase_perc": 0.2566,
-      "onbase_plus_slugging": 0.5049,
-      "onbase_plus_slugging_plus": 33.0,
-      "slugging_perc": 0.2483
+      "onbase_perc": 0.2645,
+      "onbase_plus_slugging": 0.5212,
+      "onbase_plus_slugging_plus": 37.0,
+      "slugging_perc": 0.2567
     },
-    "selected_command_outs": "7-7",
+    "selected_command_outs": "7-6",
     "speed": {
       "letter": "C",
       "speed": 8

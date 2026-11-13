@@ -1696,6 +1696,10 @@ class ShowdownPlayerCard(BaseModel):
         if len(icons) >= 5 and self.is_hitter and Icon.R in icons and Icon.RY in icons:
             icons.remove(Icon.R)
 
+        # HALF-SEASON CARDS ONLY KEEP ROOKIE: AWARDS, LEADERS AND THRESHOLDS ARE FULL-SEASON
+        if self.stats_period.season_half:
+            icons = [icon for icon in icons if icon == Icon.R]
+
         return icons
 
     def parse_accolades(self, maximum:int = None) -> list[str]:
@@ -6238,6 +6242,11 @@ class ShowdownPlayerCard(BaseModel):
             if self.player_type_override.override_string.upper() in img_name_upper:
                 match_score += 1
 
+        # IMAGE TAGGED FOR A DIFFERENT TYPE (EX: OHTANI "(PITCHER)" IMAGE ON A HITTER OR NON-OVERRIDE CARD), REDUCE ACCURACY
+        # WITHOUT THIS, AN UNTAGGED AND A MISMATCHED IMAGE TIE AND THE NAME SORT CAN PICK THE WRONG ONE
+        if any(player_type.override_string.upper() in img_name_upper for player_type in PlayerType if player_type != self.player_type_override):
+            match_score -= 2
+
         # IF POSTSEASON IMAGE BUT NOT POSTSEASON CARD, REDUCE ACCURACY
         if '(POST)' in img_name_upper and self.stats_period.type != StatsPeriodType.POSTSEASON:
             match_score -= 2
@@ -8118,7 +8127,11 @@ class ShowdownPlayerCard(BaseModel):
         speed_value, speed_letter = speed.get('speed'), speed.get('letter')
         variant = self.variable_speed_variant
         variant_speed = variant.speed if variant else None
+        # The view's team is the player's full-season team (where a traded player finished). A
+        # half-season card takes the team from its own stats, e.g. before a deadline trade.
+        period_team = {'team': self.team.value} if self.stats_period.season_half and self.team else {}
         return {
+            **period_team,
             'card_year': (data.get('stats_period') or {}).get('year'),
             'showdown_bot_version': data.get('version'),
             'points': data.get('points'),

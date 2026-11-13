@@ -10,6 +10,8 @@ type LiveImageMatchesState = {
     checkedAt: string | null;
     /** Libraries (Drive folders or Showdown Bot) the checked cards pull images from, most used first. */
     libraryNames: string[];
+    /** Live match by snapshot id, for the snapshots checked so far. */
+    matches: Record<string, LiveImageMatch>;
     /** Re-reads the image libraries from Google Drive, bypassing the server cache. */
     refresh: () => void;
 };
@@ -76,5 +78,5 @@ export function useLiveImageMatches(releaseId: string, editionId: string, cards:
 
     const refresh = useCallback(() => { load(true); }, [load]);
 
-    return { cards: liveCards, loading, error, checkedAt, libraryNames, refresh };
+    return { cards: liveCards, matches, loading, error, checkedAt, libraryNames, refresh };
 }

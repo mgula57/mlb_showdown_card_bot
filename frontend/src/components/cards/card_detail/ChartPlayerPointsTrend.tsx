@@ -8,7 +8,7 @@
 
 import { type TrendDatapoint } from '../../../api/showdownBotCard';
 import { ResponsiveContainer, AreaChart, XAxis, YAxis, Tooltip, Area, CartesianGrid } from 'recharts';
-import { useMemo } from 'react';
+import { useId, useMemo } from 'react';
 import { enhanceColorVisibility } from '../../../functions/colors';
 
 /**
@@ -70,8 +70,9 @@ const ChartPlayerPointsTrend = ({ title, trendData }: ChartPlayerPointsTrendProp
      * Generate unique gradient IDs to prevent conflicts between multiple chart instances
      * Each chart needs its own gradient definition in the SVG
      */
-    const gradientId = useMemo(() => `gradient-${Math.random().toString(36).substr(2, 9)}`, []);
-    const strokeGradientId = useMemo(() => `stroke-gradient-${Math.random().toString(36).substr(2, 9)}`, []);
+    const chartId = useId().replace(/:/g, '');
+    const gradientId = `gradient-${chartId}`;
+    const strokeGradientId = `stroke-gradient-${chartId}`;
 
     /**
      * Create horizontal gradient stops based on team colors over time

@@ -1,6 +1,6 @@
-import { useState, type ReactNode } from 'react';
-import { Link } from 'react-router-dom';
-import { FaArrowLeft, FaBookmark, FaCodeFork, FaHeart, FaRegBookmark, FaRegHeart, FaShareNodes } from 'react-icons/fa6';
+import { useEffect, useState, type ReactNode } from 'react';
+import { Link, useLocation } from 'react-router-dom';
+import { FaArrowLeft, FaBookmark, FaCodeFork, FaHeart, FaRegBookmark, FaRegComment, FaRegHeart, FaShareNodes } from 'react-icons/fa6';
 import { toggleReleaseLike, toggleReleaseSave, type Release } from '../../api/releases';
 import { formatShortDate } from '../../functions/formatters';
 import { Heading } from '../shared/Heading';
@@ -10,6 +10,11 @@ import { ReleaseHeaderButton } from './ReleaseHeaderButton';
 import { ReleaseVersionHistory } from './ReleaseVersionHistory';
 import { ReleaseRemixModal } from './ReleaseRemixModal';
 import { ReleaseCardFan } from './ReleaseItem';
+import { ReleaseVisibilityPlate } from './ReleaseVisibilityPlate';
+import { describeEditionChange } from './releaseUpdates';
+import { UserAvatar } from '../shared/UserAvatar';
+import { CommentsPanel } from '../shared/comments/CommentsPanel';
+import { useAuth } from '../auth/AuthContext';
 
 type ReleasePublicHeaderProps = {
     release: Release;
@@ -28,21 +33,33 @@ type ReleasePublicHeaderProps = {
 };
 
 /** The top of a published release when browsing it: what it is, who made it (and what it was remixed
- *  from), which version this is, and the visitor's actions (like, save, remix, share). Editing uses the builder's compact header instead. */
+ *  from), which version this is, and the visitor's actions (like, save, remix, comment, share). Editing uses the builder's compact header instead. */
 export function ReleasePublicHeader({ release, cardCount, editionCount, isOwner, token, onBack, onShare, onReleaseUpdated, onRemixed, children }: ReleasePublicHeaderProps) {
     const [liking, setLiking] = useState(false);
     const [saving, setSaving] = useState(false);
     const [showHistory, setShowHistory] = useState(false);
     const [showRemix, setShowRemix] = useState(false);
+    const [showComments, setShowComments] = useState(false);
+    const { session, isAdmin } = useAuth();
+    // Releases stay mounted (hidden) once opened, so close the panel on leaving this one (e.g. browser
+    // back): a mobile SlideOver left open would keep locking the page. Switching editions keeps it open
+    const { pathname } = useLocation();
+    const isOnRelease = pathname.split('/')[2] === release.id;
+    useEffect(() => { if (!isOnRelease) setShowComments(false); }, [isOnRelease]);
     // Touch screens can't hover, so a tap toggles the featured cards open instead
     const [cardsFanned, setCardsFanned] = useState(false);
     // Owners can't like their own release, and liking needs an account
     const canLike = !!token && !isOwner;
     // Same audience as liking, while the owner allows remixes
     const canRemix = canLike && release.allow_remix && !!onRemixed;
+    // Everyone sees comments (signing in to post), the owner included, while they're on. A private
+    // release has no one else to talk to
+    const hasComments = release.visibility !== 'private' && release.allow_comments;
     const forkParent = release.fork_parent;
     const versionDate = release.version_published_at ?? release.published_at;
     const previewImages = release.preview_images ?? [];
+    // An update's changes up front, so a returning visitor sees what's new without opening History
+    const latestChanges = release.published_version > 1 ? release.latest_version_changes ?? [] : [];
 
     async function handleToggleLike() {
         if (!token || liking) return;
@@ -89,12 +106,20 @@ export function ReleasePublicHeader({ release, cardCount, editionCount, isOwner,
                         <Heading level="page" as="h1" fit>{release.name}</Heading>
                         {release.is_official && <Plate variant="navy" size="sm">Official</Plate>}
                         {release.is_wip && <Plate variant="outline" size="sm" title="Work in progress: more cards or changes are coming">WIP</Plate>}
-                        {isOwner && !release.is_listed && <Plate variant="outline" size="sm" title="Opens from its link but isn't listed in Community or search">Link only</Plate>}
+                        <ReleaseVisibilityPlate release={release} show={isOwner} />
                     </div>
                     <div className="flex flex-wrap items-center gap-x-1.5 text-[13px] text-(--text-secondary)">
                         {release.creator_username && (
                             <>
-                                <span>by <span className="font-semibold text-(--text-primary)">{release.creator_username}</span></span>
+                                <span className="flex items-center gap-1.5">
+                                    <UserAvatar
+                                        name={release.creator_username}
+                                        avatarUrl={release.creator_avatar_url}
+                                        primaryColor={release.creator_primary_color}
+                                        size={18}
+                                    />
+                                    <span>by <span className="font-semibold text-(--text-primary)">{release.creator_username}</span></span>
+                                </span>
                                 <span aria-hidden className="text-(--text-tertiary)">·</span>
                             </>
                         )}
@@ -106,6 +131,15 @@ export function ReleasePublicHeader({ release, cardCount, editionCount, isOwner,
                             History
                         </button>
                     </div>
+                    {latestChanges.length > 0 && (
+                        <p className="text-[13px] text-(--text-secondary) min-w-0">
+                            <span className="font-semibold text-(--text-primary)">New in v{release.published_version}:</span>{' '}
+                            {latestChanges.map(change => {
+                                const parts = describeEditionChange(change);
+                                return `${change.name} (${parts.length > 0 ? parts.join(', ') : 'style or card details'})`;
+                            }).join(' · ')}
+                        </p>
+                    )}
                     {forkParent && (
                         <div className="flex items-center gap-1.5 text-[13px] text-(--text-secondary) min-w-0">
                             <FaCodeFork aria-hidden className="shrink-0 text-[11px] text-(--text-tertiary)" />
@@ -176,6 +210,16 @@ export function ReleasePublicHeader({ release, cardCount, editionCount, isOwner,
                         title={`Start your own release from ${release.name}`}
                     />
                 )}
+                {hasComments && (
+                    <ReleaseHeaderButton
+                        icon={<FaRegComment />}
+                        label="Comments"
+                        collapseLabel
+                        count={release.comment_count}
+                        onClick={() => setShowComments(open => !open)}
+                        title={`Comments on ${release.name}`}
+                    />
+                )}
                 <ReleaseHeaderButton icon={<FaShareNodes />} label="Share" onClick={onShare} />
                 {children}
             </div>
@@ -183,6 +227,19 @@ export function ReleasePublicHeader({ release, cardCount, editionCount, isOwner,
         </header>
         {/* Outside the header: its `isolate` stacking context would trap the modal under the page below */}
         {showHistory && <ReleaseVersionHistory release={release} token={token} onClose={() => setShowHistory(false)} />}
+        {hasComments && (
+            <CommentsPanel
+                isOpen={showComments}
+                onClose={() => setShowComments(false)}
+                subtitle={release.name}
+                subject={{ type: 'release', id: release.id }}
+                token={token}
+                viewerId={session?.user?.id}
+                ownerId={release.created_by}
+                isAdmin={isAdmin}
+                onTotalChange={total => { if (total !== release.comment_count) onReleaseUpdated({ ...release, comment_count: total }); }}
+            />
+        )}
         {showRemix && token && onRemixed && (
             <ReleaseRemixModal release={release} token={token} onClose={() => setShowRemix(false)} onRemixed={onRemixed} />
         )}

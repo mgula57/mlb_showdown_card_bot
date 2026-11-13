@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { createPortal } from 'react-dom';
 import { buttonClass } from './buttonStyles';
 import { FaLock } from 'react-icons/fa';
 import { LoginModal } from '../auth/LoginModal';
@@ -32,7 +33,9 @@ export const SignInPrompt: React.FC<SignInPromptProps> = ({
 }) => {
     const [showLoginModal, setShowLoginModal] = useState(false);
 
-    const loginModal = showLoginModal && <LoginModal onClose={() => setShowLoginModal(false)} />;
+    // Portaled to the body: inside a transformed parent (a SideDrawer or SlideOver sliding in) a fixed
+    // overlay is positioned and clipped by that parent instead of the viewport
+    const loginModal = showLoginModal && createPortal(<LoginModal onClose={() => setShowLoginModal(false)} />, document.body);
 
     if (size === 'panel') {
         return (

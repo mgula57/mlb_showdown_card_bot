@@ -56,14 +56,15 @@ export function challengeRestrictionsLabel(challenge: ChallengeInstance): string
 
 const FIELDING_GROUP_LABELS: Record<string, string> = { if: 'IF', of: 'OF', ca: 'C' };
 
-const SCOPE_LABELS: Record<string, string> = { hitters: 'Hitters', catchers: 'Catchers' };
+const SCOPE_LABELS: Record<string, string> = { hitters: 'Hitters', pitchers: 'Pitchers', catchers: 'Catchers' };
 
 /** Labels for the scoped `min_`/`max_` filters (`min_speed_hitters`, `min_fielding_if_hitters`,
- *  `min_chart_hr_hitters`, `max_fielding_ca_catchers`, ...), e.g. "Hitters 18+ SPD". */
+ *  `min_chart_hr_hitters`, `min_chart_so_pitchers`, `max_fielding_ca_catchers`, ...), e.g.
+ *  "Hitters 18+ SPD". */
 function hitterFilterLabels(pf: Record<string, unknown>): string[] {
     const labels: string[] = [];
     for (const [key, value] of Object.entries(pf)) {
-        const match = /^(min|max)_(.+)_(hitters|catchers)$/.exec(key);
+        const match = /^(min|max)_(.+)_(hitters|pitchers|catchers)$/.exec(key);
         if (!match || value == null) continue;
         const [, bound, base, scope] = match;
         const amount = bound === 'min' ? `${value}+` : `≤${value}`;

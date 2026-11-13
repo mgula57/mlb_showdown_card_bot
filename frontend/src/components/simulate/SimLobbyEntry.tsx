@@ -9,6 +9,7 @@ import { InlineError } from '../shared/InlineError';
 import { Heading } from '../shared/Heading';
 import { buttonClass } from '../shared/buttonStyles';
 import { Tabs } from '../shared/Tabs';
+import { PageSubtitle } from '../shared/PageSubtitle';
 function errorMessage(err: unknown): string {
     return err instanceof Error ? err.message : String(err);
 }
@@ -82,9 +83,9 @@ export function SimLobbyEntry({ token, onEnterLobby, onBack, initialMode }: Prop
                 <div className="flex flex-col gap-4 max-w-md mx-auto w-full p-4">
                     <div>
                         <Heading level="page">Join a Lobby</Heading>
-                        <p className="text-[13px] text-(--text-secondary) mt-1">
+                        <PageSubtitle className="mt-1">
                             Enter the code someone sent you to jump into their simulated season.
-                        </p>
+                        </PageSubtitle>
                     </div>
                     <FormInput
                         label="Join Code"

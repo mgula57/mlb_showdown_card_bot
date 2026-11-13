@@ -149,6 +149,9 @@ def get_team(team_id: str):
         user_id = optional_user_id()
         with PostgresDB() as db:
             team = db.get_team(team_id, user_id)
+            if team is not None:
+                # For the header's Comments button (see TeamCommentSubject)
+                team['comment_count'] = db.count_comments('team', team_id)
         if team is None:
             return jsonify({'error': 'Team not found'}), 404
         return jsonify(team), 200
