@@ -3,7 +3,7 @@
 What's new in each Showdown Bot release, newest first.
 
 ## 4.5 Release — Release Builder
-_Unreleased_
+_Released 2026-11-12 · [GitHub release](https://github.com/mgula57/mlb_showdown_card_bot/releases/tag/v4.5)_
 
 This release focuses on the new Release Builder, new image parallels, comments, and a full visual refresh of Showdown Bot.
 
@@ -49,9 +49,10 @@ Fill an edition with the `Algorithm`, `Manual` search, or `Customs` you made in 
 - Visitors see version history, a "New in v2" summary, and `New` labels on recently added editions
 - Cards you remove from a published edition stay on any teams that already use them
 - Share a release or a single card with a short link that shows a preview image when posted
+- Release links now include the owner's username, and links shared earlier (or before a username change) keep working
 - `Remix` someone else's release to start your own from it, with credit back to the original (owners can turn this off)
-- Mark a release `WIP` so people know more cards are coming
-- Releases from Showdown Bot are marked `Official`
+- Mark a release `WIP` so people know more cards are coming, and downloads of its images ask you to confirm first since cards may still change
+- Releases from Showdown Bot are marked `Official` and are grouped into themed collections on the Releases page
 
 #### Browsing Releases
 - The `Releases` page shows your releases, Official releases, and Community releases, with search and `Popular` and `New` sorting
@@ -86,6 +87,7 @@ Showdown Bot has a new look inspired by the original late-90s and early-2000s ca
 - An animated game reel on the Home page
 
 ### Also New
+- Search boxes work from the keyboard: type then press `Enter` to pick the top result, and use the arrow keys or `Tab` to move through results
 - Set a closer and rank your bullpen in a saved team's depth chart
 - `Next Inning` button when replaying a simulated game
 
@@ -94,6 +96,8 @@ Showdown Bot has a new look inspired by the original late-90s and early-2000s ca
 - Fixed scrolling in the `Images` tab and the zip download popup on mobile
 - Fixed text cut off on release tiles and card details
 - Fixed the Discord link
+- Fixed the points chart in the Release Builder `Summary` tab
+- Fixed releases sometimes failing to load
 
 ---
 
