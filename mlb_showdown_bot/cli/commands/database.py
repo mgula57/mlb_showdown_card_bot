@@ -209,6 +209,76 @@ def backfill_variable_speed(
             db.build_card_bot_view()
 
 # -------------------------------
+# MARK: - Game Logs
+# -------------------------------
+@app.command("game_log_coverage")
+def game_log_coverage(
+    env: str = typer.Option("dev", "--env", "-e", help="Environment to run the command in"),
+    years: Optional[str] = typer.Option(None, "--years", "-y", help="Year(s) to report, e.g. '2006-2019'. Defaults to all years."),
+    ignore_minimums: bool = typer.Option(False, "--ignore_minimums", "-im", help="Include players under 35 PA / 15 IP"),
+):
+    """Report how many archived player seasons have game_logs / postseason_game_logs"""
+    from ...core.archive.game_log_backfill import GameLogBackfill
+
+    year_list = convert_year_string_to_list(years) if years else None
+    with PostgresDB(is_archive=env.lower() == "prod") as db:
+        rows = GameLogBackfill(db=db).coverage(years=year_list, ignore_minimums=ignore_minimums)
+
+    table = PrettyTable()
+    table.field_names = ["Year", "Rows", "Game Logs", "Missing", "Postseason Key", "Postseason Non-Empty", "No Stats"]
+    for row in rows:
+        table.add_row([row['year'], row['total'], row['has_game_logs'], row['total'] - row['has_game_logs'], row['has_postseason'], row['non_empty_postseason'], row['no_stats']])
+    print(table)
+
+@app.command("backfill_game_logs")
+def backfill_game_logs(
+    env: str = typer.Option("dev", "--env", "-e", help="Environment to run the command in"),
+    years: str = typer.Option(..., "--years", "-y", help="Year(s) to backfill, e.g. '2015'. Run one year at a time."),
+    limit: Optional[int] = typer.Option(None, "--limit", "-l", help="Limit how many player seasons are processed"),
+    player_id_list: Optional[str] = typer.Option(None, "--player_id_list", "-pil", help="Comma-separated bref ids (e.g. 'abreuwi02,bailepa01')"),
+    delay: float = typer.Option(4.0, "--delay", "-d", help="Seconds to sleep after each Baseball Reference request"),
+    regular_season_only: bool = typer.Option(False, "--regular_season_only", "-rs", help="Only fill game_logs"),
+    postseason_only: bool = typer.Option(False, "--postseason_only", "-ps", help="Only fill postseason_game_logs"),
+    force: bool = typer.Option(False, "--force", "-f", help="Refetch even when the key already exists"),
+    write_empty: bool = typer.Option(False, "--write_empty", help="Store [] when a player with games has no regular season log rows"),
+    ignore_minimums: bool = typer.Option(False, "--ignore_minimums", "-im", help="Include players under 35 PA / 15 IP"),
+    dry_run: bool = typer.Option(False, "--dry_run", help="Show how many rows would be fetched, without scraping or writing"),
+):
+    """Fill game_logs and postseason_game_logs on archived player seasons (Baseball Reference years only).
+
+    Resumable: only rows still missing the keys are picked up, so rerun the same command after an interruption.
+    Postseason logs are career-wide on Baseball Reference, so they're fetched once per player per run.
+    """
+    from ...core.archive.game_log_backfill import GameLogBackfill
+
+    if regular_season_only and postseason_only:
+        raise typer.BadParameter("Choose --regular_season_only or --postseason_only, not both.")
+
+    start_time = time.time()
+    parsed_ids = [pid.strip() for pid in player_id_list.split(',') if pid.strip()] if player_id_list else None
+    with PostgresDB(is_archive=env.lower() == "prod") as db:
+        result = GameLogBackfill(db=db, delay=delay).run(
+            years=convert_year_string_to_list(years),
+            limit=limit,
+            player_ids=parsed_ids,
+            regular_season=not postseason_only,
+            postseason=not regular_season_only,
+            force=force,
+            write_empty=write_empty,
+            ignore_minimums=ignore_minimums,
+            dry_run=dry_run,
+        )
+
+    print(f"\n{'DRY RUN: ' if dry_run else ''}candidates={result.candidates} updated={result.updated} no_logs={result.no_logs} failed={result.failed} requests={result.requests} ({round((time.time() - start_time) / 60, 1)} min)")
+    if result.failed_ids:
+        print(f"Failed ids (rerun to retry): {', '.join(result.failed_ids[:25])}{' ...' if len(result.failed_ids) > 25 else ''}")
+    if result.aborted_reason:
+        print(f"⚠️  Stopped early: {result.aborted_reason}")
+        raise typer.Exit(code=1)
+    if not dry_run:
+        print("✅ Done.")
+
+# -------------------------------
 # MARK: - Fangraphs
 # -------------------------------
 @app.command("snapshot_fangraphs_fielding")

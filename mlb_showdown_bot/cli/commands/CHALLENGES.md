@@ -233,6 +233,8 @@ showdown_bot challenges social [--env dev] [--headline "Sixties Week"] [--subhea
   the full `{year}-{bref_id}-{set}`. Each card is tagged with the first challenge whose season it
   fits. If you don't pass any, the command picks one per challenge, round-robin: required players
   first, then the top-points non-small-sample card that passes that challenge's filters.
+- **Theme:** `--theme dark` renders the slide (HTML, PDF and image) with the frontend's dark tokens
+  and the dark logo; the default is `light`.
 - **Start date:** `--start-date YYYY-MM-DD` sets the slide's "Week of" date and the default output
   folder name. It defaults to today, so pass it when you build the post ahead of (or after) launch.
 - **Output** (default `sim_output/challenges_{start date}/`): `challenges.html` (self-contained),

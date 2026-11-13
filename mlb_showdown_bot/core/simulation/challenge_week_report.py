@@ -171,8 +171,8 @@ class ChallengeWeekReport(SocialSheetReport):
     SHEET_COUNT = 1
     TEMPLATE_NAME = "challenge_week_summary.html.j2"
 
-    def __init__(self, challenges: list[ChallengeSpotlight], cards: list[KeyPlayerCard], headline: str, subhead: str, showdown_set: str, week_of: date) -> None:
-        super().__init__()
+    def __init__(self, challenges: list[ChallengeSpotlight], cards: list[KeyPlayerCard], headline: str, subhead: str, showdown_set: str, week_of: date, theme: str = "light") -> None:
+        super().__init__(theme=theme)
         self.challenges = challenges
         self.cards = cards
         self.headline = headline
@@ -206,8 +206,9 @@ class ChallengeWeek:
     def __init__(
         self, db: PostgresDB, showdown_set: str, out_dir: Path, slugs: Optional[list[str]] = None,
         card_ids: Optional[list[str]] = None, headline: Optional[str] = None, subhead: Optional[str] = None,
-        start_date: Optional[date] = None,
+        start_date: Optional[date] = None, theme: str = "light",
     ) -> None:
+        self.theme = theme
         self.db = db
         self.showdown_set = showdown_set
         self.out_dir = Path(out_dir)
@@ -312,7 +313,7 @@ class ChallengeWeek:
         self.out_dir.mkdir(parents=True, exist_ok=True)
         cards = self.render_cards(self.pick_card_ids(challenges), status_callback=status_callback)
 
-        report = ChallengeWeekReport(challenges=challenges, cards=cards, headline=self.headline, subhead=self.subhead, showdown_set=self.showdown_set, week_of=self.start_date)
+        report = ChallengeWeekReport(challenges=challenges, cards=cards, headline=self.headline, subhead=self.subhead, showdown_set=self.showdown_set, week_of=self.start_date, theme=self.theme)
         html_path = self.out_dir / self.HTML_FILE
         html_path.write_text(report.render())
         skipped_pdf = ChallengeWeekReport.write_pdf(html_path=html_path, pdf_path=self.out_dir / self.PDF_FILE)

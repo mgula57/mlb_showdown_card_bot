@@ -183,7 +183,7 @@ class BaseballReferenceScraper(BaseModel):
         # APPLIES TO DATE RANGE AND POST SEASON
         if player_archive and self.stats_period.type.uses_game_logs:
             # CHECK IF ARCHIVE STATS ARE EMPTY
-            game_logs = player_archive.stats.get(StatsPeriodType.DATE_RANGE.stats_dict_key, []) or []
+            game_logs = player_archive.stats.get(self.stats_period.type.stats_dict_key, []) or []
             if len(game_logs) == 0:
                 return None
         

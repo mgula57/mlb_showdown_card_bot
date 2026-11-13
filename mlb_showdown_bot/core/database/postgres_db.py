@@ -4612,7 +4612,7 @@ class PostgresDB:
                 PRIMARY KEY (id, showdown_set, showdown_bot_version)
             );
         """
-        added_columns = ['points_vs integer', 'points_change_yoy_vs integer', 'speed_vs integer', 'speed_letter_vs text', 'speed_full_vs text', 'speed_or_ip_vs integer']
+        added_columns = ["status text DEFAULT 'final'",'points_vs integer','points_change_yoy_vs integer', 'speed_vs integer', 'speed_letter_vs text', 'speed_full_vs text', 'speed_or_ip_vs integer']
 
         # SHOOT MESSAGE TO USER WHILE THE VIEW IS REBUILDING (IF DROPPED)
         if drop_existing:

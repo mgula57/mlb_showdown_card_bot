@@ -38,6 +38,11 @@ export default function Releases() {
     });
     const listRef = useListScrollMemory(isListShown);
 
+    // A release opens at its top, not wherever the list (or the previous release) was scrolled to
+    useLayoutEffect(() => {
+        if (releaseIdFromUrl) window.scrollTo(0, 0);
+    }, [releaseIdFromUrl]);
+
     // Opening a release (from a tile, a link or history) clears the note about the last link that
     // couldn't be opened. Adjusted during render, so the note never flashes on the next screen.
     const [noticeReleaseId, setNoticeReleaseId] = useState(releaseIdFromUrl);
