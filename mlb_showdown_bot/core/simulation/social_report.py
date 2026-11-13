@@ -114,12 +114,13 @@ class SocialSheetReport:
         return [out_dir / f"{stem}_{page}.{image_format}" for page in range(1, cls.SHEET_COUNT + 1)]
 
     @classmethod
-    def write_images(cls, html_path: Path, image_paths: list[Path]) -> Optional[str]:
+    def write_images(cls, html_path: Path, image_paths: list[Path], scale: int = 1) -> Optional[str]:
         """Screenshot each sheet as its own image, one per path in `image_paths` (page 1 to
         `image_paths[0]`, page 2 to `image_paths[1]`, ...) - `SHEET_COUNT` of them. The format
         (PNG/JPEG) is whatever each path's extension says; headless Chrome picks it up from that.
         Returns None on success, or a reason every image was skipped - like `write_pdf`, image
-        export is optional and never fails the caller."""
+        export is optional and never fails the caller. `scale` is the device pixel ratio: 2 renders
+        a 2160x2700 image of the same 1080x1350 layout, with crisper text."""
         if len(image_paths) != cls.SHEET_COUNT:
             raise ValueError(f"write_images needs exactly {cls.SHEET_COUNT} path(s), got {len(image_paths)}")
         chrome = cls.find_chrome()
@@ -132,7 +133,7 @@ class SocialSheetReport:
             # VIEWPORT SHORTER THAN `--window-size` (LEAVING THE SHEET'S BOTTOM BLANK), SO CAPTURE A
             # TALLER WINDOW AND CROP BACK DOWN TO THE SHEET.
             command = [
-                chrome, "--headless=new", "--disable-gpu", "--hide-scrollbars",
+                chrome, "--headless=new", "--disable-gpu", "--hide-scrollbars", f"--force-device-scale-factor={scale}",
                 f"--window-size={_SHEET_SIZE[0]},{_SHEET_SIZE[1] + _CAPTURE_HEADROOM}", "--virtual-time-budget=10000",
                 f"--screenshot={image_path.resolve()}", f"{html_uri}#pdf-{page}",
             ]
@@ -143,6 +144,6 @@ class SocialSheetReport:
             if not image_path.exists():
                 return f"Chrome ran but produced no image for page {page}"
             with Image.open(image_path) as screenshot:
-                sheet = screenshot.crop((0, 0, *_SHEET_SIZE))
+                sheet = screenshot.crop((0, 0, _SHEET_SIZE[0] * scale, _SHEET_SIZE[1] * scale))
             sheet.save(image_path)
         return None

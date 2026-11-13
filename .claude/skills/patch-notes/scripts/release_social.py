@@ -19,8 +19,8 @@ from mlb_showdown_bot.core.simulation.social_report import _REPO_ROOT, SocialShe
 
 _DARK_LOGO_PATH = _REPO_ROOT / "frontend" / "public" / "images" / "logos" / "logo-dark.png"
 # EMBEDDED AT 2x ITS ~640px DISPLAY WIDTH, CROPPED TO THE TOP OF THE APP.
-_SCREENSHOT_WIDTH = 1280
-_SCREENSHOT_MAX_HEIGHT = 1100
+_SCREENSHOT_WIDTH = 1600
+_SCREENSHOT_MAX_HEIGHT = 1400
 
 
 class ReleaseNotesSocial(SocialSheetReport):
@@ -41,7 +41,7 @@ class ReleaseNotesSocial(SocialSheetReport):
             image = image.resize((_SCREENSHOT_WIDTH, round(image.height * scale)), Image.Resampling.LANCZOS)
             image = image.crop((0, 0, _SCREENSHOT_WIDTH, min(image.height, _SCREENSHOT_MAX_HEIGHT)))
             buffer = BytesIO()
-            image.save(buffer, format="JPEG", quality=90)
+            image.save(buffer, format="JPEG", quality=95)
         return self.bytes_data_uri(buffer.getvalue(), "image/jpeg")
 
     def context(self) -> dict:
@@ -73,7 +73,7 @@ def main() -> None:
     report = ReleaseNotesSocial(json.loads(args.content.read_text()), args.screenshot)
     html_path = args.out_dir / "release_notes.html"
     html_path.write_text(report.render())
-    skipped = ReleaseNotesSocial.write_images(html_path=html_path, image_paths=ReleaseNotesSocial.image_paths(args.out_dir, "release_notes", "png"))
+    skipped = ReleaseNotesSocial.write_images(html_path=html_path, image_paths=ReleaseNotesSocial.image_paths(args.out_dir, "release_notes", "png"), scale=2)
     print(skipped or f"Wrote {args.out_dir / 'release_notes_1.png'}")
 
 

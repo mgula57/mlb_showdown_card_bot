@@ -40,7 +40,7 @@ export function TeamShelf({ title, subtitle, wrapSubtitle, headingLevel = 'panel
                         </button>
                     )}
                 </div>
-                {subtitle && <p className={`text-[11px] text-(--text-tertiary) ${wrapSubtitle ? 'max-w-prose' : 'truncate'}`}>{subtitle}</p>}
+                {subtitle && <p className={`text-[11px] text-(--text-tertiary) ${wrapSubtitle ? 'max-w-4xl' : 'truncate'}`}>{subtitle}</p>}
             </div>
             <div
                 className={`flex gap-3 overflow-y-hidden overflow-x-scroll pb-1 py-2 scrollbar-hide ${className ?? ''}`}
