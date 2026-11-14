@@ -34,7 +34,7 @@ const FACET_LINES = [
 /** The die itself. Rounded corners come from stroking the silhouette with its own fill and a
  *  round line join, which keeps the shape a single shape (no separate outline to fall out of
  *  sync with the gradient). */
-export function D20Face({ value, accent, ink = '#ffffff' }: { value: number; accent: string; ink?: string }) {
+export function D20Face({ value, accent, ink = '#ffffff' }: { value: number | string; accent: string; ink?: string }) {
     // `useId` output contains colons, which are legal in an id but awkward inside `url(#…)`.
     const gradientId = `d20-${useId().replace(/:/g, '')}`;
     return (

@@ -21,7 +21,8 @@ from ..core.card.team_builder.player_filters import PlayerFilterSet
 from ..core.card.team_builder.team import BULLPEN_ROLES, FIELD_POSITIONS, ROTATION_ROLES, Team as BuilderTeam
 from ..core.database.postgres_db import PostgresDB
 from ..core.simulation.challenge_generator import BeatTarget
-from ..core.simulation.faceoff import SUPPORTED_BEST_OF, FaceoffEntrant, FaceoffError, TeamMatchupSimulator
+from ..core.simulation.faceoff import SUPPORTED_BEST_OF, FaceoffEntrant, TeamMatchupSimulator
+from ..core.simulation.matchup import MatchupError
 from ..core.simulation.mlb_game import MLBGameLineupSlot, MLBGameSetup, MLBGameSimulator, MLBGameTeamSetup
 from ..core.simulation.models import GameStuckError, ManagerPreference, PostseasonFormat, PostseasonRound, SeasonSimulationConfig
 from ..core.simulation.season import Season
@@ -1779,13 +1780,42 @@ def _faceoff_team_row(db: PostgresDB, team_id, user_id: str) -> dict:
     return row
 
 
+def _start_live_faceoff(team_id: str, opponent_team_id: str, payload: dict, is_own_matchup: bool):
+    """A Faceoff played by hand: a live game in the 'faceoff' context, the user's team away and the
+    challenged team home, as in an instant Faceoff. The user plays the challenged team too when it's
+    theirs; a public opponent is played by the sim, with its saved starter and a neutral manager."""
+    # LOCAL: `live_games` IMPORTS THIS MODULE'S HELPERS.
+    from .live_games import LiveClubResolver, TeamRef, open_live_game
+
+    with PostgresDB() as db:
+        resolver = LiveClubResolver(db, g.user_id)
+        away_ref, away = resolver.seat(TeamRef(kind='saved', team_id=team_id), payload.get('starter_card_id'), payload.get('manager'))
+        home_ref, home = resolver.seat(
+            TeamRef(kind='saved', team_id=opponent_team_id),
+            payload.get('opponent_starter_card_id') if is_own_matchup else None,
+            payload.get('opponent_manager') if is_own_matchup else None,
+        )
+        seats = {
+            'away': {'controller': 'human', 'user_id': g.user_id, 'team_ref': away_ref.model_dump(mode='json')},
+            'home': {
+                'controller': 'human' if is_own_matchup else 'sim',
+                'user_id': g.user_id if is_own_matchup else None,
+                'team_ref': home_ref.model_dump(mode='json'),
+            },
+        }
+        live_game_id = open_live_game(db, g.user_id, seats, {'away': away, 'home': home}, context_kind='faceoff')
+    return jsonify({'live_game_id': live_game_id}), 201
+
+
 @sim_bp.route('/sim/faceoff', methods=['POST'])
 @require_auth
 def start_faceoff():
     """Play the user's team against another and store the result.
 
     Synchronous, like `start_game_sim`: the games run in milliseconds. `best_of` is part of the
-    contract already, so a series adds a value here rather than a new shape.
+    contract already, so a series adds a value here rather than a new shape. With `play_live`, the
+    game is instead played by hand as a live game (see `_start_live_faceoff`), and the response
+    carries its `live_game_id`; the Faceoff is stored when its final out lands.
     """
     try:
         payload = request.get_json(silent=True) or {}
@@ -1817,6 +1847,8 @@ def start_faceoff():
         # BOTH SIDES ARE THIS USER'S TO MANAGE ONLY WHEN THEY OWN BOTH. A PUBLIC OPPONENT ISN'T HERE
         # TO CHOOSE, SO IT PLAYS ITS SAVED ROSTER: ITS FIRST STARTER AND A NEUTRAL MANAGER.
         is_own_matchup = opponent_row.get('user_id') == g.user_id
+        if payload.get('play_live'):
+            return _start_live_faceoff(team_id, opponent_team_id, payload, is_own_matchup)
         result = TeamMatchupSimulator(
             challenger=FaceoffEntrant(
                 team=BuilderTeam.from_db_row(team_row), total_points=int(team_row.get('total_points') or 0),
@@ -1838,7 +1870,7 @@ def start_faceoff():
 
     except _RequestError as exc:
         return jsonify({'error': str(exc)}), exc.status
-    except FaceoffError as exc:
+    except MatchupError as exc:
         return jsonify({'error': str(exc)}), 400
     except GameStuckError as exc:
         traceback.print_exc()

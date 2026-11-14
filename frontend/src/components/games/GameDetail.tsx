@@ -10,7 +10,6 @@ import GameSimSetupModal from "./GameSimSetupModal";
 import GameSimHistoryModal from "./GameSimHistoryModal";
 import SimBoxScoreTable from "./SimBoxScoreTable";
 import GameBoxScoreTabs from "./GameBoxScoreTabs";
-import GameLinescore from "./GameLinescore";
 import { useGameDetailData } from "./useGameDetailData";
 import GameDetailPlayback from "./GameDetailPlayback";
 import GameDetailSkeleton from "./GameDetailSkeleton";
@@ -40,16 +39,20 @@ type GameDetailProps = {
     isActive?: boolean;
     /** Opens the sim/takeover setup modal as soon as the game is eligible (e.g. from a "Sim this" badge) */
     openSimSetupOnMount?: boolean;
+    /** Opens as a replay parked on the first pitch, transport strip showing (e.g. from Home's game reel) */
+    openReplayOnMount?: boolean;
     className?: string;
     onBack: () => void;
 };
 
-export default function GameDetail({ gamePk, sportId, season, showdownSet, isActive = true, openSimSetupOnMount, className, onBack }: GameDetailProps) {
+export default function GameDetail({ gamePk, sportId, season, showdownSet, isActive = true, openSimSetupOnMount, openReplayOnMount = false, className, onBack }: GameDetailProps) {
     const stage = useGameStage();
     const { selectedCard, setSelectedCard, resetForNewSim } = stage;
     // The transport strip (play/pause/scrub) is opt-in — collapsed by default so a plain live or
     // finished-game view isn't cluttered with controls most visits never touch.
-    const [showPlaybackControls, setShowPlaybackControls] = useState(false);
+    const [showPlaybackControls, setShowPlaybackControls] = useState(openReplayOnMount);
+    // Read once: the playback cursor only takes its starting point on mount.
+    const [startAtFirstPitch] = useState(openReplayOnMount);
 
     // Showdown simulation of this game. Non-null once one has been run; the panels then render it
     // instead of the real game until the user switches back.
@@ -187,21 +190,11 @@ export default function GameDetail({ gamePk, sportId, season, showdownSet, isAct
     const modeBarColor = away.team.primary_color ?? NEUTRAL_TEAM_COLOR;
     const simBarTokens = bannerTokens(modeBarColor);
 
-    /* Linescore, box score and game info. On desktop this is the scrolling right column; on
-       mobile it rides in the bottom sheet over the field, below the play-by-play panel. A real
-       game's tables read the raw, CURRENT boxscore regardless of playback position (the MLB
+    /* The rail's box score tab. A real game's tables read the raw, CURRENT boxscore regardless of playback position (the MLB
        timeline freezes them — see `GameTimeline.frozen`); a sim's read `activeView`, which carries
        a box score rebuilt per frame. */
     const boxScorePanels = (activeView: typeof view, hideResult: boolean) => (
-        <div className="@container space-y-4">
-            <GameLinescore game={activeView} />
-
-            {/* Probables come off the real feed, so they only make sense for it. (W/L/SV live in
-                the post-game recap over the field.) */}
-            {!simResult && isNotStarted && boxscore.probable_pitchers && (
-                <ProbableStartingPitchers away={away} home={home} probablePitchers={boxscore.probable_pitchers} cardMap={cardMap} onCardSelect={setSelectedCard} isLoadingCards={isLoadingCards} />
-            )}
-
+        <div className="@container">
             {/* A sim's box score is rebuilt play by play (it rides on `activeView`), except for a
                 legacy log with no player ids — that one is frozen at the final line, so while the
                 user is watching the replay we hide it outright rather than spoil the result. */}
@@ -230,9 +223,6 @@ export default function GameDetail({ gamePk, sportId, season, showdownSet, isAct
                     }}
                 />
             )}
-
-            {/* The real feed's game notes - hidden only alongside a frozen sim box score above. */}
-            {!hideResult && <GameInfo away={away} home={home} />}
         </div>
     );
 
@@ -243,6 +233,7 @@ export default function GameDetail({ gamePk, sportId, season, showdownSet, isAct
             sportId={sportId}
             realState={realView?.state ?? "PREVIEW"}
             simResult={simResult}
+            startAtFirstPitch={startAtFirstPitch}
             bufferedCount={bufferedBoxscore ? fromGamePlays(bufferedBoxscore.plays ?? []).length - realPlays.length : 0}
             onApplyBuffer={bufferedBoxscore ? applyBuffer : undefined}
         >
@@ -251,6 +242,7 @@ export default function GameDetail({ gamePk, sportId, season, showdownSet, isAct
                    it and shouldn't see the final score or box score. `isReplaying` goes false only
                    once the cursor sits on the last frame (played to the end, or "Skip to result"). */
                 const simMidReplay = !!simResult && isReplaying;
+                const hideResult = simMidReplay && isBoxscoreFrozen;
 
                 /* A live game that's merely catching up on new plays (cursor trailing the live edge
                    while auto-following) isn't a replay the user opened — flashing the REPLAY strip
@@ -293,7 +285,8 @@ export default function GameDetail({ gamePk, sportId, season, showdownSet, isAct
                         detailedState={detailedState}
                         cardMap={cardMap}
                         isLoadingCards={isLoadingCards}
-                        isSim={!!simResult}
+                        // A replay opened from the first pitch gets the same big Play button as a sim.
+                        isSim={!!simResult || startAtFirstPitch}
                         gameKey={gamePk}
                         title="Showdown Live"
                         titleAccessory={<BetaBadge />}
@@ -365,8 +358,10 @@ export default function GameDetail({ gamePk, sportId, season, showdownSet, isAct
                                 )}
                             </>
                         }
-                        boxScorePanels={boxScorePanels(activeView, simMidReplay && isBoxscoreFrozen)}
-                        belowPlaybackBar={!simResult && isNotStarted && boxscore.probable_pitchers && (
+                        boxScorePanels={boxScorePanels(activeView, hideResult)}
+                        // The real feed's game notes, hidden alongside a frozen sim box score.
+                        infoPanel={hideResult ? undefined : <GameInfo away={away} home={home} />}
+                        preGamePanel={!simResult && isNotStarted && boxscore.probable_pitchers && (
                             <ProbableStartingPitchers away={away} home={home} probablePitchers={boxscore.probable_pitchers} cardMap={cardMap} onCardSelect={setSelectedCard} isLoadingCards={isLoadingCards} />
                         )}
                         className={className}

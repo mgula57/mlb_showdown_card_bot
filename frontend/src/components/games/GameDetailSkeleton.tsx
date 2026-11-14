@@ -1,7 +1,7 @@
 /**
- * @fileoverview Loading state for `GameDetail` — a skeleton of the real three-state shell (mobile
- * tab strip, `md` 50/50 split, `lg` three columns) so the page keeps its shape while the boxscore
- * and cards load, then settles into place instead of popping in from a spinner.
+ * @fileoverview Loading state for the game screen: a skeleton of `GameStage`'s shell, the board
+ * above the rail on a phone and beside it from `md` up, so the page keeps its shape while the
+ * boxscore and cards load instead of popping in from a spinner.
  */
 import BackButton from "../shared/BackButton";
 
@@ -11,23 +11,7 @@ function Bar({ className = "" }: { className?: string }) {
     return <div className={`rounded-plate bg-(--background-tertiary) ${className}`} />;
 }
 
-/** Scoreboard placeholder — two team rows and a state line, matching `ScoreHeader`. */
-function ScoreHeaderSkeleton() {
-    return (
-        <div className="animate-pulse rounded-card border border-(--divider) bg-(--background-secondary) p-4 space-y-3">
-            {[0, 1].map((i) => (
-                <div key={i} className="flex items-center gap-3">
-                    <Bar className="h-7 w-7 rounded-full" />
-                    <Bar className="h-4 flex-1 max-w-40" />
-                    <Bar className="h-6 w-8" />
-                </div>
-            ))}
-            <Bar className="h-3 w-24 mx-auto" />
-        </div>
-    );
-}
-
-/** Stack of card-shaped rows — stands in for the play-by-play log and the matchup cards. */
+/** Stack of card-shaped rows — stands in for the play-by-play log. */
 function CardRowsSkeleton({ rows = 5 }: { rows?: number }) {
     return (
         <div className="animate-pulse space-y-3">
@@ -48,25 +32,9 @@ function CardRowsSkeleton({ rows = 5 }: { rows?: number }) {
     );
 }
 
-/** Box score placeholder — a couple of stat tables' worth of rows. */
-function BoxScoreSkeleton() {
-    return (
-        <div className="animate-pulse space-y-4">
-            <div className="rounded-card border border-(--divider) bg-(--background-secondary) p-3 space-y-2">
-                <Bar className="h-4 w-32" />
-                {Array.from({ length: 9 }, (_, i) => <Bar key={i} className="h-3 w-full" />)}
-            </div>
-            <div className="rounded-card border border-(--divider) bg-(--background-secondary) p-3 space-y-2">
-                <Bar className="h-4 w-24" />
-                {Array.from({ length: 4 }, (_, i) => <Bar key={i} className="h-3 w-full" />)}
-            </div>
-        </div>
-    );
-}
-
 export default function GameDetailSkeleton({ className, onBack }: { className?: string; onBack: () => void }) {
     return (
-        <div className={`flex flex-col md:tall:h-[calc(100dvh-2.5rem)] overflow-hidden ${className ?? ''}`}>
+        <div className={`flex flex-col tall:h-[calc(100dvh-2.5rem)] overflow-hidden ${className ?? ''}`}>
             <div className="relative z-50 px-4 py-2 border-b border-(--divider) bg-(--background-primary) shrink-0 flex items-center gap-3">
                 <BackButton onBack={onBack} />
                 <div className="ml-auto flex items-center gap-2 animate-pulse">
@@ -75,36 +43,25 @@ export default function GameDetailSkeleton({ className, onBack }: { className?: 
                 </div>
             </div>
 
-            {/* Mobile tab strip placeholder — mirrors `MOBILE_TABS`. */}
-            <div className="flex md:hidden shrink-0 px-2 py-2 gap-2 animate-pulse">
-                <Bar className="h-8 flex-1 rounded-card" />
-                <Bar className="h-8 flex-1 rounded-card" />
-                <Bar className="h-8 flex-1 rounded-card" />
-            </div>
-
-            <div className="flex-1 min-h-0 md:grid md:grid-cols-2 md:gap-4 md:px-4 md:overflow-hidden md:short:flex-none md:short:h-[calc(100dvh-2.5rem)] lg:grid-cols-[3fr_4fr_3fr]">
-                {/* Box score column — its own column only at `lg`. */}
-                <div className="hidden lg:block lg:order-1 h-full overflow-y-auto py-4 scrollbar-hide">
-                    <BoxScoreSkeleton />
-                </div>
-
-                {/* Spotlight column — scoreboard, field, matchup. */}
-                <div className="h-full overflow-y-auto space-y-4 p-4 md:px-0 md:py-4 scrollbar-hide md:order-1 lg:order-2">
-                    <ScoreHeaderSkeleton />
-                    <div className="animate-pulse rounded-card border border-(--divider) bg-(--background-secondary) aspect-4/3 w-full" />
-                    <div className="@container">
-                        <CardRowsSkeleton rows={1} />
+            <div className="flex min-h-0 flex-1 flex-col short:flex-none short:h-[calc(100dvh-2.5rem)] md:flex-row">
+                {/* The board: score track, field, and the two cards along the bottom. */}
+                <div className="flex h-96 shrink-0 animate-pulse flex-col gap-3 bg-(--background-secondary) p-3 md:h-auto md:min-w-0 md:flex-1">
+                    <Bar className="h-14 w-full rounded-card" />
+                    <div className="min-h-0 flex-1 rounded-card bg-(--background-tertiary)" />
+                    <div className="grid shrink-0 grid-cols-2 gap-3">
+                        <Bar className="h-20 rounded-card md:h-32" />
+                        <Bar className="h-20 rounded-card md:h-32" />
                     </div>
                 </div>
 
-                {/* Box score + play-by-play — flow with the mobile strip below `md`, a column with
-                    its own strip between `md` and `lg`, back to the outer grid at `lg`. */}
-                <div className="contents md:flex md:flex-col md:order-2 md:min-h-0 md:overflow-hidden lg:contents">
-                    <div className="hidden md:flex lg:hidden shrink-0 pt-4 gap-2 animate-pulse">
+                {/* The rail: its tabs over the play-by-play. */}
+                <div className="flex min-h-0 min-w-0 flex-1 flex-col border-t border-(--divider) md:w-80 md:flex-none md:border-l md:border-t-0 xl:w-90">
+                    <div className="flex shrink-0 gap-2 p-2 animate-pulse">
+                        <Bar className="h-8 flex-1 rounded-card" />
                         <Bar className="h-8 flex-1 rounded-card" />
                         <Bar className="h-8 flex-1 rounded-card" />
                     </div>
-                    <div className="h-full min-w-0 overflow-y-auto p-4 md:px-0 md:py-4 md:h-auto md:flex-1 md:min-h-0 scrollbar-hide @container lg:order-3">
+                    <div className="@container min-h-0 flex-1 overflow-hidden p-4">
                         <CardRowsSkeleton />
                     </div>
                 </div>

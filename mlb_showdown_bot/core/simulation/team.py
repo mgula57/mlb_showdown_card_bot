@@ -98,6 +98,7 @@ class SimTeam:
         # GAME (NO DEFENSIVE SUBS), SO POSITION/DEFENSE LOOKUPS ARE COMPUTED ONCE PER GAME.
         self.starting_lineup: list[SimPlayer] = []
         self.batting_order: list[SimPlayer] = []
+        self.batting_slot_history: list[list[SimPlayer]] = []
         self.current_game_stats: Stats = Stats(id="0")
         self.game_player_appearances: set[str] = set()
         self.position_map: dict[PositionSlot, SimPlayer] = {}
@@ -251,16 +252,20 @@ class SimTeam:
             bench_player_ids=bench_player_ids,
             manager=manager,
         )
-        # BUILDER TEAMS CARRY THEIR OWN USER-CHOSEN COLORS - NOT RESOLVED VIA THE ShowdownTeam
-        # ENUM, SINCE A BUILDER ABBREVIATION (E.G. "MYTM") ISN'T A MEMBER OF IT.
-        sim_team.identity = SimTeamIdentity(
+        sim_team.identity = cls.builder_team_identity(team, league=league)
+        return sim_team
+
+    @staticmethod
+    def builder_team_identity(team: BuilderTeam, league: str = None) -> SimTeamIdentity:
+        """A builder team's branding. Builder teams carry their own user-chosen colors - not
+        resolved via the ShowdownTeam enum, since a builder abbreviation (e.g. "MYTM") isn't a member of it."""
+        return SimTeamIdentity(
             abbreviation=team.abbreviation,
             name=team.name,
             primary_color=team.primary_color,
             secondary_color=team.secondary_color,
             league=league,
         )
-        return sim_team
 
     @classmethod
     def from_mlb_game_roster(
@@ -423,9 +428,13 @@ class SimTeam:
             player.position_slot = position_for_game or PositionSlot.NONE
         self.starting_lineup = [player for player in self.position_players if player.id in current_lineup.keys()]
 
-        # CACHE POSITION LOOKUPS + DEFENSE TOTALS FOR THE GAME. THE LINEUP DOESN'T CHANGE MID-GAME,
-        # SO THESE WOULD OTHERWISE BE RECOMPUTED ON EVERY PLATE APPEARANCE.
-        self.position_map = {player.position_slot: player for player in self.starting_lineup}
+        self._cache_defense(self.starting_lineup)
+
+    def _cache_defense(self, players: list[SimPlayer]) -> None:
+        """Cache position lookups and defense totals for the players on the field. Only a
+        substitution changes them mid-game, so they'd otherwise be recomputed on every plate
+        appearance."""
+        self.position_map = {player.position_slot: player for player in players}
         self.catcher = self.position_map.get(PositionSlot.CA)
         self.infield_defense = sum(
             player.defense_for_position_slot(pos)
@@ -530,20 +539,33 @@ class SimTeam:
         self.mark_pitcher_entered(starter, 1)
         return starter
 
-    def check_for_pitcher_sub(self, game_date: date, inning: Inning, runs_allowed: int, rng: Optional[Random] = None) -> None:
-        """ Check if current pitcher is tired and needs a sub"""
+    def suggested_pitcher_change(self, game_date: date, inning: Inning, runs_allowed: int, rng: Optional[Random] = None) -> Optional[SimPitcher]:
+        """The reliever the sim's manager would bring in now, or None to stay with the current pitcher.
+
+        Only suggests: `change_pitcher` makes the move, so a person managing the club can overrule it.
+        The fatigue roll is drawn either way, so overruling it doesn't shift the dice that follow.
+        """
         manager = self.manager
-        if self.current_pitcher().is_tired(inning=inning, ip_adjustment=manager.hook_ip_adjustment, rng=rng) and len(self.available_reliever_ids) > 0:
-            suggested_reliever = self.bullpen.suggested_reliever(
-                game_date=game_date, inning=inning,
-                runs_scored=self.current_game_stats.stat(StatCategory.RUNS_SCORED), runs_allowed=runs_allowed,
-                available_ids=self.available_reliever_ids,
-                closer_nonsave_fit_multiplier=manager.closer_nonsave_fit_multiplier,
-                closer_save_inning=manager.closer_save_inning,
-            )
-            if suggested_reliever:
-                self.mark_pitcher_entered(suggested_reliever, inning.inning_num_full)
-                self.available_reliever_ids.discard(suggested_reliever.id)
+        if not (self.current_pitcher().is_tired(inning=inning, ip_adjustment=manager.hook_ip_adjustment, rng=rng) and len(self.available_reliever_ids) > 0):
+            return None
+        return self.bullpen.suggested_reliever(
+            game_date=game_date, inning=inning,
+            runs_scored=self.current_game_stats.stat(StatCategory.RUNS_SCORED), runs_allowed=runs_allowed,
+            available_ids=self.available_reliever_ids,
+            closer_nonsave_fit_multiplier=manager.closer_nonsave_fit_multiplier,
+            closer_save_inning=manager.closer_save_inning,
+        )
+
+    def available_relievers(self) -> list[SimPitcher]:
+        """Relievers who haven't pitched in this game yet, in bullpen order."""
+        return [p for p in self.bullpen.players if p.id in self.available_reliever_ids]
+
+    def change_pitcher(self, pitcher: SimPitcher, inning: Inning) -> None:
+        """Bring `pitcher` in from the bullpen. Raises if he isn't available."""
+        if pitcher.id not in self.available_reliever_ids:
+            raise ValueError(f"{pitcher.name} is not available to pitch")
+        self.mark_pitcher_entered(pitcher, inning.inning_num_full)
+        self.available_reliever_ids.discard(pitcher.id)
 
     def update_pitcher_runs_allowed(self, pitcher_runs_allowed_dict: dict) -> None:
         if not pitcher_runs_allowed_dict:
@@ -657,6 +679,9 @@ class SimTeam:
         self.game_player_appearances = set()
         self.fill_starting_position_players(game=game)
         self.generate_batting_order(game=game)
+        # EVERY PLAYER WHO HAS HELD EACH BATTING SLOT THIS GAME, STARTER FIRST. ONLY A PINCH HITTER
+        # ADDS TO ONE (`pinch_hit`), AND THE BOX SCORE LISTS THEM ALL.
+        self.batting_slot_history: list[list[SimPlayer]] = [[player] for player in self.batting_order]
 
         # BULLPEN AVAILABILITY IS FIXED FOR THE GAME - THE PITCHING LOG IS ONLY WRITTEN POST-GAME.
         unavailable = self.bullpen.pitching_log.pitcher_ids_with_recent_workload(
@@ -726,6 +751,25 @@ class SimTeam:
                 StatCategory.GDP.value: line.ground_into_double_play,
                 StatCategory.PA.value: line.plate_appearances,
             }))
+
+    def bench_hitters(self) -> list[SimPlayer]:
+        """Position players who haven't appeared in this game, so are free to pinch hit."""
+        used = {player.id for slot in self.batting_slot_history for player in slot}
+        return [player for player in self.position_players if player.id not in used]
+
+    def pinch_hit(self, sub: SimPlayer, for_player: SimPlayer) -> None:
+        """Send `sub` up in place of `for_player`. He takes over the batting slot and the position,
+        and the player he replaced is out of the game. A sub who can't play that position fields
+        it with no defense, as the card reads."""
+        if sub not in self.bench_hitters():
+            raise ValueError(f"{sub.name} is not available to pinch hit")
+        if for_player not in self.batting_order:
+            raise ValueError(f"{for_player.name} is not in the lineup")
+        slot = self.batting_order.index(for_player)
+        sub.position_slot = for_player.position_slot
+        self.batting_order[slot] = sub
+        self.batting_slot_history[slot].append(sub)
+        self._cache_defense(self.batting_order)
 
     def current_hitter(self, game: Game) -> SimPlayer:
         return self.batting_order[self.lineup_index]

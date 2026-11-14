@@ -1,23 +1,7 @@
-import { useState } from 'react';
 import { releaseShareUrl } from '../../api/releases';
+import { useCopyLink } from '../../hooks/useCopyLink';
 
-/** Copies a release's short link, flipping `copied` on for a moment. When the clipboard is refused
- * the link comes back in `error` so it can still be copied by hand. */
+/** Copies a release's short link (see `useCopyLink`). */
 export function useCopyReleaseLink(sharePath: string, editionSlug?: string | null, releaseCardId?: string | null) {
-    const [copied, setCopied] = useState(false);
-    const [error, setError] = useState<string | null>(null);
-    const url = releaseShareUrl(sharePath, editionSlug, releaseCardId);
-
-    async function copy() {
-        setError(null);
-        try {
-            await navigator.clipboard.writeText(url);
-            setCopied(true);
-            setTimeout(() => setCopied(false), 2000);
-        } catch {
-            setError(`Couldn't copy. The link is ${url}`);
-        }
-    }
-
-    return { url, copied, error, copy };
+    return useCopyLink(releaseShareUrl(sharePath, editionSlug, releaseCardId));
 }

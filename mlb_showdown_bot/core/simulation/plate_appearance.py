@@ -84,7 +84,7 @@ class Roll:
 
 class PlateAppearance:
 
-    def __init__(self, hitter: SimPlayer, pitcher: SimPitcher, inning: Inning, rng: Random, was_last_result_single_plus: bool = False, manager: Optional[ManagerPreference] = None, platoon_roll_adjustment: int = _DEFAULT_PLATOON_ROLL_ADJUSTMENT, year: Optional[int] = None, random_roll_adjustments: bool = True) -> None:
+    def __init__(self, hitter: SimPlayer, pitcher: SimPitcher, inning: Inning, rng: Random, was_last_result_single_plus: bool = False, manager: Optional[ManagerPreference] = None, platoon_roll_adjustment: int = _DEFAULT_PLATOON_ROLL_ADJUSTMENT, year: Optional[int] = None, random_roll_adjustments: bool = True, pitcher_fatigue: int = 0) -> None:
         self.state = PlateAppearanceState.PITCH
         self.hitter = hitter
         self.pitcher = pitcher
@@ -101,6 +101,9 @@ class PlateAppearance:
         # WHETHER THE PITCH/SWING ROLLS GET THE SMALL RANDOM +/- NUDGE (`random_plus_or_minus_to_roll`).
         # OFF FOR LIVE-GAME SIMS, WHERE THE DICE SHOULD BE EXACTLY WHAT THE UI SHOWS.
         self.random_roll_adjustments = random_roll_adjustments
+        # CONTROL THE PITCHER HAS LOST TO FATIGUE (`SimPitcher.fatigue_penalty`). 0 OUTSIDE A GAME
+        # PEOPLE MANAGE.
+        self.pitcher_fatigue = pitcher_fatigue
         self.pitch = Roll()
         self.swing = Roll()
         self.double_play_roll = None
@@ -140,7 +143,7 @@ class PlateAppearance:
             dice_roll = self.__random_dice_roll(adjustment=random_adjustment)
             # A SAME-HANDED MATCHUP NUDGES total_pitch UP (MORE LIKELY PITCHER_ADVANTAGE); AN
             # OPPOSITE-HANDED ONE NUDGES IT DOWN (MORE LIKELY HITTER_ADVANTAGE).
-            total_pitch = dice_roll + self.pitcher.chart.command - self._platoon_edge() * self.platoon_roll_adjustment
+            total_pitch = dice_roll + self.pitcher.chart.command - self.pitcher_fatigue - self._platoon_edge() * self.platoon_roll_adjustment
             result = (Result.HITTER_ADVANTAGE if total_pitch <= self.hitter.chart.command else Result.PITCHER_ADVANTAGE)
             self.pitch = Roll(roll = dice_roll, result=result, adjustment=random_adjustment)
 

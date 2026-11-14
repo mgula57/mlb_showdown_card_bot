@@ -18,13 +18,16 @@ type GameDetailPlaybackProps = {
      *  "live" mode (auto-follow) or "playback" mode (static until the user presses play). */
     realState: GameState;
     simResult: SimGameResult | null;
+    /** A real game opened as a replay (e.g. from Home's game reel): parks on the first pitch
+     *  instead of the current/final state. */
+    startAtFirstPitch?: boolean;
     bufferedCount?: number;
     onApplyBuffer?: () => void;
     children: (props: PlaybackRenderProps) => ReactNode;
 };
 
 export default function GameDetailPlayback({
-    boxscore, sportId, realState, simResult, bufferedCount, onApplyBuffer, children,
+    boxscore, sportId, realState, simResult, startAtFirstPitch = false, bufferedCount, onApplyBuffer, children,
 }: GameDetailPlaybackProps) {
     const timeline = useMemo(
         () => (simResult
@@ -45,8 +48,8 @@ export default function GameDetailPlayback({
             // real, currently-live game auto-follows.
             initialMode={!simResult && realState === "LIVE" ? "live" : "playback"}
             // A sim opens parked on the first pitch with its result hidden — the user plays through
-            // to it. A real game (live or final) still opens on its current/final state.
-            initialCursor={simResult ? "start" : "live"}
+            // to it. A real game opens on its current/final state unless it was opened as a replay.
+            initialCursor={simResult || startAtFirstPitch ? "start" : "live"}
             trailingPlays={trailingPlays}
             bufferedCount={bufferedCount}
             onApplyBuffer={onApplyBuffer}

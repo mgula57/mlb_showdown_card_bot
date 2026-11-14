@@ -59,6 +59,8 @@ import { CardSource } from '../../types/cardSource';
 import { QuickFiltersDropdown } from './QuickFiltersDropdown';
 import { useAuth } from '../auth/AuthContext';
 import { useIsSmallScreen } from '../../hooks/useIsSmallScreen';
+import { useResizablePanel } from '../../hooks/useResizablePanel';
+import { ResizeHandle } from '../shared/ResizeHandle';
 
 import { fieldClass, FIELD_LABEL_CLASS } from '../shared/fieldStyles';
 import { Heading } from '../shared/Heading';
@@ -703,28 +705,12 @@ const saveFilters = (filters: FilterSelections, source: CardSource, disableLocal
     }
 };
 
-/** localStorage key for the card detail sidebar's width, stored as a fraction of the search container's width */
+/** The card detail sidebar's width: remembered as a fraction of the search container's width. */
 const SIDEBAR_WIDTH_STORAGE_KEY = 'exploreSidebarWidthPct:v1';
 const SIDEBAR_DEFAULT_WIDTH = 384; // matches w-96
 const SIDEBAR_MIN_WIDTH = 280;
 const SIDEBAR_MAX_WIDTH = 840;
-
-const loadSidebarWidthPct = (): number | null => {
-    try {
-        const pct = parseFloat(localStorage.getItem(SIDEBAR_WIDTH_STORAGE_KEY) ?? '');
-        return pct > 0 && pct < 1 ? pct : null;
-    } catch {
-        return null;
-    }
-};
-
-const saveSidebarWidthPct = (pct: number) => {
-    try {
-        localStorage.setItem(SIDEBAR_WIDTH_STORAGE_KEY, String(pct));
-    } catch {
-        // ignore storage errors
-    }
-};
+const sidebarMaxWidth = () => SIDEBAR_MAX_WIDTH;
 
 // Helper used for lazy init so we don't set state in an effect
 const getInitialFilters = (source: CardSource, defaultFilters: Partial<FilterSelections> = {}, disableLocalStorage = false): FilterSelections =>
@@ -955,60 +941,22 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
     const cardsAbortControllerRef = useRef<AbortController | null>(null);
     const cardsRequestIdRef = useRef(0);
 
-    // Sidebar resize — width is kept as a fraction of the container so it scales with the window,
-    // and persisted locally once a drag finishes. Null means the user hasn't resized it yet.
-    const [sidebarWidthPct, setSidebarWidthPct] = useState<number | null>(loadSidebarWidthPct);
-    const [sidebarContainerWidth, setSidebarContainerWidth] = useState(() => typeof window === 'undefined' ? 0 : window.innerWidth);
-    const clampSidebarWidth = (width: number) => Math.min(Math.max(width, SIDEBAR_MIN_WIDTH), SIDEBAR_MAX_WIDTH);
-    const sidebarWidth = sidebarWidthPct === null
-        ? SIDEBAR_DEFAULT_WIDTH
-        : clampSidebarWidth(Math.round(sidebarWidthPct * sidebarContainerWidth));
-    const isResizing = useRef(false);
-
-    const handleSidebarResizeStart = (e: React.PointerEvent) => {
-        e.preventDefault();
-        isResizing.current = true;
-        const startX = e.clientX;
-        const startWidth = sidebarWidth;
-        const containerWidth = sidebarContainerRef.current?.clientWidth || window.innerWidth;
-        let latestPct = startWidth / containerWidth;
-
-        const onPointerMove = (ev: PointerEvent) => {
-            if (!isResizing.current) return;
-            latestPct = clampSidebarWidth(startWidth + (startX - ev.clientX)) / containerWidth;
-            setSidebarWidthPct(latestPct);
-        };
-        const onPointerUp = () => {
-            isResizing.current = false;
-            saveSidebarWidthPct(latestPct);
-            document.removeEventListener('pointermove', onPointerMove);
-            document.removeEventListener('pointerup', onPointerUp);
-            document.removeEventListener('pointercancel', onPointerUp);
-            document.body.style.cursor = '';
-            document.body.style.userSelect = '';
-        };
-        document.body.style.cursor = 'ew-resize';
-        document.body.style.userSelect = 'none';
-        document.addEventListener('pointermove', onPointerMove);
-        document.addEventListener('pointerup', onPointerUp);
-        document.addEventListener('pointercancel', onPointerUp);
-    };
-
-    const handleSidebarResizeReset = () => {
-        setSidebarWidthPct(null);
-        try {
-            localStorage.removeItem(SIDEBAR_WIDTH_STORAGE_KEY);
-        } catch {
-            // ignore storage errors
-        }
-    };
+    // Sidebar resize: dragged by its left edge, kept as a fraction of the container so it scales
+    // with the window, and remembered once a drag finishes.
+    const { size: sidebarSize, handleProps: sidebarResizeProps } = useResizablePanel({
+        storageKey: SIDEBAR_WIDTH_STORAGE_KEY,
+        containerRef: sidebarContainerRef,
+        defaultSize: SIDEBAR_DEFAULT_WIDTH,
+        minSize: SIDEBAR_MIN_WIDTH,
+        maxSize: sidebarMaxWidth,
+    });
+    const sidebarWidth = sidebarSize ?? SIDEBAR_DEFAULT_WIDTH;
 
     // Auto-close sidebar when container shrinks below @2xl (672px)
     useEffect(() => {
         const el = sidebarContainerRef.current;
         if (!el) return;
         const observer = new ResizeObserver(([entry]) => {
-            setSidebarContainerWidth(entry.contentRect.width);
             if (entry.contentRect.width < 672) {
                 setShowPlayerDetailSidebar(false);
             }
@@ -1800,19 +1748,7 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
                         : 'translate-x-full duration-200 ease-[cubic-bezier(0.32,0,0.67,0)]'}
                     hidden @2xl:block
                 `}>
-                    {/* Drag-to-resize handle: a hit area straddling the left border that lights the
-                        border navy on hover or drag. Double-click resets the width. */}
-                    <div
-                        role="separator"
-                        aria-orientation="vertical"
-                        aria-label="Resize card detail"
-                        title="Drag to resize, double-click to reset"
-                        onPointerDown={handleSidebarResizeStart}
-                        onDoubleClick={handleSidebarResizeReset}
-                        className="absolute -left-1.5 top-0 bottom-0 w-3 z-10 cursor-ew-resize touch-none group flex justify-center"
-                    >
-                        <div className="w-0.5 h-full bg-transparent transition-colors group-hover:bg-(--showdown-blue) group-active:bg-(--showdown-blue)" />
-                    </div>
+                    <ResizeHandle {...sidebarResizeProps} label="Resize card detail" />
 
                     {/* Sidebar Content — CardDetail's header (name, actions, close) pins to the top */}
                     <div className="h-full flex flex-col">

@@ -41,7 +41,7 @@ export default function GamePlaybackBar({
     const pct = frameCount > 1 ? (state.cursor / (frameCount - 1)) * 100 : 0;
 
     return (
-        <div className={`rounded-card border border-(--divider) bg-(--background-secondary)/90 px-3 py-2.5 ${className}`}>
+        <div className={`rounded-card border border-(--divider) bg-(--background-secondary)/30 px-3 py-2.5 ${className}`}>
             <div className="flex items-center gap-2">
                 <IconButton
                     icon={<FaBackwardFast size={11} />}
@@ -101,10 +101,10 @@ export default function GamePlaybackBar({
                 </button>
             </div>
 
-            <div className="mt-1.5 flex items-center justify-between gap-2 text-[10px] text-(--secondary)">
+            <div className="mt-1.5 flex items-center justify-between gap-2 text-[10px] text-(--text-primary)">
                 <span className="truncate">
                     {inningLabel}{outsLabel}
-                    {isBoxscoreFrozen && <span className="ml-1.5 opacity-60">· box score shows current totals</span>}
+                    {isBoxscoreFrozen && <span className="ml-1.5 opacity-80">· box score shows current totals</span>}
                 </span>
                 <span className="flex items-center gap-2 shrink-0">
                     <span className="tabular-nums">{state.cursor + 1} / {frameCount}</span>

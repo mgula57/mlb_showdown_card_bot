@@ -1,6 +1,4 @@
-from datetime import date, timedelta
 from enum import Enum
-from random import Random
 from typing import Optional
 
 from pydantic import BaseModel
@@ -8,23 +6,17 @@ from pydantic import BaseModel
 from ..card.showdown_player_card import ShowdownPlayerCard
 from ..card.team_builder.team import Team as BuilderTeam, TeamRosterSlot
 from ..database.postgres_db import PostgresDB
-from .game import Game
+from .live_game import LiveMatch, LiveSide
+from .matchup import MatchupClub, MatchupError
 from .models import GameResult, ManagerPreference, SimTeamIdentity
 from .postseason import top_seed_is_home
-from .stats import builder_sim_id
 from .team import SimTeam
 
 # ONLY A SINGLE GAME IS OFFERED TODAY. THE SIMULATOR, STORAGE AND API ARE ALL SHAPED AROUND A SERIES,
 # SO WIDENING THIS IS WHAT TURNS A LONGER ONE ON.
 SUPPORTED_BEST_OF = (1,)
 
-# A YEAR WITH NO LEAGUE-AVERAGE DATA, SO `league_steal_factor` IS A NO-OP: TWO BUILDER TEAMS HAVE NO
-# SEASON, AND THEIR GAME SHOULDN'T INHERIT ONE'S RUNNING ENVIRONMENT. PLAYERS NEVER SEE THIS DATE -
-# THE RESULT CARRIES THE DAY IT WAS PLAYED.
-_SERIES_START_DATE = date(1800, 4, 1)
-
-
-class FaceoffError(ValueError):
+class FaceoffError(MatchupError):
     """A Faceoff that can't be played as requested. The message is safe to show the user."""
 
 
@@ -33,19 +25,18 @@ class FaceoffSide(str, Enum):
     OPPONENT = 'opponent'
 
     @property
+    def other(self) -> 'FaceoffSide':
+        return FaceoffSide.CHALLENGER if self == FaceoffSide.OPPONENT else FaceoffSide.OPPONENT
+
+    @property
     def schedule_key(self) -> str:
         """The name each club runs under in the engine. Fixed per side rather than the team's own
         abbreviation, which two teams can share and which would then collide `builder_sim_id`s."""
         return self.value.upper()
 
 
-class FaceoffEntrant(BaseModel):
-    """One side of a Faceoff, as requested."""
-
-    team: BuilderTeam
-    total_points: int = 0
-    starter_card_id: Optional[str] = None  # NONE = THE ROTATION'S FIRST STARTER
-    manager: Optional[ManagerPreference] = None
+# ONE SIDE OF A FACEOFF, AS REQUESTED: THE SAME CLUB ANY MATCHUP TAKES.
+FaceoffEntrant = MatchupClub
 
 
 class FaceoffTeamSnapshot(BaseModel):
@@ -77,12 +68,32 @@ class FaceoffResult(BaseModel):
     games: list[FaceoffGameResult] = []
 
 
-class TeamMatchupSimulator:
-    """Plays two builder teams against each other, first to a majority of `best_of` games.
+def faceoff_snapshot(entrant: FaceoffEntrant) -> 'FaceoffTeamSnapshot':
+    """A side as it stood when its Faceoff was played."""
+    return FaceoffTeamSnapshot(
+        team_id=entrant.team.team_id,
+        identity=SimTeam.builder_team_identity(entrant.team),
+        total_points=entrant.total_points,
+        allowed_sets=entrant.team.allowed_sets or [],
+        roster=entrant.team.roster,
+        starter_card_id=entrant.starter_card_id,
+        manager=entrant.manager,
+    )
 
-    Both clubs stay the same objects from game to game, so bullpen workload carries through a
-    series, and starters come from the postseason's rest-based selection. The challenged team has
-    home field.
+
+def live_seats(home_side: FaceoffSide) -> dict[FaceoffSide, LiveSide]:
+    """Which live game seat each Faceoff side takes, given who's home."""
+    return {home_side: LiveSide.HOME, home_side.other: LiveSide.AWAY}
+
+
+class TeamMatchupSimulator:
+    """Plays two clubs against each other, first to a majority of `best_of` games.
+
+    A Faceoff is one user of live games: each of its games is a live game with the sim in both
+    seats, so it plays out at once (and a Faceoff someone plays by hand is the same game with a person
+    in a seat, recorded through `FaceoffLiveContext`). The challenged team has home field. Each game
+    is fielded fresh, so nothing (bullpen workload, rotation rest) carries from one game of a series
+    to the next.
     """
 
     def __init__(self, challenger: FaceoffEntrant, opponent: FaceoffEntrant, seed: int, best_of: int = 1) -> None:
@@ -93,45 +104,39 @@ class TeamMatchupSimulator:
         self.best_of = best_of
 
     def simulate(self) -> FaceoffResult:
-        clubs = {side: self._build_club(side) for side in FaceoffSide}
-        rng = Random(self.seed)
+        cards = {side: self._load_cards(entrant.team) for side, entrant in self.entrants.items()}
         wins = {side: 0 for side in FaceoffSide}
         wins_needed = self.best_of // 2 + 1
 
         games: list[FaceoffGameResult] = []
-        game_date = _SERIES_START_DATE
-        previous_home: Optional[FaceoffSide] = None
         for game_number in range(1, self.best_of + 1):
             home_side = self._home_side(game_number)
-            away_side = FaceoffSide.CHALLENGER if home_side == FaceoffSide.OPPONENT else FaceoffSide.OPPONENT
-            # ONE DAY BETWEEN GAMES, PLUS A TRAVEL DAY WHEN THE SERIES CHANGES PARKS.
-            if previous_home is not None:
-                game_date += timedelta(days=2 if home_side != previous_home else 1)
-            previous_home = home_side
-
-            game = Game(
-                index=game_number, date=game_date,
-                home_team_name=clubs[home_side].name, away_team_name=clubs[away_side].name,
-                home_team_game_number=game_number, away_team_game_number=game_number,
+            seats = live_seats(home_side)
+            live = LiveMatch(
+                clubs={seats[side]: self.entrants[side] for side in FaceoffSide},
+                cards={seats[side]: cards[side] for side in FaceoffSide},
+                # GAME 1 PLAYS FROM THE FACEOFF'S OWN SEED, EACH LATER GAME FROM THE NEXT ONE.
+                seed=self.seed + game_number - 1,
+                sim_sides=frozenset(LiveSide),
             )
-            game.setup(home_team=clubs[home_side], away_team=clubs[away_side], postseason=True)
-            # NO RANDOM +/- ROLL NUDGES: THE REPLAY SHOWS ITS DICE, SO THEY SHOULD BE THE RAW D20S.
-            game.simulate(rng=rng, collect_log=True, collect_box_score=True, random_roll_adjustments=False)
+            try:
+                state = live.replay([])
+            except FaceoffError:
+                raise
+            except MatchupError as exc:
+                raise FaceoffError(str(exc)) from exc
 
-            winner_side = home_side if game.winning_team is clubs[home_side] else away_side
+            winner_side = home_side if state.winner_side == LiveSide.HOME else home_side.other
             wins[winner_side] += 1
-            games.append(FaceoffGameResult(
-                game_number=game_number, home_side=home_side,
-                game=game.as_result().model_copy(update={'date': date.today()}),
-            ))
+            games.append(FaceoffGameResult(game_number=game_number, home_side=home_side, game=state.game))
             if wins[winner_side] >= wins_needed:
                 break
 
         return FaceoffResult(
             best_of=self.best_of,
             seed=self.seed,
-            challenger=self._snapshot(FaceoffSide.CHALLENGER, clubs),
-            opponent=self._snapshot(FaceoffSide.OPPONENT, clubs),
+            challenger=faceoff_snapshot(self.entrants[FaceoffSide.CHALLENGER]),
+            opponent=faceoff_snapshot(self.entrants[FaceoffSide.OPPONENT]),
             challenger_wins=wins[FaceoffSide.CHALLENGER],
             opponent_wins=wins[FaceoffSide.OPPONENT],
             winner_side=next((side for side, count in wins.items() if count >= wins_needed), None),
@@ -149,27 +154,3 @@ class TeamMatchupSimulator:
         if any(slot.card_id not in cards for slot in team.roster):
             raise FaceoffError(f"{team.name} has a card that can no longer be loaded.")
         return cards
-
-    def _build_club(self, side: FaceoffSide) -> SimTeam:
-        entrant = self.entrants[side]
-        club = SimTeam.from_builder_team(
-            team=entrant.team, cards=self._load_cards(entrant.team), year=_SERIES_START_DATE.year,
-            name_override=side.schedule_key, manager=entrant.manager,
-        )
-        if entrant.starter_card_id:
-            starter_id = builder_sim_id(side.schedule_key, entrant.starter_card_id)
-            if not club.rotation.move_to_front(starter_id):
-                raise FaceoffError(f"That starter isn't in the {entrant.team.name} rotation.")
-        return club
-
-    def _snapshot(self, side: FaceoffSide, clubs: dict[FaceoffSide, SimTeam]) -> FaceoffTeamSnapshot:
-        entrant = self.entrants[side]
-        return FaceoffTeamSnapshot(
-            team_id=entrant.team.team_id,
-            identity=clubs[side].identity,
-            total_points=entrant.total_points,
-            allowed_sets=entrant.team.allowed_sets or [],
-            roster=entrant.team.roster,
-            starter_card_id=entrant.starter_card_id,
-            manager=entrant.manager,
-        )

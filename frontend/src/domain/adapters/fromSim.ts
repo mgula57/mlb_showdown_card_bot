@@ -457,7 +457,16 @@ const mapDetailBases = (refs: SimRunnerRefJson[]): Record<BaseSlot, PlayerRef | 
  * here" section. Only the simulated portion gets full playback; it's seeded from
  * `setup.start_state` so the handoff doesn't invent arrivals for runners already on base.
  */
-export const fromSimTimeline = (game: SimGameResultJson, gameId: number | string, startState?: SimGameStartState | null): GameTimeline => {
+/** Where a game still being played stands, for a timeline that ends on "now" rather than a final:
+ *  the half-inning being played and who's batting and pitching in it. */
+export type SimTimelineLiveEdge = {
+    inning: number;
+    isTop: boolean;
+    batter?: PlayerRef;
+    pitcher?: PlayerRef;
+};
+
+export const fromSimTimeline = (game: SimGameResultJson, gameId: number | string, startState?: SimGameStartState | null, liveEdge?: SimTimelineLiveEdge): GameTimeline => {
     const view = fromSimGame(game);
     const log = (game.log ?? []).map(withRealCardIds);
 
@@ -527,12 +536,12 @@ export const fromSimTimeline = (game: SimGameResultJson, gameId: number | string
     // FRAME 0 — the sim's starting point (game start, or the takeover resume point).
     {
         const firstEntry = log[0];
-        const batter: PlayerRef | undefined = firstEntry ? { id: firstEntry.hitter_id || undefined, name: firstEntry.hitter } : undefined;
-        const pitcher: PlayerRef | undefined = firstEntry ? { id: firstEntry.pitcher_id || undefined, name: firstEntry.pitcher } : undefined;
+        const batter: PlayerRef | undefined = firstEntry ? { id: firstEntry.hitter_id || undefined, name: firstEntry.hitter } : liveEdge?.batter;
+        const pitcher: PlayerRef | undefined = firstEntry ? { id: firstEntry.pitcher_id || undefined, name: firstEntry.pitcher } : liveEdge?.pitcher;
         frames.push({
             id: "sim-pregame",
             index: 0,
-            kind: log.length === 0 ? "FINAL" : "PRE_GAME",
+            kind: log.length === 0 && !liveEdge ? "FINAL" : "PRE_GAME",
             source: "SIM",
             runners: { bases: prevBases, scored: [], retired: [], batter },
             view: baseView({
@@ -560,15 +569,24 @@ export const fromSimTimeline = (game: SimGameResultJson, gameId: number | string
 
         const entryBatter: PlayerRef = { id: entry.hitter_id || undefined, name: entry.hitter };
         const entryPitcher: PlayerRef = { id: entry.pitcher_id || undefined, name: entry.pitcher };
-        const nextBatter: PlayerRef | undefined = nextEntry ? { id: nextEntry.hitter_id || undefined, name: nextEntry.hitter } : undefined;
-        const nextPitcher: PlayerRef | undefined = nextEntry ? { id: nextEntry.pitcher_id || undefined, name: nextEntry.pitcher } : entryPitcher;
+        // What comes after this play: the next logged one, or for the last play of a game still in
+        // progress, the live edge (who's up now).
+        const next = nextEntry
+            ? {
+                inning: nextEntry.inning, isTop: nextEntry.is_top,
+                batter: { id: nextEntry.hitter_id || undefined, name: nextEntry.hitter } as PlayerRef,
+                pitcher: { id: nextEntry.pitcher_id || undefined, name: nextEntry.pitcher } as PlayerRef,
+            }
+            : liveEdge;
+        const nextBatter: PlayerRef | undefined = next?.batter;
+        const nextPitcher: PlayerRef | undefined = next?.pitcher ?? entryPitcher;
 
         const runsScored = entry.runs_scored ?? 0;
         const swingResult = entry.swing_result.toLowerCase();
         const isHomeRun = swingResult === "hr";
         const isHit = ["1b", "1b+", "2b", "3b", "hr"].includes(swingResult);
         const swingIsEmpty = swingResult === "na"; // a pure steal/CS that ended the half-inning
-        const isHalfInningChange = !!nextEntry && (nextEntry.inning !== inning || nextEntry.is_top !== isTop);
+        const isHalfInningChange = !!next && (next.inning !== inning || next.isTop !== isTop);
         const isLastEntry = i === log.length - 1;
         const outsStart = carryOuts;
 
@@ -729,10 +747,10 @@ export const fromSimTimeline = (game: SimGameResultJson, gameId: number | string
             const moves = buildRunnerMoves({
                 prevBases: legCursor, nextBases: leg.bases, scored: leg.scored, retired: leg.retired, batter: leg.moveBatter,
             });
-            const legKind: FramePhaseKind = isLastEntry && isLastLeg ? "FINAL" : "PLAY";
+            const legKind: FramePhaseKind = isLastEntry && isLastLeg && !liveEdge ? "FINAL" : "PLAY";
             const severity = severityFor({
                 moves, runsScored: leg.runs, isHomeRun: leg.isHomeRun,
-                isWalkOff: !nextEntry && isLastLeg && runsScored > 0,
+                isWalkOff: !next && isLastLeg && runsScored > 0,
             });
 
             // The frame that ends a half-inning must not seat the next half's leadoff hitter
@@ -771,9 +789,9 @@ export const fromSimTimeline = (game: SimGameResultJson, gameId: number | string
             legCursor = leg.bases;
         }
 
-        if (isHalfInningChange && nextEntry) {
-            const breakInning = nextEntry.inning;
-            const breakIsTop = nextEntry.is_top;
+        if (isHalfInningChange && next) {
+            const breakInning = next.inning;
+            const breakIsTop = next.isTop;
             accumulator.startHalf(breakInning, breakIsTop);
             frames.push({
                 id: `sim-${i}-break`,

@@ -4,6 +4,7 @@ from random import Random
 from typing import Callable, Optional
 
 from ..shared.player_position import PlayerType
+from .controller import AUTO_CONTROLLER, GameController, RollKind
 from .inning import Inning
 from .models import (
     BoxScoreBattingStats,
@@ -143,6 +144,8 @@ class Game:
         self.home_team_final_score = 0
         self.away_team_final_score = 0
         self.logs: list[GameLogEntry] = []
+        # THE PLATE APPEARANCE IN PROGRESS, FOR A PLAYED GAME THAT STOPS MID-AT-BAT TO WAIT ON A SWING.
+        self.current_plate_appearance: Optional[PlateAppearance] = None
 
         # SET IN `setup`. NON-None ONLY WHEN RESUMING A GAME ALREADY IN PROGRESS.
         self.start_state: Optional[GameStartState] = None
@@ -219,8 +222,11 @@ class Game:
         home_team.current_game_stats.add_stat(StatCategory.RUNS_ALLOWED, start_state.away.runs_scored)
         away_team.current_game_stats.add_stat(StatCategory.RUNS_ALLOWED, start_state.home.runs_scored)
 
-    def simulate(self, rng: Random, collect_log: bool = False, log_callback: Optional[Callable[[str], None]] = None, collect_box_score: bool = False, platoon_roll_adjustment: int = 0, keep_innings: bool = True, random_roll_adjustments: bool = True):
+    def simulate(self, rng: Random, collect_log: bool = False, log_callback: Optional[Callable[[str], None]] = None, collect_box_score: bool = False, platoon_roll_adjustment: int = 0, keep_innings: bool = True, random_roll_adjustments: bool = True, controller: Optional[GameController] = None):
+        """Play the game to the end. `controller` makes each manager decision and gates each roll
+        (see `controller.py`); left out, the sim's own manager runs both clubs."""
 
+        controller = controller or AUTO_CONTROLLER
         self._collect_box_score = collect_box_score
         self._keep_innings = keep_innings
 
@@ -249,14 +255,30 @@ class Game:
 
             team_pitching = self.home_team if inning.is_top else self.away_team
             team_hitting = self.away_team if inning.is_top else self.home_team
-            team_pitching.check_for_pitcher_sub(game_date=self.date, inning=inning, runs_allowed=team_hitting.current_game_stats.totals.get(_RUNS_SCORED, 0), rng=rng)
+            # THE DEFENSE'S PITCH ROLL OPENS THE PLATE APPEARANCE. IN A PLAYED GAME THAT'S WHERE PLAY
+            # WAITS, SO BOTH CLUBS' MOVES FOR THIS BATTER (A PITCHING CHANGE, A PINCH HITTER) ARE IN
+            # BY THE TIME THE MATCHUP IS SET BELOW, AND A STEAL PLAYS OUT AFTER THE ROLL.
+            controller.before_roll(RollKind.PITCH, team_pitching, inning)
+            suggested = team_pitching.suggested_pitcher_change(game_date=self.date, inning=inning, runs_allowed=team_hitting.current_game_stats.totals.get(_RUNS_SCORED, 0), rng=rng)
+            new_pitcher = controller.choose_pitcher(team_pitching, suggested, inning)
+            if new_pitcher is not None:
+                team_pitching.change_pitcher(new_pitcher, inning)
             pitcher = team_pitching.current_pitcher()
             hitter = team_hitting.current_hitter(game=self)
-            plate_appearance = PlateAppearance(hitter=hitter, pitcher=pitcher, inning=inning, rng=rng, was_last_result_single_plus=(single_plus_inning is inning), manager=team_hitting.manager, platoon_roll_adjustment=platoon_roll_adjustment, year=self.date.year, random_roll_adjustments=random_roll_adjustments)
+            pinch_hitter = controller.choose_pinch_hitter(team_hitting, hitter, inning)
+            if pinch_hitter is not None:
+                team_hitting.pinch_hit(sub=pinch_hitter, for_player=hitter)
+                hitter = pinch_hitter
+            plate_appearance = PlateAppearance(hitter=hitter, pitcher=pitcher, inning=inning, rng=rng, pitcher_fatigue=(pitcher.fatigue_penalty(inning) if controller.applies_fatigue(team_pitching) else 0), was_last_result_single_plus=(single_plus_inning is inning), manager=team_hitting.manager, platoon_roll_adjustment=platoon_roll_adjustment, year=self.date.year, random_roll_adjustments=random_roll_adjustments)
+
+            self.current_plate_appearance = plate_appearance
 
             # ROLL THE DICE
             plate_appearance.check_and_execute_steal(catcher=team_pitching.catcher)
             plate_appearance.execute_pitch()
+            # A CAUGHT STEALING CAN END THE INNING BEFORE THE PITCH, LEAVING NO SWING TO ROLL.
+            if plate_appearance.total_outs < 3:
+                controller.before_roll(RollKind.SWING, team_hitting, inning)
             plate_appearance.execute_swing()
             plate_appearance.check_and_execute_double_play(infield_defense=team_pitching.infield_defense)
             plate_appearance.check_and_execute_advance(outfield_defense=team_pitching.outfield_defense)
@@ -596,32 +618,35 @@ class Game:
         stats, since `add_new_game` rebinds rather than mutates it."""
 
         batting: list[BoxScoreBatter] = []
-        for order_index, player in enumerate(team.batting_order, start=1):
-            s = team.stats.stats_for_id(player.id)
-            batting.append(BoxScoreBatter(
-                id=real_card_id(player.id),
-                name=player.name,
-                position=player.position_slot.value,
-                batting_order=order_index,
-                is_substitute=False,
-                is_in_lineup=True,
-                stats=BoxScoreBattingStats(
-                    at_bats=int(s.stat(StatCategory.AB)),
-                    runs=int(s.stat(StatCategory.RUNS)),
-                    hits=int(s.stat(StatCategory.HITS)),
-                    doubles=int(s.stat(StatCategory.DOUBLES)),
-                    triples=int(s.stat(StatCategory.TRIPLES)),
-                    home_runs=int(s.stat(StatCategory.HOMERUNS)),
-                    rbi=int(s.stat(StatCategory.RBI)),
-                    base_on_balls=int(s.stat(StatCategory.BB)),
-                    strike_outs=int(s.stat(StatCategory.SO)),
-                    stolen_bases=int(s.stat(StatCategory.SB)),
-                    caught_stealing=int(s.stat(StatCategory.CS)),
-                    ground_into_double_play=int(s.stat(StatCategory.GDP)),
-                    plate_appearances=int(s.stat(StatCategory.PA)),
-                    summary=_batting_summary(s),
-                ),
-            ))
+        # A SLOT A PINCH HITTER TOOK LISTS THE STARTER, THEN EACH SUB UNDER HIM.
+        slot_history = team.batting_slot_history or [[player] for player in team.batting_order]
+        for order_index, slot_players in enumerate(slot_history, start=1):
+            for sub_index, player in enumerate(slot_players):
+                s = team.stats.stats_for_id(player.id)
+                batting.append(BoxScoreBatter(
+                    id=real_card_id(player.id),
+                    name=player.name,
+                    position=player.position_slot.value,
+                    batting_order=order_index,
+                    is_substitute=sub_index > 0,
+                    is_in_lineup=sub_index == len(slot_players) - 1,
+                    stats=BoxScoreBattingStats(
+                        at_bats=int(s.stat(StatCategory.AB)),
+                        runs=int(s.stat(StatCategory.RUNS)),
+                        hits=int(s.stat(StatCategory.HITS)),
+                        doubles=int(s.stat(StatCategory.DOUBLES)),
+                        triples=int(s.stat(StatCategory.TRIPLES)),
+                        home_runs=int(s.stat(StatCategory.HOMERUNS)),
+                        rbi=int(s.stat(StatCategory.RBI)),
+                        base_on_balls=int(s.stat(StatCategory.BB)),
+                        strike_outs=int(s.stat(StatCategory.SO)),
+                        stolen_bases=int(s.stat(StatCategory.SB)),
+                        caught_stealing=int(s.stat(StatCategory.CS)),
+                        ground_into_double_play=int(s.stat(StatCategory.GDP)),
+                        plate_appearances=int(s.stat(StatCategory.PA)),
+                        summary=_batting_summary(s),
+                    ),
+                ))
 
         pitching: list[BoxScorePitcher] = []
         for order_index, pitcher in enumerate(team._pitchers_used):

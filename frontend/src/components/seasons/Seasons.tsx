@@ -244,6 +244,9 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
     };
 
     const openSimSetupOnGameLoad = selectedGamePk !== null && new URLSearchParams(location.search).get('sim_setup') === '1';
+    // `?replay=1` (Home's game reel) opens the game as a replay from the first pitch. Left in the URL
+    // so the link stays shareable; GameDetail only reads it on mount.
+    const openReplayOnGameLoad = selectedGamePk !== null && new URLSearchParams(location.search).get('replay') === '1';
 
     // Strip `?sim_setup=1` once consumed so it doesn't re-trigger on refresh/back-nav; GameDetail
     // reads the flag on mount (via the prop above) before this clears it.
@@ -1047,6 +1050,7 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
                 <GameDetail
                     gamePk={selectedGamePk}
                     openSimSetupOnMount={openSimSetupOnGameLoad}
+                    openReplayOnMount={openReplayOnGameLoad}
                     sportId={selectedSport?.id}
                     season={selectedSeason.season_id ? parseInt(selectedSeason.season_id) : undefined}
                     showdownSet={userShowdownSet}

@@ -34,7 +34,7 @@ import {
     FaSpinner, FaArrowLeft, FaPlus, FaXmark, FaCircleCheck, FaWandMagicSparkles,
     FaShuffle, FaPenToSquare, FaStar, FaRegStar, FaRegComment, FaGear, FaUsers,
     FaList, FaRing, FaClipboardList, FaListOl, FaCodeFork, FaPlay, FaChartLine,
-    FaRobot, FaBaseball, FaBaseballBatBall, FaHatWizard, FaMagnifyingGlass, FaArrowRight, FaTrash,
+    FaRobot, FaBaseball, FaBaseballBatBall, FaDiceD20, FaHatWizard, FaMagnifyingGlass, FaArrowRight, FaTrash,
     FaHandPointer, FaFileImport, FaHeart, FaRegHeart, FaEye, FaGaugeHigh, FaCompass
 } from 'react-icons/fa6';
 import type { IconType } from 'react-icons';
@@ -42,6 +42,8 @@ import { useNavigate } from 'react-router-dom';
 import { fetchTeamSimSeasons, cancelSimJob, fetchActiveSimJob, type SimSeasonListItem, type ActiveSimJob, type ChallengeInstance } from '../../api/sim';
 import { PlayModal } from './sim/PlayModal';
 import { FaceoffModal } from './faceoff/FaceoffModal';
+import { PlayLiveModal } from './live/PlayLiveModal';
+import { LIVE_GAMES_ENABLED } from '../../api/liveGame';
 import { FaceoffRow } from './faceoff/FaceoffRow';
 import { FACEOFFS_ENABLED, fetchTeamFaceoffs, type FaceoffSummary } from '../../api/faceoff';
 import { SimSeasonRow } from './sim/SimSeasonRow';
@@ -373,6 +375,7 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
     const [showSettingsModal, setShowSettingsModal] = useState(false);
     const [showPlayModal, setShowPlayModal] = useState(false);
     const [showFaceoffModal, setShowFaceoffModal] = useState(false);
+    const [showPlayLiveModal, setShowPlayLiveModal] = useState(false);
     const [teamFaceoffs, setTeamFaceoffs] = useState<FaceoffSummary[]>([]);
     const [logoUploading, setLogoUploading] = useState(false);
     const [logoError, setLogoError] = useState<string | null>(null);
@@ -793,6 +796,9 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
     const canFaceoff = FACEOFFS_ENABLED && !!token && !isDrafting && !!team.team_id
         && (team.source === 'user' || team.source === 'official') && (isMyOwnTeam || team.is_public);
     const hasFaceoffs = teamFaceoffs.length > 0;
+    // Any saved team you can see can take a live game's seat: your own, or someone's public team.
+    const canPlayLive = LIVE_GAMES_ENABLED && !!token && !isDrafting && !!team.team_id
+        && (team.source === 'user' || team.source === 'official') && (isMyOwnTeam || team.is_public);
     // Scoped to this team so a job started from a different team's page doesn't show up here.
     const activeJobForTeam = activeJob && activeJob.team_id === team.team_id ? activeJob : null;
     const hasSims = (!!teamSeasons && teamSeasons.length > 0) || !!activeJobForTeam;
@@ -1668,6 +1674,15 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                             />
                         )}
 
+                        {canPlayLive && teamMode === 'complete' && (
+                            <HeaderAction
+                                icon={FaDiceD20}
+                                label="Play Live"
+                                onClick={() => setShowPlayLiveModal(true)}
+                                title={`Play ${draft.name} a turn at a time, against a friend, the sim or a club from history`}
+                            />
+                        )}
+
                         {canFaceoff && teamMode === 'complete' && (
                             <HeaderAction
                                 icon={FaBaseballBatBall}
@@ -2119,6 +2134,19 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                 />
             )}
 
+            {showPlayLiveModal && token && (
+                <PlayLiveModal
+                    team={draft}
+                    token={token}
+                    onBeforeStart={flushPendingSave}
+                    onClose={() => setShowPlayLiveModal(false)}
+                    onCreated={liveGameId => {
+                        setShowPlayLiveModal(false);
+                        navigate(`/teams/live/${liveGameId}`);
+                    }}
+                />
+            )}
+
             {showFaceoffModal && token && (
                 <FaceoffModal
                     team={draft}
@@ -2129,6 +2157,10 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
                     onStarted={faceoffId => {
                         setShowFaceoffModal(false);
                         navigate(`/teams/faceoffs/${faceoffId}`);
+                    }}
+                    onStartedLive={liveGameId => {
+                        setShowFaceoffModal(false);
+                        navigate(`/teams/live/${liveGameId}`);
                     }}
                 />
             )}
