@@ -936,3 +936,7 @@ button.field-etched:hover,
 button.field-etched:focus-visible {
     color: color-mix(in oklab, var(--field-ink) 85%, transparent);
 }
+/* An icon in the etching: text-shadow skips SVG, so the lit edge comes from a drop shadow. */
+.field-etched-icon {
+    filter: drop-shadow(0 1px 0 rgb(255 255 255 / 0.22));
+}

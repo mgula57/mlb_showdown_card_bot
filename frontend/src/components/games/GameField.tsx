@@ -7,7 +7,7 @@
  * can't fill (defense alignment, runner identity) degrade to markers rather than disappearing.
  */
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { FaCaretUp, FaPlay } from "react-icons/fa6";
+import { FaCaretUp, FaDownLeftAndUpRightToCenter, FaPlay, FaUpRightAndDownLeftFromCenter } from "react-icons/fa6";
 
 import type { DefenseAlignment, GameView, PlayerRef } from "../../domain/game";
 import { resolveCardKey } from "../../domain/players";
@@ -493,8 +493,9 @@ function DieDock({ children }: { children: ReactNode }) {
 }
 
 /** The third-base line, home to third, in the field box's own proportions: the angle it climbs at
- *  (measured on screen, so the box's aspect counts) and a spot in the foul ground beside it, up
- *  toward third and far enough off the line to stay clear of the chalk. */
+ *  (measured on screen, so the box's aspect counts) and a spot in the foul ground beside it,
+ *  between the plate and the third-base coach's box and far enough off the line to stay clear of
+ *  the chalk. */
 const THIRD_BASE_LINE = (() => {
     const [homeX, homeY] = HOME;
     const [thirdX, thirdY] = BASES.third;
@@ -503,9 +504,9 @@ const THIRD_BASE_LINE = (() => {
     const dy = (homeY - thirdY) / 100 / FIELD_ASPECT;
     const angle = Math.atan2(dy, dx);
     const length = Math.hypot(dx, dy);
-    // Most of the way up the line toward third, well clear of the hitter at the plate, then off
-    // it toward foul ground (down and to the left of it).
-    const along = 0.68;
+    // Past the middle of the line, clear of the hitter at the plate and short of the coach's box
+    // by third, then off it toward foul ground (down and to the left of it).
+    const along = 0.56;
     const offset = 0.065;
     const centerX = (homeX - (homeX - thirdX) * along) / 100 - Math.sin(angle) * offset;
     const centerY = ((homeY - (homeY - thirdY) * along) / 100 / FIELD_ASPECT + Math.cos(angle) * offset) * FIELD_ASPECT;
@@ -520,8 +521,9 @@ const ETCH_STYLE: React.CSSProperties = {
 
 /** The fielding side's OF / IF / CA defense totals, etched into the left-field foul ground along
  *  the third-base line, so they read as part of the field rather than a panel on it. With
- *  `onToggleExpanded` the whole etching is the button that brings out every fielder; it carries
- *  no icon, so it stays lettering. Null when there's no rating to show. */
+ *  `onToggleExpanded` the whole etching is the button that brings out every fielder, ending in an
+ *  etched expand / collapse mark so it reads as something to press. Null when there's no rating
+ *  to show. */
 function DefenseSummary({
     defense, cardMap, expanded, onToggleExpanded,
 }: {
@@ -567,9 +569,13 @@ function DefenseSummary({
                     type="button"
                     onClick={onToggleExpanded}
                     aria-label={`${rows.map(([label, value]) => `${label} ${value ?? "none"}`).join(", ")}. ${expanded ? "Show battery only" : "Show all fielders"}`}
+                    title={expanded ? "Show battery only" : "Show all fielders"}
                     className={`${etch} cursor-pointer px-1 py-0.5`}
                 >
                     {content}
+                    {expanded
+                        ? <FaDownLeftAndUpRightToCenter aria-hidden className="field-etched-icon text-[0.8em]" />
+                        : <FaUpRightAndDownLeftFromCenter aria-hidden className="field-etched-icon text-[0.8em]" />}
                 </button>
             ) : (
                 <div className={etch}>{content}</div>
