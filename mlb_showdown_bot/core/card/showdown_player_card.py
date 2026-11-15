@@ -39,7 +39,7 @@ from .utils.shared_functions import convert_to_date, convert_number_to_ordinal, 
 from .stats.accolade import Accolade
 from .stats.special_accolade import SpecialAccolades
 from .stats.metrics import DefenseMetric
-from .stats.stats_period import PostseasonRound, StatsPeriod, StatsPeriodType, TeamSelection
+from .stats.stats_period import PostseasonRound, StatsPeriod, StatsPeriodLeague, StatsPeriodType, TeamSelection
 from .stats.real_vs_projected_stat import RealVsProjectedStat
 from .stats.datasource import Datasource
 
@@ -474,6 +474,10 @@ class ShowdownPlayerCard(BaseModel):
     def parse_team(cls, team:Team, info:ValidationInfo) -> Team:
         if (team or Team.MLB) != Team.MLB:
             return team
+        # MILB CARDS USE THE GENERIC MILB TEAM (AFFILIATE ABBREVIATIONS AREN'T TEAM MEMBERS)
+        stats_period: StatsPeriod | None = info.data.get('stats_period')
+        if stats_period and stats_period.league == StatsPeriodLeague.MILB:
+            return Team.MILB
         stats:dict = info.data.get('stats', {})
         return Team(stats.get('team_ID', None))
     
