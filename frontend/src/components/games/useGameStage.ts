@@ -14,6 +14,9 @@ export function useGameStage() {
     const [selectedCard, setSelectedCard] = useState<ShowdownBotCardAPIResponse | null>(null);
     const [isFieldExpanded, setIsFieldExpanded] = useState(false);
     const [railTab, setRailTab] = useState<RailTab>('playbyplay');
+    // A phone has no room for the rail beside the field, so its tabs swap the whole page between
+    // the field and one of the rail's panels. Opens on the field.
+    const [isPhoneFieldShown, setIsPhoneFieldShown] = useState(true);
     // Tracks whether the field's big Play button has been pressed for the CURRENT sim result.
     // `playbackState.cursor === 0` alone isn't enough to hide it on click — the cursor doesn't
     // advance to frame 1 until the first animation beat lands, which would leave the button
@@ -32,6 +35,7 @@ export function useGameStage() {
         selectedCard, setSelectedCard,
         isFieldExpanded, setIsFieldExpanded,
         railTab, setRailTab,
+        isPhoneFieldShown, setIsPhoneFieldShown,
         simPlayStarted, setSimPlayStarted,
         isRecapDismissed, setIsRecapDismissed,
         resetForNewSim,

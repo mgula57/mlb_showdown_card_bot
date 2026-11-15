@@ -79,8 +79,15 @@ type GameFieldProps = {
     /** Skips the diamond art, for callers that paint `FieldArt` themselves so it can outlive this
      *  field (e.g. stay put while the field's contents crossfade). */
     hideFieldArt?: boolean;
-    /** The host shows the defense summary itself (the game board's corner panel). */
-    hideDefenseSummary?: boolean;
+    /** The field's bottom-right corner, opposite the defense summary: the player's own controls
+     *  (a live game's Manager button, and on a phone the next-move button). Takes the place of the
+     *  last play there. */
+    corner?: ReactNode;
+    /** Scales the field (art, bases and where everyone stands) past its host's width, with the far
+     *  sides clipped by the host, so a narrow screen spends its width on the diamond rather than on
+     *  foul ground. Player cards keep their size, since they're sized by the host's width. The
+     *  outfield's headroom grows with it, so it's `FIELD_ART_HEADROOM_PADDING` times `zoom`. */
+    zoom?: number;
     /** Drops the players onto the field with a staggered bounce when this field mounts (e.g. a new
      *  game swapped in). Markers that show up later enter normally. */
     plopIn?: boolean;
@@ -483,7 +490,7 @@ function DieDock({ children }: { children: ReactNode }) {
 /** OF / IF / CA totals for the fielding side plus the expand/collapse toggle, gathered into one
  * container in the field's bottom-left corner. Null when no alignment is available
  * (pre-first-pitch, or a sim game). */
-export function DefenseSummary({
+function DefenseSummary({
     defense, cardMap, expanded, onToggleExpanded,
 }: {
     defense: DefenseAlignment;
@@ -579,7 +586,7 @@ function LastPlaySummary({ play }: { play: PlayEntry }) {
     );
 }
 
-export default function GameField({ game, cardMap, onCardSelect, expanded = false, onToggleExpanded, isLoadingCards, transition, pendingPlay, phase = "idle", lastPlay, advantage, playbackSpeed, onPlayClick, rollPrompt, hideFieldArt = false, hideDefenseSummary = false, plopIn = false, className = "" }: GameFieldProps) {
+export default function GameField({ game, cardMap, onCardSelect, expanded = false, onToggleExpanded, isLoadingCards, transition, pendingPlay, phase = "idle", lastPlay, advantage, playbackSpeed, onPlayClick, rollPrompt, hideFieldArt = false, corner, zoom = 1, plopIn = false, className = "" }: GameFieldProps) {
     const situation = game.situation;
     // A prompt only stands in while nothing is animating; once a play resolves the toss takes over.
     const prompt = pendingPlay ? undefined : rollPrompt;
@@ -623,8 +630,13 @@ export default function GameField({ game, cardMap, onCardSelect, expanded = fals
                 field is expanded. Expanded also pads the bottom for the catcher; that padding's
                 transition is what makes the expand/collapse feel like the field is growing rather
                 than snapping to a new size. */}
-            <div className={`relative px-1 transition-[padding] duration-300 ease-out ${expanded ? "pb-12" : "pb-0"}`} style={{ paddingTop: FIELD_ART_HEADROOM_PADDING }}>
-                <div className="relative aspect-703/369 w-full overflow-visible">
+            <div className={`relative px-1 transition-[padding] duration-300 ease-out ${expanded ? "pb-12" : "pb-0"}`} style={{ paddingTop: `calc(${FIELD_ART_HEADROOM_PADDING} * ${zoom})` }}>
+                {/* Zoomed, the box overhangs both sides equally, so home stays centered; the
+                    summaries below stay pinned to the host's own corners. */}
+                <div
+                    className="relative aspect-703/369 w-full overflow-visible transition-[width,margin] duration-300 ease-out"
+                    style={{ width: `${zoom * 100}%`, marginLeft: `${(1 - zoom) * 50}%` }}
+                >
                     {!hideFieldArt && <FieldArt />}
 
                     {/* Defense — the battery is always mounted; the rest of the alignment stays
@@ -823,8 +835,8 @@ export default function GameField({ game, cardMap, onCardSelect, expanded = fals
                     )}
                 </div>
 
-                {defense && !hideDefenseSummary && (
-                    <div className="absolute bottom-0 left-0">
+                {defense && (
+                    <div className="absolute bottom-0 left-0 z-20">
                         <DefenseSummary
                             defense={defense}
                             cardMap={cardMap}
@@ -848,7 +860,9 @@ export default function GameField({ game, cardMap, onCardSelect, expanded = fals
                     </div>
                 )}
 
-                {lastPlay && (
+                {corner ? (
+                    <div className="absolute bottom-0 right-0 z-20 flex items-end gap-2">{corner}</div>
+                ) : lastPlay && (
                     <div className="absolute bottom-0 left-3/4 right-0 pl-1">
                         <LastPlaySummary play={lastPlay} />
                     </div>

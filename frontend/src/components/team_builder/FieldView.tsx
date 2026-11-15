@@ -16,22 +16,34 @@ import { type RosterMoveControls, type RosterMoveSlotState, moveSlotClass } from
 import { twoWayPtsMultipliers } from '../../domain/roster';
 import { CAPS_LABEL_CLASS } from '../shared/fieldStyles';
 import { smoothScrollBehavior } from '../../hooks/usePrefersReducedMotion';
+import { FieldArt, FIELD_ART_HEADROOM_PADDING } from '../games/GameField';
+import { FieldGround } from '../shared/FieldGround';
 
-// Percentage-based [left, top] coordinates relative to the Field.png container
-export const POSITION_COORDS: Record<string, [number, number]> = {
-    CF:  [50, 20],
-    LF:  [16, 26],
-    RF:  [84, 26],
-    SS:  [32, 45],
-    '2B': [68, 45],
-    '3B': [18, 65],
-    '1B': [82, 65],
-    C:   [50, 87],
-    DH:  [84, 87],
+// [left, top] card centers as percentages of `GameField`'s field box (the 703x369 infield region
+// of the 3D art). The art is in perspective, so the outfield sits in the headroom above the box
+// (negative y) and the catcher/DH on the plate's dirt near the bottom. Cards are 25% of the box's
+// width, so neighbors stay at least that far apart sideways or a card-height apart vertically.
+const POSITION_COORDS: Record<string, [number, number]> = {
+    CF:  [50, -16],
+    LF:  [13, -3],
+    RF:  [87, -3],
+    SS:  [35, 20],
+    '2B': [65, 20],
+    '3B': [13, 45],
+    '1B': [87, 45],
+    C:   [50, 91],
+    DH:  [84, 88],
     // Award-winner-only slots (Gold Glove Pitcher/Utility, Silver Slugger Utility)
-    P:   [50, 67],
-    UT:  [84, 87],
+    P:   [50, 55],
+    UT:  [84, 88],
 };
+/** UT's spot when DH is shown too (e.g. Silver Slugger), mirroring DH across the plate. */
+const UT_BESIDE_DH: [number, number] = [16, 88];
+
+/** Room above the field box: the art's deep outfield, or enough for the CF card on a narrow field. */
+const FIELD_PADDING_TOP = `max(${FIELD_ART_HEADROOM_PADDING}, calc(8.5% + 30px))`;
+/** Room below the field box for the bottom of the catcher card, which sits on the plate's dirt. */
+const FIELD_PADDING_BOTTOM = 'calc(1.5% + 12px)';
 
 export const FIELD_POSITIONS = ['CF', 'LF', 'RF', 'SS', '2B', '3B', '1B', 'C', 'DH'] as const;
 
@@ -277,18 +289,26 @@ export function FieldView({
     ] : [];
 
     const field = (
-        <div className="relative w-full" style={{ aspectRatio: '1 / 1' }}>
-            <img
-                src="/images/teams/Field.png"
-                alt="Baseball field"
-                className="w-full h-full select-none pointer-events-none"
-                draggable={false}
+        <>
+        {!isSide && (
+            <SectionHeader
+                variant="overlay"
+                label={headerLabel}
+                filledCount={positionPlayerSlots.length}
+                maxPlayers={positions.length}
+                total={showDefenseSummary ? lineupPts : 0}
+                kpis={showDefenseSummary ? lineupKpis : undefined}
             />
+        )}
+        {/* The art overflows the field box sideways (its fan fades out), so clip it to the view */}
+        <div className="relative w-full px-1 overflow-x-clip" style={{ paddingTop: FIELD_PADDING_TOP, paddingBottom: FIELD_PADDING_BOTTOM }}>
+        <div className="relative aspect-703/369 w-full">
+            <FieldArt />
 
             {showDefenseSummary && (
                 <div
                     className="absolute -translate-x-1/2 grid grid-cols-[auto_auto] items-center gap-x-2 gap-y-1.5 px-2.5 py-1 border border-(--divider) rounded-card bg-primary pointer-events-none select-none"
-                    style={{ top: '80%', left: '15%' }}
+                    style={{ top: '76%', left: '14%' }}
                 >
                     {([
                         { label: 'TOTAL OF', value: totalDefOF, color: colorDefOF },
@@ -312,23 +332,10 @@ export function FieldView({
                 </div>
             )}
 
-            {!isSide && (
-                <div className="absolute inset-0">
-                    <SectionHeader
-                        variant="overlay"
-                        label={headerLabel}
-                        filledCount={positionPlayerSlots.length}
-                        maxPlayers={positions.length}
-                        total={showDefenseSummary ? lineupPts : 0}
-                        kpis={showDefenseSummary ? lineupKpis : undefined}
-                    />
-                </div>
-            )}
-
             {positions.map(pos => {
                 // UT normally reuses DH's spot, but shifts left when both are shown together (e.g. Silver Slugger) to avoid overlapping
                 const [left, top] = pos === 'UT' && positions.includes('DH')
-                    ? [16, 85]
+                    ? UT_BESIDE_DH
                     : (POSITION_COORDS[pos] ?? [50, 50]);
                 const slot = slotByPosition[pos] ?? null;
                 const card = slot ? cardMap[slot.card_id] : null;
@@ -340,12 +347,7 @@ export function FieldView({
                     <div
                         key={pos}
                         data-slot={pos}
-                        className={`
-                            absolute transition-all duration-200 
-                            ${isActive ? 'z-10' : ''}
-                            ${pos === 'CF' ? 'translate-y-[20%] @[400px]:translate-y-0' : ''}
-                            ${['LF', 'RF'].includes(pos) ? 'translate-y-[10%] @[400px]:translate-y-0' : ''}
-                        `}
+                        className={`absolute transition-all duration-200 ${isActive ? 'z-10' : ''}`}
                         style={{
                             left: `${left}%`,
                             top: `${top}%`,
@@ -357,7 +359,8 @@ export function FieldView({
                         onMouseEnter={card ? () => onCardHover?.(card.card_id) : undefined}
                         onMouseLeave={() => onCardHover?.(null)}
                     >
-                        <div className={`relative transition-opacity ${isActive ? 'rounded-control ring-2 ring-(--card-edge) animate-pulse' : moveSlotClass(moveState, 'field')}`}>
+                        <div className={`relative isolate transition-opacity ${isActive ? 'rounded-control ring-2 ring-(--card-edge) animate-pulse' : moveSlotClass(moveState, 'field')}`}>
+                            {card && <FieldGround />}
                             {card ? (
                                 <CardItemCompactFromCardDatabaseRecord
                                     card={card}
@@ -394,6 +397,8 @@ export function FieldView({
                 );
             })}
         </div>
+        </div>
+        </>
     );
 
     const sectionList = sections.map(({ label, roles, total, kpis, getCard, hasAssignment, onItemClick, maxPlayers, ptsMultiplier, placeholderLabel, movePosition, occupantId }) => {

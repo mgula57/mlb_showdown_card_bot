@@ -61,3 +61,24 @@ export function describeQueued(action: LiveAction, names: Record<string, string>
     if (action.kind === "pitching_change") return `${name(action.player_id)} comes in to pitch`;
     return "";
 }
+
+/** The Manager panel's tabs. */
+export type SubPickerMode = "pitcher" | "pinch";
+
+/** Which move the Manager panel opens on: the one this club can make right now, a pitching change
+ *  while it's in the field and a pinch hitter while it's at bat. */
+export function defaultPickerMode(game: LiveGame): SubPickerMode {
+    const side = actingSide(game);
+    const inPlay = game.state ? sidesInPlay(game.state) : null;
+    return side && inPlay?.fielding === side ? "pitcher" : "pinch";
+}
+
+export type LiveTurn = { label: string; isWaiting: boolean };
+
+/** Whose turn it is, in words, or null between turns (a roll still being played out). */
+export function liveTurnLabel(game: LiveGame): LiveTurn | null {
+    const pending = game.state && !game.state.is_final ? game.state.pending : null;
+    if (!pending) return null;
+    if (isMyTurn(game)) return { label: `Your ${pending.roll}`, isWaiting: false };
+    return { label: `Waiting on ${teamName(game, pending.side)} to ${pending.roll}`, isWaiting: true };
+}

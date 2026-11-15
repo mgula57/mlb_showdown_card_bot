@@ -28,9 +28,9 @@ import BackButton from "../../shared/BackButton";
 import { buttonClass } from "../../shared/buttonStyles";
 import { Heading } from "../../shared/Heading";
 import { InlineError } from "../../shared/InlineError";
-import { actingSide, isMyTurn, LIVE_SIDES, liveEdgeOf, teamName } from "./liveGameState";
+import { actingSide, defaultPickerMode, liveTurnLabel, isMyTurn, LIVE_SIDES, liveEdgeOf, teamName, type SubPickerMode } from "./liveGameState";
 import LiveSubPanel from "./LiveSubPanel";
-import LiveTurnBar, { type SubPickerMode } from "./LiveTurnBar";
+import LiveActionButton, { LiveTurnStatus, ManagerButton } from "./LiveTurnControls";
 
 type CardMap = Record<string, ShowdownBotCardAPIResponse>;
 
@@ -113,6 +113,8 @@ function LiveBoard({ game, cardMap, isLoadingCards, isSubmitting, moveError, sub
     const barButton = `rounded-control px-2 py-1 h-7 ${bannerTokens(barColor).btnClass}`;
 
     const roll = () => pending && submit({ side: pending.side, kind: "roll", roll: pending.roll });
+    const openManager = () => setPicker(defaultPickerMode(game));
+    const toggleAutopilot = (enabled: boolean) => { if (side) submit({ side, kind: "autopilot", enabled }); };
     const heldAdvantage = pending?.roll === "swing" ? ADVANTAGE_BY_PITCH_RESULT[pending.pitch_result ?? ""] : undefined;
 
     return (
@@ -125,6 +127,13 @@ function LiveBoard({ game, cardMap, isLoadingCards, isSubmitting, moveError, sub
             {({ activeView, activePlays, playbackBar, playbackControls, playbackState, isReplaying }) => {
                 // The next roll waits until the last one has finished playing out on the field.
                 const isCaughtUp = !isReplaying && playbackState.phase === "idle";
+                // The island waits for the last roll to finish on the field, then grows out of the
+                // scoreboard with whose turn it is now. An error shows straight away.
+                const turn = isCaughtUp ? liveTurnLabel(game) : null;
+                const islandTurn = (turn || moveError) ? {
+                    key: `${turn?.label ?? ""}|${moveError ?? ""}`,
+                    content: <LiveTurnStatus turn={turn} moveError={moveError} />,
+                } : null;
                 return (
                     <GameStage
                         stage={stage}
@@ -148,17 +157,11 @@ function LiveBoard({ game, cardMap, isLoadingCards, isSubmitting, moveError, sub
                             <TopBarButton label={share.copied ? "Copied" : "Share"} onClick={share.copy} className={barButton} />
                         }
                         boxScorePanels={<SimBoxScorePanels game={activeView} cardMap={cardMap} onCardSelect={stage.setSelectedCard} />}
-                        boardActions={!state.is_final && (
-                            <LiveTurnBar
-                                game={game}
-                                isCaughtUp={isCaughtUp}
-                                isSubmitting={isSubmitting}
-                                moveError={moveError}
-                                onRoll={roll}
-                                onOpenPicker={setPicker}
-                                onToggleAutopilot={(enabled) => side && submit({ side, kind: "autopilot", enabled })}
-                            />
+                        boardAction={side && !state.is_final && (
+                            <LiveActionButton game={game} isCaughtUp={isCaughtUp} isSubmitting={isSubmitting} onRoll={roll} />
                         )}
+                        boardTurn={islandTurn}
+                        boardTools={!state.is_final && <ManagerButton game={game} onOpen={openManager} />}
                         rollPrompt={pending && isCaughtUp ? {
                             kind: pending.roll,
                             onRoll: myTurn ? roll : undefined,
@@ -170,11 +173,15 @@ function LiveBoard({ game, cardMap, isLoadingCards, isSubmitting, moveError, sub
                         {side && mine && (
                             <LiveSubPanel
                                 mode={picker}
+                                onModeChange={setPicker}
                                 side={side}
                                 mine={mine}
                                 names={state.player_names}
                                 cardMap={cardMap}
+                                isFielding={defaultPickerMode(game) === "pitcher"}
+                                isSubmitting={isSubmitting}
                                 onPick={submit}
+                                onToggleAutopilot={toggleAutopilot}
                                 onClose={() => setPicker(null)}
                             />
                         )}

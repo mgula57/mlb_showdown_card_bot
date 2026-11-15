@@ -6,6 +6,7 @@ import { resolveCardKey } from "../../domain/players";
 import type { PlayerRef } from "../../domain/game";
 import type { ShowdownBotCardAPIResponse, ShowdownBotCardCompact } from "../../api/showdownBotCard";
 import { CardItemCompact, CardItemCompactFromCard, type CardItemStatBadge } from "../cards/CardItemCompact";
+import { FieldGround } from "../shared/FieldGround";
 
 type CardMap = Record<string, ShowdownBotCardAPIResponse>;
 
@@ -75,7 +76,7 @@ export default function FieldMarker({
 
     return (
         <div className={`w-18 @[380px]:w-24 @[520px]:w-30 @[650px]:w-40 ${grounded ? "relative isolate" : ""}`}>
-            {grounded && <span aria-hidden className="field-ground" />}
+            {grounded && <FieldGround />}
             {response?.card ? (
                 <CardItemCompactFromCard
                     card={response.card}

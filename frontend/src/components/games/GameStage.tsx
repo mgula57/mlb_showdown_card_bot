@@ -4,7 +4,7 @@
  * so any host with a `GameTimeline` can use it. What differs between hosts arrives as slots: the
  * box score panel, the top bar's controls and anything under the bar.
  */
-import { useRef, type Key, type ReactNode } from "react";
+import { useMemo, useRef, type Key, type ReactNode } from "react";
 import { FaRing } from "react-icons/fa";
 import { FaStar } from "react-icons/fa6";
 
@@ -23,9 +23,12 @@ import { Modal } from "../shared/Modal";
 import { ResizeHandle } from "../shared/ResizeHandle";
 import { Tabs as TabButtons, type TabItem } from "../shared/Tabs";
 import { buttonVariantClass } from "../shared/buttonStyles";
-import GameBoard from "./GameBoard";
-import { BoardStatePanel, DueUpPanel, GameScoreTrack, SituationPanel } from "./GameBoardPanels";
-import GameField, { DefenseSummary, type RollPrompt } from "./GameField";
+import GameBoard, { NARROW_FIELD_ZOOM } from "./GameBoard";
+import { LineupUpContext } from "./lineupUpContext";
+import { lineupUp, withLineupDefense } from "../../domain/lineup";
+import ScoreboardIsland from "./ScoreboardIsland";
+import { GameScoreTrack, LastPlayLine } from "./GameBoardPanels";
+import GameField, { type RollPrompt } from "./GameField";
 import GameLinescore from "./GameLinescore";
 import GameMatchup, { MatchupSide } from "./GameMatchup";
 import PlayByPlayLog from "./PlayByPlayLog";
@@ -34,6 +37,10 @@ import GameFinalSummary from "./detail/GameFinalSummary";
 import ScoreHeader from "./detail/ScoreHeader";
 import TopBarButton from "./detail/TopBarButton";
 import type { GameStageState, RailTab } from "./useGameStage";
+
+/** A phone's tabs: the field, then the rail's panels, each taking the whole page. */
+type PhoneTab = 'field' | RailTab;
+const FIELD_TAB: TabItem<PhoneTab> = { id: 'field', label: 'Field' };
 
 const RAIL_TABS: TabItem<RailTab>[] = [
     { id: 'playbyplay', label: 'Plays' },
@@ -44,15 +51,12 @@ const RAIL_TABS: TabItem<RailTab>[] = [
 /** Room for two full cards along the bottom edge. Narrower than this the board stacks. */
 const WIDE_BOARD_MIN_WIDTH = 736;
 
-/** The rail sits beside the board from `md` up (resized by its width) and under it below that
- *  (resized by its height). Either way the board keeps enough room to stay usable. */
+/** The rail sits beside the board from `md` up, resized by its width with the board keeping enough
+ *  room to stay usable. Below that a phone swaps between them with tabs (`PhoneTab`). */
 const SIDE_RAIL_QUERY = '(width >= 48rem)';
 const RAIL_MIN_WIDTH = 288;
-const RAIL_MIN_HEIGHT = 160;
 const BOARD_MIN_WIDTH = 360;
-const BOARD_MIN_HEIGHT = 160;
 const railMaxWidth = (container: number) => Math.min(960, container - BOARD_MIN_WIDTH);
-const railMaxHeight = (container: number) => container - BOARD_MIN_HEIGHT;
 
 const RAIL_PANEL_CLASS = 'min-h-0 flex-1 overflow-y-auto p-4 pb-[calc(1rem+var(--safe-bottom))] scrollbar-hide';
 
@@ -86,8 +90,16 @@ type GameStageProps = {
     boxScorePanels: ReactNode;
     /** The rail's Info tab. Left out, the tab is too. */
     infoPanel?: ReactNode;
-    /** The player's own moves on the board (a live game's turn bar). */
-    boardActions?: ReactNode;
+    /** Narrow only: the player's next move, a thumb-sized button in the field's bottom-right corner
+     *  beside `boardTools` (a live game's roll). A wide board leaves the roll to the die on the
+     *  field. */
+    boardAction?: ReactNode;
+    /** Whose turn it is, grown out of the scoreboard (`ScoreboardIsland`) above the last play.
+     *  `key` changes with the message, so a new one pops in. */
+    boardTurn?: { content: ReactNode; key: string } | null;
+    /** The field's bottom-right corner on every board, e.g. the button that opens a live game's
+     *  moves. */
+    boardTools?: ReactNode;
     /** A live game waiting on a die: see `GameField`'s `rollPrompt`. */
     rollPrompt?: RollPrompt;
     /** Who won a pitch that's been rolled but not yet swung at, highlighted until the swing resolves. */
@@ -100,26 +112,28 @@ type GameStageProps = {
 };
 
 export default function GameStage({
-    stage, game, plays, playbackState, playbackControls, isReplaying, playbackBar, detailedState,
+    stage, game: gameView, plays, playbackState, playbackControls, isReplaying, playbackBar, detailedState,
     cardMap, isLoadingCards, isSim, gameKey, title, titleAccessory, modeBarColor, onBack,
-    topBarStatus, topBarActions, boxScorePanels, infoPanel, boardActions, rollPrompt, heldAdvantage, preGamePanel, className, children,
+    topBarStatus, topBarActions, boxScorePanels, infoPanel, boardAction, boardTurn, boardTools, rollPrompt, heldAdvantage, preGamePanel, className, children,
 }: GameStageProps) {
     const {
-        selectedCard, setSelectedCard, isFieldExpanded, setIsFieldExpanded, railTab, setRailTab,
+        selectedCard, setSelectedCard, isFieldExpanded, setIsFieldExpanded, railTab, setRailTab, isPhoneFieldShown, setIsPhoneFieldShown,
         simPlayStarted, setSimPlayStarted, isRecapDismissed, setIsRecapDismissed,
     } = stage;
     const [boardRef, isWideBoard] = useIsWiderThan<HTMLDivElement>(WIDE_BOARD_MIN_WIDTH);
+    /* A sim or live game doesn't send its defensive alignment, so it's filled in from the box score,
+       which is what puts the defense totals and the full field of fielders on the board. */
+    const game = useMemo(() => withLineupDefense(gameView), [gameView]);
 
-    // The plays/box score rail can be dragged (or touched) larger, by its left edge beside the
-    // board or its top edge under it. Until then it keeps its CSS size.
+    // From `md` up the plays/box score rail sits beside the board and can be dragged wider by its
+    // left edge. Until then it keeps its CSS width. Below `md` it's a page of its own (see `PhoneTab`).
     const panesRef = useRef<HTMLDivElement>(null);
     const isSideRail = useMediaQuery(SIDE_RAIL_QUERY);
-    const railWidth = useResizablePanel({ storageKey: 'gameRailWidthPct:v1', containerRef: panesRef, defaultSize: null, minSize: RAIL_MIN_WIDTH, maxSize: railMaxWidth });
-    const railHeight = useResizablePanel({ storageKey: 'gameRailHeightPct:v1', axis: 'y', containerRef: panesRef, defaultSize: null, minSize: RAIL_MIN_HEIGHT, maxSize: railMaxHeight });
-    const railResize = isSideRail ? railWidth : railHeight;
-    const isRailSized = railResize.size !== null;
+    const railResize = useResizablePanel({ storageKey: 'gameRailWidthPct:v1', containerRef: panesRef, defaultSize: null, minSize: RAIL_MIN_WIDTH, maxSize: railMaxWidth });
+    const showsBoard = isSideRail || isPhoneFieldShown;
+    const showsRail = isSideRail || !isPhoneFieldShown;
 
-    /* `ScoreHeader` and `BoardStatePanel` read `detailedState` off the `GameView` it's given, so the host's label rides
+    /* `ScoreHeader` and `GameScoreTrack` read `detailedState` off the `GameView` it's given, so the host's label rides
        along on a shallow-copied view rather than as a prop. It's a no-op on every non-terminal
        playback frame — those report `state: "LIVE"`, and `ScoreHeader` only reads `detailedState`
        once state is FINAL. */
@@ -160,6 +174,11 @@ export default function GameStage({
     const railTabs = infoPanel ? RAIL_TABS : RAIL_TABS.filter((tab) => tab.id !== 'info');
     /* The Info tab can leave while it's open: a host hides it mid-replay to avoid spoilers. */
     const activeRailTab = railTabs.some((tab) => tab.id === railTab) ? railTab : 'playbyplay';
+    const phoneTabs: TabItem<PhoneTab>[] = [FIELD_TAB, ...railTabs];
+    const selectPhoneTab = (tab: PhoneTab) => {
+        setIsPhoneFieldShown(tab === 'field');
+        if (tab !== 'field') setRailTab(tab);
+    };
 
     /* Field and recap share a spot, with the field faded behind. Behind the recap the field is just
        the diamond: no runners, batter or defense left standing on it. */
@@ -172,11 +191,17 @@ export default function GameStage({
                 expanded={isFieldExpanded}
                 onToggleExpanded={() => setIsFieldExpanded((expanded) => !expanded)}
                 isLoadingCards={isLoadingCards}
-                hideDefenseSummary={isWideBoard}
+                corner={showRecap ? undefined : (boardTools || boardAction) && (
+                    <>
+                        {boardTools}
+                        {!isWideBoard && boardAction}
+                    </>
+                )}
+                // Expanded zooms back out, so all nine fielders fit.
+                zoom={isWideBoard || isFieldExpanded ? 1 : NARROW_FIELD_ZOOM}
                 transition={playbackState.transition}
                 pendingPlay={playbackState.pendingPlay}
                 phase={playbackState.phase}
-                lastPlay={showRecap || isWideBoard ? undefined : plays[0]}
                 advantage={advantage}
                 playbackSpeed={playbackState.effectiveSpeed}
                 rollPrompt={showRecap ? undefined : rollPrompt}
@@ -189,6 +214,17 @@ export default function GameStage({
         </div>
     );
 
+    /* The tab under the scoreboard: whose turn it is (a live game), then the last play. Each new
+       play or turn pops a fresh message out of it. */
+    const lastPlay = showRecap ? undefined : plays[0];
+    const islandContent = (boardTurn || lastPlay) ? (
+        <div className="flex flex-col items-center gap-1">
+            {boardTurn?.content}
+            {lastPlay && <LastPlayLine play={lastPlay} />}
+        </div>
+    ) : null;
+    const islandKey = `${boardTurn?.key ?? ''}|${lastPlay?.id ?? ''}`;
+
     const recap = showRecap ? (
         <GameFinalSummary
             game={game}
@@ -200,6 +236,8 @@ export default function GameStage({
     ) : undefined;
 
     const matchup = resolveMatchup(game, cardMap, isReplaying);
+    /* Who's up for each club, for the box score tables to mark (see `LineupUpContext`). */
+    const lineup = useMemo(() => lineupUp(game, plays), [game, plays]);
     const cornerCard = (side: "pitcher" | "hitter") => matchup && (
         <MatchupSide
             side={matchup[side]}
@@ -212,12 +250,13 @@ export default function GameStage({
     );
 
     return (
+        <LineupUpContext.Provider value={lineup}>
         <div className={`flex flex-col tall:h-[calc(100dvh-2.5rem)] overflow-hidden ${className ?? ''}`}>
             <div
-                className={`relative z-50 px-4 py-2 border-b border-(--divider) shrink-0 flex items-center gap-3 ${modeBarColor ? '' : 'bg-(--background-primary)'}`}
+                className={`relative z-50 px-4 py-1 border-b border-(--divider) shrink-0 flex items-center gap-3 ${modeBarColor ? '' : 'bg-(--background-primary)'}`}
                 style={modeBarColor ? { backgroundColor: modeBarColor } : undefined}
             >
-                <BackButton onBack={onBack} />
+                <BackButton onBack={onBack} className="py-1" />
                 <div className="flex items-center gap-2">
                     <Heading level="section" as="h1" className="hidden sm:inline" style={modeBarColor ? { color: bannerTokens(modeBarColor).fill } : undefined}>{title}</Heading>
                     {titleAccessory}
@@ -228,38 +267,34 @@ export default function GameStage({
                 </div>
             </div>
 
-            {/* The board always shows, so the situation never leaves the screen: above the rail on a
-                phone, beside it from `md` up. Measured rather than breakpointed, since the sidebar
-                takes a varying share of the width. */}
+            {/* A phone's tabs sit right under the top bar, where they're easy to find, and each one
+                takes the whole page: the field, or the plays, box score or info instead of it. */}
+            {!isSideRail && (
+                <div className="shrink-0 border-b border-(--divider) bg-(--background-primary)">
+                    <TabButtons tabs={phoneTabs} value={isPhoneFieldShown ? 'field' : activeRailTab} onChange={selectPhoneTab} className="px-2" fullWidth />
+                </div>
+            )}
+
+            {/* From `md` up the board and the rail sit side by side, so the situation never leaves
+                the screen. Whether the board itself is wide is measured rather than breakpointed,
+                since the sidebar takes a varying share of the width. */}
             <div ref={panesRef} className="flex min-h-0 flex-1 flex-col short:flex-none short:h-[calc(100dvh-2.5rem)] md:flex-row">
-                {/* Under a rail the user has sized, the board takes what's left and scrolls. */}
-                <div ref={boardRef} className={`relative scrollbar-hide md:min-w-0 md:flex-1 md:overflow-y-auto ${isRailSized && !isSideRail ? 'min-h-0 flex-1 overflow-y-auto' : 'shrink-0'}`}>
+                <div ref={boardRef} className={`relative min-h-0 flex-1 overflow-y-auto scrollbar-hide md:min-w-0 ${showsBoard ? '' : 'hidden'}`}>
                     <GameBoard
                         isWide={isWideBoard}
-                        track={isWideBoard
-                            ? <GameScoreTrack game={game} />
-                            : <ScoreHeader game={headerView} compact centerAction={recapToggle} />}
+                        track={
+                            <ScoreboardIsland content={islandContent} contentKey={islandKey}>
+                                {isWideBoard
+                                    ? <GameScoreTrack game={headerView} centerAction={recapToggle} />
+                                    : <ScoreHeader game={headerView} compact centerAction={recapToggle} />}
+                            </ScoreboardIsland>
+                        }
                         field={field}
                         overlay={recap}
                         footer={playbackBar && <div className={isWideBoard ? '' : 'mx-2'}>{playbackBar}</div>}
-                        actions={boardActions && <div className={isWideBoard ? '' : 'mx-2'}>{boardActions}</div>}
                         isFieldExpanded={isFieldExpanded}
-                        topLeft={
-                            <BoardStatePanel game={headerView} action={recapToggle}>
-                                {game.situation?.defense && (
-                                    <DefenseSummary
-                                        defense={game.situation.defense}
-                                        cardMap={cardMap}
-                                        expanded={isFieldExpanded}
-                                        onToggleExpanded={() => setIsFieldExpanded((expanded) => !expanded)}
-                                    />
-                                )}
-                            </BoardStatePanel>
-                        }
-                        topRight={<DueUpPanel situation={game.situation} />}
                         bottomLeft={cornerCard("pitcher")}
                         bottomRight={cornerCard("hitter")}
-                        center={<SituationPanel game={game} lastPlay={plays[0]} />}
                         bottomSpan={matchup ? undefined : preGamePanel}
                         below={
                             <>
@@ -281,13 +316,17 @@ export default function GameStage({
                 </div>
 
                 <div
-                    className={`relative flex min-h-0 min-w-0 flex-col border-t border-(--divider) bg-(--background-primary) md:w-80 md:flex-none md:border-l md:border-t-0 xl:w-90 ${isRailSized ? 'flex-none' : 'flex-1'}`}
-                    style={railResize.size === null ? undefined : isSideRail ? { width: railResize.size } : { height: railResize.size }}
+                    className={`relative min-h-0 min-w-0 flex-1 flex-col bg-(--background-primary) md:w-80 md:flex-none md:border-l md:border-(--divider) xl:w-90 ${showsRail ? 'flex' : 'hidden'}`}
+                    style={isSideRail && railResize.size !== null ? { width: railResize.size } : undefined}
                 >
-                    <ResizeHandle {...railResize.handleProps} label="Resize plays and box score" showGrip={!isSideRail} />
-                    <div className="shrink-0">
-                        <TabButtons tabs={railTabs} value={activeRailTab} onChange={setRailTab} className="px-2" fullWidth />
-                    </div>
+                    {isSideRail && (
+                        <>
+                            <ResizeHandle {...railResize.handleProps} label="Resize plays and box score" />
+                            <div className="shrink-0">
+                                <TabButtons tabs={railTabs} value={activeRailTab} onChange={setRailTab} className="px-2" fullWidth />
+                            </div>
+                        </>
+                    )}
 
                     {/* All three stay mounted so each keeps its scroll position across tabs. */}
                     <div className={`${RAIL_PANEL_CLASS} ${activeRailTab === 'playbyplay' ? '' : 'hidden'}`}>
@@ -327,6 +366,7 @@ export default function GameStage({
 
             {children}
         </div>
+        </LineupUpContext.Provider>
     );
 }
 

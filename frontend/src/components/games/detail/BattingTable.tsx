@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useContext, useState } from "react";
 import {
     useFloating, useHover, useInteractions, offset, flip, shift, autoUpdate, FloatingPortal
 } from "@floating-ui/react";
@@ -13,6 +13,8 @@ import CardIdentityCell from "../../cards/card_elements/CardIdentityCell";
 import { CAPS_LABEL_CLASS } from "../../shared/fieldStyles";
 import TablePointsSummary from "./TablePointsSummary";
 import TeamTableHeader from "./TeamTableHeader";
+import LineupMarkPlate from "../LineupMarkPlate";
+import { LINEUP_ROW_CLASS, LineupUpContext, lineupMarkOf, type LineupMark } from "../lineupUpContext";
 import { NEUTRAL_TEAM_COLOR_SECONDARY } from '../../../functions/colors';
 
 type CardMap = Record<string, ShowdownBotCardAPIResponse>;
@@ -23,6 +25,7 @@ const cardDefenseForPosition = (card: ShowdownBotCardAPIResponse["card"] | undef
 export default function BattingTable({ team, sportId, cardMap, onCardSelect, isShowingModal, isLoadingCards, hasGameStarted }: { team: BoxscoreTeamData; sportId?: number; cardMap: CardMap; onCardSelect?: (card: ShowdownBotCardAPIResponse) => void; isShowingModal?: boolean; isLoadingCards?: boolean; hasGameStarted?: boolean }) {
     const badgeBgSecondary = team.team.secondary_color ?? NEUTRAL_TEAM_COLOR_SECONDARY;
     const hasCards = Object.keys(cardMap).length > 0;
+    const lineupUp = useContext(LineupUpContext);
 
     const sortedBatters = [...team.batting]
         .filter((b) => b.batting_order != null && b.batting_order !== "")
@@ -91,7 +94,7 @@ export default function BattingTable({ team, sportId, cardMap, onCardSelect, isS
                     </thead>
                     <tbody>
                         {sortedBatters.map((batter) => (
-                            <BatterRow key={batter.id} batter={batter} cardResponse={cardMap[cardKey(batter.id, 'H')]} onCardSelect={onCardSelect} isShowingModal={isShowingModal} isLoadingCards={isLoadingCards} />
+                            <BatterRow key={batter.id} batter={batter} mark={lineupMarkOf(lineupUp, batter.id)} cardResponse={cardMap[cardKey(batter.id, 'H')]} onCardSelect={onCardSelect} isShowingModal={isShowingModal} isLoadingCards={isLoadingCards} />
                         ))}
                         {sortedBatters.length === 0 && (
                             <tr>
@@ -118,7 +121,7 @@ export default function BattingTable({ team, sportId, cardMap, onCardSelect, isS
     );
 }
 
-function BatterRow({ batter, cardResponse, onCardSelect, isShowingModal, isLoadingCards }: { batter: BoxscoreBatter; cardResponse?: ShowdownBotCardAPIResponse; onCardSelect?: (card: ShowdownBotCardAPIResponse) => void; isShowingModal?: boolean; isLoadingCards?: boolean }) {
+function BatterRow({ batter, mark, cardResponse, onCardSelect, isShowingModal, isLoadingCards }: { batter: BoxscoreBatter; mark?: LineupMark; cardResponse?: ShowdownBotCardAPIResponse; onCardSelect?: (card: ShowdownBotCardAPIResponse) => void; isShowingModal?: boolean; isLoadingCards?: boolean }) {
     const [isOpen, setIsOpen] = useState(false);
     const isSmallScreen = useIsSmallScreen();
     const { refs, floatingStyles, context } = useFloating({
@@ -139,6 +142,7 @@ function BatterRow({ batter, cardResponse, onCardSelect, isShowingModal, isLoadi
         <tr
             className={`
                 border-b border-(--divider)/50 hover:bg-(--background-tertiary)
+                ${mark ? LINEUP_ROW_CLASS[mark] : ''}
                 ${cardResponse ? 'cursor-pointer' : ''}
             `}
             onClick={cardResponse ? () => onCardSelect?.(cardResponse) : undefined}
@@ -155,6 +159,7 @@ function BatterRow({ batter, cardResponse, onCardSelect, isShowingModal, isLoadi
                         isPitcher={card?.chart.is_pitcher} primaryColor={card?.image.color_primary} secondaryColor={card?.image.color_secondary}
                         command={card?.chart.command} team={card?.team} set={card?.set} points={card?.points} positionsAndDefense={card?.positions_and_defense}
                         ptsChange={cardResponse?.in_season_trends?.pts_change.day} isLoadingCard={isLoadingCards && !cardResponse}
+                        nameAccessory={<LineupMarkPlate mark={mark} />}
                     />
             </td>
             <td className="px-2 py-1.5 text-right text-(--text-primary)">{batter.stats.at_bats}</td>

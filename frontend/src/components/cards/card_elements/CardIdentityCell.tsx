@@ -1,3 +1,5 @@
+import type { ReactNode } from "react";
+
 import CardCommand from "./CardCommand";
 import PointsBadge from "./PointsBadge";
 import { defenseAtPosition } from "../../shared/DefenseUtils";
@@ -24,12 +26,14 @@ type CardIdentityCellProps = {
     points?: number;
     ptsChange?: number | null;
     positionsAndDefense?: Record<string, number> | null;
+    /** Beside the name, e.g. the AB plate on the batter at the plate. */
+    nameAccessory?: ReactNode;
 };
 
 export default function CardIdentityCell({
     name, position, isLoadingCard, hasCard = false,
     isPitcher, primaryColor, secondaryColor, command, team, set,
-    points, ptsChange, positionsAndDefense,
+    points, ptsChange, positionsAndDefense, nameAccessory,
 }: CardIdentityCellProps) {
     const defense = defenseAtPosition(positionsAndDefense, position);
     const pointsStyle = secondaryColor ? cardSecondaryStyle(secondaryColor, team, set) : undefined;
@@ -49,7 +53,10 @@ export default function CardIdentityCell({
                 />
             )}
             <div className="space-y-0.5">
-                <div className="font-semibold text-(--primary) text-[11px] text-nowrap">{name}</div>
+                <div className="flex items-center gap-1.5 font-semibold text-(--primary) text-[11px] text-nowrap">
+                    {name}
+                    {nameAccessory}
+                </div>
                 <div className="flex items-center gap-1">
                     {isLoadingCard && <div className="h-4 w-10 rounded-plate bg-(--background-tertiary) animate-pulse" />}
                     {hasCard && points != null && <PointsBadge points={points} bg_color={pointsStyle?.backgroundColor} textColor={pointsStyle?.color} />}

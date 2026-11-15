@@ -37,8 +37,6 @@ export function TeamBadge({ team, className = "" }: { team: GameSide["team"]; cl
 
 export default function ScoreHeader({ game, className = "", compact = false, centerAction }: ScoreHeaderProps) {
     const { away, home } = game;
-    const situation = game.situation;
-    const isInProgress = game.state === "LIVE";
 
     const awayCode = away.team.countryCode;
     const homeCode = home.team.countryCode;
@@ -48,11 +46,7 @@ export default function ScoreHeader({ game, className = "", compact = false, cen
     const awayRuns = away.score ?? 0;
     const homeRuns = home.score ?? 0;
 
-    const inningHalf = situation?.isTop ? "Top" : "Bot";
-    const inningStr = situation?.inningLabel ? `${inningHalf} ${situation.inningLabel}` : "";
 
-    const hasCount = situation?.balls != null && situation?.strikes != null;
-    const bases = { first: situation?.bases.first ?? null, second: situation?.bases.second ?? null, third: situation?.bases.third ?? null };
 
     const flagEm = compact ? '1.1em' : '1.5em';
     const badgeSize = compact ? "w-8 h-8 text-xs" : "w-10 h-10 text-sm";
@@ -82,28 +76,7 @@ export default function ScoreHeader({ game, className = "", compact = false, cen
                 </div>
 
                 {/* Center: game state, count and bases — the situational info, not the score */}
-                <div className={`flex flex-col items-center ${compact ? "gap-1.5" : "gap-2"}`}>
-                    <GameStatePlate
-                        state={game.state}
-                        detailedState={game.detailedState}
-                        liveDetail={inningStr || undefined}
-                        size={compact ? 'sm' : 'md'}
-                    />
-
-                    {!isInProgress && centerAction}
-
-                    {isInProgress && (
-                        <div className={`flex items-center ${compact ? "gap-2.5" : "gap-3"}`}>
-                            {hasCount && (
-                                <div className="text-center">
-                                    <div className={`${CAPS_LABEL_CLASS} text-(--text-primary)`}>Count</div>
-                                    <div className={`font-display-upright leading-none tabular-nums text-(--text-primary) ${compact ? "text-[15px]" : "text-[18px]"}`}>{situation?.balls}–{situation?.strikes}</div>
-                                </div>
-                            )}
-                            <BasesDiamond bases={bases} outs={situation?.outs} size={compact ? 30 : "sm"} />
-                        </div>
-                    )}
-                </div>
+                <ScoreSituation game={game} compact={compact} centerAction={centerAction} />
 
                 {/* Home team - right aligned, mirrored: score then badge so the abbreviation
                     anchors the outer edge same as away's */}
@@ -123,6 +96,42 @@ export default function ScoreHeader({ game, className = "", compact = false, cen
                     )}
                 </div>
             </div>
+        </div>
+    );
+}
+
+/** The scoreboard's middle: the game state and inning, then the count (an MLB feed only) and the
+ *  bases with the outs under them while the game is on. `centerAction` takes their place once it
+ *  isn't, e.g. the Recap / Field toggle. Shared by `ScoreHeader` and the wide board's score track. */
+export function ScoreSituation({ game, compact = false, centerAction }: { game: GameView; compact?: boolean; centerAction?: ReactNode }) {
+    const situation = game.situation;
+    const isInProgress = game.state === "LIVE";
+    const inningStr = situation?.inningLabel ? `${situation.isTop ? "Top" : "Bot"} ${situation.inningLabel}` : "";
+    const hasCount = situation?.balls != null && situation?.strikes != null;
+    const bases = { first: situation?.bases.first ?? null, second: situation?.bases.second ?? null, third: situation?.bases.third ?? null };
+
+    return (
+        <div className={`flex flex-col items-center ${compact ? "gap-1.5" : "gap-2"}`}>
+            <GameStatePlate
+                state={game.state}
+                detailedState={game.detailedState}
+                liveDetail={inningStr || undefined}
+                size={compact ? 'sm' : 'md'}
+            />
+
+            {!isInProgress && centerAction}
+
+            {isInProgress && (
+                <div className={`flex items-center ${compact ? "gap-2.5" : "gap-3"}`}>
+                    {hasCount && (
+                        <div className="text-center">
+                            <div className={`${CAPS_LABEL_CLASS} text-(--text-primary)`}>Count</div>
+                            <div className={`font-display-upright leading-none tabular-nums text-(--text-primary) ${compact ? "text-[15px]" : "text-[18px]"}`}>{situation?.balls}–{situation?.strikes}</div>
+                        </div>
+                    )}
+                    <BasesDiamond bases={bases} outs={situation?.outs} size={compact ? 30 : "sm"} />
+                </div>
+            )}
         </div>
     );
 }

@@ -1,19 +1,80 @@
 /**
  * @fileoverview The current pitcher-vs-batter spotlight: the roll about to happen. Shows both
  * cards with the Showdown advantage split between them. A wide game board gives each card a corner
- * through `MatchupSide`; a narrow one uses `GameMatchup`, a row of compact cards with the winner of
- * a sim roll lifted to a full card so its chart can show where the swing landed.
+ * through `MatchupSide`; a narrow one uses `GameMatchup`, the same full cards side by side when two
+ * fit and stacked when they don't, so the chart is always there to show where a swing landed. Under
+ * them, the rest of the batting club's order as it comes up, fading the further off each hitter is.
  */
+import { useIsWiderThan } from "../../hooks/useIsWiderThan";
 import type { GameView } from "../../domain/game";
 import type { ShowdownBotCardAPIResponse } from "../../api/showdownBotCard";
 import { CardItemFromCard, CardItemSkeleton } from "../cards/CardItem";
 import type { AdvantageSide } from "../../domain/play";
-import { CardItemCompactFromCard } from "../cards/CardItemCompact";
+import { CardItemCompactFromCard, CardItemCompactSkeleton } from "../cards/CardItemCompact";
+import { hittersAfter } from "../../domain/lineup";
+import { resolveCardKey } from "../../domain/players";
 import { CAPS_LABEL_CLASS } from "../shared/fieldStyles";
 import { BOARD_PANEL_CLASS } from "./boardStyles";
 import { resolveMatchup, type MatchupSideData } from "./resolveMatchup";
 
 type CardMap = Record<string, ShowdownBotCardAPIResponse>;
+
+/** The on-deck hitter shows nearly in full; each one after fades a step further, down to a floor. */
+const UP_NEXT_FADE = ["opacity-90", "opacity-75", "opacity-60"] as const;
+const UP_NEXT_FADE_FLOOR = "opacity-45";
+
+/** The batting club's order after the hitter at the plate, back around to him: who's on deck, in
+ *  the hole and beyond. Falls back to the feed's on-deck and in-hole names when there's no box
+ *  score to read the order from. */
+function UpNext({ game, cardMap, isLoadingCards, onCardSelect }: {
+    game: GameView;
+    cardMap: CardMap;
+    isLoadingCards?: boolean;
+    onCardSelect?: (card: ShowdownBotCardAPIResponse) => void;
+}) {
+    const situation = game.situation;
+    if (!situation) return null;
+    const batting = (situation.isTop ? game.away : game.home).boxscore?.batting ?? [];
+    const upcoming = hittersAfter(batting, situation.batter?.id, 8);
+
+    if (upcoming.length === 0) {
+        const { onDeck, inHole } = situation;
+        if (!onDeck && !inHole) return null;
+        return (
+            <div className={`${BOARD_PANEL_CLASS} flex flex-wrap items-center gap-x-4 px-2 py-0.5 text-[11px]`}>
+                {onDeck && <span className="text-(--secondary)"><span className={CAPS_LABEL_CLASS}>On Deck</span> {onDeck.name}</span>}
+                {inHole && <span className="text-(--secondary)"><span className={CAPS_LABEL_CLASS}>In Hole</span> {inHole.name}</span>}
+            </div>
+        );
+    }
+
+    return (
+        <div className="@container space-y-1.5 pt-2">
+            <div className={`${CAPS_LABEL_CLASS} px-0.5 text-(--text-primary)`}>Up next</div>
+            {upcoming.map(({ line, spot }, i) => {
+                const response = cardMap[resolveCardKey(line.id, "H") ?? ""];
+                return (
+                    // Faded by default; pointing at or tapping into one brings it up to full.
+                    <div key={line.id} className={`flex items-center gap-2 transition-opacity hover:opacity-100 focus-within:opacity-100 ${UP_NEXT_FADE[i] ?? UP_NEXT_FADE_FLOOR}`}>
+                        <span className="w-4 shrink-0 text-right text-[11px] font-semibold tabular-nums text-(--text-primary)">{spot}</span>
+                        <div className="min-w-0 flex-1">
+                            {response?.card ? (
+                                <CardItemCompactFromCard card={response.card} className="w-full" onClick={() => onCardSelect?.(response)} />
+                            ) : isLoadingCards ? (
+                                <CardItemCompactSkeleton />
+                            ) : (
+                                <div className="truncate px-2 py-1 text-[12px] font-semibold text-(--text-primary)">{line.name}</div>
+                            )}
+                        </div>
+                    </div>
+                );
+            })}
+        </div>
+    );
+}
+
+/** Room for two full cards side by side, charts and all. */
+const FULL_ROW_MIN_WIDTH = 600;
 
 function PointsTrend({ card }: { card?: ShowdownBotCardAPIResponse }) {
     const change = card?.in_season_trends?.pts_change.day;
@@ -27,8 +88,6 @@ function PointsTrend({ card }: { card?: ShowdownBotCardAPIResponse }) {
 
 type MatchupSideProps = {
     side: MatchupSideData;
-    /** `compact` has no chart, for a row without the width for one. */
-    variant?: "full" | "compact";
     isLoadingCards?: boolean;
     onCardSelect?: (card: ShowdownBotCardAPIResponse) => void;
     /** Replay hides the day's PTS change for the same reason as the box-score line. */
@@ -39,9 +98,8 @@ type MatchupSideProps = {
     chartHighlight?: string;
 };
 
-export function MatchupSide({ side, variant = "full", isLoadingCards, onCardSelect, hideTrend, hasAdvantage, chartHighlight }: MatchupSideProps) {
+export function MatchupSide({ side, isLoadingCards, onCardSelect, hideTrend, hasAdvantage, chartHighlight }: MatchupSideProps) {
     const { label, player, response, summary, advantagePct } = side;
-    const isCompact = variant === "compact";
     // A finished game's last frame has a pitcher but no one left to bat.
     if (!player) return null;
 
@@ -55,23 +113,17 @@ export function MatchupSide({ side, variant = "full", isLoadingCards, onCardSele
                 </div>
                 {advantagePct != null && (
                     <div className="text-[11px] font-semibold text-(--text-primary) text-nowrap">
-                        <span className="tabular-nums text-(--text-primary)">{advantagePct}%</span>{isCompact ? " adv" : " advantage"}
+                        <span className="tabular-nums text-(--text-primary)">{advantagePct}%</span> adv
                     </div>
                 )}
             </div>
 
             {response?.card ? (
-                isCompact ? (
-                    <CardItemCompactFromCard card={response.card} className="w-full" onClick={() => onCardSelect?.(response)} hasAdvantage={hasAdvantage} />
-                ) : (
-                    <CardItemFromCard card={response.card} className="w-full" onClick={() => onCardSelect?.(response)} hasAdvantage={hasAdvantage} chartHighlight={chartHighlight} />
-                )
+                <CardItemFromCard card={response.card} className="w-full" onClick={() => onCardSelect?.(response)} hasAdvantage={hasAdvantage} chartHighlight={chartHighlight} />
             ) : isLoadingCards ? (
                 <CardItemSkeleton className="w-full" />
             ) : player.name ? (
                 <div className="truncate rounded-card bg-(--background-secondary) px-2 py-1 text-sm font-semibold text-(--primary)">{player.name}</div>
-            ) : isCompact ? (
-                <CardItemCompactFromCard card={undefined} className="w-full opacity-50" />
             ) : (
                 <CardItemFromCard card={undefined} className="w-full opacity-50" />
             )}
@@ -91,34 +143,20 @@ type GameMatchupProps = {
 };
 
 export default function GameMatchup({ game, cardMap, isLoadingCards, onCardSelect, hideStatlines = false, advantage, swingResult }: GameMatchupProps) {
+    const [rowRef, isFullRow] = useIsWiderThan<HTMLDivElement>(FULL_ROW_MIN_WIDTH);
     const matchup = resolveMatchup(game, cardMap, hideStatlines);
     if (!matchup) return null;
 
     const shared = { isLoadingCards, onCardSelect, hideTrend: hideStatlines };
-    const winner = advantage ? matchup[advantage] : undefined;
-    const { onDeck, inHole } = game.situation ?? {};
 
     return (
-        <div className="relative mx-2 space-y-1.5">
-            <div className={`grid grid-cols-2 gap-2 ${winner?.response?.card ? "invisible" : ""}`}>
-                <MatchupSide {...shared} side={matchup.pitcher} variant="compact" hasAdvantage={advantage === "pitcher"} />
-                <MatchupSide {...shared} side={matchup.hitter} variant="compact" hasAdvantage={advantage === "hitter"} />
+        <div ref={rowRef} className="mx-2 space-y-1.5">
+            <div className={`grid gap-2 ${isFullRow ? "grid-cols-2" : "grid-cols-1"}`}>
+                <MatchupSide {...shared} side={matchup.pitcher} hasAdvantage={advantage === "pitcher"} chartHighlight={advantage === "pitcher" ? swingResult : undefined} />
+                <MatchupSide {...shared} side={matchup.hitter} hasAdvantage={advantage === "hitter"} chartHighlight={advantage === "hitter" ? swingResult : undefined} />
             </div>
 
-            {(onDeck || inHole) && (
-                <div className={`${BOARD_PANEL_CLASS} flex flex-wrap items-center gap-x-4 px-2 py-0.5 text-[11px]`}>
-                    {onDeck && <span className="text-(--secondary)"><span className={CAPS_LABEL_CLASS}>On Deck</span> {onDeck.name}</span>}
-                    {inHole && <span className="text-(--secondary)"><span className={CAPS_LABEL_CLASS}>In Hole</span> {inHole.name}</span>}
-                </div>
-            )}
-
-            {/* Lifted over the row and whatever sits below it, so the layout holds still through
-                the reveal. */}
-            {winner?.response?.card && (
-                <div className="absolute inset-x-0 top-0 z-20">
-                    <MatchupSide {...shared} side={winner} hasAdvantage chartHighlight={swingResult} />
-                </div>
-            )}
+            <UpNext game={game} cardMap={cardMap} isLoadingCards={isLoadingCards} onCardSelect={onCardSelect} />
         </div>
     );
 }

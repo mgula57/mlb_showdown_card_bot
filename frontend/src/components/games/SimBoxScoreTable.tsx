@@ -9,7 +9,11 @@
 import type { TeamBoxscore } from "../../domain/game";
 import { resolveCardKey } from "../../domain/players";
 import type { ShowdownBotCardAPIResponse } from "../../api/showdownBotCard";
+import { useContext } from "react";
+
 import { CAPS_LABEL_CLASS } from "../shared/fieldStyles";
+import LineupMarkPlate from "./LineupMarkPlate";
+import { LINEUP_ROW_CLASS, LineupUpContext, lineupMarkOf, type LineupMark } from "./lineupUpContext";
 
 type CardMap = Record<string, ShowdownBotCardAPIResponse>;
 
@@ -17,11 +21,12 @@ const BATTING_COLUMNS = ["AB", "R", "H", "HR", "RBI", "BB", "K"] as const;
 const PITCHING_COLUMNS = ["IP", "H", "R", "ER", "BB", "K", "HR"] as const;
 
 function NameCell({
-    id, name, detail, role, cardMap, onCardSelect,
+    id, name, detail, mark, role, cardMap, onCardSelect,
 }: {
     id: number | string;
     name: string;
     detail?: string;
+    mark?: LineupMark;
     role: "H" | "P";
     cardMap: CardMap;
     onCardSelect?: (card: ShowdownBotCardAPIResponse) => void;
@@ -38,6 +43,7 @@ function NameCell({
                 {name}
                 {detail && <span className="ml-1 font-normal text-(--text-secondary)">{detail}</span>}
             </button>
+            {mark && <span className="ml-1.5 align-middle"><LineupMarkPlate mark={mark} /></span>}
         </td>
     );
 }
@@ -51,6 +57,7 @@ export default function SimBoxScoreTable({
 }) {
     const headerClass = `py-1 px-1 text-right ${CAPS_LABEL_CLASS} text-(--text-tertiary)`;
     const cellClass = "py-1.5 px-1 text-right text-xs tabular-nums text-(--text-primary)";
+    const lineupUp = useContext(LineupUpContext);
 
     return (
         <div className="space-y-4">
@@ -67,10 +74,12 @@ export default function SimBoxScoreTable({
                         </tr>
                     </thead>
                     <tbody>
-                        {boxscore.batting.map((batter) => (
-                            <tr key={batter.id} className="border-b border-(--divider)/40">
+                        {boxscore.batting.map((batter) => {
+                            const mark = lineupMarkOf(lineupUp, batter.id);
+                            return (
+                            <tr key={batter.id} className={`border-b border-(--divider)/40 ${mark ? LINEUP_ROW_CLASS[mark] : ""}`}>
                                 <NameCell
-                                    id={batter.id} name={batter.name} detail={batter.position}
+                                    id={batter.id} name={batter.name} detail={batter.position} mark={mark}
                                     role="H" cardMap={cardMap} onCardSelect={onCardSelect}
                                 />
                                 <td className={cellClass}>{batter.atBats}</td>
@@ -81,7 +90,8 @@ export default function SimBoxScoreTable({
                                 <td className={cellClass}>{batter.baseOnBalls}</td>
                                 <td className={cellClass}>{batter.strikeOuts}</td>
                             </tr>
-                        ))}
+                            );
+                        })}
                     </tbody>
                 </table>
             </div>
