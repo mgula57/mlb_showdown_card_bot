@@ -37,6 +37,10 @@ import { ChallengeDetail } from './sim/ChallengeDetail';
 import { FaceoffView } from './faceoff/FaceoffView';
 import { RecentFaceoffsShelf } from './faceoff/RecentFaceoffsShelf';
 import { FACEOFFS_ENABLED } from '../../api/faceoff';
+import { LIVE_GAMES_ENABLED } from '../../api/liveGame';
+import { LiveGameView } from './live/LiveGameView';
+import { LiveInviteAccept } from './live/LiveInviteAccept';
+import { LiveGamesShelf } from './live/LiveGamesShelf';
 import { AdminChallengesView } from './sim/admin/AdminChallengesView';
 import { Tabs, type TabItem } from '../shared/Tabs';
 import BackButton from '../shared/BackButton';
@@ -59,7 +63,7 @@ type TeamRef =
 
 // Path segments reserved for non-"saved" team refs and other top-level Team Builder screens —
 // none of these should ever fall through to being parsed as a saved team's UUID.
-const RESERVED_TEAM_PATH_SEGMENTS = ['historical', 'asg', 'era', 'challenges', 'faceoffs', 'all', 'collections', 'admin'];
+const RESERVED_TEAM_PATH_SEGMENTS = ['historical', 'asg', 'era', 'challenges', 'faceoffs', 'live', 'play', 'all', 'collections', 'admin'];
 
 function parseTeamRef(pathname: string): TeamRef | null {
     const parts = pathname.split('/').filter(Boolean);
@@ -99,6 +103,14 @@ function parseFaceoffId(pathname: string): string | null {
     if (!FACEOFFS_ENABLED) return null;
     const parts = pathname.split('/').filter(Boolean);
     return parts[0] === 'teams' && parts[1] === 'faceoffs' && parts[2] ? parts[2] : null;
+}
+
+// A live game (/teams/live/:liveGameId) and the invite link that leads to one (/teams/play/:code)
+// have their own shareable URLs, like a Faceoff.
+function parseLiveGamePath(pathname: string, segment: 'live' | 'play'): string | null {
+    if (!LIVE_GAMES_ENABLED) return null;
+    const parts = pathname.split('/').filter(Boolean);
+    return parts[0] === 'teams' && parts[1] === segment && parts[2] ? parts[2] : null;
 }
 
 // The full "My Teams" list (with search) is its own screen at /teams/all — shareable, and the
@@ -268,6 +280,8 @@ export default function TeamBuilder() {
     const simJobId = parseSimJobId(location.pathname);
     const challengeInstanceId = parseChallengeInstanceId(location.pathname);
     const faceoffId = parseFaceoffId(location.pathname);
+    const liveGameId = parseLiveGamePath(location.pathname, 'live');
+    const inviteCode = parseLiveGamePath(location.pathname, 'play');
     const allTeamsView = isAllTeamsView(location.pathname);
     const collectionSlug = parseCollectionSlug(location.pathname);
     const eraAllView = isEraAllPath(location.pathname);
@@ -292,7 +306,7 @@ export default function TeamBuilder() {
     // Load the (lightweight) teams list lazily — only when viewing the list, so a direct
     // visit to a team URL opens the team without first loading every team.
     useEffect(() => {
-        if (teamRef || challengeInstanceId || faceoffId || listLoaded) return;
+        if (teamRef || challengeInstanceId || faceoffId || liveGameId || inviteCode || listLoaded) return;
         loadTeams();
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [location.pathname, listLoaded, token]);
@@ -580,6 +594,28 @@ export default function TeamBuilder() {
         );
     }
 
+    // A live game takes over the view the same way, as does the invite link that leads to one.
+    if (liveGameId) {
+        return (
+            <div className="flex flex-col h-full">
+                <LiveGameView key={liveGameId} liveGameId={liveGameId} token={token} onBack={() => navigate('/teams')} />
+            </div>
+        );
+    }
+    if (inviteCode) {
+        return (
+            <div className="@container w-full">
+                <LiveInviteAccept
+                    key={inviteCode}
+                    inviteCode={inviteCode}
+                    token={token}
+                    onBack={() => navigate('/teams')}
+                    onOpenGame={id => navigate('/teams/live/' + id)}
+                />
+            </div>
+        );
+    }
+
     // A curated collection's own shareable page.
     if (collectionSlug) {
         return (
@@ -838,6 +874,11 @@ export default function TeamBuilder() {
                     {!loading && token && (
                         <div className={px}>
                             <RecentSimsShelf token={token} onOpenSeason={openSeason} />
+                        </div>
+                    )}
+                    {LIVE_GAMES_ENABLED && !loading && token && (
+                        <div className={px}>
+                            <LiveGamesShelf token={token} onOpenGame={id => navigate('/teams/live/' + id)} />
                         </div>
                     )}
                     {FACEOFFS_ENABLED && !loading && token && (

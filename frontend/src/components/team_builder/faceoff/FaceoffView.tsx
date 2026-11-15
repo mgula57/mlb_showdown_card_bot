@@ -10,11 +10,9 @@ import { fetchFaceoff, fetchFaceoffCards, rematchPayload, startFaceoff, type Fac
 import type { ShowdownBotCardAPIResponse } from '../../../api/showdownBotCard';
 import { fromSimTimeline } from '../../../domain/adapters/fromSim';
 import { bannerTokens, NEUTRAL_TEAM_COLOR } from '../../../functions/colors';
-import GameBoxScoreTabs from '../../games/GameBoxScoreTabs';
 import GameDetailSkeleton from '../../games/GameDetailSkeleton';
-import GameLinescore from '../../games/GameLinescore';
 import GameStage, { SimTopBarControls } from '../../games/GameStage';
-import SimBoxScoreTable from '../../games/SimBoxScoreTable';
+import SimBoxScorePanels from '../../games/SimBoxScorePanels';
 import TimelinePlayback from '../../games/TimelinePlayback';
 import { useGameStage } from '../../games/useGameStage';
 import TopBarButton from '../../games/detail/TopBarButton';
@@ -84,21 +82,7 @@ function FaceoffReplay({ faceoffId, entry, cardMap, isLoadingCards, onBack, onRe
                             />
                         </>
                     }
-                    boxScorePanels={
-                        <div className="@container space-y-4">
-                            <GameLinescore game={activeView} />
-                            <GameBoxScoreTabs
-                                awayLabel={activeView.away.team.abbreviation}
-                                homeLabel={activeView.home.team.abbreviation}
-                                renderSide={(side) => {
-                                    const boxscore = activeView[side].boxscore;
-                                    return boxscore
-                                        ? <SimBoxScoreTable boxscore={boxscore} cardMap={cardMap} onCardSelect={stage.setSelectedCard} />
-                                        : null;
-                                }}
-                            />
-                        </div>
-                    }
+                    boxScorePanels={<SimBoxScorePanels game={activeView} cardMap={cardMap} onCardSelect={stage.setSelectedCard} />}
                 />
             )}
         </TimelinePlayback>

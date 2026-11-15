@@ -1,48 +1,19 @@
 /**
  * @fileoverview The current pitcher-vs-batter spotlight: the roll about to happen. Shows both
- * cards, the Showdown advantage split between them, and the live count.
- *
- * The count is MLB-only — a sim plate appearance is one pitch roll plus one swing roll, with no
- * ball/strike state to show — so when `balls`/`strikes` are absent this falls back to the most
- * recent play's rolls, which is the equivalent "what just happened" readout for a sim game.
+ * cards with the Showdown advantage split between them. A wide game board gives each card a corner
+ * through `MatchupSide`; a narrow one uses `GameMatchup`, a row of compact cards with the winner of
+ * a sim roll lifted to a full card so its chart can show where the swing landed.
  */
-import type { GameView, PlayerRef } from "../../domain/game";
-import { resolveCardKey } from "../../domain/players";
+import type { GameView } from "../../domain/game";
 import type { ShowdownBotCardAPIResponse } from "../../api/showdownBotCard";
 import { CardItemFromCard, CardItemSkeleton } from "../cards/CardItem";
 import type { AdvantageSide } from "../../domain/play";
 import { CardItemCompactFromCard } from "../cards/CardItemCompact";
 import { CAPS_LABEL_CLASS } from "../shared/fieldStyles";
+import { BOARD_PANEL_CLASS } from "./boardStyles";
+import { resolveMatchup, type MatchupSideData } from "./resolveMatchup";
 
 type CardMap = Record<string, ShowdownBotCardAPIResponse>;
-
-type GameMatchupProps = {
-    game: GameView;
-    cardMap: CardMap;
-    isLoadingCards?: boolean;
-    onCardSelect?: (card: ShowdownBotCardAPIResponse) => void;
-    className?: string;
-    isCompactCards?: boolean;
-    /** Replay mode: the box-score lines ("2-for-4", "5.0 IP, 3 ER") and the day's PTS change are
-     *  frozen at the game's current/final totals, so showing them while the cursor sits at an
-     *  earlier point spoils what's still to come. Hidden then. */
-    hideStatlines?: boolean;
-    /** Sim only — which side's card to highlight as having won the advantage roll. */
-    advantage?: AdvantageSide;
-    /** Sim only — the chart result the swing landed on; lit up on the advantage card's chart
-     *  (the chart the swing was rolled against). */
-    swingResult?: string;
-};
-
-/**
- * Share of d20 rolls that leave the pitcher with the advantage. A Showdown plate appearance
- * gives the hitter the advantage when `control + roll <= onbase`, so the pitcher keeps it on
- * `20 - (onbase - control)` of the twenty faces.
- */
-const pitcherAdvantagePct = (control: number, onbase: number): number => {
-    const favorable = 20 - (onbase - control);
-    return Math.round((Math.max(0, Math.min(20, favorable)) / 20) * 100);
-};
 
 function PointsTrend({ card }: { card?: ShowdownBotCardAPIResponse }) {
     const change = card?.in_season_trends?.pts_change.day;
@@ -54,35 +25,39 @@ function PointsTrend({ card }: { card?: ShowdownBotCardAPIResponse }) {
     );
 }
 
-function MatchupSide({
-    label, player, response, summary, advantage, isLoadingCards, isCompact, onCardSelect, hideTrend, hasAdvantage, chartHighlight,
-}: {
-    label: string;
-    player?: PlayerRef;
-    response?: ShowdownBotCardAPIResponse;
-    summary?: string;
-    advantage?: number;
+type MatchupSideProps = {
+    side: MatchupSideData;
+    /** `compact` has no chart, for a row without the width for one. */
+    variant?: "full" | "compact";
     isLoadingCards?: boolean;
-    isCompact?: boolean;
     onCardSelect?: (card: ShowdownBotCardAPIResponse) => void;
+    /** Replay hides the day's PTS change for the same reason as the box-score line. */
     hideTrend?: boolean;
+    /** Sim only: this side won the advantage roll. */
     hasAdvantage?: boolean;
+    /** Sim only: the chart result the swing landed on, lit up on the winning card. */
     chartHighlight?: string;
-}) {
+};
+
+export function MatchupSide({ side, variant = "full", isLoadingCards, onCardSelect, hideTrend, hasAdvantage, chartHighlight }: MatchupSideProps) {
+    const { label, player, response, summary, advantagePct } = side;
+    const isCompact = variant === "compact";
+    // A finished game's last frame has a pitcher but no one left to bat.
+    if (!player) return null;
+
     return (
-        <div className="min-w-0 space-y-1.5">
-            <div className="flex w-full items-baseline justify-between gap-1.5">
+        <div className="min-w-0 space-y-1">
+            <div className={`${BOARD_PANEL_CLASS} flex items-center justify-between gap-1.5 px-2 py-0.5`}>
                 <div className="flex min-w-0 items-center gap-2">
-                    <span className={`${CAPS_LABEL_CLASS} text-(--text-tertiary)`}>{label}</span>
-                    {summary && <span className="truncate text-[11px] tabular-nums text-(--text-secondary)">{summary}</span>}
+                    <span className={`${CAPS_LABEL_CLASS} text-(--text-primary)`}>{label}</span>
+                    {summary && <span className="truncate text-[11px] tabular-nums text-(--text-primary)">{summary}</span>}
                     {!hideTrend && <PointsTrend card={response} />}
                 </div>
-                {advantage != null && (
-                    <div className="text-[11px] font-semibold text-(--text-tertiary) text-nowrap">
-                        <span className="tabular-nums text-(--text-primary)">{advantage}%</span> advantage
+                {advantagePct != null && (
+                    <div className="text-[11px] font-semibold text-(--text-primary) text-nowrap">
+                        <span className="tabular-nums text-(--text-primary)">{advantagePct}%</span>{isCompact ? " adv" : " advantage"}
                     </div>
                 )}
-                
             </div>
 
             {response?.card ? (
@@ -93,88 +68,55 @@ function MatchupSide({
                 )
             ) : isLoadingCards ? (
                 <CardItemSkeleton className="w-full" />
-            ) : player?.name ? (
-                <div className="truncate text-sm font-semibold text-(--primary)">{player.name}</div>
+            ) : player.name ? (
+                <div className="truncate rounded-card bg-(--background-secondary) px-2 py-1 text-sm font-semibold text-(--primary)">{player.name}</div>
+            ) : isCompact ? (
+                <CardItemCompactFromCard card={undefined} className="w-full opacity-50" />
             ) : (
-                isCompact ? (
-                    <CardItemCompactFromCard card={undefined} className="w-full opacity-50" />
-                ) : (
-                    <CardItemFromCard card={undefined} className="w-full opacity-50" />
-                )
+                <CardItemFromCard card={undefined} className="w-full opacity-50" />
             )}
-
-            
         </div>
     );
 }
 
-export default function GameMatchup({ game, cardMap, isLoadingCards, onCardSelect, className = "", isCompactCards = false, hideStatlines = false, advantage: advantageSide, swingResult }: GameMatchupProps) {
-    const situation = game.situation;
-    if (!situation) return null;
+type GameMatchupProps = {
+    game: GameView;
+    cardMap: CardMap;
+    isLoadingCards?: boolean;
+    onCardSelect?: (card: ShowdownBotCardAPIResponse) => void;
+    /** See `resolveMatchup`. */
+    hideStatlines?: boolean;
+    advantage?: AdvantageSide;
+    swingResult?: string;
+};
 
-    const { batter, pitcher } = situation;
-    const batterResponse = cardMap[resolveCardKey(batter?.id, "H") ?? ""];
-    const pitcherResponse = cardMap[resolveCardKey(pitcher?.id, "P") ?? ""];
+export default function GameMatchup({ game, cardMap, isLoadingCards, onCardSelect, hideStatlines = false, advantage, swingResult }: GameMatchupProps) {
+    const matchup = resolveMatchup(game, cardMap, hideStatlines);
+    if (!matchup) return null;
 
-    // Box score lines give each side's day so far ("2-for-4", "5.0 IP, 3 ER") — a spoiler in
-    // replay mode, where they're frozen at the game's current/final totals (see `hideStatlines`).
-    const battingSide = situation.isTop ? game.away : game.home;
-    const fieldingSide = situation.isTop ? game.home : game.away;
-    const batterSummary = hideStatlines ? undefined : battingSide.boxscore?.batting.find((line) => line.id === batter?.id)?.summary;
-    const pitcherSummary = hideStatlines ? undefined : fieldingSide.boxscore?.pitching.find((line) => line.id === pitcher?.id)?.summary;
-
-    const control = pitcherResponse?.card?.chart.command;
-    const onbase = batterResponse?.card?.chart.command;
-    const pitcherAdvantage = control != null && onbase != null ? pitcherAdvantagePct(control, onbase) : undefined;
+    const shared = { isLoadingCards, onCardSelect, hideTrend: hideStatlines };
+    const winner = advantage ? matchup[advantage] : undefined;
+    const { onDeck, inHole } = game.situation ?? {};
 
     return (
-        <div className={`@container rounded-card border border-(--divider) bg-(--background-secondary)/30 mx-2 p-4 ${className}`}>
-            <div 
-                className={`
-                    ${isCompactCards ? "grid grid-cols-2" : "grid grid-cols-1 @[600px]:grid-cols-2 "}
-                    items-start gap-3 sm:gap-3
-                `}>
-                    <MatchupSide
-                        label="Pitching"
-                        player={pitcher}
-                        response={pitcherResponse}
-                        summary={pitcherSummary}
-                        advantage={pitcherAdvantage}
-                        hasAdvantage={advantageSide === "pitcher"}
-                        chartHighlight={advantageSide === "pitcher" ? swingResult : undefined}
-                        isLoadingCards={isLoadingCards}
-                        onCardSelect={onCardSelect}
-                        isCompact={isCompactCards}
-                        hideTrend={hideStatlines}
-                    />
-
-                    <MatchupSide
-                        label="At Bat"
-                        player={batter}
-                        response={batterResponse}
-                        summary={batterSummary}
-                        advantage={pitcherAdvantage != null ? 100 - pitcherAdvantage : undefined}
-                        hasAdvantage={advantageSide === "hitter"}
-                        chartHighlight={advantageSide === "hitter" ? swingResult : undefined}
-                        isLoadingCards={isLoadingCards}
-                        onCardSelect={onCardSelect}
-                        isCompact={isCompactCards}
-                        hideTrend={hideStatlines}
-                    />
+        <div className="relative mx-2 space-y-1.5">
+            <div className={`grid grid-cols-2 gap-2 ${winner?.response?.card ? "invisible" : ""}`}>
+                <MatchupSide {...shared} side={matchup.pitcher} variant="compact" hasAdvantage={advantage === "pitcher"} />
+                <MatchupSide {...shared} side={matchup.hitter} variant="compact" hasAdvantage={advantage === "hitter"} />
             </div>
 
-            {(situation.onDeck || situation.inHole) && (
-                <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 border-t border-(--divider) pt-2 text-[11px]">
-                    {situation.onDeck && (
-                        <span className="text-(--secondary)">
-                            <span className={CAPS_LABEL_CLASS}>On Deck</span> {situation.onDeck.name}
-                        </span>
-                    )}
-                    {situation.inHole && (
-                        <span className="text-(--secondary)">
-                            <span className={CAPS_LABEL_CLASS}>In Hole</span> {situation.inHole.name}
-                        </span>
-                    )}
+            {(onDeck || inHole) && (
+                <div className={`${BOARD_PANEL_CLASS} flex flex-wrap items-center gap-x-4 px-2 py-0.5 text-[11px]`}>
+                    {onDeck && <span className="text-(--secondary)"><span className={CAPS_LABEL_CLASS}>On Deck</span> {onDeck.name}</span>}
+                    {inHole && <span className="text-(--secondary)"><span className={CAPS_LABEL_CLASS}>In Hole</span> {inHole.name}</span>}
+                </div>
+            )}
+
+            {/* Lifted over the row and whatever sits below it, so the layout holds still through
+                the reveal. */}
+            {winner?.response?.card && (
+                <div className="absolute inset-x-0 top-0 z-20">
+                    <MatchupSide {...shared} side={winner} hasAdvantage chartHighlight={swingResult} />
                 </div>
             )}
         </div>

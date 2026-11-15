@@ -194,6 +194,12 @@ class SimPitcher(SimPlayer):
     def innings_pitched(self, inning) -> float:
         return (self.end_inning or inning.inning_num_full) - (self.start_inning or 0)
 
+    def fatigue_penalty(self, inning) -> int:
+        """Control lost to fatigue: 1 for each full inning pitched past his IP, as the tabletop
+        game plays it. Only a club a person manages pays it (`GameController.applies_fatigue`),
+        since the sim's own manager pulls a tired pitcher before it matters."""
+        return max(0, int(self.innings_pitched(inning) - self.ip))
+
     def is_tired(self, inning, ip_adjustment: float = 0.0, rng: Optional[Random] = None) -> bool:
         """Args:
           ip_adjustment: Innings added to the fatigue threshold by the manager's bullpen hook.

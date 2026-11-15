@@ -1,42 +1,60 @@
 /**
- * @fileoverview The game screen's layout: top bar, scoreboard, field, recap, matchup, box score and
- * play-by-play, across the mobile / two-column / three-column breakpoints. Purely presentational over
- * the current playback frame, so any host with a `GameTimeline` can use it. What differs between
- * hosts arrives as slots: the box score panel, the top bar's controls and anything under the bar.
+ * @fileoverview The game screen's layout: the top bar, the `GameBoard` and a rail of tabs holding
+ * the play-by-play, box score and game info. Purely presentational over the current playback frame,
+ * so any host with a `GameTimeline` can use it. What differs between hosts arrives as slots: the
+ * box score panel, the top bar's controls and anything under the bar.
  */
-import type { CSSProperties, Key, ReactNode } from "react";
-import { FaList, FaRing, FaTable } from "react-icons/fa";
+import { useRef, type Key, type ReactNode } from "react";
+import { FaRing } from "react-icons/fa";
 import { FaStar } from "react-icons/fa6";
 
 import type { ShowdownBotCardAPIResponse } from "../../api/showdownBotCard";
 import { bannerTokens } from "../../functions/colors";
 import type { GameView } from "../../domain/game";
-import { advantageSideOf, type PlayEntry } from "../../domain/play";
+import { advantageSideOf, type AdvantageSide, type PlayEntry } from "../../domain/play";
 import type { GamePlaybackControls, GamePlaybackState } from "../../hooks/useGamePlayback";
+import { useIsWiderThan } from "../../hooks/useIsWiderThan";
+import { useMediaQuery } from "../../hooks/useMediaQuery";
+import { useResizablePanel } from "../../hooks/useResizablePanel";
 import { CardDetail } from "../cards/CardDetail";
 import BackButton from "../shared/BackButton";
 import { Heading } from "../shared/Heading";
 import { Modal } from "../shared/Modal";
+import { ResizeHandle } from "../shared/ResizeHandle";
 import { Tabs as TabButtons, type TabItem } from "../shared/Tabs";
 import { buttonVariantClass } from "../shared/buttonStyles";
-import GameField from "./GameField";
-import GameMatchup from "./GameMatchup";
+import GameBoard from "./GameBoard";
+import { BoardStatePanel, DueUpPanel, GameScoreTrack, SituationPanel } from "./GameBoardPanels";
+import GameField, { DefenseSummary, type RollPrompt } from "./GameField";
+import GameLinescore from "./GameLinescore";
+import GameMatchup, { MatchupSide } from "./GameMatchup";
 import PlayByPlayLog from "./PlayByPlayLog";
+import { resolveMatchup } from "./resolveMatchup";
 import GameFinalSummary from "./detail/GameFinalSummary";
 import ScoreHeader from "./detail/ScoreHeader";
 import TopBarButton from "./detail/TopBarButton";
-import type { GameStageState, MidTab, MobileTab } from "./useGameStage";
+import type { GameStageState, RailTab } from "./useGameStage";
 
-const MOBILE_TABS: TabItem<MobileTab>[] = [
-    { id: 'field', label: 'Field View', icon: <FaRing />},
-    { id: 'boxscore', label: 'Boxscore', icon: <FaTable /> },
-    { id: 'playbyplay', label: 'Play By Play', icon: <FaList /> },
+const RAIL_TABS: TabItem<RailTab>[] = [
+    { id: 'playbyplay', label: 'Plays' },
+    { id: 'boxscore', label: 'Box Score' },
+    { id: 'info', label: 'Info' },
 ];
 
-const MID_TABS = MOBILE_TABS.filter((tab): tab is TabItem<MidTab> => tab.id !== 'field');
+/** Room for two full cards along the bottom edge. Narrower than this the board stacks. */
+const WIDE_BOARD_MIN_WIDTH = 736;
 
-const GRASS_MASK = 'linear-gradient(to bottom, transparent 0%, black 20%, black 80%, transparent 100%)';
-const GRASS_MASK_STYLE: CSSProperties = { maskImage: GRASS_MASK, WebkitMaskImage: GRASS_MASK };
+/** The rail sits beside the board from `md` up (resized by its width) and under it below that
+ *  (resized by its height). Either way the board keeps enough room to stay usable. */
+const SIDE_RAIL_QUERY = '(width >= 48rem)';
+const RAIL_MIN_WIDTH = 288;
+const RAIL_MIN_HEIGHT = 160;
+const BOARD_MIN_WIDTH = 360;
+const BOARD_MIN_HEIGHT = 160;
+const railMaxWidth = (container: number) => Math.min(960, container - BOARD_MIN_WIDTH);
+const railMaxHeight = (container: number) => container - BOARD_MIN_HEIGHT;
+
+const RAIL_PANEL_CLASS = 'min-h-0 flex-1 overflow-y-auto p-4 pb-[calc(1rem+var(--safe-bottom))] scrollbar-hide';
 
 type GameStageProps = {
     stage: GameStageState;
@@ -52,7 +70,8 @@ type GameStageProps = {
     detailedState: string;
     cardMap: Record<string, ShowdownBotCardAPIResponse>;
     isLoadingCards: boolean;
-    /** A sim opens parked on the first pitch, so the field offers its big Play button. */
+    /** Opens parked on the first pitch (a sim, or a real game opened as a replay), so the field
+     *  offers its big Play button. */
     isSim: boolean;
     /** Remounts the play log when the game changes, so its scroll position doesn't carry over. */
     gameKey: Key;
@@ -65,8 +84,16 @@ type GameStageProps = {
     topBarStatus?: ReactNode;
     topBarActions?: ReactNode;
     boxScorePanels: ReactNode;
-    /** Under the transport strip, above the current matchup. */
-    belowPlaybackBar?: ReactNode;
+    /** The rail's Info tab. Left out, the tab is too. */
+    infoPanel?: ReactNode;
+    /** The player's own moves on the board (a live game's turn bar). */
+    boardActions?: ReactNode;
+    /** A live game waiting on a die: see `GameField`'s `rollPrompt`. */
+    rollPrompt?: RollPrompt;
+    /** Who won a pitch that's been rolled but not yet swung at, highlighted until the swing resolves. */
+    heldAdvantage?: AdvantageSide;
+    /** Shown on the board when no one is up yet, e.g. the probable pitchers. */
+    preGamePanel?: ReactNode;
     className?: string;
     /** Host-owned modals. */
     children?: ReactNode;
@@ -75,14 +102,24 @@ type GameStageProps = {
 export default function GameStage({
     stage, game, plays, playbackState, playbackControls, isReplaying, playbackBar, detailedState,
     cardMap, isLoadingCards, isSim, gameKey, title, titleAccessory, modeBarColor, onBack,
-    topBarStatus, topBarActions, boxScorePanels, belowPlaybackBar, className, children,
+    topBarStatus, topBarActions, boxScorePanels, infoPanel, boardActions, rollPrompt, heldAdvantage, preGamePanel, className, children,
 }: GameStageProps) {
     const {
-        selectedCard, setSelectedCard, isFieldExpanded, setIsFieldExpanded, mobileTab, setMobileTab,
-        midTab, setMidTab, simPlayStarted, setSimPlayStarted, isRecapDismissed, setIsRecapDismissed,
+        selectedCard, setSelectedCard, isFieldExpanded, setIsFieldExpanded, railTab, setRailTab,
+        simPlayStarted, setSimPlayStarted, isRecapDismissed, setIsRecapDismissed,
     } = stage;
+    const [boardRef, isWideBoard] = useIsWiderThan<HTMLDivElement>(WIDE_BOARD_MIN_WIDTH);
 
-    /* `ScoreHeader` reads `detailedState` off the `GameView` it's given, so the host's label rides
+    // The plays/box score rail can be dragged (or touched) larger, by its left edge beside the
+    // board or its top edge under it. Until then it keeps its CSS size.
+    const panesRef = useRef<HTMLDivElement>(null);
+    const isSideRail = useMediaQuery(SIDE_RAIL_QUERY);
+    const railWidth = useResizablePanel({ storageKey: 'gameRailWidthPct:v1', containerRef: panesRef, defaultSize: null, minSize: RAIL_MIN_WIDTH, maxSize: railMaxWidth });
+    const railHeight = useResizablePanel({ storageKey: 'gameRailHeightPct:v1', axis: 'y', containerRef: panesRef, defaultSize: null, minSize: RAIL_MIN_HEIGHT, maxSize: railMaxHeight });
+    const railResize = isSideRail ? railWidth : railHeight;
+    const isRailSized = railResize.size !== null;
+
+    /* `ScoreHeader` and `BoardStatePanel` read `detailedState` off the `GameView` it's given, so the host's label rides
        along on a shallow-copied view rather than as a prop. It's a no-op on every non-terminal
        playback frame — those report `state: "LIVE"`, and `ScoreHeader` only reads `detailedState`
        once state is FINAL. */
@@ -117,11 +154,65 @@ export default function GameStage({
        the play commits — before that the dice are still in the air, and after it the cursor has
        moved on to the next plate appearance. */
     const isResultRevealed = playbackState.phase === "result" || playbackState.phase === "runners" || playbackState.phase === "settle";
-    const advantage = isResultRevealed ? advantageSideOf(playbackState.pendingPlay) : undefined;
+    const advantage = isResultRevealed ? advantageSideOf(playbackState.pendingPlay) : playbackState.phase === "idle" ? heldAdvantage : undefined;
     const swingResult = isResultRevealed ? playbackState.pendingPlay?.roll?.swingResult : undefined;
 
+    const railTabs = infoPanel ? RAIL_TABS : RAIL_TABS.filter((tab) => tab.id !== 'info');
+    /* The Info tab can leave while it's open: a host hides it mid-replay to avoid spoilers. */
+    const activeRailTab = railTabs.some((tab) => tab.id === railTab) ? railTab : 'playbyplay';
+
+    /* Field and recap share a spot, with the field faded behind. Behind the recap the field is just
+       the diamond: no runners, batter or defense left standing on it. */
+    const field = (
+        <div className={`self-center transition-[opacity,filter] duration-500 ${showRecap ? 'opacity-40 blur-[1px] pointer-events-none' : ''}`} aria-hidden={showRecap}>
+            <GameField
+                game={showRecap ? { ...game, situation: undefined } : game}
+                cardMap={cardMap}
+                onCardSelect={setSelectedCard}
+                expanded={isFieldExpanded}
+                onToggleExpanded={() => setIsFieldExpanded((expanded) => !expanded)}
+                isLoadingCards={isLoadingCards}
+                hideDefenseSummary={isWideBoard}
+                transition={playbackState.transition}
+                pendingPlay={playbackState.pendingPlay}
+                phase={playbackState.phase}
+                lastPlay={showRecap || isWideBoard ? undefined : plays[0]}
+                advantage={advantage}
+                playbackSpeed={playbackState.effectiveSpeed}
+                rollPrompt={showRecap ? undefined : rollPrompt}
+                onPlayClick={isSim && playbackState.cursor === 0 && !simPlayStarted ? () => {
+                    setSimPlayStarted(true);
+                    playbackControls.seekToStart();
+                    playbackControls.play();
+                } : undefined}
+            />
+        </div>
+    );
+
+    const recap = showRecap ? (
+        <GameFinalSummary
+            game={game}
+            cardMap={cardMap}
+            onCardSelect={setSelectedCard}
+            isLoadingCards={isLoadingCards}
+            className="relative self-start"
+        />
+    ) : undefined;
+
+    const matchup = resolveMatchup(game, cardMap, isReplaying);
+    const cornerCard = (side: "pitcher" | "hitter") => matchup && (
+        <MatchupSide
+            side={matchup[side]}
+            isLoadingCards={isLoadingCards}
+            onCardSelect={setSelectedCard}
+            hideTrend={isReplaying}
+            hasAdvantage={advantage === side}
+            chartHighlight={advantage === side ? swingResult : undefined}
+        />
+    );
+
     return (
-        <div className={`flex flex-col md:tall:h-[calc(100dvh-2.5rem)] overflow-hidden ${className ?? ''}`}>
+        <div className={`flex flex-col tall:h-[calc(100dvh-2.5rem)] overflow-hidden ${className ?? ''}`}>
             <div
                 className={`relative z-50 px-4 py-2 border-b border-(--divider) shrink-0 flex items-center gap-3 ${modeBarColor ? '' : 'bg-(--background-primary)'}`}
                 style={modeBarColor ? { backgroundColor: modeBarColor } : undefined}
@@ -137,116 +228,69 @@ export default function GameStage({
                 </div>
             </div>
 
-            {/* Below `md`: one strip swaps between all three columns. `md`–`lg`: a 50/50 split — the
-                field pinned left, `MID_TABS` (box score / play-by-play) swapping on the right.
-                `lg`+: the strip is gone and all three columns show at once. */}
-            <div className="md:hidden shrink-0">
-                <TabButtons tabs={MOBILE_TABS} value={mobileTab} onChange={setMobileTab} className="px-2" fullWidth />
-            </div>
-
-            <div className="flex-1 min-h-0 md:grid md:grid-cols-2 md:gap-4 md:px-4 md:overflow-hidden md:short:flex-none md:short:h-[calc(100dvh-2.5rem)] lg:grid-cols-[3fr_4fr_3fr]">
-
-                {/* Spotlight column — field, playback bar and matchup. Pinned left from `md` up;
-                    `lg:order-2` slides it back to the centre once the box score gets its own column
-                    again. */}
-                <div className={`${mobileTab === 'field' ? 'block' : 'hidden'} h-full overflow-y-auto space-y-4 p-0 pb-[calc(6rem+var(--safe-bottom))] scrollbar-hide md:block md:order-1 md:py-4 md:px-0 md:min-w-0 lg:order-2`}>
-                    {/* Grass backdrop behind the scoreboard, field and matchup as one group — faded
-                        top/bottom so it blends into the page instead of a hard edge. The image is
-                        the first child with no z-index of its own, and the content wrapper below it
-                        is `relative` (so it's a positioned sibling too) — later DOM order among
-                        same-stacking-level positioned elements paints on top, with no negative
-                        z-index needed (which can end up behind an ancestor's own background instead
-                        of just this image). */}
-                    <div className="relative">
-                        <img
-                            src="/images/games/Grass Backdrop.png"
-                            alt=""
-                            className="absolute inset-0 h-full w-full object-cover pointer-events-none select-none"
-                            style={GRASS_MASK_STYLE}
-                        />
-
-                        {/* `isolate` keeps the field's own mowed-grass backdrop (painted at `-z-10`
-                            inside GameField, so it sits under the scoreboard and matchup too) above
-                            the Grass.png fill behind this group. */}
-                        <div className="relative isolate space-y-4 p-1">
-                            {/* Scoreboard bleeds over the grass on both breakpoints — compact (no
-                                records, smaller type) on mobile, full-size on desktop. */}
-                            <ScoreHeader game={headerView} compact centerAction={recapToggle} className="lg:hidden" />
-                            <div className="hidden lg:block"><ScoreHeader game={headerView} centerAction={recapToggle} /></div>
-
-                            {/* Field and recap share one grid cell, so the cell sizes to the taller
-                                of the two and the field sits faded behind the recap rather than
-                                pushing it down the column. */}
-                            <div className="grid *:col-start-1 *:row-start-1">
-                                <div className={`self-center transition-[opacity,filter] duration-500 ${showRecap ? 'opacity-40 blur-[1px] pointer-events-none' : ''}`} aria-hidden={showRecap}>
-                                    {/* Behind the recap the field is just the diamond — no runners,
-                                        batter or defense left standing on it. */}
-                                    <GameField
-                                        game={showRecap ? { ...game, situation: undefined } : game}
+            {/* The board always shows, so the situation never leaves the screen: above the rail on a
+                phone, beside it from `md` up. Measured rather than breakpointed, since the sidebar
+                takes a varying share of the width. */}
+            <div ref={panesRef} className="flex min-h-0 flex-1 flex-col short:flex-none short:h-[calc(100dvh-2.5rem)] md:flex-row">
+                {/* Under a rail the user has sized, the board takes what's left and scrolls. */}
+                <div ref={boardRef} className={`relative scrollbar-hide md:min-w-0 md:flex-1 md:overflow-y-auto ${isRailSized && !isSideRail ? 'min-h-0 flex-1 overflow-y-auto' : 'shrink-0'}`}>
+                    <GameBoard
+                        isWide={isWideBoard}
+                        track={isWideBoard
+                            ? <GameScoreTrack game={game} />
+                            : <ScoreHeader game={headerView} compact centerAction={recapToggle} />}
+                        field={field}
+                        overlay={recap}
+                        footer={playbackBar && <div className={isWideBoard ? '' : 'mx-2'}>{playbackBar}</div>}
+                        actions={boardActions && <div className={isWideBoard ? '' : 'mx-2'}>{boardActions}</div>}
+                        isFieldExpanded={isFieldExpanded}
+                        topLeft={
+                            <BoardStatePanel game={headerView} action={recapToggle}>
+                                {game.situation?.defense && (
+                                    <DefenseSummary
+                                        defense={game.situation.defense}
                                         cardMap={cardMap}
-                                        onCardSelect={setSelectedCard}
                                         expanded={isFieldExpanded}
                                         onToggleExpanded={() => setIsFieldExpanded((expanded) => !expanded)}
-                                        isLoadingCards={isLoadingCards}
-                                        showGrassBackdrop
-                                        transition={playbackState.transition}
-                                        pendingPlay={playbackState.pendingPlay}
-                                        phase={playbackState.phase}
-                                        lastPlay={showRecap ? undefined : plays[0]}
-                                        advantage={advantage}
-                                        playbackSpeed={playbackState.effectiveSpeed}
-                                        onPlayClick={isSim && playbackState.cursor === 0 && !simPlayStarted ? () => {
-                                            setSimPlayStarted(true);
-                                            playbackControls.seekToStart();
-                                            playbackControls.play();
-                                        } : undefined}
-                                    />
-                                </div>
-                                {showRecap && (
-                                    <GameFinalSummary
-                                        game={game}
-                                        cardMap={cardMap}
-                                        onCardSelect={setSelectedCard}
-                                        isLoadingCards={isLoadingCards}
-                                        className="relative self-start"
                                     />
                                 )}
-                            </div>
-
-                            {playbackBar}
-                            {belowPlaybackBar}
-
-                            {/* The last matchup of a finished game is stale once the recap is up —
-                                it already names who mattered. */}
-                            {!showRecap && (
-                                <GameMatchup
-                                    game={game}
-                                    cardMap={cardMap}
-                                    isLoadingCards={isLoadingCards}
-                                    onCardSelect={setSelectedCard}
-                                    hideStatlines={isReplaying}
-                                    advantage={advantage}
-                                    swingResult={swingResult}
-                                />
-                            )}
-                        </div>
-                    </div>
+                            </BoardStatePanel>
+                        }
+                        topRight={<DueUpPanel situation={game.situation} />}
+                        bottomLeft={cornerCard("pitcher")}
+                        bottomRight={cornerCard("hitter")}
+                        center={<SituationPanel game={game} lastPlay={plays[0]} />}
+                        bottomSpan={matchup ? undefined : preGamePanel}
+                        below={
+                            <>
+                                {preGamePanel && <div className="mx-2">{preGamePanel}</div>}
+                                {!showRecap && (
+                                    <GameMatchup
+                                        game={game}
+                                        cardMap={cardMap}
+                                        isLoadingCards={isLoadingCards}
+                                        onCardSelect={setSelectedCard}
+                                        hideStatlines={isReplaying}
+                                        advantage={advantage}
+                                        swingResult={swingResult}
+                                    />
+                                )}
+                            </>
+                        }
+                    />
                 </div>
 
-                {/* Right column — box score + play-by-play. `contents` below `md` (each panel just
-                    obeys the mobile strip); a real flex column with its own `MID_TABS` strip between
-                    `md` and `lg`; `contents` again at `lg` so both panels rejoin the outer grid as
-                    their own columns. */}
-                <div className="contents md:flex md:flex-col md:order-2 md:min-h-0 md:min-w-0 md:overflow-hidden lg:contents">
-                    <div className="hidden md:block lg:hidden shrink-0 pt-4">
-                        <TabButtons tabs={MID_TABS} value={midTab} onChange={setMidTab} fullWidth />
+                <div
+                    className={`relative flex min-h-0 min-w-0 flex-col border-t border-(--divider) bg-(--background-primary) md:w-80 md:flex-none md:border-l md:border-t-0 xl:w-90 ${isRailSized ? 'flex-none' : 'flex-1'}`}
+                    style={railResize.size === null ? undefined : isSideRail ? { width: railResize.size } : { height: railResize.size }}
+                >
+                    <ResizeHandle {...railResize.handleProps} label="Resize plays and box score" showGrip={!isSideRail} />
+                    <div className="shrink-0">
+                        <TabButtons tabs={railTabs} value={activeRailTab} onChange={setRailTab} className="px-2" fullWidth />
                     </div>
 
-                    <div className={`${mobileTab === 'boxscore' ? 'block' : 'hidden'} ${midTab === 'boxscore' ? 'md:block' : 'md:hidden'} h-full min-w-0 overflow-y-auto p-4 pb-[calc(6rem+var(--safe-bottom))] scrollbar-hide md:h-auto md:flex-1 md:min-h-0 md:py-4 md:px-0 md:pb-4 lg:block lg:h-full lg:order-1`}>
-                        {boxScorePanels}
-                    </div>
-
-                    <div className={`${mobileTab === 'playbyplay' ? 'block' : 'hidden'} ${midTab === 'playbyplay' ? 'md:block' : 'md:hidden'} h-full min-w-0 overflow-y-auto p-4 pb-[calc(6rem+var(--safe-bottom))] scrollbar-hide md:h-auto md:flex-1 md:min-h-0 md:py-4 md:px-0 md:pb-0 lg:block lg:h-full lg:order-3`}>
+                    {/* All three stay mounted so each keeps its scroll position across tabs. */}
+                    <div className={`${RAIL_PANEL_CLASS} ${activeRailTab === 'playbyplay' ? '' : 'hidden'}`}>
                         <PlayByPlayLog
                             key={gameKey}
                             plays={plays}
@@ -257,6 +301,16 @@ export default function GameStage({
                             maxHeightClassName="max-h-none"
                         />
                     </div>
+                    <div className={`${RAIL_PANEL_CLASS} space-y-4 ${activeRailTab === 'boxscore' ? '' : 'hidden'}`}>
+                        {/* A wide board already carries the linescore on its track. */}
+                        {!isWideBoard && <GameLinescore game={game} />}
+                        {boxScorePanels}
+                    </div>
+                    {infoPanel && (
+                        <div className={`${RAIL_PANEL_CLASS} ${activeRailTab === 'info' ? '' : 'hidden'}`}>
+                            {infoPanel}
+                        </div>
+                    )}
                 </div>
             </div>
 

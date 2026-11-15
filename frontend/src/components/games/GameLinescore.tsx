@@ -9,10 +9,12 @@ import { CAPS_LABEL_CLASS } from "../shared/fieldStyles";
 
 type GameLinescoreProps = {
     game: GameView;
+    /** `track` drops the panel frame and tightens the rows, for the game board's top edge. */
+    variant?: "panel" | "track";
     className?: string;
 };
 
-export default function GameLinescore({ game, className = "" }: GameLinescoreProps) {
+export default function GameLinescore({ game, variant = "panel", className = "" }: GameLinescoreProps) {
     const linescore = game.linescore;
     if (!linescore) return null;
 
@@ -36,15 +38,17 @@ export default function GameLinescore({ game, className = "" }: GameLinescorePro
         { side: game.home, totals: linescore.home, runsFor: (n: (typeof innings)[number]) => n.homeRuns },
     ]);
 
-    const headerClass = `py-2 ${CAPS_LABEL_CLASS}`;
-    const totalClass = "px-2 py-2 font-semibold text-(--text-primary)";
+    const isTrack = variant === "track";
+    const rowPadding = isTrack ? "py-0.5" : "py-2";
+    const headerClass = `${rowPadding} ${CAPS_LABEL_CLASS}`;
+    const totalClass = `px-2 ${rowPadding} font-semibold text-(--text-primary)`;
 
     return (
-        <div className={`rounded-card border border-(--divider) bg-(--background-secondary) overflow-x-auto scrollbar-hide ${className}`}>
-            <table className="w-full text-[13px] text-center tabular-nums">
+        <div className={`${isTrack ? "" : "rounded-card border border-(--divider) bg-(--background-secondary)"} overflow-x-auto scrollbar-hide ${className}`}>
+            <table className={`${isTrack ? "" : "w-full"} text-[13px] text-center tabular-nums`}>
                 <thead>
-                    <tr className="border-b border-(--divider) text-(--text-tertiary)">
-                        <th className="pl-3 pr-2 py-2 text-left w-16" />
+                    <tr className={`border-b border-(--divider) ${isTrack ? "text-(--text-primary)" : "text-(--text-tertiary)"}`}>
+                        <th className={`pl-3 pr-2 ${rowPadding} text-left w-16`} />
                         {innings.map((inning) => (
                             <th
                                 key={inning.num}
@@ -63,7 +67,7 @@ export default function GameLinescore({ game, className = "" }: GameLinescorePro
                         const badgeBg = side.team.primaryColor ?? NEUTRAL_TEAM_COLOR;
                         return (
                             <tr key={side.team.key} className={rowIndex < rows.length - 1 ? "border-b border-(--divider)" : ""}>
-                                <td className="pl-3 pr-2 py-2 text-left">
+                                <td className={`pl-3 pr-2 ${rowPadding} text-left`}>
                                     <Plate variant="custom" size="sm" style={{ backgroundColor: badgeBg, color: getReadableTextColor(badgeBg, "#ffffff") }}>
                                         {side.team.abbreviation}
                                     </Plate>
@@ -71,10 +75,10 @@ export default function GameLinescore({ game, className = "" }: GameLinescorePro
                                 {innings.map((inning) => (
                                     <td
                                         key={inning.num}
-                                        className={`px-1.5 py-2 ${
-                                            isCurrent(inning.num) ? "bg-(--background-tertiary) font-semibold text-(--text-primary)"
+                                        className={`px-1.5 ${rowPadding} ${
+                                            isCurrent(inning.num) ? `${isTrack ? "bg-(--background-secondary)/30" : "bg-(--background-tertiary)"} font-semibold text-(--text-primary)`
                                             : isFuture(inning.num) ? "text-(--text-tertiary) opacity-30"
-                                            : "text-(--text-secondary)"
+                                            : isTrack ? "text-(--text-primary)" : "text-(--text-secondary)"
                                         }`}
                                     >
                                         {isFuture(inning.num) ? "" : (runsFor(inning) ?? "-")}

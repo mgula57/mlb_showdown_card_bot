@@ -8,16 +8,12 @@ import { useCallback, useState } from "react";
 
 import type { ShowdownBotCardAPIResponse } from "../../api/showdownBotCard";
 
-export type MobileTab = 'field' | 'playbyplay' | 'boxscore';
-// The `md`–`lg` two-column view keeps the field pinned on the left and tabs only between the two
-// panels that share the right column.
-export type MidTab = Exclude<MobileTab, 'field'>;
+export type RailTab = 'playbyplay' | 'boxscore' | 'info';
 
 export function useGameStage() {
     const [selectedCard, setSelectedCard] = useState<ShowdownBotCardAPIResponse | null>(null);
     const [isFieldExpanded, setIsFieldExpanded] = useState(false);
-    const [mobileTab, setMobileTab] = useState<MobileTab>('field');
-    const [midTab, setMidTab] = useState<MidTab>('playbyplay');
+    const [railTab, setRailTab] = useState<RailTab>('playbyplay');
     // Tracks whether the field's big Play button has been pressed for the CURRENT sim result.
     // `playbackState.cursor === 0` alone isn't enough to hide it on click — the cursor doesn't
     // advance to frame 1 until the first animation beat lands, which would leave the button
@@ -35,8 +31,7 @@ export function useGameStage() {
     return {
         selectedCard, setSelectedCard,
         isFieldExpanded, setIsFieldExpanded,
-        mobileTab, setMobileTab,
-        midTab, setMidTab,
+        railTab, setRailTab,
         simPlayStarted, setSimPlayStarted,
         isRecapDismissed, setIsRecapDismissed,
         resetForNewSim,

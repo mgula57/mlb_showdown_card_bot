@@ -96,14 +96,25 @@ async function parseError(res: Response, fallback: string): Promise<never> {
     throw new Error(err.error || `${fallback}: ${res.status}`);
 }
 
-export async function startFaceoff(payload: StartFaceoffPayload, token: string): Promise<string> {
+async function postFaceoff(payload: StartFaceoffPayload & { play_live?: boolean }, token: string) {
     const res = await fetch(`${API_BASE}/sim/faceoff`, {
         method: "POST",
         headers: { "Content-Type": "application/json", ...authHeaders(token) },
         body: JSON.stringify(payload),
     });
     if (!res.ok) await parseError(res, "Failed to start Faceoff");
-    return (await res.json()).faceoff_id;
+    return res.json();
+}
+
+/** Plays the Faceoff at once and stores it. Resolves to its id. */
+export async function startFaceoff(payload: StartFaceoffPayload, token: string): Promise<string> {
+    return (await postFaceoff(payload, token)).faceoff_id;
+}
+
+/** Starts the Faceoff as a live game the user plays by hand; it's stored as a Faceoff at the final
+ *  out. Resolves to the live game's id. */
+export async function startLiveFaceoff(payload: StartFaceoffPayload, token: string): Promise<string> {
+    return (await postFaceoff({ ...payload, play_live: true }, token)).live_game_id;
 }
 
 export async function fetchFaceoff(faceoffId: string, token?: string): Promise<Faceoff> {

@@ -3,7 +3,7 @@
  * Player of the Game. Reads only the normalized box score lines, so a real MLB final and a
  * Showdown sim pick their standout the same way.
  */
-import type { BoxscoreBatterLine, BoxscorePitcherLine, GameView } from "./game";
+import type { BoxscoreBatterLine, BoxscorePitcherLine, GameView, LiveSituation } from "./game";
 
 export type PlayerOfTheGame = {
     side: "away" | "home";
@@ -54,3 +54,18 @@ export const playerOfTheGame = (game: GameView): PlayerOfTheGame | undefined => 
         undefined,
     );
 };
+
+const BASE_LABELS = [["first", "1st"], ["second", "2nd"], ["third", "3rd"]] as const;
+
+/** The base state in words: "bases empty", "runner on 2nd", "runners on the corners". */
+const describeBases = (bases: LiveSituation["bases"]): string => {
+    const occupied = BASE_LABELS.filter(([slot]) => bases[slot]).map(([, label]) => label);
+    if (occupied.length === 0) return "bases empty";
+    if (occupied.length === 3) return "bases loaded";
+    if (occupied.length === 1) return `runner on ${occupied[0]}`;
+    return bases.second ? `runners on ${occupied.join(" and ")}` : "runners on the corners";
+};
+
+/** The situation as a headline: "1 out, runners on the corners". */
+export const situationHeadline = ({ outs, bases }: LiveSituation): string =>
+    `${outs} out${outs === 1 ? "" : "s"}, ${describeBases(bases)}`;

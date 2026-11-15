@@ -22,7 +22,7 @@ const TONE_ACCENT: Record<"offense" | "defense", string | undefined> = {
  * placeholder card while the real one is still being fetched. */
 export default function FieldMarker({
     player, role, cardMap, onCardSelect, isLoadingCards, tone,
-    hideCommand = false, hideTeamPoints = false, detailStat1Category, liveIp, fieldPosition, backgroundSettings, hasAdvantage, statBadge,
+    hideCommand = false, hideTeamPoints = false, detailStat1Category, liveIp, fieldPosition, backgroundSettings, hasAdvantage, statBadge, grounded = false,
 }: {
     player: PlayerRef;
     role: "H" | "P";
@@ -40,6 +40,9 @@ export default function FieldMarker({
     backgroundSettings?: string;
     hasAdvantage?: boolean;
     statBadge?: CardItemStatBadge;
+    /** Stands the card on the field: a spot on the ground under its bottom edge, the resting form
+     *  of the ring it kicks up when it plops in. For markers on the field, not readouts in a panel. */
+    grounded?: boolean;
 }) {
     if (!player.name) {
         return <span className="block h-3 w-3 rotate-45 rounded-plate bg-(--live)" />;
@@ -71,7 +74,8 @@ export default function FieldMarker({
     };
 
     return (
-        <div className="w-18 @[380px]:w-24 @[520px]:w-30 @[650px]:w-40">
+        <div className={`w-18 @[380px]:w-24 @[520px]:w-30 @[650px]:w-40 ${grounded ? "relative isolate" : ""}`}>
+            {grounded && <span aria-hidden className="field-ground" />}
             {response?.card ? (
                 <CardItemCompactFromCard
                     card={response.card}

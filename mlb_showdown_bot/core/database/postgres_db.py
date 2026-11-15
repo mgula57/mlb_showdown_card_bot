@@ -2844,6 +2844,21 @@ class PostgresDB:
             rows = [dict(r) for r in cur.fetchall()]
         return self._serialize_team_summaries(rows)
 
+    def fetch_random_historical_team(self, sport_id: int = 1, season: Optional[int] = None) -> Optional[dict]:
+        """One pre-processed historical club at random ({season, sport_id, team_id}), optionally
+        from a single season. None when there are none."""
+        if not self.connection:
+            return None
+        rows = self.execute_query(
+            """
+            SELECT season, sport_id, team_id FROM internal.dim_historical_team
+             WHERE sport_id = %(sport_id)s AND roster_count > 0 AND (%(season)s::int IS NULL OR season = %(season)s)
+             ORDER BY random() LIMIT 1
+            """,
+            {'sport_id': sport_id, 'season': season},
+        )
+        return rows[0] if rows else None
+
     def fetch_historical_seasons(self, sport_id: int = 1) -> list[dict]:
         """Return {season, team_count} for every season with pre-processed teams, newest first."""
         if not self.connection:
@@ -4941,6 +4956,7 @@ class PostgresDB:
             ("challenge tables",          self.build_challenge_tables),
             ("sim_game",                  self.build_sim_game_table),
             ("sim_faceoff",               self.build_sim_faceoff_tables),
+            ("live_game",                 self.build_live_game_tables),
             ("releases",                  self.build_releases_table),
             ("league tables",             self.build_league_tables),
             ("comments",                  self.build_comments_table),
@@ -14035,37 +14051,43 @@ class PostgresDB:
         """
         if not self.connection:
             return None
-        teams = {side: result[side] for side in ('challenger', 'opponent')}
         with self.transaction() as cur:
-            cur.execute(
-                """
-                INSERT INTO internal.sim_faceoff (
-                    user_id, challenger_team_id, opponent_team_id, best_of, challenger_wins,
-                    opponent_wins, winner_side, is_own_matchup, seed, teams
-                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                RETURNING faceoff_id
-                """,
-                (
-                    user_id, teams['challenger'].get('team_id'), teams['opponent'].get('team_id'),
-                    result.get('best_of'), result.get('challenger_wins'), result.get('opponent_wins'),
-                    result.get('winner_side'), is_own_matchup, result.get('seed'), extras.Json(teams),
-                ),
-            )
-            faceoff_id = str(cur.fetchone()[0])
-            games = result.get('games') or []
-            scores = [self._faceoff_game_scores(entry) for entry in games]
-            execute_values(
-                cur,
-                """
-                INSERT INTO internal.sim_faceoff_game (
-                    faceoff_id, game_number, home_side, challenger_score, opponent_score, result
-                ) VALUES %s
-                """,
-                [
-                    (faceoff_id, entry['game_number'], entry['home_side'], challenger, opponent, extras.Json(entry['game']))
-                    for entry, (challenger, opponent) in zip(games, scores)
-                ],
-            )
+            return self.insert_sim_faceoff(cur, user_id=user_id, result=result, is_own_matchup=is_own_matchup)
+
+    @classmethod
+    def insert_sim_faceoff(cls, cur, user_id: str, result: dict, is_own_matchup: bool) -> str:
+        """`record_sim_faceoff`'s inserts, on a cursor the caller's transaction owns (e.g. a live
+        game's final out, when the game was a Faceoff)."""
+        teams = {side: result[side] for side in ('challenger', 'opponent')}
+        cur.execute(
+            """
+            INSERT INTO internal.sim_faceoff (
+                user_id, challenger_team_id, opponent_team_id, best_of, challenger_wins,
+                opponent_wins, winner_side, is_own_matchup, seed, teams
+            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            RETURNING faceoff_id
+            """,
+            (
+                user_id, teams['challenger'].get('team_id'), teams['opponent'].get('team_id'),
+                result.get('best_of'), result.get('challenger_wins'), result.get('opponent_wins'),
+                result.get('winner_side'), is_own_matchup, result.get('seed'), extras.Json(teams),
+            ),
+        )
+        faceoff_id = str(cur.fetchone()[0])
+        games = result.get('games') or []
+        scores = [cls._faceoff_game_scores(entry) for entry in games]
+        execute_values(
+            cur,
+            """
+            INSERT INTO internal.sim_faceoff_game (
+                faceoff_id, game_number, home_side, challenger_score, opponent_score, result
+            ) VALUES %s
+            """,
+            [
+                (faceoff_id, entry['game_number'], entry['home_side'], challenger, opponent, extras.Json(entry['game']))
+                for entry, (challenger, opponent) in zip(games, scores)
+            ],
+        )
         return faceoff_id
 
     @staticmethod
@@ -14160,6 +14182,232 @@ class PostgresDB:
                 if row.get(key) is not None:
                     row[key] = str(row[key])
         return rows
+
+    # ------------------------------------------------------------------
+    # LIVE GAMES (GAMES PEOPLE PLAY BY HAND - SEE `core/simulation/live_game.py`)
+    # ------------------------------------------------------------------
+
+    _LIVE_GAME_SIDES = ('away', 'home')
+
+    def build_live_game_tables(self) -> None:
+        """Create the live game tables: one `live_game` per game and one `live_game_action` per
+        thing a player did. The game itself is never stored mid-play; it's rebuilt from `setup`,
+        `seed` and the actions. `seq` on the game is the number of actions so far, and an action is
+        only written while it still matches, which is what stops two clicks from both landing.
+
+        Each seat (away, home) has a controller ('human' or 'sim'), the user playing it, and the
+        team that was asked for (`*_team_ref`; null while an invitee is still to bring their own).
+        `setup` holds each filled seat's club with every card frozen as it was when the seat was
+        filled, so an edit to a team or a card can't change a game in progress. `context_kind` /
+        `context_ref` say what the game is for ('open' when it's for nothing but itself), so a
+        feature built on live games (a league fixture, a Faceoff) can find its games and record
+        their results. Team ids carry no foreign key: a game outlives the teams that played it.
+        """
+        if not self.connection:
+            return
+        with self.connection.cursor() as cur:
+            cur.execute("CREATE SCHEMA IF NOT EXISTS internal;")
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS internal.live_game (
+                    live_game_id     UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                    invite_code      TEXT UNIQUE,
+                    status           TEXT NOT NULL DEFAULT 'invited',
+                    created_by       TEXT NOT NULL,
+                    context_kind     TEXT NOT NULL DEFAULT 'open',
+                    context_ref      TEXT,
+                    away_controller  TEXT NOT NULL DEFAULT 'human',
+                    home_controller  TEXT NOT NULL DEFAULT 'human',
+                    away_user_id     TEXT,
+                    home_user_id     TEXT,
+                    away_team_ref    JSONB,
+                    home_team_ref    JSONB,
+                    settings         JSONB NOT NULL DEFAULT '{}'::jsonb,
+                    setup            JSONB NOT NULL DEFAULT '{}'::jsonb,
+                    seed             BIGINT,
+                    seq              INT NOT NULL DEFAULT 0,
+                    pending_side     TEXT,
+                    winner_side      TEXT,
+                    result           JSONB,
+                    created_at       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                    last_action_at   TIMESTAMPTZ NOT NULL DEFAULT NOW()
+                );
+            """)
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS internal.live_game_action (
+                    live_game_id  UUID NOT NULL REFERENCES internal.live_game(live_game_id) ON DELETE CASCADE,
+                    seq           INT NOT NULL,
+                    user_id       TEXT,
+                    action        JSONB NOT NULL,
+                    created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                    PRIMARY KEY (live_game_id, seq)
+                );
+            """)
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_live_game_away_user ON internal.live_game (away_user_id, last_action_at DESC);")
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_live_game_home_user ON internal.live_game (home_user_id, last_action_at DESC);")
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_live_game_context ON internal.live_game (context_kind, context_ref);")
+
+    _LIVE_GAME_COLUMNS = """
+        live_game_id, invite_code, status, created_by, context_kind, context_ref,
+        away_controller, home_controller, away_user_id, home_user_id, away_team_ref, home_team_ref,
+        settings, seed, seq, pending_side, winner_side, created_at, last_action_at
+    """
+
+    def create_live_game(
+        self, created_by: str, seats: dict, setup: dict, settings: dict, invite_code: str | None = None,
+        context_kind: str = 'open', context_ref: str | None = None, seed: int | None = None, pending_side: str | None = None,
+    ) -> str | None:
+        """Store a new game. Started (`active`) when every seat is filled, else `invited` until
+        whoever has the invite takes the open seat.
+
+        Args:
+          seats: Per side ('away', 'home'): `controller`, `user_id` and `team_ref`.
+          setup: Per filled side: the frozen club (see `build_live_game_tables`).
+        """
+        if not self.connection:
+            return None
+        is_ready = all(side in setup for side in self._LIVE_GAME_SIDES)
+        with self.transaction() as cur:
+            cur.execute(
+                """
+                INSERT INTO internal.live_game (
+                    invite_code, status, created_by, context_kind, context_ref,
+                    away_controller, home_controller, away_user_id, home_user_id, away_team_ref, home_team_ref,
+                    settings, setup, seed, pending_side
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                RETURNING live_game_id
+                """,
+                (
+                    invite_code, 'active' if is_ready and invite_code is None else 'invited', created_by, context_kind, context_ref,
+                    seats['away']['controller'], seats['home']['controller'], seats['away'].get('user_id'), seats['home'].get('user_id'),
+                    extras.Json(seats['away'].get('team_ref')), extras.Json(seats['home'].get('team_ref')),
+                    extras.Json(settings), extras.Json(setup), seed, pending_side,
+                ),
+            )
+            return str(cur.fetchone()[0])
+
+    def fetch_live_game(self, live_game_id: str | None = None, invite_code: str | None = None, include_setup: bool = True) -> dict | None:
+        """One live game, by id or by invite code."""
+        if not self.connection or not (live_game_id or invite_code):
+            return None
+        where = "live_game_id = %s::uuid" if live_game_id else "invite_code = %s"
+        rows = self.execute_query(
+            f"SELECT {self._LIVE_GAME_COLUMNS}{', setup, result' if include_setup else ''} FROM internal.live_game WHERE {where}",
+            (live_game_id or invite_code,),
+        )
+        return self._stringify_live_game(rows[0]) if rows else None
+
+    def accept_live_game(
+        self, live_game_id: str, side: str, user_id: str, seed: int, pending_side: str | None,
+        side_setup: dict | None = None, team_ref: dict | None = None,
+    ) -> bool:
+        """Take the open seat (with a club, when the invitee brings their own) and start the game.
+        False if someone else got there first."""
+        if not self.connection or side not in self._LIVE_GAME_SIDES:
+            return False
+        with self.transaction() as cur:
+            cur.execute(
+                f"""
+                UPDATE internal.live_game
+                   SET {side}_user_id = %s, seed = %s, status = 'active', pending_side = %s, last_action_at = NOW(),
+                       {side}_team_ref = COALESCE(%s::jsonb, {side}_team_ref),
+                       setup = CASE WHEN %s::jsonb IS NULL THEN setup ELSE setup || jsonb_build_object(%s, %s::jsonb) END
+                 WHERE live_game_id = %s::uuid AND status = 'invited' AND {side}_user_id IS NULL AND {side}_controller = 'human'
+                """,
+                (
+                    user_id, seed, pending_side, extras.Json(team_ref) if team_ref else None,
+                    extras.Json(side_setup) if side_setup else None, side, extras.Json(side_setup) if side_setup else None,
+                    live_game_id,
+                ),
+            )
+            return cur.rowcount == 1
+
+    def fetch_live_game_actions(self, live_game_id: str) -> list[dict]:
+        if not self.connection:
+            return []
+        rows = self.execute_query(
+            "SELECT action FROM internal.live_game_action WHERE live_game_id = %s::uuid ORDER BY seq",
+            (live_game_id,),
+        )
+        return [row['action'] for row in rows]
+
+    def append_live_game_action(
+        self, live_game_id: str, expected_seq: int, user_id: str | None, action: dict, pending_side: str | None,
+        final: dict | None = None, on_final=None,
+    ) -> bool:
+        """Record one action if the game is still at `expected_seq`. False when another action
+        landed first.
+
+        Args:
+          final: Set when this action ends the game: `result` (the `GameResult`, JSON) and
+            `winner_side`, stored on the game.
+          on_final: Called with the open cursor once a final is stored, so whatever the game was
+            for (its context) can record the result in the same transaction.
+        """
+        if not self.connection:
+            return False
+        with self.transaction() as cur:
+            cur.execute(
+                """
+                UPDATE internal.live_game
+                   SET seq = seq + 1, pending_side = %s, last_action_at = NOW(),
+                       status = CASE WHEN %s THEN 'final' ELSE status END,
+                       winner_side = %s, result = %s
+                 WHERE live_game_id = %s::uuid AND seq = %s AND status = 'active'
+                """,
+                (
+                    pending_side, final is not None, (final or {}).get('winner_side'),
+                    extras.Json(final['result']) if final else None, live_game_id, expected_seq,
+                ),
+            )
+            if cur.rowcount != 1:
+                return False
+            cur.execute(
+                "INSERT INTO internal.live_game_action (live_game_id, seq, user_id, action) VALUES (%s::uuid, %s, %s, %s)",
+                (live_game_id, expected_seq, user_id, extras.Json(action)),
+            )
+            if final is not None and on_final is not None:
+                on_final(cur)
+            return True
+
+    def fetch_live_games_for_user(self, user_id: str, limit: int = 20, context_kind: str | None = None) -> list[dict]:
+        """Every live game a user plays a seat in, most recently played first, optionally only
+        those for one context (e.g. a league's games)."""
+        if not self.connection:
+            return []
+        rows = self.execute_query(
+            f"""
+            SELECT {self._LIVE_GAME_COLUMNS},
+                   setup #> '{{away,identity}}' AS away_identity,
+                   setup #> '{{home,identity}}' AS home_identity
+              FROM internal.live_game
+             WHERE (away_user_id = %(user)s OR home_user_id = %(user)s OR (created_by = %(user)s AND status = 'invited'))
+               AND status <> 'cancelled'
+               AND (%(context_kind)s::text IS NULL OR context_kind = %(context_kind)s)
+             ORDER BY last_action_at DESC
+             LIMIT %(limit)s
+            """,
+            {'user': user_id, 'limit': limit, 'context_kind': context_kind},
+        )
+        return [self._stringify_live_game(row) for row in rows]
+
+    def cancel_live_game(self, live_game_id: str, user_id: str) -> bool:
+        """Withdraw an invite nobody has taken yet."""
+        if not self.connection:
+            return False
+        with self.transaction() as cur:
+            cur.execute(
+                "UPDATE internal.live_game SET status = 'cancelled' WHERE live_game_id = %s::uuid AND created_by = %s AND status = 'invited'",
+                (live_game_id, user_id),
+            )
+            return cur.rowcount == 1
+
+    @staticmethod
+    def _stringify_live_game(row: dict) -> dict:
+        """UUIDs come back as objects `jsonify` won't take. Timestamps stay datetimes: the idle
+        timer compares against `last_action_at`, and the API formats them on the way out."""
+        if row.get('live_game_id') is not None:
+            row['live_game_id'] = str(row['live_game_id'])
+        return row
 
     def record_sim_game(self, user_id: str | None, result: dict) -> str | None:
         """Store one simulated game and return its id.

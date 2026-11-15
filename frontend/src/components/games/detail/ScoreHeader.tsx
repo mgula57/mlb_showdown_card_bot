@@ -6,7 +6,7 @@
 import type { ReactNode } from "react";
 import ReactCountryFlag from "react-country-flag";
 
-import type { GameView } from "../../../domain/game";
+import type { GameSide, GameView } from "../../../domain/game";
 import { getReadableTextColor, NEUTRAL_TEAM_COLOR } from '../../../functions/colors';
 import { BasesDiamond } from "../BasesDiamond";
 import { GameStatePlate } from "../GameStatePlate";
@@ -24,6 +24,17 @@ type ScoreHeaderProps = {
     centerAction?: ReactNode;
 };
 
+/** A team's abbreviation on its club color. `className` carries the size. */
+export function TeamBadge({ team, className = "" }: { team: GameSide["team"]; className?: string }) {
+    const background = team.primaryColor ?? NEUTRAL_TEAM_COLOR;
+    return (
+        <div
+            className={`flex items-center justify-center rounded-card font-display-upright uppercase leading-none shrink-0 ${className}`}
+            style={{ backgroundColor: background, color: getReadableTextColor(background, '#ffffff') }}
+        >{team.abbreviation}</div>
+    );
+}
+
 export default function ScoreHeader({ game, className = "", compact = false, centerAction }: ScoreHeaderProps) {
     const { away, home } = game;
     const situation = game.situation;
@@ -33,11 +44,6 @@ export default function ScoreHeader({ game, className = "", compact = false, cen
     const homeCode = home.team.countryCode;
     const awayRecord = away.record;
     const homeRecord = home.record;
-
-    const awayBadgeBg = away.team.primaryColor ?? NEUTRAL_TEAM_COLOR;
-    const awayBadgeText = getReadableTextColor(awayBadgeBg, '#ffffff');
-    const homeBadgeBg = home.team.primaryColor ?? NEUTRAL_TEAM_COLOR;
-    const homeBadgeText = getReadableTextColor(homeBadgeBg, '#ffffff');
 
     const awayRuns = away.score ?? 0;
     const homeRuns = home.score ?? 0;
@@ -66,10 +72,7 @@ export default function ScoreHeader({ game, className = "", compact = false, cen
                         <ReactCountryFlag countryCode={awayCode} svg style={{ width: flagEm, height: flagEm }} />
                     )}
                     <div className={`flex items-center ${compact ? "gap-2" : "gap-2.5"}`}>
-                        <div
-                            className={`flex items-center justify-center rounded-card font-display-upright uppercase leading-none shrink-0 ${badgeSize}`}
-                            style={{ backgroundColor: awayBadgeBg, color: awayBadgeText }}
-                        >{away.team.abbreviation}</div>
+                        <TeamBadge team={away.team} className={badgeSize} />
                         <span className={`${scoreSize} font-display-upright leading-none tabular-nums text-(--text-primary)`}>{awayRuns}</span>
                     </div>
                     <div className={`${nameSize} hidden sm:block font-semibold text-(--text-primary) leading-snug`}>{away.team.name}</div>
@@ -93,7 +96,7 @@ export default function ScoreHeader({ game, className = "", compact = false, cen
                         <div className={`flex items-center ${compact ? "gap-2.5" : "gap-3"}`}>
                             {hasCount && (
                                 <div className="text-center">
-                                    <div className={`${CAPS_LABEL_CLASS} text-(--text-tertiary)`}>Count</div>
+                                    <div className={`${CAPS_LABEL_CLASS} text-(--text-primary)`}>Count</div>
                                     <div className={`font-display-upright leading-none tabular-nums text-(--text-primary) ${compact ? "text-[15px]" : "text-[18px]"}`}>{situation?.balls}–{situation?.strikes}</div>
                                 </div>
                             )}
@@ -112,10 +115,7 @@ export default function ScoreHeader({ game, className = "", compact = false, cen
                     )}
                     <div className={`flex items-center ${compact ? "gap-2" : "gap-2.5"}`}>
                         <span className={`${scoreSize} font-display-upright leading-none tabular-nums text-(--text-primary)`}>{homeRuns}</span>
-                        <div
-                            className={`flex items-center justify-center rounded-card font-display-upright uppercase leading-none shrink-0 ${badgeSize}`}
-                            style={{ backgroundColor: homeBadgeBg, color: homeBadgeText }}
-                        >{home.team.abbreviation}</div>
+                        <TeamBadge team={home.team} className={badgeSize} />
                     </div>
                     <div className={`${nameSize} hidden sm:block font-semibold text-(--text-primary) leading-snug text-right`}>{home.team.name}</div>
                     {!compact && homeRecord && (

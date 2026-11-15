@@ -636,6 +636,22 @@
     animation: field-plop-dust 450ms ease-out backwards;
     animation-delay: inherit;
 }
+/* The spot a field marker stands on (`FieldMarker`'s `grounded`): the plop's dust ring at rest, a
+   faint rim around a patch of shade under the card's bottom edge, so the cards read as standing on
+   the field rather than pasted over it. Behind the card (the marker is `isolate`), so only the
+   half below its edge shows. */
+.field-ground {
+    position: absolute;
+    z-index: -1;
+    left: 8%;
+    right: 8%;
+    bottom: -6px;
+    height: 12px;
+    border-radius: 50%;
+    border: 1.5px solid rgb(255 255 255 / 0.4);
+    background: rgb(0 0 0 / 0.3);
+    pointer-events: none;
+}
 @keyframes field-plop {
     0%   { opacity: 0; transform: translateY(-70%) scale(1.25); }
     45%  { opacity: 1; transform: translateY(0) scale(1.1, 0.88); }

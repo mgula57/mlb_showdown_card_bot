@@ -9,6 +9,7 @@
  * unconditionally.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Link } from "react-router-dom";
 import { FaForward } from "react-icons/fa6";
 
 import { fetchGameBoxscore } from "../../api/mlbAPI";
@@ -19,7 +20,7 @@ import { SeededRandom, sliceScoringHalfInning, withSyntheticRolls } from "../../
 import type { GameTimeline } from "../../domain/timeline";
 import { useGamePlayback } from "../../hooks/useGamePlayback";
 import { usePrefersReducedMotion } from "../../hooks/usePrefersReducedMotion";
-import GameField, { FIELD_PLOP_MS, FieldArt } from "../games/GameField";
+import GameField, { FIELD_ART_HEADROOM_PADDING, FIELD_PLOP_MS, FieldArt } from "../games/GameField";
 import { TeamChip } from "../shared/TeamChip";
 import { useSiteSettings } from "../shared/SiteSettingsContext";
 import { SHOWCASE_GAMES, type ShowcaseGame } from "./showcaseGames";
@@ -30,8 +31,9 @@ type ReelSegment = { game: ShowcaseGame; timeline: GameTimeline; cardMap: CardMa
 /** How long the finished half-inning sits on screen before the reel moves on. */
 const SEGMENT_HOLD_MS = 3000;
 const CROSSFADE_MS = 400;
-/** How far the grass fades in from each side, in px so the left and right edges match at any width. */
-const GRASS_FADE_X_PX = 64;
+/** How far the field's corners fade out at each side of the reel, in px so the left and right
+ *  edges match at any width. */
+const FIELD_FADE_X_PX = 48;
 /** Stops sampled along each fade ramp: enough that the curve reads as smooth, not stepped. */
 const FADE_STEPS = 12;
 
@@ -49,18 +51,14 @@ function easedFadeStops(from: string, to: string, reverse = false): string[] {
     });
 }
 
-const GRASS_FADE_MASK = [
-    `linear-gradient(to bottom, ${[...easedFadeStops('0%', '14%'), ...easedFadeStops('65%', '100%', true)].join(', ')})`,
-    `linear-gradient(to right, ${[...easedFadeStops('0px', `${GRASS_FADE_X_PX}px`), ...easedFadeStops(`100% - ${GRASS_FADE_X_PX}px`, '100%', true)].join(', ')})`,
-].join(", ");
-const GRASS_FADE_STYLE: React.CSSProperties = {
-    maskImage: GRASS_FADE_MASK,
-    WebkitMaskImage: GRASS_FADE_MASK,
-    maskComposite: "intersect",
-    WebkitMaskComposite: "source-in",
-};
-/** Translucent framing for text over the grass — matches GameDetail's ScoreHeader. */
-const OVER_GRASS_PANEL = "rounded-card border border-(--divider) bg-(--background-secondary)/90";
+/** The field art reaches past the field box on both sides; it fades out before the reel's edges
+ *  rather than being cut off by them. Only on the still underlay, never over moving cards. */
+const FIELD_FADE_MASK = `linear-gradient(to right, ${[...easedFadeStops('0px', `${FIELD_FADE_X_PX}px`), ...easedFadeStops(`100% - ${FIELD_FADE_X_PX}px`, '100%', true)].join(', ')})`;
+const FIELD_FADE_STYLE: React.CSSProperties = { maskImage: FIELD_FADE_MASK, WebkitMaskImage: FIELD_FADE_MASK };
+/** Room above the field box for the art's deep outfield, matching `GameField`'s own. */
+const HEADROOM_STYLE: React.CSSProperties = { paddingTop: FIELD_ART_HEADROOM_PADDING };
+/** Translucent framing for text over the field — matches GameDetail's ScoreHeader. */
+const OVER_FIELD_PANEL = "rounded-card border border-(--divider) bg-(--background-secondary)/90";
 /** Fixed height + gap of the score row above the field. Shared by the player, the skeleton and the
  *  field-art underlay, which relies on it to line up with the field without measuring. */
 const HEADER_ROW = "h-9 mb-2";
@@ -179,21 +177,14 @@ export default function HomeGameReel({ onCardSelect }: { onCardSelect?: (card: S
         // Full-bleed on phones: the negative margin cancels Home's `px-6` gutter so the field
         // spans the screen.
         <div ref={containerRef} className="relative -mx-6 px-3 py-8 sm:mx-0 sm:w-full sm:px-10">
-            {/* Grass backdrop, faded out on all four edges (two gradients intersected) so it
-                dissolves into the hero instead of sitting in a box. The padding above keeps the
-                content inside the fully opaque middle. Content below is a later positioned
-                sibling, so it paints over the image without a negative z-index. */}
-            <img
-                src="/images/games/Grass Field.jpg"
-                alt=""
-                className="absolute inset-0 h-full w-full object-cover pointer-events-none select-none"
-                style={GRASS_FADE_STYLE}
-            />
-            {/* The diamond stays put through loading and crossfades; only what's on it changes.
-                Offset by the header row and inset like GameField's own field box. */}
-            <div aria-hidden className="absolute inset-x-3 top-8 sm:inset-x-10 pointer-events-none">
+            {/* The field stays put through loading and crossfades; only what's on it changes.
+                Offset by the header row and padded like GameField's own field box. It spans the
+                reel's full width so the field's corners can fade out (`FIELD_FADE_STYLE`) before
+                its edges. Content below is a later positioned sibling, so it paints over the field
+                without a negative z-index. */}
+            <div aria-hidden className="absolute inset-x-0 top-8 overflow-hidden px-3 sm:px-10 pointer-events-none" style={FIELD_FADE_STYLE}>
                 <div className={HEADER_ROW} />
-                <div className="px-1">
+                <div className="px-1" style={HEADROOM_STYLE}>
                     <div className="relative aspect-703/369 w-full"><FieldArt /></div>
                 </div>
             </div>
@@ -224,8 +215,20 @@ function ReelSkeleton() {
                 <div className="h-4 w-40 rounded-plate bg-(--background-tertiary)" />
                 <div className="h-4 w-24 rounded-plate bg-(--background-tertiary)" />
             </div>
-            <div className="px-1"><div className="aspect-703/369 w-full" /></div>
+            <div className="px-1" style={HEADROOM_STYLE}><div className="aspect-703/369 w-full" /></div>
         </div>
+    );
+}
+
+/** Opens the whole game on its game page, as a replay from the first pitch. */
+function WatchFullGameLink({ game, className = "" }: { game: ShowcaseGame; className?: string }) {
+    return (
+        <Link
+            to={`/seasons/game/${game.gamePk}?season=${game.season}&replay=1`}
+            className={`whitespace-nowrap text-[11px] font-bold text-(--showdown-blue) hover:underline ${className}`}
+        >
+            Watch full game
+        </Link>
     );
 }
 
@@ -283,7 +286,7 @@ function ReelSegmentPlayer({ segment, isActive, autoplay, onDone, onCardSelect }
 
     return (
         <div>
-            <div className={`${HEADER_ROW} flex items-center justify-between gap-3 px-2 ${OVER_GRASS_PANEL}`}>
+            <div className={`${HEADER_ROW} flex items-center justify-between gap-3 px-2 ${OVER_FIELD_PANEL}`}>
                 <div className="flex min-w-0 items-center gap-3">
                     {([view.away, view.home] as const).map((side) => (
                         <div key={side.team.abbreviation ?? side.team.name} className="flex items-center gap-1.5">
@@ -299,6 +302,7 @@ function ReelSegmentPlayer({ segment, isActive, autoplay, onDone, onCardSelect }
                 </div>
                 <div className="flex shrink-0 items-center gap-2">
                     <span className="hidden sm:inline text-[11px] font-semibold text-(--secondary) truncate">{game.label}</span>
+                    <WatchFullGameLink game={game} className="hidden sm:inline" />
                     <button
                         type="button"
                         onClick={onDone}
@@ -325,8 +329,9 @@ function ReelSegmentPlayer({ segment, isActive, autoplay, onDone, onCardSelect }
             />
 
             {/* Phones only — wider screens show the label in the header row */}
-            <div className="mt-2 flex sm:hidden">
-                <span className={`truncate px-2 py-1 text-[11px] font-semibold text-(--secondary) ${OVER_GRASS_PANEL}`}>{game.label}</span>
+            <div className="mt-2 flex items-center gap-2 sm:hidden">
+                <span className={`truncate px-2 py-1 text-[11px] font-semibold text-(--secondary) ${OVER_FIELD_PANEL}`}>{game.label}</span>
+                <WatchFullGameLink game={game} className={`shrink-0 px-2 py-1 ${OVER_FIELD_PANEL}`} />
             </div>
         </div>
     );

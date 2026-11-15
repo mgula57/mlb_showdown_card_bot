@@ -8,10 +8,8 @@ from ..core.mlb_stats_api.models.leagues.league import League
 from ..core.mlb_stats_api.models.leagues.standings import StandingsType
 from ..core.mlb_stats_api.models.stats.enums import PlayerPoolEnum, StatGroupEnum, LeaderLeaderStatEnum
 from ..core.database.postgres_db import PostgresDB, Set as ShowdownSet
-from ..core.card.team_builder import (
-    RosterToTeamConverter, StoredRosterToTeamConverter, TeamSource, EraRosterDrafter, RosterEraRegistry,
-    LEAGUE_WIDE_TEAM_ID, LEAGUE_WIDE_ABBR, LEAGUE_WIDE_NAME,
-)
+from ..core.card.team_builder import RosterToTeamConverter, TeamSource, RosterEraRegistry
+from ..core.card.team_builder.synthetic_teams import SyntheticTeams
 
 seasons_bp = Blueprint('seasons', __name__)
 
@@ -259,50 +257,10 @@ def fetch_showdown_team(season_id: str, team_id: str):
         team_abbr = request.args.get('team_abbr', None)
         team_name = request.args.get('team_name', None)
 
-        cache_key = f"{season_id}:{team_id}:{sport_id}:{showdown_set_enum.value}"
-        cached = _showdown_team_cache.get(cache_key)
-        if cached and datetime.now() - cached[1] < SHOWDOWN_TEAM_CACHE_TTL:
-            return jsonify({'team': cached[0]}), 200
-
-        synthetic_team_id = f"mlb-{sport_id}-{team_id}-{season_id}-{showdown_set_enum.value}"
-
-        with PostgresDB() as db:
-            stored_cards, stored_slots = db.fetch_historical_team_card_pool(
-                season=season,
-                showdown_set=showdown_set_enum.value,
-                team_id=int(team_id),
-                sport_id=sport_id,
-            )
-            if stored_slots:
-                # Pre-processed: identity is stored too, so a cold link needs no client-side resolution.
-                identity = db.fetch_historical_team(season=season, team_id=int(team_id), sport_id=sport_id) or {}
-                builder = StoredRosterToTeamConverter(
-                    cards=stored_cards,
-                    meta_rows=stored_slots,
-                    team_id=synthetic_team_id,
-                    name=identity.get('name') or team_name or team_abbr or f"Team {team_id}",
-                    abbreviation=identity.get('abbreviation') or team_abbr or str(team_id),
-                    primary_color=identity.get('primary_color'),
-                    secondary_color=identity.get('secondary_color'),
-                )
-            else:
-                cards = db.fetch_team_season_card_pool(
-                    season=season,
-                    showdown_set=showdown_set_enum.value,
-                    team_id=int(team_id),
-                    team_abbr=team_abbr,
-                    sport_id=sport_id,
-                )
-                builder = RosterToTeamConverter(
-                    cards=cards,
-                    team_id=synthetic_team_id,
-                    name=team_name or team_abbr or f"Team {team_id}",
-                    abbreviation=team_abbr or str(team_id),
-                    season=season,
-                )
-
-        team_data = builder.build_api_dict()
-        _showdown_team_cache[cache_key] = (team_data, datetime.now())
+        team_data = SyntheticTeams.historical(
+            season=season, team_id=int(team_id), sport_id=sport_id, showdown_set=showdown_set_enum.value,
+            team_abbr=team_abbr, team_name=team_name,
+        )
         return jsonify({'team': team_data}), 200
 
     except Exception as e:
@@ -413,64 +371,10 @@ def fetch_era_showdown_team(team_id: str):
         team_abbr = request.args.get('team_abbr', None)
         team_name = request.args.get('team_name', None)
 
-        cache_key = f"era:{era.key}:{team_id_int}:{sport_id}:{showdown_set_enum.value}"
-        cached = _showdown_team_cache.get(cache_key)
-        if cached and datetime.now() - cached[1] < SHOWDOWN_TEAM_CACHE_TTL:
-            return jsonify({'team': cached[0]}), 200
-
-        synthetic_team_id = f"era-{era.key}-{sport_id}-{team_id_int}-{showdown_set_enum.value}"
-
-        with PostgresDB() as db:
-            stored_cards, stored_slots = db.fetch_era_team_card_pool(
-                team_id=team_id_int,
-                era=era.key,
-                showdown_set=showdown_set_enum.value,
-                sport_id=sport_id,
-            )
-            if stored_slots:
-                # Pre-processed: identity is stored too, so a cold link needs no client-side resolution.
-                identity = db.fetch_era_team(team_id=team_id_int, era=era.key, showdown_set=showdown_set_enum.value, sport_id=sport_id) or {}
-                raw_name = identity.get('name') or team_name or team_abbr or f"Team {team_id_int}"
-                resolved_abbr = identity.get('abbreviation') or team_abbr
-                builder = StoredRosterToTeamConverter(
-                    cards=stored_cards,
-                    meta_rows=stored_slots,
-                    team_id=synthetic_team_id,
-                    name=era.team_name(raw_name, abbreviation=resolved_abbr),
-                    abbreviation=resolved_abbr or str(team_id_int),
-                    primary_color=identity.get('primary_color'),
-                    secondary_color=identity.get('secondary_color'),
-                )
-            elif team_id_int == LEAGUE_WIDE_TEAM_ID:
-                # Cross-team "All-MLB" roster — no team filter at all, pooled from every team.
-                candidates = db.fetch_era_candidate_pool(
-                    team_abbr=None,
-                    showdown_set=showdown_set_enum.value,
-                    start_year=era.start_year,
-                    end_year=era.end_year,
-                )
-                builder = EraRosterDrafter(
-                    cards=candidates,
-                    team_id=synthetic_team_id,
-                    name=era.team_name(team_name or LEAGUE_WIDE_NAME),
-                    abbreviation=team_abbr or LEAGUE_WIDE_ABBR,
-                )
-            else:
-                candidates = db.fetch_era_candidate_pool(
-                    team_abbr=team_abbr or str(team_id_int),
-                    showdown_set=showdown_set_enum.value,
-                    start_year=era.start_year,
-                    end_year=era.end_year,
-                )
-                builder = EraRosterDrafter(
-                    cards=candidates,
-                    team_id=synthetic_team_id,
-                    name=era.team_name(team_name or team_abbr or f"Team {team_id_int}", abbreviation=team_abbr),
-                    abbreviation=team_abbr or str(team_id_int),
-                )
-
-        team_data = builder.build_api_dict()
-        _showdown_team_cache[cache_key] = (team_data, datetime.now())
+        team_data = SyntheticTeams.era(
+            team_id=team_id_int, era_key=era.key, sport_id=sport_id, showdown_set=showdown_set_enum.value,
+            team_abbr=team_abbr, team_name=team_name,
+        )
         return jsonify({'team': team_data}), 200
 
     except Exception as e:

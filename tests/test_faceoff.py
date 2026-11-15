@@ -126,7 +126,7 @@ def test_identity() -> None:
     copy = team_row(OPPONENT_ID, "BBB", "a")
     game = play(opponent=copy).games[0].game
     hitters = {entry.hitter_id for entry in game.log}
-    check("shared cards stay on their own side in the engine", any("CHALLENGER" in h for h in hitters) and any("OPPONENT" in h for h in hitters))
+    check("shared cards stay on their own side in the engine", any("AWAY" in h for h in hitters) and any("HOME" in h for h in hitters))
     away = {line.id for line in game.away_box_score.batting}
     home = {line.id for line in game.home_box_score.batting}
     check("box scores carry bare card ids", away == home and all(real_card_id(i) == i for i in away))

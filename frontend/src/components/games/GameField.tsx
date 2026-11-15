@@ -17,6 +17,7 @@ import type { PlayEntry } from "../../domain/play";
 import type { ShowdownBotCardAPIResponse } from "../../api/showdownBotCard";
 import { defenseAtPosition, IF_POSITIONS, OF_POSITIONS } from "../shared/DefenseUtils";
 import SimFieldDie from "./SimFieldDie";
+import { DiePrompt, HeldDie } from "./DiePrompt";
 import SimRunnerRolls from "./SimRunnerRolls";
 import FieldMarker from "./FieldMarker";
 import type { AdvantageSide } from "../../domain/play";
@@ -26,6 +27,13 @@ import { SLANT_ROOM_CLASS } from "../shared/headingStyles";
 import { FitText } from "../shared/FitText";
 
 type CardMap = Record<string, ShowdownBotCardAPIResponse>;
+
+export type RollPrompt = {
+    kind: "pitch" | "swing";
+    onRoll?: () => void;
+    isBusy?: boolean;
+    heldPitch?: number | null;
+};
 
 type GameFieldProps = {
     game: GameView;
@@ -64,13 +72,15 @@ type GameFieldProps = {
      *  so a big centered button is overlaid here rather than leaving "Watch" as a small banner
      *  action the user has to spot. Hidden as soon as playback starts. */
     onPlayClick?: () => void;
-    /** Paints the mowed-grass art behind the diamond, locked to the field art's scale and
-     *  centering. Painted at `-z-10`, so the caller should give an ancestor `isolate` to keep it
-     *  above that ancestor's own background layers. */
-    showGrassBackdrop?: boolean;
+    /** A game people play, waiting on a die. With `onRoll` (this viewer's turn) the die where it
+     *  will land becomes the button: beside the pitcher for the pitch, at the plate for the swing.
+     *  While the swing is waited on, the pitch already rolled stays face-up (`heldPitch`). */
+    rollPrompt?: RollPrompt;
     /** Skips the diamond art, for callers that paint `FieldArt` themselves so it can outlive this
      *  field (e.g. stay put while the field's contents crossfade). */
     hideFieldArt?: boolean;
+    /** The host shows the defense summary itself (the game board's corner panel). */
+    hideDefenseSummary?: boolean;
     /** Drops the players onto the field with a staggered bounce when this field mounts (e.g. a new
      *  game swapped in). Markers that show up later enter normally. */
     plopIn?: boolean;
@@ -87,13 +97,23 @@ export const FIELD_PLOP_MS = PLOP_DURATION_MS + Math.max(...Object.values(PLOP_O
 const plopDelay = (order: number): React.CSSProperties => ({ animationDelay: `${order * PLOP_STAGGER_MS}ms` });
 
 /**
- * The art (736x800) is mostly transparent padding — the field itself occupies x 17-720,
- * y 274-643. These constants scale and offset the <img> so that opaque region exactly fills
- * its container, letting every coordinate below be a simple percentage of the visible field.
+ * The field art (`Field 3D.webp`, cut out of its backdrop by `frontend/scripts/build_field_art.py`,
+ * which prints these numbers). Every coordinate below is a percentage of the field box, a 703x369
+ * region of the art from just under the outfield to the bottom of the plate's dirt. The rest of the
+ * art reaches past the box: the deep outfield above it (`FIELD_ART_HEADROOM`, which is where the
+ * outfielders stand), the fan's corners to each side (faded out in the image, so a host can clip
+ * them anywhere) and a strip of foul ground below.
  */
-const ART = { width: 736, height: 800, left: 17, top: 274, right: 720, bottom: 643 } as const;
+const ART = { width: 2549, height: 1320, left: 348.5, top: 274.7, right: 2205.3, bottom: 1249.3 } as const;
 const FIELD_W = ART.right - ART.left;
 const FIELD_H = ART.bottom - ART.top;
+/** Width over height of the field box. */
+export const FIELD_ASPECT = 703 / 369;
+/** How far the art reaches above the field box, as a share of the box's height. */
+export const FIELD_ART_HEADROOM = ART.top / FIELD_H;
+/** Room for that headroom above a field box filling its parent's width, as a `padding-top`
+ *  (a percentage padding is of the parent's width). */
+export const FIELD_ART_HEADROOM_PADDING = `${(FIELD_ART_HEADROOM / FIELD_ASPECT) * 100}%`;
 const ART_STYLE: React.CSSProperties = {
     position: "absolute",
     width: `${(ART.width / FIELD_W) * 100}%`,
@@ -103,58 +123,36 @@ const ART_STYLE: React.CSSProperties = {
     maxWidth: "none",
 };
 
-/** The diamond art, filling a positioned `aspect-703/369` box. */
+/** The field art, laid over a positioned `aspect-703/369` field box and overflowing it on every
+ *  side. The host leaves `FIELD_ART_HEADROOM_PADDING` above the box and clips the sides. */
 export function FieldArt() {
     return (
-        <div className="absolute inset-0 overflow-hidden rounded-card">
-            <img src="/images/teams/Field No BG No IF.png" alt="" style={ART_STYLE} className="pointer-events-none select-none" />
+        <div className="absolute inset-0 pointer-events-none">
+            <img src="/images/games/Field 3D.webp" alt="" style={ART_STYLE} className="select-none" />
         </div>
     );
 }
 
-/** Percentages of the visible field. Base coordinates are measured from the art's white base
- * markers; fielder spots are placed relative to them. */
+/** Percentages of the field box, measured from the art's white base markers. */
 const BASES = {
-    first: [78.9, 49.9],
+    first: [81.9, 46.1],
     second: [49.9, 18.4],
-    third: [20.6, 49.6],
+    third: [17.8, 46.1],
 } as const;
 const HOME: readonly [number, number] = [49.9, 85.4];
 
-/**
- * Mowed-grass backdrop (1264x841), drawn at `scale` of the field art's pixel scale and centered
- * on it: the pattern's center line sits on the field's center line and its lower apex (y 740)
- * on home plate, nudged down by `offsetY` (a fraction of the field height). It runs past the
- * field box vertically and is clipped to it on x so it never widens the page. Both fades live on
- * the image (a mask on the clipping wrapper would also clip the vertical overflow); the x fade
- * reaches transparent just inside the wrapper's edges so the clip never shows as a hard line.
- */
-const GRASS = { width: 1264, height: 841, centerX: 632, apexY: 740, scale: 0.6, offsetY: 0.18 } as const;
-const GRASS_FADE_Y = "linear-gradient(to bottom, transparent 0%, black 25%, black 80%, transparent 100%)";
-const GRASS_FADE_X = "linear-gradient(to right, transparent 4%, black 15%, black 85%, transparent 96%)";
-const GRASS_STYLE: React.CSSProperties = {
-    position: "absolute",
-    width: `${((GRASS.width * GRASS.scale) / FIELD_W) * 100}%`,
-    height: `${((GRASS.height * GRASS.scale) / FIELD_H) * 100}%`,
-    left: `${(0.5 - (GRASS.centerX * GRASS.scale) / FIELD_W) * 100}%`,
-    top: `${(HOME[1] / 100 + GRASS.offsetY - (GRASS.apexY * GRASS.scale) / FIELD_H) * 100}%`,
-    maxWidth: "none",
-    maskImage: `${GRASS_FADE_X}, ${GRASS_FADE_Y}`,
-    WebkitMaskImage: `${GRASS_FADE_X}, ${GRASS_FADE_Y}`,
-    maskComposite: "intersect",
-    WebkitMaskComposite: "source-in",
-};
-
+/** Where each fielder stands. The art is in perspective, so the outfield is deep: the outfielders
+ *  stand in the headroom above the box (negative y), on the grass in front of the wall. */
 const DEFENSE_SPOTS: Record<keyof DefenseAlignment, readonly [number, number]> = {
-    pitcher: [49.9, 50.5],
+    pitcher: [49.9, 47.7],
     catcher: [49.9, 110],
-    first: [88, 30],
-    second: [70, 5],
-    third: [12, 30],
-    shortstop: [30, 5],
-    left: [19, -20],
-    center: [49.9, -28],
-    right: [81, -20],
+    first: [84, 32.1],
+    second: [65.2, 12.7],
+    third: [15.7, 32.1],
+    shortstop: [34.6, 12.7],
+    left: [22.1, -6.8],
+    center: [49.9, -16.1],
+    right: [77.7, -6.8],
 };
 
 /** Position abbreviations for the defense slots, used for the card's defensive rating lookup. */
@@ -485,7 +483,7 @@ function DieDock({ children }: { children: ReactNode }) {
 /** OF / IF / CA totals for the fielding side plus the expand/collapse toggle, gathered into one
  * container in the field's bottom-left corner. Null when no alignment is available
  * (pre-first-pitch, or a sim game). */
-function DefenseSummary({
+export function DefenseSummary({
     defense, cardMap, expanded, onToggleExpanded,
 }: {
     defense: DefenseAlignment;
@@ -581,8 +579,15 @@ function LastPlaySummary({ play }: { play: PlayEntry }) {
     );
 }
 
-export default function GameField({ game, cardMap, onCardSelect, expanded = false, onToggleExpanded, isLoadingCards, transition, pendingPlay, phase = "idle", lastPlay, advantage, playbackSpeed, onPlayClick, showGrassBackdrop = false, hideFieldArt = false, plopIn = false, className = "" }: GameFieldProps) {
+export default function GameField({ game, cardMap, onCardSelect, expanded = false, onToggleExpanded, isLoadingCards, transition, pendingPlay, phase = "idle", lastPlay, advantage, playbackSpeed, onPlayClick, rollPrompt, hideFieldArt = false, hideDefenseSummary = false, plopIn = false, className = "" }: GameFieldProps) {
     const situation = game.situation;
+    // A prompt only stands in while nothing is animating; once a play resolves the toss takes over.
+    const prompt = pendingPlay ? undefined : rollPrompt;
+    const pitchDie = prompt?.kind === "pitch" && prompt.onRoll
+        ? <DiePrompt label="Pitch" onRoll={prompt.onRoll} isBusy={prompt.isBusy} />
+        : prompt?.kind === "swing" && prompt.heldPitch != null
+            ? <HeldDie value={prompt.heldPitch} label="Pitch" />
+            : <SimFieldDie kind="pitch" pendingPlay={pendingPlay} phase={phase} speed={playbackSpeed} />;
 
     // Markers mounted during the plop window get the drop; the class comes off once everyone has
     // landed so later arrivals use their own entrances.
@@ -614,19 +619,12 @@ export default function GameField({ game, cardMap, onCardSelect, expanded = fals
 
     return (
         <div className={`@container relative w-full ${className}`}>
-            {/* Padded so outfielder/catcher cards have room to sit above and
-                below the field art without overlapping whatever follows in the DOM. Expanded
-                needs noticeably more of both — the fielder cards carry a defense-rating row, and
-                the catcher/corner outfielders sit right at the edges with nothing to spare
-                otherwise. The padding transition is what makes the expand/collapse feel like the
-                field is growing rather than snapping to a new size. */}
-            <div className={`relative px-1 transition-[padding] duration-300 ease-out ${expanded ? "pt-28 pb-12" : "pt-0 pb-0"}`}>
+            {/* The top padding is the art's deep outfield, where the outfielders stand when the
+                field is expanded. Expanded also pads the bottom for the catcher; that padding's
+                transition is what makes the expand/collapse feel like the field is growing rather
+                than snapping to a new size. */}
+            <div className={`relative px-1 transition-[padding] duration-300 ease-out ${expanded ? "pb-12" : "pb-0"}`} style={{ paddingTop: FIELD_ART_HEADROOM_PADDING }}>
                 <div className="relative aspect-703/369 w-full overflow-visible">
-                    {showGrassBackdrop && (
-                        <div className="absolute inset-0 -z-10 overflow-x-clip pointer-events-none">
-                            <img src="/images/games/Grass Field.jpg" alt="" style={GRASS_STYLE} className="select-none" />
-                        </div>
-                    )}
                     {!hideFieldArt && <FieldArt />}
 
                     {/* Defense — the battery is always mounted; the rest of the alignment stays
@@ -662,9 +660,10 @@ export default function GameField({ game, cardMap, onCardSelect, expanded = fals
                                         liveIp={isBattery ? pitcherLine?.inningsPitched : undefined}
                                         backgroundSettings={backgroundSettings}
                                         hasAdvantage={isBattery && advantage === "pitcher"}
+                                        grounded
                                     />
                                     {isBattery && (
-                                        <DieDock><SimFieldDie kind="pitch" pendingPlay={pendingPlay} phase={phase} speed={playbackSpeed} /></DieDock>
+                                        <DieDock>{pitchDie}</DieDock>
                                     )}
                                 </div>
                             );
@@ -683,8 +682,9 @@ export default function GameField({ game, cardMap, onCardSelect, expanded = fals
                                 detailStat1Category="defense"
                                 liveIp={pitcherLine?.inningsPitched}
                                 hasAdvantage={advantage === "pitcher"}
+                                grounded
                             />
-                            <DieDock><SimFieldDie kind="pitch" pendingPlay={pendingPlay} phase={phase} speed={playbackSpeed} /></DieDock>
+                            <DieDock>{pitchDie}</DieDock>
                         </div>
                     )}
 
@@ -771,6 +771,7 @@ export default function GameField({ game, cardMap, onCardSelect, expanded = fals
                                     tone="offense"
                                     detailStat1Category="hr"
                                     hasAdvantage={advantage === "hitter" && isPendingBatter}
+                                    grounded
                                 />
                             </div>
                         );
@@ -784,6 +785,15 @@ export default function GameField({ game, cardMap, onCardSelect, expanded = fals
                             style={{ left: `${SPOTS.plate[0]}%`, top: `${SPOTS.plate[1]}%`, zIndex: FIELD_Z.die }}
                         >
                             <DieDock><SimFieldDie kind="swing" pendingPlay={pendingPlay} phase={phase} speed={playbackSpeed} /></DieDock>
+                        </div>
+                    )}
+
+                    {prompt?.kind === "swing" && prompt.onRoll && situation?.batter && (
+                        <div
+                            className="absolute -translate-x-1/2 -translate-y-1/2 w-18 @[380px]:w-24 @[520px]:w-30 @[650px]:w-40 h-px"
+                            style={{ left: `${SPOTS.plate[0]}%`, top: `${SPOTS.plate[1]}%`, zIndex: FIELD_Z.die }}
+                        >
+                            <DieDock><DiePrompt label="Swing" onRoll={prompt.onRoll} isBusy={prompt.isBusy} /></DieDock>
                         </div>
                     )}
 
@@ -813,7 +823,7 @@ export default function GameField({ game, cardMap, onCardSelect, expanded = fals
                     )}
                 </div>
 
-                {defense && (
+                {defense && !hideDefenseSummary && (
                     <div className="absolute bottom-0 left-0">
                         <DefenseSummary
                             defense={defense}
