@@ -1451,9 +1451,6 @@ class ShowdownPlayerCard(BaseModel):
         if not self.player_type.is_pitcher:
             return 0
         
-        # START USING TRADITIONAL ROUNDING (HALF UP) FOR 2026 AND BEYOND
-        round_ip = traditional_round if self.stats_period.last_year >= 2026 else round
-
         # ACCOUNT FOR HYBRID STARTER/RELIEVERS
         match self.player_sub_type:
             case PlayerSubType.RELIEF_PITCHER:
@@ -1462,27 +1459,42 @@ class ShowdownPlayerCard(BaseModel):
                 # APPEARANCES (EX: STARTER WITH RP POSITION OVERRIDE) USES FULL TOTALS
                 if games > games_started:
                     ip_per_start = ip_per_start or (5.0 if self.stats_period.last_year >= 2026 else 0)
-                    innings_pitched -= games_started * ip_per_start
+                    ip_as_starter = games_started * ip_per_start
+                    innings_pitched -= ip_as_starter
                     games -= games_started
 
                 # IF SMALL SAMPLE (EX: < 45 IP) CAP AT 2 IP
                 # OTHERWISE USE 3 IP AS CAP
                 cap = 2 if innings_pitched < 45 else 3
-                ip = min(round_ip(innings_pitched / games), cap) if games > 0 else 1
+                if games == 0:
+                    ip = 1
+                elif self.stats_period.last_year >= 2026:
+                    ip = min(traditional_round(innings_pitched / games), cap)
+                else:
+                    ip = min(round(innings_pitched / games), cap)
 
             case PlayerSubType.STARTING_PITCHER:
                 if (ip_per_start or 0) > 0:
                     # USE IP/GS
-                    ip = round_ip(ip_per_start)
+                    if self.stats_period.last_year >= 2026:
+                        ip = traditional_round(ip_per_start) # START USING TRADITIONAL ROUNDING FOR 2026 AND BEYOND
+                    else:
+                        ip = round(ip_per_start) # MINIMUM FOR SP IS 4 IP
                 elif games_started > 0:
                     # HAVE GAMES STARTED DATA, ESTIMATE RP INNINGS AND NORMALIZE
                     # (EX: MILB, WHICH HAS NO IP/GS SPLIT)
                     games_as_rp = games - games_started
                     rp_multiplier = 2.0 if self.median_year < 1950 else 1.0
                     est_ip_as_rp = rp_multiplier * games_as_rp
-                    ip = round_ip((innings_pitched - est_ip_as_rp) / games_started)
+                    if self.stats_period.last_year >= 2026:
+                        ip = traditional_round((innings_pitched - est_ip_as_rp) / games_started)
+                    else:
+                        ip = round((innings_pitched - est_ip_as_rp) / games_started)
                 else:
-                    ip = round_ip(innings_pitched / games)
+                    if self.stats_period.last_year >= 2026:
+                        ip = traditional_round(innings_pitched / games)
+                    else:
+                        ip = round(innings_pitched / games)
 
                 # MIN OF 4 IP FOR STARTERS
                 ip = max(ip, 4)
