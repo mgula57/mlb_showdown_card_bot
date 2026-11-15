@@ -909,3 +909,16 @@ html, body, #root {
 @media (prefers-reduced-motion: reduce) {
     .island-content { animation: none; }
 }
+
+/* Lettering pressed into the field (`GameField`'s defense totals along the third-base line): dark,
+   semi-clear ink so the grass shows through it, with a faint lit lower edge, the way a groove in
+   turf catches the light. A button brings its ink up on hover. */
+.field-etched {
+    color: color-mix(in oklab, var(--field-ink) 58%, transparent);
+    text-shadow: 0 1px 0 rgb(255 255 255 / 0.22);
+    transition: color 150ms ease-out;
+}
+button.field-etched:hover,
+button.field-etched:focus-visible {
+    color: color-mix(in oklab, var(--field-ink) 85%, transparent);
+}

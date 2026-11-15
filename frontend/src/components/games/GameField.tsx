@@ -7,7 +7,7 @@
  * can't fill (defense alignment, runner identity) degrade to markers rather than disappearing.
  */
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { FaCaretUp, FaCompress, FaExpand, FaPlay } from "react-icons/fa6";
+import { FaCaretUp, FaPlay } from "react-icons/fa6";
 
 import type { DefenseAlignment, GameView, PlayerRef } from "../../domain/game";
 import { resolveCardKey } from "../../domain/players";
@@ -79,7 +79,7 @@ type GameFieldProps = {
     /** Skips the diamond art, for callers that paint `FieldArt` themselves so it can outlive this
      *  field (e.g. stay put while the field's contents crossfade). */
     hideFieldArt?: boolean;
-    /** The field's bottom-right corner, opposite the defense summary: the player's own controls
+    /** The field's bottom-right corner: the player's own controls
      *  (a live game's Manager button, and on a phone the next-move button). Takes the place of the
      *  last play there. */
     corner?: ReactNode;
@@ -487,9 +487,36 @@ function DieDock({ children }: { children: ReactNode }) {
     return <div className="absolute right-full top-1/2 -z-10 -translate-y-1/2 pr-1">{children}</div>;
 }
 
-/** OF / IF / CA totals for the fielding side plus the expand/collapse toggle, gathered into one
- * container in the field's bottom-left corner. Null when no alignment is available
- * (pre-first-pitch, or a sim game). */
+/** The third-base line, home to third, in the field box's own proportions: the angle it climbs at
+ *  (measured on screen, so the box's aspect counts) and a spot in the foul ground beside it, up
+ *  toward third and far enough off the line to stay clear of the chalk. */
+const THIRD_BASE_LINE = (() => {
+    const [homeX, homeY] = HOME;
+    const [thirdX, thirdY] = BASES.third;
+    // In units of the box's width, so x and y measure alike.
+    const dx = (homeX - thirdX) / 100;
+    const dy = (homeY - thirdY) / 100 / FIELD_ASPECT;
+    const angle = Math.atan2(dy, dx);
+    const length = Math.hypot(dx, dy);
+    // Most of the way up the line toward third, well clear of the hitter at the plate, then off
+    // it toward foul ground (down and to the left of it).
+    const along = 0.68;
+    const offset = 0.065;
+    const centerX = (homeX - (homeX - thirdX) * along) / 100 - Math.sin(angle) * offset;
+    const centerY = ((homeY - (homeY - thirdY) * along) / 100 / FIELD_ASPECT + Math.cos(angle) * offset) * FIELD_ASPECT;
+    return { degrees: (angle * 180) / Math.PI, length, center: [centerX * 100, centerY * 100] as const };
+})();
+
+const ETCH_STYLE: React.CSSProperties = {
+    ...atPercent(THIRD_BASE_LINE.center),
+    transform: `translate(-50%, -50%) rotate(${THIRD_BASE_LINE.degrees}deg)`,
+    maxWidth: `${THIRD_BASE_LINE.length * 100}%`,
+};
+
+/** The fielding side's OF / IF / CA defense totals, etched into the left-field foul ground along
+ *  the third-base line, so they read as part of the field rather than a panel on it. With
+ *  `onToggleExpanded` the whole etching is the button that brings out every fielder; it carries
+ *  no icon, so it stays lettering. Null when there's no rating to show. */
 function DefenseSummary({
     defense, cardMap, expanded, onToggleExpanded,
 }: {
@@ -519,50 +546,29 @@ function DefenseSummary({
 
     if (rows.every(([, value]) => value == null)) return null;
 
-    // OF / IF / CA totals plus the toggle, packed into a 2x2 block so the summary claims a
-    // compact corner instead of a wide strip. Borders are drawn per grid position: a right edge
-    // on the left column, a bottom edge on the top row.
-    const cells: { key: string; content: React.ReactNode; onClick?: () => void; label?: string }[] = [
-        ...rows.map(([label, value]) => ({
-            key: label,
-            content: (
-                <>
-                    <span className="text-(--secondary)">{label}</span>
-                    <span className="text-(--primary)">{value == null ? "–" : `+${value}`}</span>
-                </>
-            ),
-        })),
-    ];
-    if (onToggleExpanded) {
-        cells.push({
-            key: "toggle",
-            content: expanded ? <FaCompress size={12} /> : <FaExpand size={12} />,
-            onClick: onToggleExpanded,
-            label: expanded ? "Show battery only" : "Show all fielders",
-        });
-    }
+    const content = (
+        <>
+            {rows.map(([label, value]) => (
+                <span key={label}>{label} {value == null ? "–" : `${value >= 0 ? "+" : ""}${value}`}</span>
+            ))}
+        </>
+    );
+    const etch = "field-etched flex items-center gap-[0.7em] whitespace-nowrap font-display-upright text-[clamp(11px,2.4cqw,18px)] uppercase leading-none";
 
     return (
-        <div className="inline-grid grid-cols-2 overflow-hidden rounded-card border border-(--divider) bg-(--background-secondary)/30 text-[10px] font-bold">
-            {cells.map((cell, i) => {
-                const edges = `${i % 2 === 0 ? "border-r " : ""}${i < 2 ? "border-b " : ""}border-(--divider)`;
-                const base = `flex items-center justify-center gap-1 px-1.5 py-1 ${edges}`;
-                return cell.onClick ? (
-                    <button
-                        key={cell.key}
-                        type="button"
-                        onClick={cell.onClick}
-                        aria-label={cell.label}
-                        className={`${base} cursor-pointer text-(--secondary) transition-colors hover:text-(--primary)`}
-                    >
-                        {cell.content}
-                    </button>
-                ) : (
-                    <div key={cell.key} className={base}>
-                        {cell.content}
-                    </div>
-                );
-            })}
+        <div className="absolute" style={ETCH_STYLE}>
+            {onToggleExpanded ? (
+                <button
+                    type="button"
+                    onClick={onToggleExpanded}
+                    aria-label={`${rows.map(([label, value]) => `${label} ${value ?? "none"}`).join(", ")}. ${expanded ? "Show battery only" : "Show all fielders"}`}
+                    className={`${etch} cursor-pointer px-1 py-0.5`}
+                >
+                    {content}
+                </button>
+            ) : (
+                <div className={etch}>{content}</div>
+            )}
         </div>
     );
 }
@@ -638,6 +644,16 @@ export default function GameField({ game, cardMap, onCardSelect, expanded = fals
                     style={{ width: `${zoom * 100}%`, marginLeft: `${(1 - zoom) * 50}%` }}
                 >
                     {!hideFieldArt && <FieldArt />}
+
+                    {/* Etched into the ground, so under every player. */}
+                    {defense && (
+                        <DefenseSummary
+                            defense={defense}
+                            cardMap={cardMap}
+                            expanded={expanded}
+                            onToggleExpanded={onToggleExpanded}
+                        />
+                    )}
 
                     {/* Defense — the battery is always mounted; the rest of the alignment stays
                         mounted too (so it can fade/scale in instead of popping in) but is hidden
@@ -834,17 +850,6 @@ export default function GameField({ game, cardMap, onCardSelect, expanded = fals
                         </div>
                     )}
                 </div>
-
-                {defense && (
-                    <div className="absolute bottom-0 left-0 z-20">
-                        <DefenseSummary
-                            defense={defense}
-                            cardMap={cardMap}
-                            expanded={expanded}
-                            onToggleExpanded={onToggleExpanded}
-                        />
-                    </div>
-                )}
 
                 {/* Sim steal / extra-base / double-play dice, floated over the middle of the diamond
                     (the mound) for the length of the beat so the roll is where the eye already is.
