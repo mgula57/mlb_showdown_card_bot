@@ -1458,15 +1458,17 @@ class ShowdownPlayerCard(BaseModel):
         match self.player_sub_type:
             case PlayerSubType.RELIEF_PITCHER:
                 # REMOVE STARTER INNINGS AND GAMES STARTED
-                ip_per_start = ip_per_start or (5.0 if self.stats_period.last_year >= 2026 else 0)
-                ip_as_starter = games_started * ip_per_start
-                innings_pitched -= ip_as_starter
-                games -= games_started
+                # ONLY WHEN THERE ARE RELIEF APPEARANCES LEFT. A RELIEVER WITH NO RELIEF
+                # APPEARANCES (EX: STARTER WITH RP POSITION OVERRIDE) USES FULL TOTALS
+                if games > games_started:
+                    ip_per_start = ip_per_start or (5.0 if self.stats_period.last_year >= 2026 else 0)
+                    innings_pitched -= games_started * ip_per_start
+                    games -= games_started
 
                 # IF SMALL SAMPLE (EX: < 45 IP) CAP AT 2 IP
                 # OTHERWISE USE 3 IP AS CAP
                 cap = 2 if innings_pitched < 45 else 3
-                ip = min(round_ip(innings_pitched / games), cap)
+                ip = min(round_ip(innings_pitched / games), cap) if games > 0 else 1
 
             case PlayerSubType.STARTING_PITCHER:
                 if (ip_per_start or 0) > 0:
