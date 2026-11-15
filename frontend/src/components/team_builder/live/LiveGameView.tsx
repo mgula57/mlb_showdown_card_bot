@@ -18,6 +18,7 @@ import type { AdvantageSide } from "../../../domain/play";
 import { bannerTokens, NEUTRAL_TEAM_COLOR } from "../../../functions/colors";
 import { useCopyLink } from "../../../hooks/useCopyLink";
 import { useLiveGame } from "../../../hooks/useLiveGame";
+import { TeamMoveNote } from "../../games/GameBoardPanels";
 import GameDetailSkeleton from "../../games/GameDetailSkeleton";
 import GameStage from "../../games/GameStage";
 import SimBoxScorePanels from "../../games/SimBoxScorePanels";
@@ -31,6 +32,8 @@ import { InlineError } from "../../shared/InlineError";
 import { actingSide, defaultPickerMode, liveTurnLabel, isMyTurn, LIVE_SIDES, liveEdgeOf, teamName, type SubPickerMode } from "./liveGameState";
 import LiveSubPanel from "./LiveSubPanel";
 import LiveActionButton, { LiveTurnStatus, ManagerButton } from "./LiveTurnControls";
+import LiveStrategyPrototype from "./LiveStrategyPrototype";
+import { useLiveTeamMoves } from "./useLiveTeamMoves";
 
 type CardMap = Record<string, ShowdownBotCardAPIResponse>;
 
@@ -112,6 +115,11 @@ function LiveBoard({ game, cardMap, isLoadingCards, isSubmitting, moveError, sub
     const barColor = (side && game.seats[side].identity?.primary_color) || NEUTRAL_TEAM_COLOR;
     const barButton = `rounded-control px-2 py-1 h-7 ${bannerTokens(barColor).btnClass}`;
 
+    // Dev only: `?strategy=1` puts the strategy-card prototype on the board (`LiveStrategyPrototype`).
+    const isStrategyPrototype = import.meta.env.DEV && new URLSearchParams(window.location.search).get("strategy") === "1";
+
+    const teamMoves = useLiveTeamMoves(state);
+
     const roll = () => pending && submit({ side: pending.side, kind: "roll", roll: pending.roll });
     const openManager = () => setPicker(defaultPickerMode(game));
     const toggleAutopilot = (enabled: boolean) => { if (side) submit({ side, kind: "autopilot", enabled }); };
@@ -130,62 +138,77 @@ function LiveBoard({ game, cardMap, isLoadingCards, isSubmitting, moveError, sub
                 // The island waits for the last roll to finish on the field, then grows out of the
                 // scoreboard with whose turn it is now. An error shows straight away.
                 const turn = isCaughtUp ? liveTurnLabel(game) : null;
+                // A substitution drops from under its club once the field has caught up to it.
+                const teamMoveAnnouncements = teamMoves
+                    .filter((move) => isCaughtUp || move.seq < state.seq)
+                    .map((move) => ({
+                        side: move.side,
+                        key: move.key,
+                        content: <TeamMoveNote label={move.label}>{move.text}</TeamMoveNote>,
+                    }));
                 const islandTurn = (turn || moveError) ? {
                     key: `${turn?.label ?? ""}|${moveError ?? ""}`,
                     content: <LiveTurnStatus turn={turn} moveError={moveError} />,
                 } : null;
                 return (
-                    <GameStage
-                        stage={stage}
-                        game={activeView}
-                        plays={activePlays}
-                        playbackState={playbackState}
-                        playbackControls={playbackControls}
-                        isReplaying={isReplaying}
-                        // The turn bar takes the transport's place until the final out.
-                        playbackBar={state.is_final ? playbackBar : null}
-                        detailedState="Final"
-                        cardMap={cardMap}
-                        isLoadingCards={isLoadingCards}
-                        isSim={false}
-                        gameKey={game.live_game_id}
-                        title="Live Game"
-                        modeBarColor={barColor}
-                        onBack={onBack}
-                        topBarStatus={share.error && <span className="text-[11px] text-(--red)">{share.error}</span>}
-                        topBarActions={
-                            <TopBarButton label={share.copied ? "Copied" : "Share"} onClick={share.copy} className={barButton} />
-                        }
-                        boxScorePanels={<SimBoxScorePanels game={activeView} cardMap={cardMap} onCardSelect={stage.setSelectedCard} />}
-                        boardAction={side && !state.is_final && (
-                            <LiveActionButton game={game} isCaughtUp={isCaughtUp} isSubmitting={isSubmitting} onRoll={roll} />
-                        )}
-                        boardTurn={islandTurn}
-                        boardTools={!state.is_final && <ManagerButton game={game} onOpen={openManager} />}
-                        rollPrompt={pending && isCaughtUp ? {
-                            kind: pending.roll,
-                            onRoll: myTurn ? roll : undefined,
-                            isBusy: isSubmitting,
-                            heldPitch: pending.roll === "swing" ? pending.pitch_roll : undefined,
-                        } : undefined}
-                        heldAdvantage={isCaughtUp ? heldAdvantage : undefined}
-                    >
-                        {side && mine && (
-                            <LiveSubPanel
-                                mode={picker}
-                                onModeChange={setPicker}
-                                side={side}
-                                mine={mine}
-                                names={state.player_names}
+                    <LiveStrategyPrototype game={game} isEnabled={isStrategyPrototype} isCaughtUp={isCaughtUp}>
+                        {(strategy) => (
+                            <GameStage
+                                stage={stage}
+                                game={activeView}
+                                plays={activePlays}
+                                playbackState={playbackState}
+                                playbackControls={playbackControls}
+                                isReplaying={isReplaying}
+                                // The turn bar takes the transport's place until the final out.
+                                playbackBar={state.is_final ? playbackBar : null}
+                                detailedState="Final"
                                 cardMap={cardMap}
-                                isFielding={defaultPickerMode(game) === "pitcher"}
-                                isSubmitting={isSubmitting}
-                                onPick={submit}
-                                onToggleAutopilot={toggleAutopilot}
-                                onClose={() => setPicker(null)}
-                            />
+                                isLoadingCards={isLoadingCards}
+                                isSim={false}
+                                gameKey={game.live_game_id}
+                                title="Live Game"
+                                modeBarColor={barColor}
+                                onBack={onBack}
+                                topBarStatus={share.error && <span className="text-[11px] text-(--red)">{share.error}</span>}
+                                topBarActions={
+                                    <TopBarButton label={share.copied ? "Copied" : "Share"} onClick={share.copy} className={barButton} />
+                                }
+                                boxScorePanels={<SimBoxScorePanels game={activeView} cardMap={cardMap} onCardSelect={stage.setSelectedCard} />}
+                                boardAction={side && !state.is_final && (
+                                    <LiveActionButton game={game} isCaughtUp={isCaughtUp} isSubmitting={isSubmitting} onRoll={roll} pass={strategy.pass} />
+                                )}
+                                // A strategy window speaks for the turn until it closes.
+                                boardTurn={strategy.island ?? islandTurn}
+                                boardTools={!state.is_final && <ManagerButton game={game} onOpen={openManager} />}
+                        teamAnnouncements={[...teamMoveAnnouncements, ...strategy.announcements]}
+                                strategy={strategy.slots}
+                                rollPrompt={pending && isCaughtUp && !strategy.isHoldingRoll ? {
+                                    kind: pending.roll,
+                                    onRoll: myTurn ? roll : undefined,
+                                    isBusy: isSubmitting,
+                                    heldPitch: pending.roll === "swing" ? pending.pitch_roll : undefined,
+                                } : undefined}
+                                heldAdvantage={isCaughtUp ? heldAdvantage : undefined}
+                            >
+                                {side && mine && (
+                                    <LiveSubPanel
+                                        mode={picker}
+                                        onModeChange={setPicker}
+                                        side={side}
+                                        mine={mine}
+                                        names={state.player_names}
+                                        cardMap={cardMap}
+                                        isFielding={defaultPickerMode(game) === "pitcher"}
+                                        isSubmitting={isSubmitting}
+                                        onPick={submit}
+                                        onToggleAutopilot={toggleAutopilot}
+                                        onClose={() => setPicker(null)}
+                                    />
+                                )}
+                            </GameStage>
                         )}
-                    </GameStage>
+                    </LiveStrategyPrototype>
                 );
             }}
         </TimelinePlayback>

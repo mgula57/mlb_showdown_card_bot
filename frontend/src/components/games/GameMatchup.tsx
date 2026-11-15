@@ -5,6 +5,8 @@
  * fit and stacked when they don't, so the chart is always there to show where a swing landed. Under
  * them, the rest of the batting club's order as it comes up, fading the further off each hitter is.
  */
+import type { ReactNode } from "react";
+
 import { useIsWiderThan } from "../../hooks/useIsWiderThan";
 import type { GameView } from "../../domain/game";
 import type { ShowdownBotCardAPIResponse } from "../../api/showdownBotCard";
@@ -96,9 +98,11 @@ type MatchupSideProps = {
     hasAdvantage?: boolean;
     /** Sim only: the chart result the swing landed on, lit up on the winning card. */
     chartHighlight?: string;
+    /** On top of the card: the strategy cards this side's club has in play (`PlayedStrategyCards`). */
+    accessory?: ReactNode;
 };
 
-export function MatchupSide({ side, isLoadingCards, onCardSelect, hideTrend, hasAdvantage, chartHighlight }: MatchupSideProps) {
+export function MatchupSide({ side, isLoadingCards, onCardSelect, hideTrend, hasAdvantage, chartHighlight, accessory }: MatchupSideProps) {
     const { label, player, response, summary, advantagePct } = side;
     // A finished game's last frame has a pitcher but no one left to bat.
     if (!player) return null;
@@ -117,6 +121,8 @@ export function MatchupSide({ side, isLoadingCards, onCardSelect, hideTrend, has
                     </div>
                 )}
             </div>
+
+            {accessory}
 
             {response?.card ? (
                 <CardItemFromCard card={response.card} className="w-full" onClick={() => onCardSelect?.(response)} hasAdvantage={hasAdvantage} chartHighlight={chartHighlight} />
@@ -140,9 +146,11 @@ type GameMatchupProps = {
     hideStatlines?: boolean;
     advantage?: AdvantageSide;
     swingResult?: string;
+    /** Each side's `MatchupSide` `accessory`. */
+    accessories?: { pitcher?: ReactNode; hitter?: ReactNode };
 };
 
-export default function GameMatchup({ game, cardMap, isLoadingCards, onCardSelect, hideStatlines = false, advantage, swingResult }: GameMatchupProps) {
+export default function GameMatchup({ game, cardMap, isLoadingCards, onCardSelect, hideStatlines = false, advantage, swingResult, accessories }: GameMatchupProps) {
     const [rowRef, isFullRow] = useIsWiderThan<HTMLDivElement>(FULL_ROW_MIN_WIDTH);
     const matchup = resolveMatchup(game, cardMap, hideStatlines);
     if (!matchup) return null;
@@ -152,8 +160,8 @@ export default function GameMatchup({ game, cardMap, isLoadingCards, onCardSelec
     return (
         <div ref={rowRef} className="mx-2 space-y-1.5">
             <div className={`grid gap-2 ${isFullRow ? "grid-cols-2" : "grid-cols-1"}`}>
-                <MatchupSide {...shared} side={matchup.pitcher} hasAdvantage={advantage === "pitcher"} chartHighlight={advantage === "pitcher" ? swingResult : undefined} />
-                <MatchupSide {...shared} side={matchup.hitter} hasAdvantage={advantage === "hitter"} chartHighlight={advantage === "hitter" ? swingResult : undefined} />
+                <MatchupSide {...shared} side={matchup.pitcher} hasAdvantage={advantage === "pitcher"} chartHighlight={advantage === "pitcher" ? swingResult : undefined} accessory={accessories?.pitcher} />
+                <MatchupSide {...shared} side={matchup.hitter} hasAdvantage={advantage === "hitter"} chartHighlight={advantage === "hitter" ? swingResult : undefined} accessory={accessories?.hitter} />
             </div>
 
             <UpNext game={game} cardMap={cardMap} isLoadingCards={isLoadingCards} onCardSelect={onCardSelect} />

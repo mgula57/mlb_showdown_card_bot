@@ -7,7 +7,7 @@
  *  - the roll is the die on the field, and a narrow board adds a thumb-sized next-move button in
  *    the field's bottom-right corner (`LiveActionButton`).
  */
-import { FaClipboardList, FaDiceD20 } from "react-icons/fa6";
+import { FaClipboardList, FaDiceD20, FaForward } from "react-icons/fa6";
 
 import type { LiveGame } from "../../../api/liveGame";
 import { buttonClass } from "../../shared/buttonStyles";
@@ -54,20 +54,40 @@ export function ManagerButton({ game, onOpen, className = "" }: { game: LiveGame
     );
 }
 
+/** Thumb-sized: the same size as the strategy hand in the opposite corner. */
+const ACTION_BUTTON_CLASS = "h-14 w-14 flex-col gap-0.5 p-0! text-[11px]! shadow-raised";
+
 type Props = {
     game: LiveGame;
     /** False while the last play is still animating: the next roll waits for it to finish. */
     isCaughtUp: boolean;
     isSubmitting: boolean;
     onRoll: () => void;
+    /** Set while the at-bat waits on strategy cards: the button passes instead of rolling. */
+    pass?: { isMyCall: boolean; onPass: () => void } | null;
 };
 
 /** A narrow board's next-move button: thumb-sized, in the field's bottom-right corner, and always
  *  there while this player has a seat. On their turn it rolls the pitch or swing (the same die the
  *  field offers); otherwise it says to wait, so the spot never jumps. */
-export default function LiveActionButton({ game, isCaughtUp, isSubmitting, onRoll }: Props) {
+export default function LiveActionButton({ game, isCaughtUp, isSubmitting, onRoll, pass }: Props) {
     const state = game.state;
     if (!state || state.is_final || !actingSide(game)) return null;
+
+    if (pass) {
+        return (
+            <button
+                type="button"
+                onClick={pass.onPass}
+                disabled={!pass.isMyCall}
+                aria-label={pass.isMyCall ? "Pass without playing a strategy card" : "Waiting on the other club's strategy card"}
+                className={buttonClass(pass.isMyCall ? "primary" : "secondary", "sm", ACTION_BUTTON_CLASS)}
+            >
+                <FaForward size={18} />
+                {pass.isMyCall ? "Pass" : "Wait"}
+            </button>
+        );
+    }
 
     const pending = state.pending;
     const canRoll = !!pending && isMyTurn(game);
@@ -79,7 +99,7 @@ export default function LiveActionButton({ game, isCaughtUp, isSubmitting, onRol
             onClick={onRoll}
             disabled={!canRoll || !isCaughtUp || isSubmitting}
             aria-label={canRoll ? `Roll ${pending.roll}` : "Waiting on the other club"}
-            className={buttonClass(canRoll ? "primary" : "secondary", "sm", "h-14 w-14 flex-col gap-0.5 p-0! text-[11px]! shadow-raised")}
+            className={buttonClass(canRoll ? "primary" : "secondary", "sm", ACTION_BUTTON_CLASS)}
         >
             <FaDiceD20 size={20} className={isSubmitting ? "animate-spin" : ""} />
             {label}

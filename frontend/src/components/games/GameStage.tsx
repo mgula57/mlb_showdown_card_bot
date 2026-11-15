@@ -26,7 +26,7 @@ import { buttonVariantClass } from "../shared/buttonStyles";
 import GameBoard, { NARROW_FIELD_ZOOM } from "./GameBoard";
 import { LineupUpContext } from "./lineupUpContext";
 import { lineupUp, withLineupDefense } from "../../domain/lineup";
-import ScoreboardIsland from "./ScoreboardIsland";
+import ScoreboardIsland, { type TeamAnnouncement } from "./ScoreboardIsland";
 import { GameScoreTrack, LastPlayLine } from "./GameBoardPanels";
 import GameField, { type RollPrompt } from "./GameField";
 import GameLinescore from "./GameLinescore";
@@ -36,6 +36,7 @@ import { resolveMatchup } from "./resolveMatchup";
 import GameFinalSummary from "./detail/GameFinalSummary";
 import ScoreHeader from "./detail/ScoreHeader";
 import TopBarButton from "./detail/TopBarButton";
+import type { StrategyBoardSlots } from "./strategy/strategyBoard";
 import type { GameStageState, RailTab } from "./useGameStage";
 
 /** A phone's tabs: the field, then the rail's panels, each taking the whole page. */
@@ -100,6 +101,12 @@ type GameStageProps = {
     /** The field's bottom-right corner on every board, e.g. the button that opens a live game's
      *  moves. */
     boardTools?: ReactNode;
+    /** What each club just did (a strategy card, a substitution), dropped from under its side of
+     *  the scoreboard (see `ScoreboardIsland`). */
+    teamAnnouncements?: TeamAnnouncement[];
+    /** Strategy cards on the board: the hand bottom left, its tray over the field, and played cards
+     *  on the matchup (see `StrategyBoardSlots`). Hidden behind the recap. */
+    strategy?: StrategyBoardSlots;
     /** A live game waiting on a die: see `GameField`'s `rollPrompt`. */
     rollPrompt?: RollPrompt;
     /** Who won a pitch that's been rolled but not yet swung at, highlighted until the swing resolves. */
@@ -114,7 +121,7 @@ type GameStageProps = {
 export default function GameStage({
     stage, game: gameView, plays, playbackState, playbackControls, isReplaying, playbackBar, detailedState,
     cardMap, isLoadingCards, isSim, gameKey, title, titleAccessory, modeBarColor, onBack,
-    topBarStatus, topBarActions, boxScorePanels, infoPanel, boardAction, boardTurn, boardTools, rollPrompt, heldAdvantage, preGamePanel, className, children,
+    topBarStatus, topBarActions, boxScorePanels, infoPanel, boardAction, boardTurn, boardTools, teamAnnouncements, strategy, rollPrompt, heldAdvantage, preGamePanel, className, children,
 }: GameStageProps) {
     const {
         selectedCard, setSelectedCard, isFieldExpanded, setIsFieldExpanded, railTab, setRailTab, isPhoneFieldShown, setIsPhoneFieldShown,
@@ -197,6 +204,8 @@ export default function GameStage({
                         {!isWideBoard && boardAction}
                     </>
                 )}
+                cornerLeft={showRecap ? undefined : strategy?.hand}
+                drawer={showRecap ? undefined : strategy?.tray}
                 // Expanded zooms back out, so all nine fielders fit.
                 zoom={isWideBoard || isFieldExpanded ? 1 : NARROW_FIELD_ZOOM}
                 transition={playbackState.transition}
@@ -246,6 +255,7 @@ export default function GameStage({
             hideTrend={isReplaying}
             hasAdvantage={advantage === side}
             chartHighlight={advantage === side ? swingResult : undefined}
+            accessory={strategy?.played?.[side]}
         />
     );
 
@@ -283,7 +293,7 @@ export default function GameStage({
                     <GameBoard
                         isWide={isWideBoard}
                         track={
-                            <ScoreboardIsland content={islandContent} contentKey={islandKey}>
+                            <ScoreboardIsland content={islandContent} contentKey={islandKey} announcements={showRecap ? undefined : teamAnnouncements} isNarrow={!isWideBoard}>
                                 {isWideBoard
                                     ? <GameScoreTrack game={headerView} centerAction={recapToggle} />
                                     : <ScoreHeader game={headerView} compact centerAction={recapToggle} />}
@@ -308,6 +318,7 @@ export default function GameStage({
                                         hideStatlines={isReplaying}
                                         advantage={advantage}
                                         swingResult={swingResult}
+                                        accessories={strategy?.played}
                                     />
                                 )}
                             </>

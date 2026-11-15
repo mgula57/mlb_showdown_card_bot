@@ -83,6 +83,11 @@ type GameFieldProps = {
      *  (a live game's Manager button, and on a phone the next-move button). Takes the place of the
      *  last play there. */
     corner?: ReactNode;
+    /** The field's bottom-left corner: the player's strategy hand (`StrategyHandStack`). */
+    cornerLeft?: ReactNode;
+    /** Laid over the bottom of the field, above everything on it: the strategy hand laid out
+     *  (`StrategyHandTray`). */
+    drawer?: ReactNode;
     /** Scales the field (art, bases and where everyone stands) past its host's width, with the far
      *  sides clipped by the host, so a narrow screen spends its width on the diamond rather than on
      *  foul ground. Player cards keep their size, since they're sized by the host's width. The
@@ -592,7 +597,7 @@ function LastPlaySummary({ play }: { play: PlayEntry }) {
     );
 }
 
-export default function GameField({ game, cardMap, onCardSelect, expanded = false, onToggleExpanded, isLoadingCards, transition, pendingPlay, phase = "idle", lastPlay, advantage, playbackSpeed, onPlayClick, rollPrompt, hideFieldArt = false, corner, zoom = 1, plopIn = false, className = "" }: GameFieldProps) {
+export default function GameField({ game, cardMap, onCardSelect, expanded = false, onToggleExpanded, isLoadingCards, transition, pendingPlay, phase = "idle", lastPlay, advantage, playbackSpeed, onPlayClick, rollPrompt, hideFieldArt = false, corner, cornerLeft, drawer, zoom = 1, plopIn = false, className = "" }: GameFieldProps) {
     const situation = game.situation;
     // A prompt only stands in while nothing is animating; once a play resolves the toss takes over.
     const prompt = pendingPlay ? undefined : rollPrompt;
@@ -872,6 +877,10 @@ export default function GameField({ game, cardMap, onCardSelect, expanded = fals
                         <LastPlaySummary play={lastPlay} />
                     </div>
                 )}
+                {cornerLeft && (
+                    <div className="absolute bottom-0 left-0 z-20 flex items-end gap-2">{cornerLeft}</div>
+                )}
+                {drawer && <div className="absolute inset-x-0 bottom-0 z-40">{drawer}</div>}
             </div>
         </div>
     );

@@ -910,6 +910,20 @@ html, body, #root {
     .island-content { animation: none; }
 }
 
+/* Strategy cards (`components/games/strategy/`): a played card drops onto the hitter's or pitcher's
+   card with a small settle, and the hand's tray rises from the bottom edge of the field. */
+@keyframes strategy-land {
+    0%   { opacity: 0; transform: translateY(-14px) scale(1.08) rotate(-3deg); }
+    70%  { opacity: 1; transform: translateY(1px) scale(0.99) rotate(0deg); }
+    100% { opacity: 1; transform: none; }
+}
+.strategy-land { animation: strategy-land 360ms cubic-bezier(0.2, 0.9, 0.3, 1.1) both; }
+@keyframes strategy-tray-in {
+    from { opacity: 0; transform: translateY(24px); }
+    to   { opacity: 1; transform: none; }
+}
+.strategy-tray-in { animation: strategy-tray-in 220ms ease-out both; }
+
 /* Lettering pressed into the field (`GameField`'s defense totals along the third-base line): dark,
    semi-clear ink so the grass shows through it, with a faint lit lower edge, the way a groove in
    turf catches the light. A button brings its ink up on hover. */

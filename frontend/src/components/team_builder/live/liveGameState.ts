@@ -82,3 +82,32 @@ export function liveTurnLabel(game: LiveGame): LiveTurn | null {
     if (isMyTurn(game)) return { label: `Your ${pending.roll}`, isWaiting: false };
     return { label: `Waiting on ${teamName(game, pending.side)} to ${pending.roll}`, isWaiting: true };
 }
+
+/** A club's substitution, read off the change between two states. `seq` is the state it showed up
+ *  in, so the board can hold it until the field has caught up to that move. */
+export type LiveTeamMove = { side: LiveSide; key: string; seq: number; label: string; text: string };
+
+/** The substitutions each club made between `before` and `after`: a new pitcher on the mound, and
+ *  anyone who took over a spot in the batting order (a pinch hitter while the club is at bat). */
+export function teamMovesBetween(before: LiveGameState, after: LiveGameState): LiveTeamMove[] {
+    const name = (id: string) => after.player_names[id] || before.player_names[id] || "Player";
+    const batting = sidesInPlay(after)?.batting;
+    const moves: LiveTeamMove[] = [];
+    for (const side of LIVE_SIDES) {
+        const was = before.sides[side];
+        const now = after.sides[side];
+        const move = (label: string, text: string, playerId: string) =>
+            moves.push({ side, label, text, seq: after.seq, key: `${after.seq}:${side}:${playerId}` });
+
+        if (was.pitcher_id && now.pitcher_id && was.pitcher_id !== now.pitcher_id) {
+            move("Pitching change", `${name(now.pitcher_id)} in for ${name(was.pitcher_id)}`, now.pitcher_id);
+        }
+        now.lineup_ids.forEach((id, slot) => {
+            const replaced = was.lineup_ids[slot];
+            // A pitcher batting for himself moves with the pitching change above.
+            if (!replaced || replaced === id || id === now.pitcher_id) return;
+            move(side === batting ? "Pinch hitter" : "Substitution", `${name(id)} for ${name(replaced)}`, id);
+        });
+    }
+    return moves;
+}

@@ -8,6 +8,7 @@ import type { ReactNode } from "react";
 
 import type { GameSide, GameView } from "../../domain/game";
 import type { PlayEntry } from "../../domain/play";
+import { CAPS_LABEL_CLASS } from "../shared/fieldStyles";
 import { BOARD_PANEL_CLASS } from "./boardStyles";
 import { ScoreSituation, TeamBadge } from "./detail/ScoreHeader";
 import GameLinescore from "./GameLinescore";
@@ -44,5 +45,16 @@ export function LastPlayLine({ play }: { play: PlayEntry }) {
             {play.event && <span className="font-semibold">{play.event}</span>}
             {description && description !== play.event && <span className="ml-1">{description}</span>}
         </p>
+    );
+}
+
+/** A club's move, for its tab under the scoreboard (`TeamAnnouncement`): what kind of move in caps
+ *  ("Pitching change", "Strategy card"), then the move itself. */
+export function TeamMoveNote({ label, children }: { label: string; children: ReactNode }) {
+    return (
+        <div className="flex min-w-0 flex-col gap-0.5">
+            <span className={`${CAPS_LABEL_CLASS} text-(--text-secondary)`}>{label}</span>
+            <div className="min-w-0 text-[12px] leading-snug text-(--text-primary)">{children}</div>
+        </div>
     );
 }
