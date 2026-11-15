@@ -39,7 +39,7 @@ from .utils.shared_functions import convert_to_date, convert_number_to_ordinal, 
 from .stats.accolade import Accolade
 from .stats.special_accolade import SpecialAccolades
 from .stats.metrics import DefenseMetric
-from .stats.stats_period import PostseasonRound, StatsPeriod, StatsPeriodType, TeamSelection
+from .stats.stats_period import PostseasonRound, StatsPeriod, StatsPeriodLeague, StatsPeriodType, TeamSelection
 from .stats.real_vs_projected_stat import RealVsProjectedStat
 from .stats.datasource import Datasource
 
@@ -474,6 +474,10 @@ class ShowdownPlayerCard(BaseModel):
     def parse_team(cls, team:Team, info:ValidationInfo) -> Team:
         if (team or Team.MLB) != Team.MLB:
             return team
+        # MILB CARDS USE THE GENERIC MILB TEAM (AFFILIATE ABBREVIATIONS AREN'T TEAM MEMBERS)
+        stats_period: StatsPeriod | None = info.data.get('stats_period')
+        if stats_period and stats_period.league == StatsPeriodLeague.MILB:
+            return Team.MILB
         stats:dict = info.data.get('stats', {})
         return Team(stats.get('team_ID', None))
     
@@ -1455,15 +1459,20 @@ class ShowdownPlayerCard(BaseModel):
         match self.player_sub_type:
             case PlayerSubType.RELIEF_PITCHER:
                 # REMOVE STARTER INNINGS AND GAMES STARTED
-                ip_per_start = ip_per_start or (5.0 if self.stats_period.last_year >= 2026 else 0)
-                ip_as_starter = games_started * ip_per_start
-                innings_pitched -= ip_as_starter
-                games -= games_started
+                # ONLY WHEN THERE ARE RELIEF APPEARANCES LEFT. A RELIEVER WITH NO RELIEF
+                # APPEARANCES (EX: STARTER WITH RP POSITION OVERRIDE) USES FULL TOTALS
+                if games > games_started:
+                    ip_per_start = ip_per_start or (5.0 if self.stats_period.last_year >= 2026 else 0)
+                    ip_as_starter = games_started * ip_per_start
+                    innings_pitched -= ip_as_starter
+                    games -= games_started
 
                 # IF SMALL SAMPLE (EX: < 45 IP) CAP AT 2 IP
                 # OTHERWISE USE 3 IP AS CAP
                 cap = 2 if innings_pitched < 45 else 3
-                if self.stats_period.last_year >= 2026:
+                if games == 0:
+                    ip = 1
+                elif self.stats_period.last_year >= 2026:
                     ip = min(traditional_round(innings_pitched / games), cap)
                 else:
                     ip = min(round(innings_pitched / games), cap)
@@ -1477,16 +1486,17 @@ class ShowdownPlayerCard(BaseModel):
                         ip = round(ip_per_start) # MINIMUM FOR SP IS 4 IP
                 elif games_started > 0:
                     # HAVE GAMES STARTED DATA, ESTIMATE RP INNINGS AND NORMALIZE
+                    # (EX: MILB, WHICH HAS NO IP/GS SPLIT)
                     games_as_rp = games - games_started
                     rp_multiplier = 2.0 if self.median_year < 1950 else 1.0
                     est_ip_as_rp = rp_multiplier * games_as_rp
                     if self.stats_period.last_year >= 2026:
-                        ip = traditional_round(ip_per_start) # START USING TRADITIONAL ROUNDING FOR 2026 AND BEYOND
+                        ip = traditional_round((innings_pitched - est_ip_as_rp) / games_started)
                     else:
                         ip = round((innings_pitched - est_ip_as_rp) / games_started)
                 else:
                     if self.stats_period.last_year >= 2026:
-                        ip = traditional_round(ip_per_start) # START USING TRADITIONAL ROUNDING FOR 2026 AND BEYOND
+                        ip = traditional_round(innings_pitched / games)
                     else:
                         ip = round(innings_pitched / games)
 
