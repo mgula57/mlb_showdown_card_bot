@@ -160,14 +160,14 @@ const BASES = {
     second: [49.9, 18.4],
     third: [17.8, 46.1],
 } as const;
-const HOME: readonly [number, number] = [49.9, 85.4];
+const HOME: readonly [number, number] = [49.9, 82.4];
 
 /** Where each fielder stands. The art is in perspective, so the outfield is deep: the outfielders
  *  stand in the headroom above the box (negative y), on the grass in front of the wall. The corner
  *  outfielders play out toward the lines and the middle infielders off the bag, so the cards
  *  spread over the whole fan instead of crowding second base. */
 const DEFENSE_SPOTS: Record<keyof DefenseAlignment, readonly [number, number]> = {
-    pitcher: [49.9, 47.7],
+    pitcher: [49.9, 43.2],
     catcher: [49.9, 110],
     first: [84, 32.1],
     second: [69.4, 14],
@@ -216,8 +216,8 @@ const lerpSpot = (
 /** Every spot an offensive occupant (runner or batter) can render at — the three bases plus the
  *  plate, used both as "about to bat" and as "just scored" (a different visual moment, same x/y). */
 const SPOTS: Record<RunnerSpot, readonly [number, number]> = {
-    // A runner on second sits a little above the bag (a tad deeper on the field)
-    first: BASES.first, second: [BASES.second[0], BASES.second[1] - 3], third: BASES.third, plate: HOME, home: HOME,
+    // A runner on second sits well above the bag (deeper on the field)
+    first: BASES.first, second: [BASES.second[0], BASES.second[1] - 7], third: BASES.third, plate: HOME, home: HOME,
 };
 
 type FieldOccupant = {
