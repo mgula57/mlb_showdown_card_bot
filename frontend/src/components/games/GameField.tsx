@@ -178,6 +178,14 @@ const DEFENSE_SPOTS: Record<keyof DefenseAlignment, readonly [number, number]> =
     right: [86.3, -4],
 };
 
+/** Fielder tags shrink with depth to match the art's perspective: full size at the catcher,
+ *  `FIELDER_DEPTH_MIN_SCALE` in center field. Only the tags. The cards keep one size so their
+ *  container-query layouts and stat lines stay readable. */
+const FIELDER_DEPTH_MIN_SCALE = 0.85;
+const FIELDER_DEPTH_Y = { near: DEFENSE_SPOTS.catcher[1], far: DEFENSE_SPOTS.center[1] };
+const fielderDepthScale = (y: number) =>
+    FIELDER_DEPTH_MIN_SCALE + (1 - FIELDER_DEPTH_MIN_SCALE) * (y - FIELDER_DEPTH_Y.far) / (FIELDER_DEPTH_Y.near - FIELDER_DEPTH_Y.far);
+
 /** Position abbreviations for the defense slots, used for the card's defensive rating lookup. */
 const DEFENSE_POSITIONS: Record<keyof DefenseAlignment, string> = {
     pitcher: "P", catcher: "C", first: "1B", second: "2B", third: "3B",
@@ -208,7 +216,8 @@ const lerpSpot = (
 /** Every spot an offensive occupant (runner or batter) can render at — the three bases plus the
  *  plate, used both as "about to bat" and as "just scored" (a different visual moment, same x/y). */
 const SPOTS: Record<RunnerSpot, readonly [number, number]> = {
-    first: BASES.first, second: BASES.second, third: BASES.third, plate: HOME, home: HOME,
+    // A runner on second sits a little above the bag (a tad deeper on the field)
+    first: BASES.first, second: [BASES.second[0], BASES.second[1] - 3], third: BASES.third, plate: HOME, home: HOME,
 };
 
 type FieldOccupant = {
@@ -729,13 +738,15 @@ export default function GameField({ game, cardMap, onCardSelect, expanded = fals
                                     ) : (
                                         // The rest of the defense is a small tag, so the battery,
                                         // the batter and the runners stay the cards that stand out.
-                                        <FielderMarker
-                                            player={player}
-                                            position={DEFENSE_POSITIONS[slot]}
-                                            cardMap={cardMap}
-                                            onCardSelect={onCardSelect}
-                                            isLoadingCards={isLoadingCards}
-                                        />
+                                        <div className="origin-bottom" style={{ transform: `scale(${fielderDepthScale(DEFENSE_SPOTS[slot][1])})` }}>
+                                            <FielderMarker
+                                                player={player}
+                                                position={DEFENSE_POSITIONS[slot]}
+                                                cardMap={cardMap}
+                                                onCardSelect={onCardSelect}
+                                                isLoadingCards={isLoadingCards}
+                                            />
+                                        </div>
                                     )}
                                 </div>
                             );
