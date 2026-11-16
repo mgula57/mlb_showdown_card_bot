@@ -5,18 +5,20 @@
  * fit and stacked when they don't, so the chart is always there to show where a swing landed. Under
  * them, the rest of the batting club's order as it comes up, fading the further off each hitter is.
  */
-import type { ReactNode } from "react";
+import { useContext, type ReactNode } from "react";
 
 import { useIsWiderThan } from "../../hooks/useIsWiderThan";
 import type { GameView } from "../../domain/game";
 import type { ShowdownBotCardAPIResponse } from "../../api/showdownBotCard";
 import { CardItemFromCard, CardItemSkeleton } from "../cards/CardItem";
+import CardImageWithChart, { CardImageSkeleton } from "../cards/CardImageWithChart";
 import type { AdvantageSide } from "../../domain/play";
 import { CardItemCompactFromCard, CardItemCompactSkeleton } from "../cards/CardItemCompact";
 import { hittersAfter } from "../../domain/lineup";
 import { resolveCardKey } from "../../domain/players";
 import { CAPS_LABEL_CLASS } from "../shared/fieldStyles";
 import { BOARD_PANEL_CLASS } from "./boardStyles";
+import { MatchupCardImagesContext } from "./matchupCardImages";
 import { resolveMatchup, type MatchupSideData } from "./resolveMatchup";
 
 type CardMap = Record<string, ShowdownBotCardAPIResponse>;
@@ -96,14 +98,20 @@ type MatchupSideProps = {
     hideTrend?: boolean;
     /** Sim only: this side won the advantage roll. */
     hasAdvantage?: boolean;
+    /** The pitch has been rolled, so either side may hold the advantage: a card image zooms from
+     *  its command to its chart. */
+    isAdvantageSettled?: boolean;
     /** Sim only: the chart result the swing landed on, lit up on the winning card. */
     chartHighlight?: string;
     /** On top of the card: the strategy cards this side's club has in play (`PlayedStrategyCards`). */
     accessory?: ReactNode;
 };
 
-export function MatchupSide({ side, isLoadingCards, onCardSelect, hideTrend, hasAdvantage, chartHighlight, accessory }: MatchupSideProps) {
-    const { label, player, response, summary, advantagePct } = side;
+export function MatchupSide({ side, isLoadingCards, onCardSelect, hideTrend, hasAdvantage, isAdvantageSettled, chartHighlight, accessory }: MatchupSideProps) {
+    const { label, player, cardKey, response, summary, advantagePct } = side;
+    // A host showing card images answers for each card; anything else (or a failed render) is a CardItem.
+    const imageFor = useContext(MatchupCardImagesContext);
+    const cardImage = cardKey && response?.card ? imageFor?.(cardKey) : undefined;
     // A finished game's last frame has a pitcher but no one left to bat.
     if (!player) return null;
 
@@ -124,7 +132,20 @@ export function MatchupSide({ side, isLoadingCards, onCardSelect, hideTrend, has
 
             {accessory}
 
-            {response?.card ? (
+            {cardImage?.status === "ready" && response ? (
+                <CardImageWithChart
+                    imageUrl={cardImage.image.image_url}
+                    chartCells={cardImage.image.chart_cells}
+                    commandBox={cardImage.image.command_box}
+                    focus={isAdvantageSettled || chartHighlight ? "chart" : "command"}
+                    name={player.name}
+                    onClick={() => onCardSelect?.(response)}
+                    hasAdvantage={hasAdvantage}
+                    chartHighlight={chartHighlight}
+                />
+            ) : cardImage?.status === "loading" ? (
+                <CardImageSkeleton />
+            ) : response?.card ? (
                 <CardItemFromCard card={response.card} className="w-full" onClick={() => onCardSelect?.(response)} hasAdvantage={hasAdvantage} chartHighlight={chartHighlight} />
             ) : isLoadingCards ? (
                 <CardItemSkeleton className="w-full" />
@@ -155,7 +176,7 @@ export default function GameMatchup({ game, cardMap, isLoadingCards, onCardSelec
     const matchup = resolveMatchup(game, cardMap, hideStatlines);
     if (!matchup) return null;
 
-    const shared = { isLoadingCards, onCardSelect, hideTrend: hideStatlines };
+    const shared = { isLoadingCards, onCardSelect, hideTrend: hideStatlines, isAdvantageSettled: advantage != null };
 
     return (
         <div ref={rowRef} className="mx-2 space-y-1.5">

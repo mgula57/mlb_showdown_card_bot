@@ -30,10 +30,12 @@ from ..core.card.team_builder.synthetic_teams import SyntheticTeamError, Synthet
 from ..core.card.team_builder.team import Team as BuilderTeam
 from ..core.database.postgres_db import PostgresDB
 from ..core.simulation.live_game import LiveAction, LiveMatch, LiveMatchError, LiveMatchSettings, LiveMatchState, LiveSide
+from ..core.simulation.live_card_images import LiveCardImages
 from ..core.simulation.live_contexts import LIVE_GAME_CONTEXTS as _CONTEXTS, LiveGameContext
 from ..core.simulation.matchup import MatchupClub, MatchupError
 from ..core.simulation.models import GameStuckError
 from ..core.simulation.team import SimTeam
+from .image_libraries import UserImageLibraries
 from .sim import _faceoff_team_row, _is_uuid, _parse_manager_preference, _RequestError, _roster_error
 from .user_settings import optional_user_id, require_auth
 
@@ -485,19 +487,38 @@ def post_live_game_action(live_game_id: str):
         return _error_response(exc)
 
 
+def _frozen_cards(live_game_id: str) -> Optional[dict[str, dict]]:
+    """Every card's data in a game, as frozen when its seats were filled, keyed by card id. None
+    when there's no such game (or it was cancelled)."""
+    with PostgresDB() as db:
+        row = db.fetch_live_game(live_game_id=live_game_id) if _is_uuid(live_game_id) else None
+    if row is None or row['status'] == 'cancelled':
+        return None
+    return {card_id: data for seat in row['setup'].values() for card_id, data in (seat.get('cards') or {}).items()}
+
+
 @live_games_bp.route('/sim/live/<live_game_id>/cards', methods=['GET'])
 def get_live_game_cards(live_game_id: str):
     """Every card in the game, as frozen when its seats were filled, keyed by card id."""
     try:
-        with PostgresDB() as db:
-            row = db.fetch_live_game(live_game_id=live_game_id) if _is_uuid(live_game_id) else None
-        if row is None or row['status'] == 'cancelled':
+        cards = _frozen_cards(live_game_id)
+        if cards is None:
             return jsonify({'error': 'Game not found'}), 404
-        cards = {}
-        for seat in row['setup'].values():
-            for card_id, data in (seat.get('cards') or {}).items():
-                cards[card_id] = ShowdownPlayerCard(**data).as_json()
-        return jsonify({'cards': cards}), 200
+        return jsonify({'cards': {card_id: ShowdownPlayerCard(**data).as_json() for card_id, data in cards.items()}}), 200
+    except Exception as exc:
+        return _error_response(exc)
+
+
+@live_games_bp.route('/sim/live/<live_game_id>/cards/<card_id>/image', methods=['GET'])
+def get_live_game_card_image(live_game_id: str, card_id: str):
+    """One of the game's cards as a rendered image, with the viewer's image libraries, plus where
+    each chart result and the command sit on it. Rendered the first time anyone asks (a few seconds), then stored."""
+    try:
+        data = (_frozen_cards(live_game_id) or {}).get(card_id)
+        if data is None:
+            return jsonify({'error': 'Card not found'}), 404
+        images = LiveCardImages(UserImageLibraries.for_card_build(optional_user_id()))
+        return jsonify(images.image_json(ShowdownPlayerCard(**data))), 200
     except Exception as exc:
         return _error_response(exc)
 

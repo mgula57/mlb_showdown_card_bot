@@ -254,6 +254,7 @@ export default function GameStage({
             onCardSelect={setSelectedCard}
             hideTrend={isReplaying}
             hasAdvantage={advantage === side}
+            isAdvantageSettled={advantage != null}
             chartHighlight={advantage === side ? swingResult : undefined}
             accessory={strategy?.played?.[side]}
         />

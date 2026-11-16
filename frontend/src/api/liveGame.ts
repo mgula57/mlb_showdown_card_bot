@@ -219,6 +219,26 @@ export async function fetchLiveGameCards(liveGameId: string, token?: string): Pr
     return Object.fromEntries(Object.entries(cards).map(([id, card]) => [id, { card, error: null, error_for_user: null }]));
 }
 
+/** [x, y, width, height] as fractions of a card image. */
+export type CardImageBox = [number, number, number, number];
+
+/** A card rendered as a full Showdown card image, with where each chart result (keyed by result,
+ *  "1B+") and the Onbase/Control badge sit on it. */
+export type LiveCardImage = {
+    image_url: string;
+    chart_cells: Record<string, CardImageBox>;
+    command_box: CardImageBox;
+};
+
+/** One of the game's cards as an image, rendered with the viewer's image libraries. The first ask
+ *  renders it (a few seconds); after that it's stored. */
+export async function fetchLiveGameCardImage(liveGameId: string, cardId: string, token?: string): Promise<LiveCardImage> {
+    return parse<LiveCardImage>(
+        await fetch(`${API_BASE}/sim/live/${liveGameId}/cards/${encodeURIComponent(cardId)}/image`, { headers: authHeaders(token) }),
+        "Failed to load card image",
+    );
+}
+
 export async function fetchMyLiveGames(token: string) {
     return (await parse<{ games: LiveGameListItem[] }>(await fetch(`${API_BASE}/sim/live/mine`, { headers: authHeaders(token) }), "Failed to load games")).games;
 }

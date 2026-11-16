@@ -9,7 +9,7 @@
  * made the game, a note for anyone else.
  */
 import { useEffect, useMemo, useState } from "react";
-import { FaLink } from "react-icons/fa6";
+import { FaImage, FaLink, FaTableList } from "react-icons/fa6";
 
 import { cancelLiveGame, fetchLiveGameCards, inviteUrl, type LiveAction, type LiveGame } from "../../../api/liveGame";
 import type { ShowdownBotCardAPIResponse } from "../../../api/showdownBotCard";
@@ -30,9 +30,11 @@ import { buttonClass } from "../../shared/buttonStyles";
 import { Heading } from "../../shared/Heading";
 import { InlineError } from "../../shared/InlineError";
 import { actingSide, defaultPickerMode, liveTurnLabel, isMyTurn, LIVE_SIDES, liveEdgeOf, teamName, type SubPickerMode } from "./liveGameState";
+import LiveCardImagesProvider from "./LiveCardImages";
 import LiveSubPanel from "./LiveSubPanel";
 import LiveActionButton, { LiveTurnStatus, ManagerButton } from "./LiveTurnControls";
 import LiveStrategyPrototype from "./LiveStrategyPrototype";
+import { useLiveCardView } from "./useLiveCardView";
 import { useLiveTeamMoves } from "./useLiveTeamMoves";
 
 type CardMap = Record<string, ShowdownBotCardAPIResponse>;
@@ -89,8 +91,9 @@ function InviteWaitingRoom({ game, token, onBack, onCancelled }: { game: LiveGam
     );
 }
 
-function LiveBoard({ game, cardMap, isLoadingCards, isSubmitting, moveError, submit, onBack }: {
+function LiveBoard({ game, token, cardMap, isLoadingCards, isSubmitting, moveError, submit, onBack }: {
     game: LiveGame;
+    token?: string;
     cardMap: CardMap;
     isLoadingCards: boolean;
     isSubmitting: boolean;
@@ -101,6 +104,7 @@ function LiveBoard({ game, cardMap, isLoadingCards, isSubmitting, moveError, sub
     const stage = useGameStage();
     const [picker, setPicker] = useState<SubPickerMode | null>(null);
     const share = useCopyLink(window.location.href);
+    const [cardView, setCardView] = useLiveCardView();
     const state = game.state!;
 
     const timeline = useMemo(
@@ -151,64 +155,75 @@ function LiveBoard({ game, cardMap, isLoadingCards, isSubmitting, moveError, sub
                     content: <LiveTurnStatus turn={turn} moveError={moveError} />,
                 } : null;
                 return (
-                    <LiveStrategyPrototype game={game} isEnabled={isStrategyPrototype} isCaughtUp={isCaughtUp}>
-                        {(strategy) => (
-                            <GameStage
-                                stage={stage}
-                                game={activeView}
-                                plays={activePlays}
-                                playbackState={playbackState}
-                                playbackControls={playbackControls}
-                                isReplaying={isReplaying}
-                                // The turn bar takes the transport's place until the final out.
-                                playbackBar={state.is_final ? playbackBar : null}
-                                detailedState="Final"
-                                cardMap={cardMap}
-                                isLoadingCards={isLoadingCards}
-                                isSim={false}
-                                gameKey={game.live_game_id}
-                                title="Live Game"
-                                modeBarColor={barColor}
-                                onBack={onBack}
-                                topBarStatus={share.error && <span className="text-[11px] text-(--red)">{share.error}</span>}
-                                topBarActions={
-                                    <TopBarButton label={share.copied ? "Copied" : "Share"} onClick={share.copy} className={barButton} />
-                                }
-                                boxScorePanels={<SimBoxScorePanels game={activeView} cardMap={cardMap} onCardSelect={stage.setSelectedCard} />}
-                                boardAction={side && !state.is_final && (
-                                    <LiveActionButton game={game} isCaughtUp={isCaughtUp} isSubmitting={isSubmitting} onRoll={roll} pass={strategy.pass} />
-                                )}
-                                // A strategy window speaks for the turn until it closes.
-                                boardTurn={strategy.island ?? islandTurn}
-                                boardTools={!state.is_final && <ManagerButton game={game} onOpen={openManager} />}
-                        teamAnnouncements={[...teamMoveAnnouncements, ...strategy.announcements]}
-                                strategy={strategy.slots}
-                                rollPrompt={pending && isCaughtUp && !strategy.isHoldingRoll ? {
-                                    kind: pending.roll,
-                                    onRoll: myTurn ? roll : undefined,
-                                    isBusy: isSubmitting,
-                                    heldPitch: pending.roll === "swing" ? pending.pitch_roll : undefined,
-                                } : undefined}
-                                heldAdvantage={isCaughtUp ? heldAdvantage : undefined}
-                            >
-                                {side && mine && (
-                                    <LiveSubPanel
-                                        mode={picker}
-                                        onModeChange={setPicker}
-                                        side={side}
-                                        mine={mine}
-                                        names={state.player_names}
-                                        cardMap={cardMap}
-                                        isFielding={defaultPickerMode(game) === "pitcher"}
-                                        isSubmitting={isSubmitting}
-                                        onPick={submit}
-                                        onToggleAutopilot={toggleAutopilot}
-                                        onClose={() => setPicker(null)}
-                                    />
-                                )}
-                            </GameStage>
-                        )}
-                    </LiveStrategyPrototype>
+                    <LiveCardImagesProvider liveGameId={game.live_game_id} token={token} game={activeView} isEnabled={cardView === "image"}>
+                        <LiveStrategyPrototype game={game} isEnabled={isStrategyPrototype} isCaughtUp={isCaughtUp}>
+                            {(strategy) => (
+                                <GameStage
+                                    stage={stage}
+                                    game={activeView}
+                                    plays={activePlays}
+                                    playbackState={playbackState}
+                                    playbackControls={playbackControls}
+                                    isReplaying={isReplaying}
+                                    // The turn bar takes the transport's place until the final out.
+                                    playbackBar={state.is_final ? playbackBar : null}
+                                    detailedState="Final"
+                                    cardMap={cardMap}
+                                    isLoadingCards={isLoadingCards}
+                                    isSim={false}
+                                    gameKey={game.live_game_id}
+                                    title="Live Game"
+                                    modeBarColor={barColor}
+                                    onBack={onBack}
+                                    topBarStatus={share.error && <span className="text-[11px] text-(--red)">{share.error}</span>}
+                                    topBarActions={
+                                        <>
+                                            <TopBarButton
+                                                label={cardView === "image" ? "Card details" : "Card images"}
+                                                shortLabel={cardView === "image" ? "Details" : "Images"}
+                                                icon={cardView === "image" ? <FaTableList /> : <FaImage />}
+                                                onClick={() => setCardView(cardView === "image" ? "item" : "image")}
+                                                className={barButton}
+                                            />
+                                            <TopBarButton label={share.copied ? "Copied" : "Share"} onClick={share.copy} className={barButton} />
+                                        </>
+                                    }
+                                    boxScorePanels={<SimBoxScorePanels game={activeView} cardMap={cardMap} onCardSelect={stage.setSelectedCard} />}
+                                    boardAction={side && !state.is_final && (
+                                        <LiveActionButton game={game} isCaughtUp={isCaughtUp} isSubmitting={isSubmitting} onRoll={roll} pass={strategy.pass} />
+                                    )}
+                                    // A strategy window speaks for the turn until it closes.
+                                    boardTurn={strategy.island ?? islandTurn}
+                                    boardTools={!state.is_final && <ManagerButton game={game} onOpen={openManager} />}
+                                    teamAnnouncements={[...teamMoveAnnouncements, ...strategy.announcements]}
+                                    strategy={strategy.slots}
+                                    rollPrompt={pending && isCaughtUp && !strategy.isHoldingRoll ? {
+                                        kind: pending.roll,
+                                        onRoll: myTurn ? roll : undefined,
+                                        isBusy: isSubmitting,
+                                        heldPitch: pending.roll === "swing" ? pending.pitch_roll : undefined,
+                                    } : undefined}
+                                    heldAdvantage={isCaughtUp ? heldAdvantage : undefined}
+                                >
+                                    {side && mine && (
+                                        <LiveSubPanel
+                                            mode={picker}
+                                            onModeChange={setPicker}
+                                            side={side}
+                                            mine={mine}
+                                            names={state.player_names}
+                                            cardMap={cardMap}
+                                            isFielding={defaultPickerMode(game) === "pitcher"}
+                                            isSubmitting={isSubmitting}
+                                            onPick={submit}
+                                            onToggleAutopilot={toggleAutopilot}
+                                            onClose={() => setPicker(null)}
+                                        />
+                                    )}
+                                </GameStage>
+                            )}
+                        </LiveStrategyPrototype>
+                    </LiveCardImagesProvider>
                 );
             }}
         </TimelinePlayback>
@@ -255,6 +270,7 @@ export function LiveGameView({ liveGameId, token, onBack }: Props) {
         <LiveBoard
             key={liveGameId}
             game={game}
+            token={token}
             cardMap={cardMap}
             isLoadingCards={isLoadingCards}
             isSubmitting={isSubmitting}

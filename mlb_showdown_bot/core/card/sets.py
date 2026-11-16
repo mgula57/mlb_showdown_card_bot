@@ -1604,7 +1604,19 @@ class Set(str, Enum):
                     case '2003': return 145
                     case '2004' | '2005': return 144
                     case 'CLASSIC' | 'EXPANDED': return 158
-    
+
+    def chart_highlight_span(self) -> tuple[int, int]:
+        """Where a chart result's highlight runs across the template, in unbordered card pixels,
+        measured off each template: (left x, right x) of a vertical chart's rows, label through
+        range (the labels sit right of the ranges), or (top y, bottom y) of a horizontal chart's columns,
+        label and range. Same for hitters and pitchers. See `chart_cell_boxes`."""
+        match self.value:
+            case '2000' | '2001': return (1085, 1410)
+            case '2002': return (1078, 1420)
+            case '2003': return (1098, 1460)
+            case '2004' | '2005': return (1752, 1890)
+            case 'CLASSIC' | 'EXPANDED': return (1786, 1948)
+
     def template_component_font_spacing(self, component: TemplateImageComponent) -> int:
         match component:
             case TemplateImageComponent.CHART:

@@ -3964,15 +3964,10 @@ class ShowdownPlayerCard(BaseModel):
             template_image = Image.open(self._template_img_path(type_template))
 
         # GET IMAGE WITH PLAYER COMMAND
-        paste_location = self.set.template_component_paste_coordinates(TemplateImageComponent.COMMAND)
+        command_image, command_paste_location = self._command_image_and_paste_location()
         top_left_paste_location = self._coordinates_adjusted_for_bordering(coordinates=(0,0), is_forced=True)
         
         if self.set.is_showdown_bot:
-            
-            # ADD TEXT + BACKGROUND AS IMAGE
-            command_image = self._command_image()
-            if self.is_hitter:
-                paste_location = (paste_location[0] + 15, paste_location[1])
 
             # LOAD CHART CONTAINER IMAGE
             container_img_path = self._template_img_path(f'{year}-ChartOutsContainer-{type}')
@@ -4018,11 +4013,7 @@ class ShowdownPlayerCard(BaseModel):
             pts_box_img_team_color = self._add_color_overlay_to_img(img=pts_box_img_black, color=secondary_color)
             template_image.paste(pts_box_img_team_color, (0,0), pts_box_img_team_color)
 
-        else:
-            command_image_name = f"{year}-{type}-{str(self.chart.command)}"
-            command_image = Image.open(self._template_img_path(command_image_name))
-            
-        template_image.paste(command_image, self._coordinates_adjusted_for_bordering(coordinates=paste_location, is_forced=True), command_image)
+        template_image.paste(command_image, command_paste_location, command_image)
 
         # HANDLE MULTI POSITION TEMPLATES FOR 00/01 POSITION PLAYERS
         if self.set.is_00_01 and self.is_hitter:
@@ -4646,20 +4637,15 @@ class ShowdownPlayerCard(BaseModel):
         """
 
         is_horizontal = self.set.is_chart_horizontal
-
-        # FONT
-        chart_font_file_name = 'Helvetica Neue 77 Bold Condensed' if is_horizontal else 'HelveticaNeueCondensedMedium'
-        chart_font_path = self._font_path(chart_font_file_name)
-        chart_font_size = self.set.template_component_font_size(TemplateImageComponent.CHART)
-        chart_font = ImageFont.truetype(chart_font_path, size=chart_font_size)
+        chart_font = self._chart_font()
+        canvas_size = self._chart_canvas_size()
 
         # CREATE CHART RANGES TEXT
         chart_string = ''
         # NEED IF 04/05
-        chart_text = Image.new('RGBA',(6300,720))
-        chart_text_addition = -20 if self.set.is_showdown_bot else 0
-        chart_text_x = 150 + chart_text_addition if self.is_pitcher else 141
-        for category in self.chart.categories_list:
+        chart_text = Image.new('RGBA', canvas_size)
+        column_x_positions = self._chart_horizontal_column_x_positions()
+        for index, category in enumerate(self.chart.categories_list):
             is_out_category = category.is_out
             range = self.chart.ranges[category]
             # 2004/2005 CHART IS HORIZONTAL. PASTE TEXT ONTO IMAGE INSTEAD OF STRING OBJECT.
@@ -4667,7 +4653,7 @@ class ShowdownPlayerCard(BaseModel):
                 is_wotc = self.set.is_04_05
                 range_text = self._text_image(
                     text = range,
-                    size = (450,450),
+                    size = (self.CHART_HORIZONTAL_CELL_SIZE, self.CHART_HORIZONTAL_CELL_SIZE),
                     font = chart_font,
                     fill = colors.WHITE,
                     alignment = "center",
@@ -4680,33 +4666,105 @@ class ShowdownPlayerCard(BaseModel):
                 chart_color_override = self._chart_color_override(is_secondary=self.image.use_secondary_color)
                 if is_out_category and chart_color_override:
                     color_range = chart_color_override[1]
-                chart_text.paste(color_range, (chart_text_x, 0), range_text)
-                pitcher_spacing = 531 if is_wotc else 510
-                hitter_spacing = 468 if is_wotc else 445
-                chart_text_x += pitcher_spacing if self.is_pitcher else hitter_spacing
+                chart_text.paste(color_range, (column_x_positions[index], 0), range_text)
             else:
                 chart_string += '{}\n'.format(range)
 
         # CREATE FINAL CHART IMAGE
-        if is_horizontal:
-            # COLOR IS TEXT ITSELF
-            chart_text = chart_text.resize((2100,240), Image.Resampling.LANCZOS)
-            color = chart_text
-        else:
-            spacing = self.set.template_component_font_spacing(TemplateImageComponent.CHART)
+        if not is_horizontal:
             chart_text = self._text_image(
                 text = chart_string,
-                size = (765, 3600),
+                size = canvas_size,
                 font = chart_font,
                 rotation = 0,
                 alignment = "right",
                 padding=0,
-                spacing=spacing
+                spacing=self.set.template_component_font_spacing(TemplateImageComponent.CHART)
             )
-            color = colors.WHITE if self.image.is_dark_mode else colors.BLACK
-            chart_text = chart_text.resize((255,1200), Image.Resampling.LANCZOS)
+        chart_text = chart_text.resize(self._chart_pasted_size(), Image.Resampling.LANCZOS)
+        # A horizontal chart's text carries its own colors
+        color = chart_text if is_horizontal else (colors.WHITE if self.image.is_dark_mode else colors.BLACK)
 
         return chart_text, color
+
+    # The chart is drawn this many times larger than it's pasted, then scaled down for crisp text
+    CHART_RENDER_SCALE: ClassVar[int] = 3
+    # Each horizontal (2004+) range is centered in a square cell this wide, before scaling
+    CHART_HORIZONTAL_CELL_SIZE: ClassVar[int] = 450
+
+    def _chart_font(self) -> ImageFont.FreeTypeFont:
+        font_file_name = 'Helvetica Neue 77 Bold Condensed' if self.set.is_chart_horizontal else 'HelveticaNeueCondensedMedium'
+        return ImageFont.truetype(self._font_path(font_file_name), size=self.set.template_component_font_size(TemplateImageComponent.CHART))
+
+    def _chart_canvas_size(self) -> tuple[int, int]:
+        """Size the chart text is drawn at, before scaling down to `_chart_pasted_size`."""
+        return (6300, 720) if self.set.is_chart_horizontal else (765, 3600)
+
+    def _chart_pasted_size(self) -> tuple[int, int]:
+        width, height = self._chart_canvas_size()
+        return (width // self.CHART_RENDER_SCALE, height // self.CHART_RENDER_SCALE)
+
+    def _chart_horizontal_column_x_positions(self) -> list[int]:
+        """Left edge of each category's cell on a horizontal chart's canvas, in `categories_list` order."""
+        is_wotc = self.set.is_04_05
+        if self.is_pitcher:
+            start = 150 + (-20 if self.set.is_showdown_bot else 0)
+            spacing = 531 if is_wotc else 510
+        else:
+            start = 141
+            spacing = 468 if is_wotc else 445
+        return [start + index * spacing for index in range(len(self.chart.categories_list))]
+
+    def chart_cell_boxes(self) -> dict[str, list[float]]:
+        """Where each chart result sits on the rendered card image, keyed by category ("1B+").
+        Each box is [x, y, width, height] as fractions of the final image, so a highlight can be laid
+        over the image at any display size. A vertical (2000-2003) chart's box is the whole row,
+        label included; a horizontal one's is the whole column."""
+        categories = self.chart.categories_list
+        scale = self.CHART_RENDER_SCALE
+        chart_x, chart_y = self._coordinates_adjusted_for_bordering(
+            self.set.template_component_paste_coordinates(TemplateImageComponent.CHART, player_type=self.player_type)
+        )
+        border = self.set.card_border_padding if self.image.is_bordered else 0
+        start, end = self.set.chart_highlight_span()
+
+        boxes: dict[ChartCategory, tuple[float, float, float, float]] = {}
+        if self.set.is_chart_horizontal:
+            # Each column is as wide as the gap between cells, centered on its range
+            x_positions = self._chart_horizontal_column_x_positions()
+            pitch = (x_positions[1] - x_positions[0]) if len(x_positions) > 1 else self.CHART_HORIZONTAL_CELL_SIZE
+            for category, x in zip(categories, x_positions):
+                center = chart_x + (x + self.CHART_HORIZONTAL_CELL_SIZE / 2) / scale
+                boxes[category] = (center - pitch / scale / 2, start + border, pitch / scale, end - start)
+        else:
+            # Rows are spaced like Pillow spaces multiline text: line height + the set's spacing
+            font = self._chart_font()
+            spacing = self.set.template_component_font_spacing(TemplateImageComponent.CHART)
+            draw = ImageDraw.Draw(Image.new('L', (1, 1)))
+            pitch = draw.multiline_textbbox((0, 0), "0\n0", font=font, spacing=spacing)[3] - draw.textbbox((0, 0), "0", font=font)[3]
+            for index, category in enumerate(categories):
+                boxes[category] = (start + border, chart_y + (index * pitch) / scale, end - start, pitch / scale)
+
+        return {category.value: self._fraction_of_final_image(box) for category, box in boxes.items()}
+
+    def command_box(self) -> list[float]:
+        """Where the Onbase/Control badge sits on the rendered card image, as [x, y, width, height]
+        fractions like `chart_cell_boxes`. Read off the badge's visible pixels, since most sets
+        draw it as a full-card overlay."""
+        command_image, (paste_x, paste_y) = self._command_image_and_paste_location()
+        left, top, right, bottom = command_image.getchannel('A').getbbox() if 'A' in command_image.getbands() else command_image.getbbox()
+        # The template is drawn bordered, then cropped to the card when it isn't (`_crop_template_image`)
+        inset = 0 if self.image.is_bordered else self.set.card_border_padding
+        return self._fraction_of_final_image((paste_x + left - inset, paste_y + top - inset, right - left, bottom - top))
+
+    def _fraction_of_final_image(self, box: tuple[float, float, float, float]) -> list[float]:
+        """A box on the full card canvas as fractions of the saved image, which is center-cropped
+        from it (see `generate_card_image`)."""
+        x, y, w, h = box
+        full_width, full_height = self.set.card_size_bordered if self.image.is_bordered else self.set.card_size
+        final_width, final_height = self.set.card_size_bordered_final if self.image.is_bordered else self.set.card_size_final
+        crop_x, crop_y = (full_width - final_width) / 2, (full_height - final_height) / 2
+        return [round((x - crop_x) / final_width, 4), round((y - crop_y) / final_height, 4), round(w / final_width, 4), round(h / final_height, 4)]
 
     def _set_and_year_image(self) -> Image.Image:
         """Creates image with card number and year text. Always defaults to card No 1.
@@ -5313,6 +5371,19 @@ class ShowdownPlayerCard(BaseModel):
                 return image
             
         return image
+
+    def _command_image_and_paste_location(self) -> tuple[Image.Image, tuple[int, int]]:
+        """The Onbase/Control badge and where it's pasted on the (template-sized) card. Showdown Bot
+        sets draw it; the rest use a full-card overlay for the command, pasted at the corner."""
+        paste_location = self.set.template_component_paste_coordinates(TemplateImageComponent.COMMAND)
+        if self.set.is_showdown_bot:
+            command_image = self._command_image()
+            if self.is_hitter:
+                paste_location = (paste_location[0] + 15, paste_location[1])
+        else:
+            type = 'Pitcher' if self.is_pitcher else 'Hitter'
+            command_image = Image.open(self._template_img_path(f"{self.set.template_year}-{type}-{str(self.chart.command)}"))
+        return command_image, self._coordinates_adjusted_for_bordering(coordinates=paste_location, is_forced=True)
 
     def _command_image(self) -> Image.Image:
         """For CLASSIC and EXPANDED sets, create onbase/control image asset dynamically

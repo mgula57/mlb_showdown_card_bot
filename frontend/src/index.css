@@ -737,10 +737,25 @@
     100% { transform: scale(1); }
 }
 
+/* The same landing on a rendered card image (`CardImageWithChart`): the row or column the swing
+   landed on takes an advantage-colored wash and ring, and the rest of the card dims around it (a
+   spread shadow, clipped by the card) so the eye goes straight to it. */
+.chart-image-cell-landed {
+    background-color: color-mix(in srgb, var(--advantage) 30%, transparent);
+    box-shadow: 0 0 0 2px var(--advantage), 0 0 0 100vmax rgba(0, 0, 0, 0.3);
+    animation: chart-image-cell-land 650ms ease-out 180ms both;
+}
+
+@keyframes chart-image-cell-land {
+    0%   { transform: scale(1.15); opacity: 0; box-shadow: 0 0 0 2px var(--advantage), 0 0 0 100vmax rgba(0, 0, 0, 0); }
+    40%  { transform: scale(0.97); opacity: 1; }
+    100% { transform: scale(1);    opacity: 1; box-shadow: 0 0 0 2px var(--advantage), 0 0 0 100vmax rgba(0, 0, 0, 0.3); }
+}
+
 @media (prefers-reduced-motion: reduce) {
     .field-plop, .field-plop::after,
     .card-advantage, .card-advantage::after, .advantage-badge-pop,
-    .chart-cell-landed, .chart-cell-landed > * { animation: none; }
+    .chart-cell-landed, .chart-cell-landed > *, .chart-image-cell-landed { animation: none; }
 }
 
 /* Sim progress dice — a pair of d20s tossed on a loop while a season simulates, as a nod to the

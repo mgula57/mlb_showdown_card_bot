@@ -23,6 +23,8 @@ const pitcherAdvantagePct = (control: number, onbase: number): number => {
 export type MatchupSideData = {
     label: string;
     player?: PlayerRef;
+    /** The player's key in the card map. */
+    cardKey?: string;
     response?: ShowdownBotCardAPIResponse;
     /** The player's box-score line so far, e.g. "2-for-4" or "5.0 IP, 3 ER". */
     summary?: string;
@@ -38,8 +40,10 @@ export function resolveMatchup(game: GameView, cardMap: CardMap, hideStatlines: 
     if (!situation) return null;
 
     const { batter, pitcher } = situation;
-    const batterResponse = cardMap[resolveCardKey(batter?.id, "H") ?? ""];
-    const pitcherResponse = cardMap[resolveCardKey(pitcher?.id, "P") ?? ""];
+    const batterKey = resolveCardKey(batter?.id, "H");
+    const pitcherKey = resolveCardKey(pitcher?.id, "P");
+    const batterResponse = cardMap[batterKey ?? ""];
+    const pitcherResponse = cardMap[pitcherKey ?? ""];
 
     const battingSide = situation.isTop ? game.away : game.home;
     const fieldingSide = situation.isTop ? game.home : game.away;
@@ -52,6 +56,7 @@ export function resolveMatchup(game: GameView, cardMap: CardMap, hideStatlines: 
         pitcher: {
             label: "Pitching",
             player: pitcher,
+            cardKey: pitcherKey,
             response: pitcherResponse,
             summary: hideStatlines ? undefined : fieldingSide.boxscore?.pitching.find((line) => line.id === pitcher?.id)?.summary,
             advantagePct: pitcherAdvantage,
@@ -59,6 +64,7 @@ export function resolveMatchup(game: GameView, cardMap: CardMap, hideStatlines: 
         hitter: {
             label: "At Bat",
             player: batter,
+            cardKey: batterKey,
             response: batterResponse,
             summary: hideStatlines ? undefined : battingSide.boxscore?.batting.find((line) => line.id === batter?.id)?.summary,
             advantagePct: pitcherAdvantage != null ? 100 - pitcherAdvantage : undefined,
