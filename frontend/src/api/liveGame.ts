@@ -240,6 +240,8 @@ export type CardImageBox = [number, number, number, number];
  *  "1B+") and the Onbase/Control badge sit on it. */
 export type LiveCardImage = {
     image_url: string;
+    /** The render's `card_images` storage path, for `CardDetail`'s `styleOverrides.storagePath`. */
+    storage_path: string;
     chart_cells: Record<string, CardImageBox>;
     command_box: CardImageBox;
 };

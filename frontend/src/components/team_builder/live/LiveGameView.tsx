@@ -26,6 +26,7 @@ import SimBoxScorePanels from "../../games/SimBoxScorePanels";
 import TimelinePlayback from "../../games/TimelinePlayback";
 import { useGameStage } from "../../games/useGameStage";
 import TopBarButton from "../../games/detail/TopBarButton";
+import { cardKeyOf } from "../../games/matchupCardImages";
 import BackButton from "../../shared/BackButton";
 import { buttonClass } from "../../shared/buttonStyles";
 import { Heading } from "../../shared/Heading";
@@ -42,6 +43,24 @@ type CardMap = Record<string, ShowdownBotCardAPIResponse>;
 
 /** The engine's pitch results (see `advantageSideOf`). */
 const ADVANTAGE_BY_PITCH_RESULT: Record<string, AdvantageSide | undefined> = { padv: "pitcher", hadv: "hitter" };
+
+/** When a pitch's winner shows: once its die has landed and shown its number, then a beat more so
+ *  the number reads first. */
+const PITCH_REVEAL_MS = HAND_DIE_REVEAL_MS + HAND_RESULT_BEAT_MS;
+/** How long card images stay on their commands after a pitch's winner shows, before zooming back
+ *  out to the whole card. */
+const PITCH_ZOOM_HOLD_MS = 1200;
+
+/** Whether `key` has been current for `delayMs`. One already current when the page opens has. */
+function useHasHeld(key: string | null, delayMs: number): boolean {
+    const [heldKey, setHeldKey] = useState(key);
+    useEffect(() => {
+        if (key == null || key === heldKey) return;
+        const timer = window.setTimeout(() => setHeldKey(key), delayMs);
+        return () => window.clearTimeout(timer);
+    }, [key, heldKey, delayMs]);
+    return key === heldKey;
+}
 
 type Props = {
     liveGameId: string;
@@ -135,18 +154,13 @@ function LiveBoard({ game, token, cardMap, isLoadingCards, isSubmitting, moveErr
     const openManager = () => setPicker(defaultPickerMode(game));
     const toggleAutopilot = (enabled: boolean) => { if (side) submit({ side, kind: "autopilot", enabled }); };
     const heldAdvantage = pending?.roll === "swing" ? ADVANTAGE_BY_PITCH_RESULT[pending.pitch_result ?? ""] : undefined;
-    // A pitch that comes in is thrown on the field first (`HandDie`), so who won it waits until the
-    // die has landed and shown its number, then a beat more so the number reads first. One already
-    // made when the page opens shows straight away.
+    // A pitch that comes in is thrown on the field first (`HandDie`), so who won it waits for
+    // `PITCH_REVEAL_MS`, and card images hold on their commands a while after. One already made
+    // when the page opens shows straight away.
     const situation = state.situation;
     const heldPitchKey = pending?.roll === "swing" ? `${situation?.inning}|${situation?.is_top}|${pending.hitter_id}|${pending.pitch_roll}` : null;
-    const [revealedPitchKey, setRevealedPitchKey] = useState(heldPitchKey);
-    useEffect(() => {
-        if (heldPitchKey == null || heldPitchKey === revealedPitchKey) return;
-        const revealed = window.setTimeout(() => setRevealedPitchKey(heldPitchKey), HAND_DIE_REVEAL_MS + HAND_RESULT_BEAT_MS);
-        return () => window.clearTimeout(revealed);
-    }, [heldPitchKey, revealedPitchKey]);
-    const isPitchRevealed = heldPitchKey === revealedPitchKey;
+    const isPitchRevealed = useHasHeld(heldPitchKey, PITCH_REVEAL_MS);
+    const isPitchRead = useHasHeld(heldPitchKey, PITCH_REVEAL_MS + PITCH_ZOOM_HOLD_MS);
 
     return (
         <TimelinePlayback
@@ -177,7 +191,7 @@ function LiveBoard({ game, token, cardMap, isLoadingCards, isSubmitting, moveErr
                     content: <LiveTurnStatus turn={turn} moveError={moveError} />,
                 } : null;
                 return (
-                    <LiveCardImagesProvider liveGameId={game.live_game_id} token={token} game={activeView} isEnabled={cardView === "image"}>
+                    <LiveCardImagesProvider liveGameId={game.live_game_id} token={token} game={activeView} selectedCardKey={cardKeyOf(cardMap, stage.selectedCard)} isEnabled={cardView === "image"}>
                         <LiveStrategyPrototype game={game} isEnabled={isStrategyPrototype} isCaughtUp={isCaughtUp}>
                             {(strategy) => (
                                 <GameStage
@@ -227,6 +241,7 @@ function LiveBoard({ game, token, cardMap, isLoadingCards, isSubmitting, moveErr
                                         throw: pendingThrowOf(state),
                                     } : undefined}
                                     heldAdvantage={isCaughtUp && isPitchRevealed ? heldAdvantage : undefined}
+                                    isPitchInPlay={isCaughtUp && heldPitchKey != null && !isPitchRead}
                                     // Each die is thrown on its own while the game is played (the newest play is still
                                     // catching up, so `isReplaying` can't tell); scrubbing back after the final out
                                     // tosses older plays' dice as a sim does

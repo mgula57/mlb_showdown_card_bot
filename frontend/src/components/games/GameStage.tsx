@@ -4,7 +4,7 @@
  * so any host with a `GameTimeline` can use it. What differs between hosts arrives as slots: the
  * box score panel, the top bar's controls and anything under the bar.
  */
-import { useMemo, useRef, useState, type Key, type ReactNode } from "react";
+import { useContext, useMemo, useRef, useState, type Key, type ReactNode } from "react";
 import { FaRing } from "react-icons/fa";
 import { FaStar } from "react-icons/fa6";
 
@@ -30,7 +30,8 @@ import ScoreboardIsland, { type TeamAnnouncement, type TeamStatus } from "./Scor
 import { GameScoreTrack, LastPlayLine } from "./GameBoardPanels";
 import GameField, { type RollPrompt } from "./GameField";
 import GameLinescore from "./GameLinescore";
-import GameMatchup, { MatchupSide } from "./GameMatchup";
+import GameMatchup, { MatchupSide, type MatchupRollFocus } from "./GameMatchup";
+import { cardKeyOf, MatchupCardImagesContext } from "./matchupCardImages";
 import PlayByPlayLog from "./PlayByPlayLog";
 import { resolveMatchup } from "./resolveMatchup";
 import GameFinalSummary from "./detail/GameFinalSummary";
@@ -112,6 +113,9 @@ type GameStageProps = {
     isHandThrown?: boolean;
     /** Who won a pitch that's been rolled but not yet swung at, highlighted until the swing resolves. */
     heldAdvantage?: AdvantageSide;
+    /** A live game's pitch die is on the field and being read, so the matchup's card images zoom
+     *  to their commands until it's done (the playback's own `pitch` phase does this for a sim). */
+    isPitchInPlay?: boolean;
     /** Shown on the board when no one is up yet, e.g. the probable pitchers. */
     preGamePanel?: ReactNode;
     className?: string;
@@ -122,7 +126,7 @@ type GameStageProps = {
 export default function GameStage({
     stage, game: gameView, plays, playbackState, playbackControls, isReplaying, playbackBar, detailedState,
     cardMap, isLoadingCards, isSim, gameKey, title, titleAccessory, modeBarColor, onBack,
-    topBarStatus, topBarActions, boxScorePanels, infoPanel, boardAction, boardTurn, boardTools, teamAnnouncements, strategy, rollPrompt, isHandThrown, heldAdvantage, preGamePanel, className, children,
+    topBarStatus, topBarActions, boxScorePanels, infoPanel, boardAction, boardTurn, boardTools, teamAnnouncements, strategy, rollPrompt, isHandThrown, heldAdvantage, isPitchInPlay = false, preGamePanel, className, children,
 }: GameStageProps) {
     const {
         selectedCard, setSelectedCard, isFieldExpanded, setIsFieldExpanded, railTab, setRailTab, isPhoneFieldShown, setIsPhoneFieldShown,
@@ -188,6 +192,14 @@ export default function GameStage({
     if (advantage != null && (settled?.key !== matchupKey || settled.side !== advantage)) setSettled({ key: matchupKey, side: advantage });
     const matchupAdvantage = advantage ?? (matchupKey != null && settled?.key === matchupKey ? settled.side : undefined);
     const isAdvantageSettled = matchupAdvantage != null;
+    /* Card images zoom in only while a roll plays out: both to their command for the pitch, then
+       the winner to its chart for the swing until the play has settled on the field. In between
+       they rest on the whole card. */
+    const isPitchRolling = isPitchInPlay || (playbackState.phase === 'pitch' && !isAdvantageSettled);
+    const isSwingRolling = isResultRevealed || playbackState.phase === 'pitch';
+    const rollFocus: Partial<Record<AdvantageSide, MatchupRollFocus>> = isPitchRolling
+        ? { pitcher: 'command', hitter: 'command' }
+        : isSwingRolling && matchupAdvantage ? { [matchupAdvantage]: 'chart' } : {};
 
     const railTabs = infoPanel ? RAIL_TABS : RAIL_TABS.filter((tab) => tab.id !== 'info');
     /* The Info tab can leave while it's open: a host hides it mid-replay to avoid spoilers. */
@@ -252,6 +264,11 @@ export default function GameStage({
     ) : undefined;
 
     const matchup = resolveMatchup(game, cardMap, isReplaying);
+    /* A card opened from the board shows the render a host already made for it (card images), or
+       waits for the one on its way, rather than generating another. */
+    const cardImageFor = useContext(MatchupCardImagesContext);
+    const selectedCardKey = cardKeyOf(cardMap, selectedCard);
+    const selectedCardImage = selectedCardKey ? cardImageFor?.(selectedCardKey) : undefined;
     /* Who's up for each club, for the box score tables to mark (see `LineupUpContext`). */
     const lineup = useMemo(() => lineupUp(game, plays), [game, plays]);
     const cornerCard = (side: "pitcher" | "hitter") => matchup && (
@@ -264,6 +281,7 @@ export default function GameStage({
             isAdvantageSettled={isAdvantageSettled}
             chartHighlight={matchupAdvantage === side ? swingResult : undefined}
             accessory={strategy?.played?.[side]}
+            rollFocus={rollFocus[side]}
         />
     );
 
@@ -330,6 +348,7 @@ export default function GameStage({
                                         isAdvantageSettled={isAdvantageSettled}
                                         swingResult={swingResult}
                                         accessories={strategy?.played}
+                                        rollFocus={rollFocus}
                                     />
                                 )}
                             </>
@@ -379,6 +398,8 @@ export default function GameStage({
                 <Modal onClose={() => setSelectedCard(null)} isVisible={!!selectedCard}>
                     <CardDetail
                         showdownBotCardData={selectedCard}
+                        styleOverrides={selectedCardImage?.status === 'ready' ? { storagePath: selectedCardImage.image.storage_path } : undefined}
+                        isImagePending={selectedCardImage?.status === 'loading'}
                         hideTrendGraphs={true}
                         context="game_detail"
                         parent='game_detail'

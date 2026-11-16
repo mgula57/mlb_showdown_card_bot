@@ -73,6 +73,8 @@ class LiveCardImages:
                 self._render(spec)
         return {
             'image_url': ReleaseImageStorage.public_url(spec.storage_path),
+            # So the card's detail view shows this render rather than generating its own
+            'storage_path': spec.storage_path,
             'chart_cells': card.chart_cell_boxes(),
             'command_box': card.command_box(),
         }

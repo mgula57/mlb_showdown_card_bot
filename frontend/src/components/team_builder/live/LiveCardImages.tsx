@@ -2,7 +2,9 @@
  * @fileoverview Full card images for a live game's matchup, for viewers who pick them over
  * `CardItem`s (`useLiveCardView`). Each card is rendered on the server the first time anyone asks
  * (a few seconds), so the provider asks for the pitcher and hitter at the plate and, ahead of time,
- * the hitter on deck, and preloads each image so the swap is instant when he steps in.
+ * the hitter on deck, and preloads each image so the swap is instant when he steps in. A card
+ * opened in detail is asked for too, and the detail shows the same render (`GameStage`), so each
+ * card is rendered once however it's seen.
  */
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 
@@ -34,11 +36,13 @@ type Props = {
     token?: string;
     /** The game at the playback cursor: whose cards to show and who's next. */
     game: GameView;
+    /** The card-map key of the card open in detail, if any. */
+    selectedCardKey?: string;
     isEnabled: boolean;
     children: ReactNode;
 };
 
-export default function LiveCardImagesProvider({ liveGameId, token, game, isEnabled, children }: Props) {
+export default function LiveCardImagesProvider({ liveGameId, token, game, selectedCardKey, isEnabled, children }: Props) {
     const [images, setImages] = useState<Record<string, MatchupCardImageState>>({});
     const situation = game.situation;
     const cardKeys = useMemo(
@@ -46,8 +50,9 @@ export default function LiveCardImagesProvider({ liveGameId, token, game, isEnab
             resolveCardKey(situation?.pitcher?.id, "P"),
             resolveCardKey(situation?.batter?.id, "H"),
             resolveCardKey(situation?.onDeck?.id, "H"),
+            selectedCardKey,
         ].filter((key): key is string => !!key),
-        [situation?.pitcher?.id, situation?.batter?.id, situation?.onDeck?.id],
+        [situation?.pitcher?.id, situation?.batter?.id, situation?.onDeck?.id, selectedCardKey],
     );
 
     useEffect(() => {

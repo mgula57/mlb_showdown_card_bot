@@ -110,6 +110,10 @@ type CardDetailProps = {
      * set number), generating a fresh image unless `storagePath` supplies the already-rendered one.
      * Applies to both `showdownBotCardData` and `cardId` cards. */
     styleOverrides?: CardStyleOverrides;
+    /** The card's image is being rendered elsewhere and will arrive as `styleOverrides.storagePath`
+     * (e.g. a live game's board render), so the card waits for it instead of generating its own.
+     * Should it end without one, the card generates its own after all. */
+    isImagePending?: boolean;
     /** Enables editing this card's style in place: Customize opens the Card Style fields inline
      * (instead of the Custom Card Builder) and auto-saves edits via `onSave` once they pause. The
      * caller persists them and passes updated `styleOverrides`, which re-renders the card image. */
@@ -170,7 +174,7 @@ const SectionPanel = ({ title, subtitle, isLoading, children }: { title: string;
  * />
  * ```
  */
-export const CardDetail = memo(function CardDetail({ showdownBotCardData: showdownBotCardDataProp, cardId, variableSpeed = false, isLoading, hideTrendGraphs=false, context='custom', parent, showdownSetForPlaceholder, simStats, tooltip, onDraft, draftDisabled=false, draftLabel='Draft', actionBarContent, enableSetSwitcher=false, styleOverrides: styleOverridesProp, styleEditor, localStyleDefaults, releaseSource }: CardDetailProps) {
+export const CardDetail = memo(function CardDetail({ showdownBotCardData: showdownBotCardDataProp, cardId, variableSpeed = false, isLoading, hideTrendGraphs=false, context='custom', parent, showdownSetForPlaceholder, simStats, tooltip, onDraft, draftDisabled=false, draftLabel='Draft', actionBarContent, enableSetSwitcher=false, styleOverrides: styleOverridesProp, isImagePending = false, styleEditor, localStyleDefaults, releaseSource }: CardDetailProps) {
     // Unsaved restyling (`localStyleDefaults`): Customize snapshots the card's own style as the base,
     // and edits render through the same overrides path as a caller's `styleOverrides`
     const [localStyleBase, setLocalStyleBase] = useState<CardStyleSettings | null>(null);
@@ -198,7 +202,7 @@ export const CardDetail = memo(function CardDetail({ showdownBotCardData: showdo
     /** True when a card has no image to show yet. A stored override image counts as one — the card
      * already looks the way the overrides describe, so there's nothing to generate. */
     const isMissingImage = (card: ShowdownBotCard | null | undefined) =>
-        !!card && !card.image.output_file_name && !styleOverrides?.storagePath;
+        !!card && !card.image.output_file_name && !styleOverrides?.storagePath && !isImagePending;
     /** URL of a card's rendered image, if it has one */
     const imagePathFor = (card: ShowdownBotCard | null | undefined): string | null => {
         const image = card?.image;
@@ -383,6 +387,17 @@ export const CardDetail = memo(function CardDetail({ showdownBotCardData: showdo
     const [isGeneratingImage, setIsGeneratingImage] = useState<boolean>(false);
     const [isLoadingFromId, setIsLoadingFromId] = useState<boolean>(false);
 
+    // A render awaited elsewhere (`isImagePending`) that ended without an image: generate one here
+    const wasImagePendingRef = useRef(isImagePending);
+    useEffect(() => {
+        const wasPending = wasImagePendingRef.current;
+        wasImagePendingRef.current = isImagePending;
+        if (wasPending && !isImagePending && activeCardData && isMissingImage(activeCardData.card) && !isGeneratingImage) {
+            handleGenerateImage(activeCardData);
+        }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [isImagePending]);
+
     // Set Switcher State (enableSetSwitcher only) — looks up the same player/year in a different
     // set via the existing search + by-id endpoints, no dedicated backend support needed.
     const [isSwitchingSet, setIsSwitchingSet] = useState<boolean>(false);
@@ -412,7 +427,7 @@ export const CardDetail = memo(function CardDetail({ showdownBotCardData: showdo
     const isStyleCustomized = !!activeStyleEditor && isCardStyleDifferent(activeStyleEditor.style, activeStyleEditor.defaults);
 
     // Mark if isLoading or isGeneratingImage
-    const isLoadingOverall = isLoading || isGeneratingImage || isLoadingFromId || isSwitchingSet;
+    const isLoadingOverall = isLoading || isGeneratingImage || isImagePending || isLoadingFromId || isSwitchingSet;
     // Panels only blur while chart data itself is loading — not when just the image is generating
     const isLoadingPanels = isLoading || isLoadingFromId || isSwitchingSet || (isGeneratingImage && !activeCardData?.card?.chart);
 
@@ -936,7 +951,7 @@ export const CardDetail = memo(function CardDetail({ showdownBotCardData: showdo
                                     ">
                                         <div className="card-processing-spinner" />
                                         <p className="text-xs font-semibold tracking-wide">
-                                            {isSwitchingSet ? 'Switching Set' : `Generating ${isGeneratingImage ? 'Image' : 'Card'}`}
+                                            {isSwitchingSet ? 'Switching Set' : `Generating ${isGeneratingImage || isImagePending ? 'Image' : 'Card'}`}
                                         </p>
                                     </div>
                                 </div>

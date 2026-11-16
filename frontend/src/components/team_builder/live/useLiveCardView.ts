@@ -1,6 +1,6 @@
 /**
- * @fileoverview The viewer's choice of matchup card on a live game's board: the compact
- * `CardItem` or the full rendered card (`LiveCardImagesProvider`). Remembered on this device.
+ * @fileoverview The viewer's choice of matchup card on a live game's board: the full rendered card
+ * (`LiveCardImagesProvider`, the default) or the compact `CardItem`. Remembered on this device.
  */
 import { useState } from "react";
 
@@ -10,9 +10,9 @@ export type LiveCardView = "item" | "image";
 export function useLiveCardView(): [LiveCardView, (view: LiveCardView) => void] {
     const [view, setView] = useState<LiveCardView>(() => {
         try {
-            return localStorage.getItem(VIEW_STORAGE_KEY) === "image" ? "image" : "item";
+            return localStorage.getItem(VIEW_STORAGE_KEY) === "item" ? "item" : "image";
         } catch {
-            return "item";
+            return "image";
         }
     });
     const choose = (next: LiveCardView) => {

@@ -6,5 +6,5 @@ export const BOARD_PANEL_CLASS = 'rounded-card border border-(--divider) bg-(--b
  *  of it (`ScoreboardIsland`). Mostly filled, with the field blurred behind it, so the score and
  *  the turn read cleanly over the outfield art while still sitting on the field. The board's one
  *  exception to "no glass" (see "Game board" in DESIGN.md). */
-export const BOARD_OVERLAY_SURFACE_CLASS = 'bg-(--background-primary)/80 backdrop-blur-md'; // design-ok: scoreboard over the field art
+export const BOARD_OVERLAY_SURFACE_CLASS = 'bg-(--background-primary)/10 backdrop-blur-md'; // design-ok: scoreboard over the field art
 export const BOARD_OVERLAY_CLASS = `rounded-card border border-(--divider) ${BOARD_OVERLAY_SURFACE_CLASS}`;

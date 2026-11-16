@@ -3,8 +3,7 @@
  * cards with the Showdown advantage split between them. A wide game board gives each card a corner
  * through `MatchupSide`; a narrow one uses `GameMatchup`, the same full cards side by side when two
  * fit and stacked when they don't, so the chart is always there to show where a swing landed. Card
- * images (`MatchupCardImagesContext`) also sit side by side for the pitch, showing only each card's
- * command, and stack once the advantage is known. Under
+ * images (`MatchupCardImagesContext`) always sit side by side, each showing the whole card. Under
  * them, the rest of the batting club's order as it comes up, fading the further off each hitter is.
  */
 import { useContext, type ReactNode } from "react";
@@ -13,13 +12,13 @@ import { useIsWiderThan } from "../../hooks/useIsWiderThan";
 import type { GameView } from "../../domain/game";
 import type { ShowdownBotCardAPIResponse } from "../../api/showdownBotCard";
 import { CardItemFromCard, CardItemSkeleton } from "../cards/CardItem";
-import CardImageWithChart, { CardImageSkeleton } from "../cards/CardImageWithChart";
+import CardImageWithChart, { CARD_ASPECT, CardImageSkeleton, type CardImageFocus } from "../cards/CardImageWithChart";
 import type { AdvantageSide } from "../../domain/play";
 import { hittersAfter } from "../../domain/lineup";
 import { resolveCardKey } from "../../domain/players";
 import { CAPS_LABEL_CLASS } from "../shared/fieldStyles";
 import { BOARD_PANEL_CLASS } from "./boardStyles";
-import { MatchupCardImagesContext } from "./matchupCardImages";
+import { MatchupCardImagesContext, MatchupCardRoomContext } from "./matchupCardImages";
 import { resolveMatchup, type MatchupSideData } from "./resolveMatchup";
 
 type CardMap = Record<string, ShowdownBotCardAPIResponse>;
@@ -81,6 +80,13 @@ function UpNext({ game, cardMap, isLoadingCards, onCardSelect }: {
 /** Room for two full cards side by side, charts and all. */
 const FULL_ROW_MIN_WIDTH = 600;
 
+/** The narrowest a whole card image is shown. With less room (`MatchupCardRoomContext`) it's a
+ *  short window on one part of the card instead. */
+const MIN_FULL_CARD_WIDTH = 200;
+
+/** A matchup card's part to zoom to while a roll plays out (`MatchupSide`'s `rollFocus`). */
+export type MatchupRollFocus = Exclude<CardImageFocus, "card">;
+
 function PointsTrend({ card }: { card?: ShowdownBotCardAPIResponse }) {
     const change = card?.in_season_trends?.pts_change.day;
     if (change == null || change === 0) return null;
@@ -106,18 +112,27 @@ type MatchupSideProps = {
     chartHighlight?: string;
     /** On top of the card: the strategy cards this side's club has in play (`PlayedStrategyCards`). */
     accessory?: ReactNode;
+    /** A roll is playing out: a card image zooms to this part, and back out to the whole card
+     *  (when there's room for it) once the roll is done. */
+    rollFocus?: MatchupRollFocus;
 };
 
-export function MatchupSide({ side, isLoadingCards, onCardSelect, hideTrend, hasAdvantage, isAdvantageSettled, chartHighlight, accessory }: MatchupSideProps) {
+export function MatchupSide({ side, isLoadingCards, onCardSelect, hideTrend, hasAdvantage, isAdvantageSettled, chartHighlight, accessory, rollFocus }: MatchupSideProps) {
     const { label, player, cardKey, response, summary, advantagePct } = side;
     // A host showing card images answers for each card; anything else (or a failed render) is a CardItem.
     const imageFor = useContext(MatchupCardImagesContext);
     const cardImage = cardKey && response?.card ? imageFor?.(cardKey) : undefined;
+    // The whole card when it fits at a readable width, narrowed to stand no taller than the room
+    const imageRoom = useContext(MatchupCardRoomContext);
+    const fullCardMaxWidth = imageRoom == null ? undefined : imageRoom * CARD_ASPECT;
+    const isFullCard = fullCardMaxWidth == null || fullCardMaxWidth >= MIN_FULL_CARD_WIDTH;
+    // Without room the short window rests on the command until the advantage is won, then the chart
+    const restingFocus: CardImageFocus = isFullCard ? "card" : isAdvantageSettled || chartHighlight ? "chart" : "command";
     // A finished game's last frame has a pitcher but no one left to bat.
     if (!player) return null;
 
     return (
-        <div className="min-w-0 space-y-1">
+        <div className="w-full min-w-0 space-y-1" style={cardImage && cardImage.status !== "failed" && isFullCard && fullCardMaxWidth != null ? { maxWidth: fullCardMaxWidth } : undefined}>
             <div className={`${BOARD_PANEL_CLASS} flex items-center justify-between gap-1.5 px-2 py-0.5`}>
                 <div className="flex min-w-0 items-center gap-2">
                     <span className={`${CAPS_LABEL_CLASS} text-(--text-primary)`}>{label}</span>
@@ -141,14 +156,15 @@ export function MatchupSide({ side, isLoadingCards, onCardSelect, hideTrend, has
                         imageUrl={cardImage.image.image_url}
                         chartCells={cardImage.image.chart_cells}
                         commandBox={cardImage.image.command_box}
-                        focus={isAdvantageSettled || chartHighlight ? "chart" : "command"}
+                        focus={rollFocus ?? restingFocus}
+                        isFullCard={isFullCard}
                         name={player.name}
                         onClick={() => onCardSelect?.(response)}
                         hasAdvantage={hasAdvantage}
                         chartHighlight={chartHighlight}
                     />
                 ) : cardImage?.status === "loading" ? (
-                    <CardImageSkeleton />
+                    <CardImageSkeleton isFullCard={isFullCard} />
                 ) : response?.card ? (
                     <CardItemFromCard card={response.card} className="w-full" onClick={() => onCardSelect?.(response)} hasAdvantage={hasAdvantage} chartHighlight={chartHighlight} />
                 ) : isLoadingCards ? (
@@ -176,24 +192,25 @@ type GameMatchupProps = {
     swingResult?: string;
     /** Each side's `MatchupSide` `accessory`. */
     accessories?: { pitcher?: ReactNode; hitter?: ReactNode };
+    /** Each side's `MatchupSide` `rollFocus`. */
+    rollFocus?: Partial<Record<AdvantageSide, MatchupRollFocus>>;
 };
 
-export default function GameMatchup({ game, cardMap, isLoadingCards, onCardSelect, hideStatlines = false, advantage, isAdvantageSettled, swingResult, accessories }: GameMatchupProps) {
+export default function GameMatchup({ game, cardMap, isLoadingCards, onCardSelect, hideStatlines = false, advantage, isAdvantageSettled, swingResult, accessories, rollFocus }: GameMatchupProps) {
     const [rowRef, isFullRow] = useIsWiderThan<HTMLDivElement>(FULL_ROW_MIN_WIDTH);
     const isShowingImages = useContext(MatchupCardImagesContext) != null;
     const matchup = resolveMatchup(game, cardMap, hideStatlines);
     if (!matchup) return null;
-    // Card images sit side by side for the pitch, when each shows only its command, then stack
-    // full width once the advantage is known so each chart can be read
-    const isSideBySide = isFullRow || (isShowingImages && !isAdvantageSettled && !swingResult);
+    // Whole card images sit side by side at any width; each zooms in for a roll
+    const isSideBySide = isFullRow || isShowingImages;
 
     const shared = { isLoadingCards, onCardSelect, hideTrend: hideStatlines, isAdvantageSettled };
 
     return (
         <div ref={rowRef} className="mx-2 space-y-1.5">
             <div className={`grid gap-2 ${isSideBySide ? "grid-cols-2" : "grid-cols-1"}`}>
-                <MatchupSide {...shared} side={matchup.pitcher} hasAdvantage={advantage === "pitcher"} chartHighlight={advantage === "pitcher" ? swingResult : undefined} accessory={accessories?.pitcher} />
-                <MatchupSide {...shared} side={matchup.hitter} hasAdvantage={advantage === "hitter"} chartHighlight={advantage === "hitter" ? swingResult : undefined} accessory={accessories?.hitter} />
+                <MatchupSide {...shared} side={matchup.pitcher} hasAdvantage={advantage === "pitcher"} chartHighlight={advantage === "pitcher" ? swingResult : undefined} accessory={accessories?.pitcher} rollFocus={rollFocus?.pitcher} />
+                <MatchupSide {...shared} side={matchup.hitter} hasAdvantage={advantage === "hitter"} chartHighlight={advantage === "hitter" ? swingResult : undefined} accessory={accessories?.hitter} rollFocus={rollFocus?.hitter} />
             </div>
 
             <UpNext game={game} cardMap={cardMap} isLoadingCards={isLoadingCards} onCardSelect={onCardSelect} />

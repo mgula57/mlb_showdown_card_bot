@@ -623,9 +623,13 @@ function LastPlaySummary({ play }: { play: PlayEntry }) {
     );
 }
 
-/** The field's bottom corners, which hold its controls. */
-const CORNER_CLASS = "absolute z-20 flex items-end gap-2 transition-[bottom] duration-300 ease-out";
-const CORNER_STYLE = { bottom: "var(--field-corner-lift, 0px)" };
+/** The field's bottom corners, which hold its controls. A host can lift them (`--field-corner-lift`)
+ *  and push them out past the field's sides (`--field-corner-reach`); see `GameBoard`. */
+const CORNER_CLASS = "absolute z-20 flex items-end gap-2 transition-[bottom,left,right] duration-300 ease-out";
+const CORNER_BOTTOM = "var(--field-corner-lift, 0px)";
+const CORNER_OUTSET = "calc(-1 * var(--field-corner-reach, 0px))";
+const CORNER_RIGHT_STYLE = { bottom: CORNER_BOTTOM, right: CORNER_OUTSET };
+const CORNER_LEFT_STYLE = { bottom: CORNER_BOTTOM, left: CORNER_OUTSET };
 
 export default function GameField({ game, cardMap, onCardSelect, expanded = false, onToggleExpanded, isLoadingCards, transition, pendingPlay, phase = "idle", lastPlay, advantage, playbackSpeed, onPlayClick, rollPrompt, isHandThrown = false, hideFieldArt = false, corner, cornerLeft, drawer, zoom = 1, plopIn = false, className = "" }: GameFieldProps) {
     const situation = game.situation;
@@ -941,14 +945,14 @@ export default function GameField({ game, cardMap, onCardSelect, expanded = fals
                 {/* Raised clear of a host's cards over the field's bottom edge (`GameBoard`'s
                     `--field-corner-lift`) */}
                 {corner ? (
-                    <div className={`${CORNER_CLASS} right-0`} style={CORNER_STYLE}>{corner}</div>
+                    <div className={CORNER_CLASS} style={CORNER_RIGHT_STYLE}>{corner}</div>
                 ) : lastPlay && (
                     <div className="absolute bottom-0 left-3/4 right-0 pl-1">
                         <LastPlaySummary play={lastPlay} />
                     </div>
                 )}
                 {cornerLeft && (
-                    <div className={`${CORNER_CLASS} left-0`} style={CORNER_STYLE}>{cornerLeft}</div>
+                    <div className={CORNER_CLASS} style={CORNER_LEFT_STYLE}>{cornerLeft}</div>
                 )}
                 {drawer && <div className="absolute inset-x-0 bottom-0 z-40">{drawer}</div>}
             </div>
