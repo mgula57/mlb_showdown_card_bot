@@ -22,8 +22,13 @@ function BoardSurface() {
     return <div className="absolute inset-0 -z-10 bg-(--background-primary)" />;
 }
 
-/** Space kept clear under the field for the cards along the bottom edge. */
+/** Space kept clear under the field for the cards along the bottom edge, at least. Taller cards
+ *  (a card image's window) push it up to their measured height. */
 const BOTTOM_ZONE = '10.75rem';
+/** The cards' inset from the stage's bottom edge (`bottom-3`). */
+const CARDS_INSET = '0.75rem';
+/** Room left between the cards' top edge and the field's corner controls lifted above them. */
+const CORNER_GAP = '0.5rem';
 /** Only foul ground is below the plate's dirt, so the field's box can sink this far behind the cards. */
 const FIELD_SINK = 0.07;
 const SIDE_GUTTER = '1.5rem';
@@ -38,23 +43,30 @@ const OUTFIELD_TUCK = 0.6;
 /** Height of the deep outfield left showing, as a share of the field box's height. */
 const COLLAPSED_HEADROOM = FIELD_ART_HEADROOM * (1 - OUTFIELD_TUCK);
 
-/** Fits the field to the stage, the smaller of its width and what its height allows. The field's
+/** Fits the field to the stage, the smaller of its width and what its height allows, above
+ *  `bottomZone` (the cards' height, or `BOTTOM_ZONE`, whichever is taller). The field's
  *  height counts the art's deep outfield above the box (`FIELD_ART_HEADROOM`, the top padding
  *  `GameField` leaves for it). Expanded, the art clears the cards and all of the outfield shows,
  *  since that's where the outfielders stand, and `GameField`'s own bottom padding is what the
  *  `3rem` takes back out. Collapsed, the field rides up until `OUTFIELD_TUCK` of the outfield is
  *  behind the track, which also lifts the plate clear of the cards in the bottom corners. It only
- *  sinks behind them (`FIELD_SINK`) when the height runs out. */
-function fieldStyle(isExpanded: boolean): CSSProperties {
+ *  sinks behind them (`FIELD_SINK`) when the height runs out.
+ *
+ *  Either way the field's bottom corners can end up behind the cards, so `--field-corner-lift`
+ *  tells `GameField` how far to raise its corner controls to clear the cards' top (`cardsTop`, from
+ *  the stage's bottom edge). */
+function fieldStyle(isExpanded: boolean, bottomZone: string, cardsTop: string): CSSProperties {
     const heightLimit = isExpanded
-        ? `(100cqh - ${BOTTOM_ZONE}) * ${FIELD_ASPECT / (1 + FIELD_ART_HEADROOM)}`
-        : `(100cqh - ${BOTTOM_ZONE} - 0.5rem) * ${FIELD_ASPECT / (1 - FIELD_SINK + COLLAPSED_HEADROOM)}`;
+        ? `(100cqh - ${bottomZone}) * ${FIELD_ASPECT / (1 + FIELD_ART_HEADROOM)}`
+        : `(100cqh - ${bottomZone} - 0.5rem) * ${FIELD_ASPECT / (1 - FIELD_SINK + COLLAPSED_HEADROOM)}`;
+    const bottom = isExpanded
+        ? `(${bottomZone} - 3rem)`
+        : `max(${bottomZone} - var(--field-width) * ${FIELD_SINK / FIELD_ASPECT}, 100cqh - var(--field-width) * ${(1 + COLLAPSED_HEADROOM) / FIELD_ASPECT})`;
     return {
         '--field-width': `min(${FIELD_MAX_WIDTH}, 100cqw - ${SIDE_GUTTER}, ${heightLimit})`,
+        '--field-corner-lift': `max(0px, ${cardsTop} + ${CORNER_GAP} - ${bottom})`,
         width: 'var(--field-width)',
-        bottom: isExpanded
-            ? `calc(${BOTTOM_ZONE} - 3rem)`
-            : `max(${BOTTOM_ZONE} - var(--field-width) * ${FIELD_SINK / FIELD_ASPECT}, 100cqh - var(--field-width) * ${(1 + COLLAPSED_HEADROOM) / FIELD_ASPECT})`,
+        bottom: `calc(${bottom})`,
     } as CSSProperties;
 }
 
@@ -99,6 +111,7 @@ export default function GameBoard({
     bottomLeft, bottomRight, bottomSpan, below,
 }: GameBoardProps) {
     const [trackRef, trackHeight] = useElementHeight<HTMLDivElement>();
+    const [cardsRef, cardsHeight] = useElementHeight<HTMLDivElement>();
 
     if (!isWide) {
         // The track's height plus the gap under it.
@@ -121,6 +134,11 @@ export default function GameBoard({
         );
     }
 
+    // Measured, so taller cards (a card image's window) push the field up rather than covering it
+    const hasCards = !overlay && cardsHeight > 0;
+    const cardsTop = hasCards ? `(${cardsHeight}px + ${CARDS_INSET})` : '0px';
+    const bottomZone = hasCards ? `max(${BOTTOM_ZONE}, ${cardsTop})` : BOTTOM_ZONE;
+
     return (
         <div className="relative isolate flex h-full min-w-0 items-start justify-center overflow-hidden">
             <BoardSurface />
@@ -131,16 +149,16 @@ export default function GameBoard({
                 <div className="relative z-10 shrink-0 px-3 pt-3">{track}</div>
 
                 <div className="relative min-h-0 flex-1" style={{ containerType: 'size' }}>
-                    <div className="absolute left-1/2 z-0 -translate-x-1/2 transition-[width,bottom] duration-300 ease-out" style={fieldStyle(isFieldExpanded)}>
+                    <div className="absolute left-1/2 z-0 -translate-x-1/2 transition-[width,bottom] duration-300 ease-out" style={fieldStyle(isFieldExpanded, bottomZone, cardsTop)}>
                         {field}
                     </div>
 
                     {!overlay && (
                         <>
                             {bottomSpan ? (
-                                <div className="absolute inset-x-3 bottom-3 z-10">{bottomSpan}</div>
+                                <div ref={cardsRef} className="absolute inset-x-3 bottom-3 z-10">{bottomSpan}</div>
                             ) : (
-                                <div className="pointer-events-none absolute inset-x-3 bottom-3 z-10 flex items-end justify-between gap-3">
+                                <div ref={cardsRef} className="pointer-events-none absolute inset-x-3 bottom-3 z-10 flex items-end justify-between gap-3">
                                     <div className="pointer-events-auto w-85 min-w-0">{bottomLeft}</div>
                                     <div className="pointer-events-auto w-85 min-w-0">{bottomRight}</div>
                                 </div>

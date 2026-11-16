@@ -14,6 +14,14 @@ import { usePrefersReducedMotion } from "./usePrefersReducedMotion";
 // landed dice a clear beat on screen before the result. All of it is divided by playback speed,
 // exactly as the phase beats are, so the margin holds at 2x and 4x.
 export const FIELD_TOSS_MS = 450;
+/** A die thrown by hand in a game people play (`HandDie`): one rattling jump, then a still beat
+ *  before its number shows. Whatever that roll decides waits for the whole of it. */
+export const HAND_THROW_MS = 380;
+export const HAND_REVEAL_BEAT_MS = 180;
+export const HAND_DIE_REVEAL_MS = HAND_THROW_MS + HAND_REVEAL_BEAT_MS;
+/** Once a hand-thrown die's number is up, what it decides (the pitch's advantage) waits this much
+ *  longer, so the number reads on its own before the board reacts to it. */
+export const HAND_RESULT_BEAT_MS = 450;
 export const FIELD_STAGGER_MS = 80;
 /** From this effective speed up the dice skip their motion and just show the roll — the beats are
  *  too short for a toss to read as anything but a flicker. */

@@ -2,9 +2,10 @@
  * @fileoverview Reading a live game's state for the screen: whose turn it is, who's at the plate and
  * on the mound right now, and what a player's pending moves are.
  */
-import type { LiveAction, LiveGame, LiveGameState, LiveSeat, LiveSide } from "../../../api/liveGame";
+import type { LiveAction, LiveGame, LiveGameState, LiveSeat, LiveSide, RollKind } from "../../../api/liveGame";
 import type { SimTimelineLiveEdge } from "../../../domain/adapters/fromSim";
 import type { PlayerRef } from "../../../domain/game";
+import type { PendingRunnerThrow } from "../../games/SimRunnerRolls";
 
 export const LIVE_SIDES: LiveSide[] = ["away", "home"];
 export const otherSide = (side: LiveSide): LiveSide => (side === "away" ? "home" : "away");
@@ -23,12 +24,30 @@ const ref = (state: LiveGameState, id?: string | null): PlayerRef | undefined =>
 export function liveEdgeOf(state: LiveGameState): SimTimelineLiveEdge | undefined {
     const sides = sidesInPlay(state);
     if (!sides || !state.situation || state.is_final) return undefined;
-    const batter = state.pending?.roll === "swing" ? state.pending.hitter_id : state.sides[sides.batting].due_up_id;
+    const pending = state.pending;
+    // Past the pitch roll the matchup is locked in, whoever's up next by the lineup.
+    const batter = pending?.hitter_id ?? state.sides[sides.batting].due_up_id;
+    const awaiting = pending?.roll === "swing" || pending?.roll === "advance" ? pending.roll : null;
     return {
         inning: state.situation.inning,
         isTop: state.situation.is_top,
         batter: ref(state, batter),
         pitcher: ref(state, state.sides[sides.fielding].pitcher_id),
+        playInProgress: state.play_in_progress && awaiting ? { entry: state.play_in_progress, awaiting } : undefined,
+    };
+}
+
+/** The throw on a runner the game is waiting on (a steal, or a runner sent for an extra base), for
+ *  the field to set out with its die. Undefined while it waits on the pitch or the swing. */
+export function pendingThrowOf(state: LiveGameState): PendingRunnerThrow | undefined {
+    const pending = state.pending;
+    if (!pending || (pending.roll !== "steal" && pending.roll !== "advance") || !pending.runner_id || pending.base == null) return undefined;
+    return {
+        kind: pending.roll,
+        runner: { id: pending.runner_id, name: pending.runner || state.player_names[pending.runner_id] || "" },
+        base: pending.base,
+        defense: pending.defense ?? undefined,
+        target: pending.target ?? undefined,
     };
 }
 
@@ -75,12 +94,19 @@ export function defaultPickerMode(game: LiveGame): SubPickerMode {
 
 export type LiveTurn = { label: string; isWaiting: boolean };
 
+/** Each roll as a turn: "Your throw", "Waiting on the Yankees to throw". */
+const TURN_VERB: Record<RollKind, string> = { pitch: "pitch", swing: "swing", steal: "throw", advance: "throw" };
+
+/** What the next-move button says for each roll. */
+export const ROLL_BUTTON_LABEL: Record<RollKind, string> = { pitch: "Pitch", swing: "Swing", steal: "Throw", advance: "Throw" };
+
 /** Whose turn it is, in words, or null between turns (a roll still being played out). */
 export function liveTurnLabel(game: LiveGame): LiveTurn | null {
     const pending = game.state && !game.state.is_final ? game.state.pending : null;
     if (!pending) return null;
-    if (isMyTurn(game)) return { label: `Your ${pending.roll}`, isWaiting: false };
-    return { label: `Waiting on ${teamName(game, pending.side)} to ${pending.roll}`, isWaiting: true };
+    const verb = TURN_VERB[pending.roll];
+    if (isMyTurn(game)) return { label: `Your ${verb}`, isWaiting: false };
+    return { label: `Waiting on ${teamName(game, pending.side)} to ${verb}`, isWaiting: true };
 }
 
 /** A club's substitution, read off the change between two states. `seq` is the state it showed up

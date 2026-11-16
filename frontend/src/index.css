@@ -461,6 +461,16 @@
     animation: card-glow-pulse 3s ease-in-out infinite;
 }
 
+/* How far a game field raises its corner controls to clear the cards over its bottom edge (set by
+   `GameBoard`, read by `GameField`). Registered as a length so it's computed where it's set, where
+   its `cqw`/`cqh` units mean the board's stage, then inherited as a plain length; unregistered it
+   would be worked out at the corner, inside the field's own container. */
+@property --field-corner-lift {
+    syntax: '<length>';
+    initial-value: 0px;
+    inherits: true;
+}
+
 /* Card processing ring — a comet of light that orbits the card's border while its image/data
    loads. The conic gradient's start angle is a registered custom property so it can animate
    smoothly; the mask punches out the content box, leaving only a `--ring-width` border. Colors
@@ -774,6 +784,20 @@
 
 .sim-die-toss { animation: sim-die-toss 900ms cubic-bezier(0.33, 0, 0.3, 1) forwards; }
 
+/* A die thrown by hand (`HandDie`): one jump that rattles side to side the whole way up and down,
+   then settles. Its number shows a beat after it lands. */
+@keyframes hand-die-throw {
+    0%   { transform: translate(0, 0)       rotate(0deg)   scale(1); }
+    15%  { transform: translate(-2px, -9px) rotate(-14deg) scale(1.05); }
+    30%  { transform: translate(2px, -17px) rotate(12deg)  scale(1.08); }
+    45%  { transform: translate(-2px, -19px) rotate(-11deg) scale(1.07); }
+    60%  { transform: translate(2px, -12px) rotate(9deg)   scale(1.04); }
+    80%  { transform: translate(-1px, 0)    rotate(-4deg)  scale(0.95); }
+    100% { transform: translate(0, 0)       rotate(0deg)   scale(1); }
+}
+
+.hand-die-throw { animation: hand-die-throw 380ms cubic-bezier(0.33, 0, 0.3, 1) forwards; }
+
 /* Ground shadow under a tossed die: tight and faint at the top of the arc, wide and dark on the
    landing. Only scaleX/opacity, so the element's own centering stays on `margin` rather than a
    `transform` this would overwrite. */
@@ -858,6 +882,7 @@
 
 @media (prefers-reduced-motion: reduce) {
     .sim-die-toss,
+    .hand-die-throw,
     .sim-die-shadow { animation: none; }
     /* Removed rather than paused - a stopped sheen is just a stray white band parked over the
        left of the fill. */

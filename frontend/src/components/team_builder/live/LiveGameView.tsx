@@ -17,6 +17,7 @@ import { fromSimTimeline } from "../../../domain/adapters/fromSim";
 import type { AdvantageSide } from "../../../domain/play";
 import { bannerTokens, NEUTRAL_TEAM_COLOR } from "../../../functions/colors";
 import { useCopyLink } from "../../../hooks/useCopyLink";
+import { HAND_DIE_REVEAL_MS, HAND_RESULT_BEAT_MS } from "../../../hooks/useDieToss";
 import { useLiveGame } from "../../../hooks/useLiveGame";
 import { TeamMoveNote } from "../../games/GameBoardPanels";
 import GameDetailSkeleton from "../../games/GameDetailSkeleton";
@@ -29,7 +30,7 @@ import BackButton from "../../shared/BackButton";
 import { buttonClass } from "../../shared/buttonStyles";
 import { Heading } from "../../shared/Heading";
 import { InlineError } from "../../shared/InlineError";
-import { actingSide, defaultPickerMode, liveTurnLabel, isMyTurn, LIVE_SIDES, liveEdgeOf, teamName, type SubPickerMode } from "./liveGameState";
+import { actingSide, defaultPickerMode, liveTurnLabel, isMyTurn, LIVE_SIDES, liveEdgeOf, pendingThrowOf, teamName, type SubPickerMode } from "./liveGameState";
 import LiveCardImagesProvider from "./LiveCardImages";
 import LiveSubPanel from "./LiveSubPanel";
 import LiveActionButton, { LiveTurnStatus, ManagerButton } from "./LiveTurnControls";
@@ -98,7 +99,7 @@ function LiveBoard({ game, token, cardMap, isLoadingCards, isSubmitting, moveErr
     isLoadingCards: boolean;
     isSubmitting: boolean;
     moveError: string | null;
-    submit: (action: LiveAction) => void;
+    submit: (action: LiveAction) => Promise<void>;
     onBack: () => void;
 }) {
     const stage = useGameStage();
@@ -124,10 +125,28 @@ function LiveBoard({ game, token, cardMap, isLoadingCards, isSubmitting, moveErr
 
     const teamMoves = useLiveTeamMoves(state);
 
-    const roll = () => pending && submit({ side: pending.side, kind: "roll", roll: pending.roll });
+    // Only a roll on its way makes its die hop; a sub or autopilot toggle leaves the dice still
+    const [isRolling, setIsRolling] = useState(false);
+    const roll = () => {
+        if (!pending) return;
+        setIsRolling(true);
+        submit({ side: pending.side, kind: "roll", roll: pending.roll }).finally(() => setIsRolling(false));
+    };
     const openManager = () => setPicker(defaultPickerMode(game));
     const toggleAutopilot = (enabled: boolean) => { if (side) submit({ side, kind: "autopilot", enabled }); };
     const heldAdvantage = pending?.roll === "swing" ? ADVANTAGE_BY_PITCH_RESULT[pending.pitch_result ?? ""] : undefined;
+    // A pitch that comes in is thrown on the field first (`HandDie`), so who won it waits until the
+    // die has landed and shown its number, then a beat more so the number reads first. One already
+    // made when the page opens shows straight away.
+    const situation = state.situation;
+    const heldPitchKey = pending?.roll === "swing" ? `${situation?.inning}|${situation?.is_top}|${pending.hitter_id}|${pending.pitch_roll}` : null;
+    const [revealedPitchKey, setRevealedPitchKey] = useState(heldPitchKey);
+    useEffect(() => {
+        if (heldPitchKey == null || heldPitchKey === revealedPitchKey) return;
+        const revealed = window.setTimeout(() => setRevealedPitchKey(heldPitchKey), HAND_DIE_REVEAL_MS + HAND_RESULT_BEAT_MS);
+        return () => window.clearTimeout(revealed);
+    }, [heldPitchKey, revealedPitchKey]);
+    const isPitchRevealed = heldPitchKey === revealedPitchKey;
 
     return (
         <TimelinePlayback
@@ -150,7 +169,10 @@ function LiveBoard({ game, token, cardMap, isLoadingCards, isSubmitting, moveErr
                         key: move.key,
                         content: <TeamMoveNote label={move.label}>{move.text}</TeamMoveNote>,
                     }));
-                const islandTurn = (turn || moveError) ? {
+                // Under the club the game waits on; a failed move under this player's own club.
+                const turnSide = (turn ? game.state?.pending?.side : null) ?? actingSide(game);
+                const islandTurn = (turn || moveError) && turnSide ? {
+                    side: turnSide,
                     key: `${turn?.label ?? ""}|${moveError ?? ""}`,
                     content: <LiveTurnStatus turn={turn} moveError={moveError} />,
                 } : null;
@@ -200,10 +222,15 @@ function LiveBoard({ game, token, cardMap, isLoadingCards, isSubmitting, moveErr
                                     rollPrompt={pending && isCaughtUp && !strategy.isHoldingRoll ? {
                                         kind: pending.roll,
                                         onRoll: myTurn ? roll : undefined,
-                                        isBusy: isSubmitting,
-                                        heldPitch: pending.roll === "swing" ? pending.pitch_roll : undefined,
+                                        isBusy: isRolling,
+                                        heldPitch: pending.pitch_roll,
+                                        throw: pendingThrowOf(state),
                                     } : undefined}
-                                    heldAdvantage={isCaughtUp ? heldAdvantage : undefined}
+                                    heldAdvantage={isCaughtUp && isPitchRevealed ? heldAdvantage : undefined}
+                                    // Each die is thrown on its own while the game is played (the newest play is still
+                                    // catching up, so `isReplaying` can't tell); scrubbing back after the final out
+                                    // tosses older plays' dice as a sim does
+                                    isHandThrown={!state.is_final || playbackState.cursor >= timeline.liveIndex - 1}
                                 >
                                     {side && mine && (
                                         <LiveSubPanel

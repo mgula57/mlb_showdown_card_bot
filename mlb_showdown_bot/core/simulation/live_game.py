@@ -15,6 +15,9 @@ The server's random number generator decides every die. A player's Roll only say
 client can choose a number.
 
 Turn order, per plate appearance: the defense rolls the pitch, then the offense rolls the swing.
+A throw on the bases is the defense's roll too: a runner stealing goes on the pitch, so the defense
+throws before the pitch is shown, and a runner sent for an extra base after the ball is in play
+waits on the defense's throw before the plate appearance ends.
 A pitching change or a pinch hitter is never a turn of its own. Either club can queue one at any
 time, and it applies at the next point it can:
   - a pitching change before that club's next pitch roll is resolved (so on its own pitch turn,
@@ -36,7 +39,7 @@ from .controller import GameController, RollKind
 from .game import Game
 from .inning import Inning
 from .matchup import MatchupClub, MatchupError, build_club, play_game, setup_game
-from .models import GameResult
+from .models import GameLogEntry, GameResult
 from .player import SimPitcher, SimPlayer
 from .stats import StatCategory, real_card_id
 from .team import SimTeam
@@ -96,11 +99,20 @@ class PendingRoll(BaseModel):
 
     side: LiveSide
     roll: RollKind
-    # SET WHILE WAITING ON THE SWING: THE MATCHUP IS LOCKED IN AND THE PITCH IS ALREADY KNOWN.
+    # SET ONCE THE PLATE APPEARANCE HAS STARTED (EVERY ROLL BUT THE PITCH): THE MATCHUP IS LOCKED IN.
     pitcher_id: Optional[str] = None
     hitter_id: Optional[str] = None
+    # THE DICE ALREADY ROLLED IN THIS PLATE APPEARANCE, ONCE THEY HAVE BEEN.
     pitch_roll: Optional[int] = None
     pitch_result: Optional[str] = None
+    swing_roll: Optional[int] = None
+    # A THROW (STEAL, ADVANCE): THE RUNNER, THE BASE HE'S LEAVING, AND THE TEST - OUT WHEN
+    # `defense` + THE ROLL > `target` (HIS SPEED WITH THE BASE'S BONUS).
+    runner_id: Optional[str] = None
+    runner: Optional[str] = None
+    base: Optional[int] = None
+    defense: Optional[int] = None
+    target: Optional[int] = None
 
 
 class LiveSideState(BaseModel):
@@ -137,6 +149,9 @@ class LiveMatchState(BaseModel):
     is_final: bool = False
     winner_side: Optional[LiveSide] = None
     pending: Optional[PendingRoll] = None
+    # THE PLATE APPEARANCE THE GAME STOPPED IN THE MIDDLE OF, AS FAR AS IT'S GOT (A STEAL, A SWING),
+    # WHILE IT WAITS ON A LATER ROLL IN IT. NOT IN `game.log`, WHICH HOLDS FINISHED PLAYS ONLY.
+    play_in_progress: Optional[GameLogEntry] = None
     situation: Optional[LiveSituation] = None
     # EVERY PLAYER ON BOTH CLUBS, BARE CARD ID TO NAME, SO THE CLIENT CAN NAME WHO'S UP OR WARMING
     # UP BEFORE THE CARDS HAVE LOADED.
@@ -259,12 +274,19 @@ class LiveMatch:
             raise LiveMatchError('The game ended before every roll was used.')
 
         at_bat = self._locked_matchup(game, pending)
+        play_in_progress: Optional[GameLogEntry] = None
         if pending is not None and at_bat is not None:
             pa = game.current_plate_appearance
-            pending = pending.model_copy(update={
-                'pitcher_id': real_card_id(pa.pitcher.id), 'hitter_id': real_card_id(pa.hitter.id),
-                'pitch_roll': pa.pitch.roll, 'pitch_result': pa.pitch.result.value,
-            })
+            update = {'pitcher_id': real_card_id(pa.pitcher.id), 'hitter_id': real_card_id(pa.hitter.id)}
+            if not pa.pitch.is_empty():
+                update.update(pitch_roll=pa.pitch.roll, pitch_result=pa.pitch.result.value)
+            if not pa.swing.is_empty():
+                update['swing_roll'] = pa.swing.roll
+            if pa.awaiting_throw is not None:
+                throw = pa.awaiting_throw
+                update.update(runner_id=real_card_id(throw.runner.id), runner=throw.runner.name, base=throw.base, defense=throw.defense, target=throw.target)
+            pending = pending.model_copy(update=update)
+            play_in_progress = self._play_in_progress(game)
 
         result = game.as_result().model_copy(update={'date': date.today()})
         if not game.is_game_over:
@@ -284,23 +306,40 @@ class LiveMatch:
             is_final=game.is_game_over,
             winner_side=(LiveSide.HOME if game.winning_team is teams[LiveSide.HOME] else LiveSide.AWAY) if game.is_game_over else None,
             pending=pending,
+            play_in_progress=play_in_progress,
             situation=None if game.is_game_over else LiveSituation(
                 inning=game.innings[-1].inning, is_top=game.innings[-1].is_top, outs=game.innings[-1].outs,
             ),
             player_names={real_card_id(p.id): p.name for team in teams.values() for p in (team.position_players + team.rotation.players + team.bullpen.players)},
             sides={
-                # WHILE THE GAME WAITS ON A SWING, `pending.side` IS THE CLUB AT BAT.
-                side: self._side_state(side, teams[side], game, controller, at_bat if pending and pending.side == side else None)
+                side: self._side_state(side, teams[side], game, controller, at_bat if side == self._batting_side(game) else None)
                 for side in LiveSide
             },
         )
 
     @staticmethod
     def _locked_matchup(game: Game, pending: Optional[PendingRoll]) -> Optional[SimPlayer]:
-        """The batter at the plate while the game waits on his swing, else None."""
-        if pending is None or pending.roll != RollKind.SWING or game.current_plate_appearance is None:
+        """The batter at the plate while the game waits on a roll in his plate appearance (anything
+        after the pitch roll that opens it), else None."""
+        if pending is None or pending.roll == RollKind.PITCH or game.current_plate_appearance is None:
             return None
         return game.current_plate_appearance.hitter
+
+    @staticmethod
+    def _batting_side(game: Game) -> LiveSide:
+        return LiveSide.AWAY if game.innings[-1].is_top else LiveSide.HOME
+
+    @classmethod
+    def _play_in_progress(cls, game: Game) -> Optional[GameLogEntry]:
+        """The plate appearance the game is stopped in, as a log line counting what's happened in it
+        so far, or None while nothing has (waiting on a steal throw before anything else)."""
+        pa = game.current_plate_appearance
+        if pa.bases_snapshot_after_steal is None and pa.swing.is_empty():
+            return None
+        inning = game.innings[-1]
+        runs = {side: int(game.home_team.current_game_stats.stat(StatCategory.RUNS_SCORED) if side == LiveSide.HOME else game.away_team.current_game_stats.stat(StatCategory.RUNS_SCORED)) for side in LiveSide}
+        runs[cls._batting_side(game)] += int(pa.runs_scored)
+        return game.log_entry(pa, inning=inning, outs=inning.outs + pa.outs, away_score=runs[LiveSide.AWAY], home_score=runs[LiveSide.HOME])
 
     @staticmethod
     def _side_state(side: LiveSide, club: SimTeam, game: Game, controller: ScriptedController, at_bat: Optional[SimPlayer]) -> LiveSideState:

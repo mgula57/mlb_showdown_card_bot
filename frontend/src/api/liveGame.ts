@@ -7,7 +7,7 @@
  * The server owns every die. A Roll only says "go", and each response carries the whole game as it
  * now stands (`LiveGameState`), rebuilt from the actions so far.
  */
-import type { SimGameResultJson, SimTeamIdentityJson } from "../domain/adapters/fromSim";
+import type { SimGameLogEntryJson, SimGameResultJson, SimTeamIdentityJson } from "../domain/adapters/fromSim";
 import type { ShowdownBotCardAPIResponse } from "./showdownBotCard";
 import type { ManagerPreference } from "./manager";
 
@@ -18,7 +18,10 @@ export const LIVE_GAMES_ENABLED = true;
 const API_BASE = import.meta.env.PROD ? "/api" : "http://127.0.0.1:5000/api";
 
 export type LiveSide = "away" | "home";
-export type RollKind = "pitch" | "swing";
+/** The defense rolls the pitch and every throw on the bases (`steal`, `advance`); the offense the swing. */
+export type RollKind = "pitch" | "swing" | "steal" | "advance";
+/** A throw on the bases. */
+export type ThrowKind = Extract<RollKind, "steal" | "advance">;
 export type LiveActionKind = "roll" | "pitching_change" | "pinch_hit" | "autopilot";
 
 export type LiveAction = {
@@ -40,12 +43,20 @@ export type LiveGameSettings = { idle_autopilot_minutes: IdleAutopilotMinutes };
 export type PendingRoll = {
     side: LiveSide;
     roll: RollKind;
-    /** Set while waiting on the swing: the matchup is locked and the pitch is known. */
+    /** Set on every roll after the pitch: the matchup is locked in. */
     pitcher_id?: string | null;
     hitter_id?: string | null;
+    /** The dice already rolled in this plate appearance, once they have been. */
     pitch_roll?: number | null;
     /** "padv" (pitcher's advantage) or "hadv" (hitter's). */
     pitch_result?: string | null;
+    swing_roll?: number | null;
+    /** A throw: the runner, the base he's leaving, and the test (out when `defense` + roll > `target`). */
+    runner_id?: string | null;
+    runner?: string | null;
+    base?: number | null;
+    defense?: number | null;
+    target?: number | null;
 };
 
 export type LiveSideState = {
@@ -68,6 +79,9 @@ export type LiveGameState = {
     is_final: boolean;
     winner_side: LiveSide | null;
     pending: PendingRoll | null;
+    /** The plate appearance the game stopped in the middle of, as far as it's got (a steal, a
+     *  swing), while it waits on a throw or the swing. Not in `game.log`, which is finished plays. */
+    play_in_progress?: SimGameLogEntryJson | null;
     situation: { inning: number; is_top: boolean; outs: number } | null;
     player_names: Record<string, string>;
     sides: Record<LiveSide, LiveSideState>;

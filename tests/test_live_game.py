@@ -124,6 +124,43 @@ def test_turns() -> None:
     check("a final carries both box scores", final.game.home_box_score is not None and final.game.away_box_score is not None)
 
 
+def first_throw(kind: RollKind, seeds=range(1, 60)) -> tuple[LiveMatch, list[LiveAction], LiveMatchState]:
+    """The first game (by seed) that stops on `kind`, with the actions that got it there."""
+    for seed in seeds:
+        live, actions = match(seed=seed), []
+        state = live.replay(actions)
+        while not state.is_final:
+            if state.pending.roll == kind:
+                return live, actions, state
+            actions = [*actions, roll(state)]
+            state = live.replay(actions)
+    raise AssertionError(f"no game stopped on a {kind.value} throw")
+
+
+def test_throws() -> None:
+    print("\nTHROWS")
+    for kind in (RollKind.STEAL, RollKind.ADVANCE):
+        live, actions, state = first_throw(kind)
+        pending = state.pending
+        fielding = HOME if state.situation.is_top else AWAY
+        check(f"the fielding club throws on a {kind.value}", pending.side == fielding, str(pending))
+        check(f"a {kind.value} throw names the runner and the test", pending.runner_id is not None and pending.defense is not None and pending.target is not None, str(pending))
+        check(f"the batter is locked in during a {kind.value}", state.sides[fielding.other].at_bat_id == pending.hitter_id)
+        check(f"the batting club can't throw a {kind.value}", refused(live, actions, LiveAction(side=fielding.other, kind=LiveActionKind.ROLL, roll=kind)))
+        if kind == RollKind.ADVANCE:
+            check("the swing is shown before the extra-base throw", state.play_in_progress is not None and state.play_in_progress.swing_roll == pending.swing_roll and pending.swing_roll)
+        log_count = len(state.game.log)
+        state = live.replay([*actions, roll(state)])
+        check(f"the {kind.value} throw resolves", state.pending is None or state.pending.roll != kind or len(state.game.log) > log_count)
+
+    live = match(seed=11)
+    actions, final = play_out(live, [])
+    steals = sum(len(e.steal_rolls) for e in final.game.log)
+    advances = sum(len(e.advance_rolls) for e in final.game.log)
+    check("one steal throw per steal attempt", steals == sum(1 for a in actions if a.roll == RollKind.STEAL), f"{steals} attempts")
+    check("one extra-base throw per send", advances == sum(1 for a in actions if a.roll == RollKind.ADVANCE), f"{advances} sends")
+
+
 def test_replay() -> None:
     print("\nREPLAY")
     live = match(seed=11)
@@ -469,6 +506,7 @@ if __name__ == "__main__":
     test_engine_unchanged()
     test_turns()
     test_replay()
+    test_throws()
     test_moves()
     test_autopilot()
     test_api()

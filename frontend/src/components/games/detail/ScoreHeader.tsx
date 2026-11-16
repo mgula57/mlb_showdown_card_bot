@@ -10,6 +10,7 @@ import type { GameSide, GameView } from "../../../domain/game";
 import { getReadableTextColor, NEUTRAL_TEAM_COLOR } from '../../../functions/colors';
 import { BasesDiamond } from "../BasesDiamond";
 import { GameStatePlate } from "../GameStatePlate";
+import { BOARD_OVERLAY_CLASS } from "../boardStyles";
 import { CAPS_LABEL_CLASS } from "../../shared/fieldStyles";
 
 type ScoreHeaderProps = {
@@ -55,7 +56,7 @@ export default function ScoreHeader({ game, className = "", compact = false, cen
 
     return (
         <div
-            className={`rounded-card border border-(--divider) bg-(--background-secondary)/30 ${
+            className={`${BOARD_OVERLAY_CLASS} ${
                 compact ? "mx-2 px-3 py-1.5" : "mx-2 px-4 py-2 lg:py-4"
             } ${className}`}
         >

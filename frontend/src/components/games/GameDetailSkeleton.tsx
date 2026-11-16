@@ -34,8 +34,8 @@ function CardRowsSkeleton({ rows = 5 }: { rows?: number }) {
 
 export default function GameDetailSkeleton({ className, onBack }: { className?: string; onBack: () => void }) {
     return (
-        <div className={`flex flex-col tall:h-[calc(100dvh-2.5rem)] overflow-hidden ${className ?? ''}`}>
-            <div className="relative z-50 px-4 py-2 border-b border-(--divider) bg-(--background-primary) shrink-0 flex items-center gap-3">
+        <div className={`flex flex-col tall:h-[calc(100dvh-var(--app-nav-offset,2.5rem))] overflow-hidden ${className ?? ''}`}>
+            <div className="relative z-20 px-4 py-2 border-b border-(--divider) bg-(--background-primary) shrink-0 flex items-center gap-3">
                 <BackButton onBack={onBack} />
                 <div className="ml-auto flex items-center gap-2 animate-pulse">
                     <Bar className="h-7 w-20 rounded-card" />
@@ -43,7 +43,7 @@ export default function GameDetailSkeleton({ className, onBack }: { className?: 
                 </div>
             </div>
 
-            <div className="flex min-h-0 flex-1 flex-col short:flex-none short:h-[calc(100dvh-2.5rem)] md:flex-row">
+            <div className="flex min-h-0 flex-1 flex-col short:flex-none short:h-[calc(100dvh-var(--app-nav-offset,2.5rem))] md:flex-row">
                 {/* The board: score track, field, and the two cards along the bottom. */}
                 <div className="flex h-96 shrink-0 animate-pulse flex-col gap-3 bg-(--background-secondary) p-3 md:h-auto md:min-w-0 md:flex-1">
                     <Bar className="h-14 w-full rounded-card" />

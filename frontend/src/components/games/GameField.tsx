@@ -17,9 +17,10 @@ import type { PlayEntry } from "../../domain/play";
 import type { ShowdownBotCardAPIResponse } from "../../api/showdownBotCard";
 import { defenseAtPosition, IF_POSITIONS, OF_POSITIONS } from "../shared/DefenseUtils";
 import SimFieldDie from "./SimFieldDie";
-import { DiePrompt, HeldDie } from "./DiePrompt";
-import SimRunnerRolls from "./SimRunnerRolls";
+import { HandDie } from "./DiePrompt";
+import SimRunnerRolls, { PendingRunnerRoll, type PendingRunnerThrow } from "./SimRunnerRolls";
 import FieldMarker from "./FieldMarker";
+import FielderMarker from "./FielderMarker";
 import type { AdvantageSide } from "../../domain/play";
 import { usePresenceList } from "../../hooks/usePresenceList";
 import type { PlayPhase } from "../../hooks/useGamePlayback";
@@ -29,10 +30,15 @@ import { FitText } from "../shared/FitText";
 type CardMap = Record<string, ShowdownBotCardAPIResponse>;
 
 export type RollPrompt = {
-    kind: "pitch" | "swing";
+    /** The pitch, the swing, or the fielding club's throw on a runner (`steal`, `advance`). */
+    kind: "pitch" | "swing" | "steal" | "advance";
     onRoll?: () => void;
+    /** This roll is on its way: its die hops until it's back. */
     isBusy?: boolean;
+    /** The pitch already rolled in this plate appearance, once it has been. */
     heldPitch?: number | null;
+    /** A throw's runner and test, set out over the mound with the die to roll. */
+    throw?: PendingRunnerThrow;
 };
 
 type GameFieldProps = {
@@ -73,15 +79,18 @@ type GameFieldProps = {
      *  action the user has to spot. Hidden as soon as playback starts. */
     onPlayClick?: () => void;
     /** A game people play, waiting on a die. With `onRoll` (this viewer's turn) the die where it
-     *  will land becomes the button: beside the pitcher for the pitch, at the plate for the swing.
-     *  While the swing is waited on, the pitch already rolled stays face-up (`heldPitch`). */
+     *  will land becomes the button: beside the pitcher for the pitch, at the plate for the swing,
+     *  over the mound for a throw on a runner. The pitch already rolled stays face-up (`heldPitch`);
+     *  a runner stealing goes on the pitch, so its die is thrown once the steal is settled. */
     rollPrompt?: RollPrompt;
+    /** A game people play, where each die is thrown on its own (`HandDie`): only the roll being
+     *  waited on is thrown, and a play's pitch die holds the face already shown through the swing. */
+    isHandThrown?: boolean;
     /** Skips the diamond art, for callers that paint `FieldArt` themselves so it can outlive this
      *  field (e.g. stay put while the field's contents crossfade). */
     hideFieldArt?: boolean;
-    /** The field's bottom-right corner: the player's own controls
-     *  (a live game's Manager button, and on a phone the next-move button). Takes the place of the
-     *  last play there. */
+    /** The field's bottom-right corner: the player's own controls (a live game's Manager and
+     *  next-move buttons). Takes the place of the last play there. */
     corner?: ReactNode;
     /** The field's bottom-left corner: the player's strategy hand (`StrategyHandStack`). */
     cornerLeft?: ReactNode;
@@ -154,17 +163,19 @@ const BASES = {
 const HOME: readonly [number, number] = [49.9, 85.4];
 
 /** Where each fielder stands. The art is in perspective, so the outfield is deep: the outfielders
- *  stand in the headroom above the box (negative y), on the grass in front of the wall. */
+ *  stand in the headroom above the box (negative y), on the grass in front of the wall. The corner
+ *  outfielders play out toward the lines and the middle infielders off the bag, so the cards
+ *  spread over the whole fan instead of crowding second base. */
 const DEFENSE_SPOTS: Record<keyof DefenseAlignment, readonly [number, number]> = {
     pitcher: [49.9, 47.7],
     catcher: [49.9, 110],
     first: [84, 32.1],
-    second: [65.2, 12.7],
+    second: [69.4, 14],
     third: [15.7, 32.1],
-    shortstop: [34.6, 12.7],
-    left: [22.1, -6.8],
+    shortstop: [30.4, 14],
+    left: [13.5, -4],
     center: [49.9, -16.1],
-    right: [77.7, -6.8],
+    right: [86.3, -4],
 };
 
 /** Position abbreviations for the defense slots, used for the card's defensive rating lookup. */
@@ -603,15 +614,28 @@ function LastPlaySummary({ play }: { play: PlayEntry }) {
     );
 }
 
-export default function GameField({ game, cardMap, onCardSelect, expanded = false, onToggleExpanded, isLoadingCards, transition, pendingPlay, phase = "idle", lastPlay, advantage, playbackSpeed, onPlayClick, rollPrompt, hideFieldArt = false, corner, cornerLeft, drawer, zoom = 1, plopIn = false, className = "" }: GameFieldProps) {
+/** The field's bottom corners, which hold its controls. */
+const CORNER_CLASS = "absolute z-20 flex items-end gap-2 transition-[bottom] duration-300 ease-out";
+const CORNER_STYLE = { bottom: "var(--field-corner-lift, 0px)" };
+
+export default function GameField({ game, cardMap, onCardSelect, expanded = false, onToggleExpanded, isLoadingCards, transition, pendingPlay, phase = "idle", lastPlay, advantage, playbackSpeed, onPlayClick, rollPrompt, isHandThrown = false, hideFieldArt = false, corner, cornerLeft, drawer, zoom = 1, plopIn = false, className = "" }: GameFieldProps) {
     const situation = game.situation;
     // A prompt only stands in while nothing is animating; once a play resolves the toss takes over.
     const prompt = pendingPlay ? undefined : rollPrompt;
-    const pitchDie = prompt?.kind === "pitch" && prompt.onRoll
-        ? <DiePrompt label="Pitch" onRoll={prompt.onRoll} isBusy={prompt.isBusy} />
-        : prompt?.kind === "swing" && prompt.heldPitch != null
-            ? <HeldDie value={prompt.heldPitch} label="Pitch" />
-            : <SimFieldDie kind="pitch" pendingPlay={pendingPlay} phase={phase} speed={playbackSpeed} />;
+    // A game people play keeps one die at each dock from the tap through the play it decides, so a
+    // throw started on the tap carries on while the play loads, and only the die that was waited on
+    // is thrown (the pitch die just holds its face through the swing).
+    const pitchDie = isHandThrown
+        ? (
+            <HandDie
+                label="Pitch"
+                value={prompt ? prompt.heldPitch : pendingPlay?.roll?.pitchRoll}
+                isAwaited={prompt?.kind === "pitch" || prompt?.kind === "steal"}
+                onRoll={prompt?.kind === "pitch" ? prompt.onRoll : undefined}
+                isBusy={prompt?.kind === "pitch" && prompt.isBusy}
+            />
+        )
+        : <SimFieldDie kind="pitch" pendingPlay={pendingPlay} phase={phase} speed={playbackSpeed} />;
 
     // Markers mounted during the plop window get the drop; the class comes off once everyone has
     // landed so later arrivals use their own entrances.
@@ -675,7 +699,6 @@ export default function GameField({ game, cardMap, onCardSelect, expanded = fals
                             if (!player) return null;
                             const isBattery = slot === "pitcher";
                             const isVisible = expanded || isBattery;
-                            const backgroundSettings = isBattery ? 'bg-secondary' : '';
                             return (
                                 <div
                                     key={slot}
@@ -685,24 +708,34 @@ export default function GameField({ game, cardMap, onCardSelect, expanded = fals
                                     } ${isVisible ? plopClass : ""}`}
                                     style={{ ...atPercent(DEFENSE_SPOTS[slot]), zIndex: isBattery ? FIELD_Z.battery : undefined, ...plopDelay(isBattery ? 0 : 1) }}
                                 >
-                                    <FieldMarker
-                                        player={player}
-                                        role={isBattery ? "P" : "H"}
-                                        cardMap={cardMap}
-                                        onCardSelect={onCardSelect}
-                                        isLoadingCards={isLoadingCards}
-                                        tone="defense"
-                                        hideCommand={!isBattery}
-                                        hideTeamPoints={!isBattery}
-                                        detailStat1Category="defense"
-                                        fieldPosition={DEFENSE_POSITIONS[slot]}
-                                        liveIp={isBattery ? pitcherLine?.inningsPitched : undefined}
-                                        backgroundSettings={backgroundSettings}
-                                        hasAdvantage={isBattery && advantage === "pitcher"}
-                                        grounded
-                                    />
-                                    {isBattery && (
-                                        <DieDock>{pitchDie}</DieDock>
+                                    {isBattery ? (
+                                        <>
+                                            <FieldMarker
+                                                player={player}
+                                                role="P"
+                                                cardMap={cardMap}
+                                                onCardSelect={onCardSelect}
+                                                isLoadingCards={isLoadingCards}
+                                                tone="defense"
+                                                detailStat1Category="defense"
+                                                fieldPosition={DEFENSE_POSITIONS[slot]}
+                                                liveIp={pitcherLine?.inningsPitched}
+                                                backgroundSettings="bg-secondary"
+                                                hasAdvantage={advantage === "pitcher"}
+                                                grounded
+                                            />
+                                            <DieDock>{pitchDie}</DieDock>
+                                        </>
+                                    ) : (
+                                        // The rest of the defense is a small tag, so the battery,
+                                        // the batter and the runners stay the cards that stand out.
+                                        <FielderMarker
+                                            player={player}
+                                            position={DEFENSE_POSITIONS[slot]}
+                                            cardMap={cardMap}
+                                            onCardSelect={onCardSelect}
+                                            isLoadingCards={isLoadingCards}
+                                        />
                                     )}
                                 </div>
                             );
@@ -783,6 +816,10 @@ export default function GameField({ game, cardMap, onCardSelect, expanded = fals
                         // The hitter this play resolves — they carry the advantage glow with them as
                         // they leave the plate (the swing die stays at the plate, below).
                         const isPendingBatter = pendingPlay?.batterId != null && String(occ.player.id) === String(pendingPlay.batterId);
+                        // Who holds the hitter's advantage: that hitter while a play resolves, else the one
+                        // at the plate (a game people play shows the pitch's advantage before the swing,
+                        // with no play yet)
+                        const isAdvantageBatter = pendingPlay ? isPendingBatter : situation?.batter?.id != null && String(occ.player.id) === String(situation.batter.id);
 
                         return (
                             <div
@@ -809,7 +846,7 @@ export default function GameField({ game, cardMap, onCardSelect, expanded = fals
                                     isLoadingCards={isLoadingCards}
                                     tone="offense"
                                     detailStat1Category="hr"
-                                    hasAdvantage={advantage === "hitter" && isPendingBatter}
+                                    hasAdvantage={advantage === "hitter" && isAdvantageBatter}
                                     grounded
                                 />
                             </div>
@@ -817,22 +854,26 @@ export default function GameField({ game, cardMap, onCardSelect, expanded = fals
                     })}
 
                     {/* The swing die stays put at the plate (same width as a marker, so the dock
-                        lines up) rather than riding the hitter around the bases. */}
-                    {presentOccupants.some((occ) => pendingPlay?.batterId != null && String(occ.player.id) === String(pendingPlay.batterId)) && (
+                        lines up) rather than riding the hitter around the bases. A game people play
+                        keeps it mounted, so the throw started on the tap lands on the play's roll. */}
+                    {(isHandThrown ? !!situation?.batter : presentOccupants.some((occ) => pendingPlay?.batterId != null && String(occ.player.id) === String(pendingPlay.batterId))) && (
                         <div
                             className="absolute -translate-x-1/2 -translate-y-1/2 w-18 @[380px]:w-24 @[520px]:w-30 @[650px]:w-40 h-px pointer-events-none"
                             style={{ left: `${SPOTS.plate[0]}%`, top: `${SPOTS.plate[1]}%`, zIndex: FIELD_Z.die }}
                         >
-                            <DieDock><SimFieldDie kind="swing" pendingPlay={pendingPlay} phase={phase} speed={playbackSpeed} /></DieDock>
-                        </div>
-                    )}
-
-                    {prompt?.kind === "swing" && prompt.onRoll && situation?.batter && (
-                        <div
-                            className="absolute -translate-x-1/2 -translate-y-1/2 w-18 @[380px]:w-24 @[520px]:w-30 @[650px]:w-40 h-px"
-                            style={{ left: `${SPOTS.plate[0]}%`, top: `${SPOTS.plate[1]}%`, zIndex: FIELD_Z.die }}
-                        >
-                            <DieDock><DiePrompt label="Swing" onRoll={prompt.onRoll} isBusy={prompt.isBusy} /></DieDock>
+                            <DieDock>
+                                {isHandThrown ? (
+                                    <HandDie
+                                        label="Swing"
+                                        value={pendingPlay?.roll?.swingRoll}
+                                        isAwaited={prompt?.kind === "swing"}
+                                        onRoll={prompt?.kind === "swing" ? prompt.onRoll : undefined}
+                                        isBusy={prompt?.kind === "swing" && prompt.isBusy}
+                                    />
+                                ) : (
+                                    <SimFieldDie kind="swing" pendingPlay={pendingPlay} phase={phase} speed={playbackSpeed} />
+                                )}
+                            </DieDock>
                         </div>
                     )}
 
@@ -866,25 +907,37 @@ export default function GameField({ game, cardMap, onCardSelect, expanded = fals
                     (the mound) for the length of the beat so the roll is where the eye already is.
                     Above every marker (z-30), below the play prompt (z-40); keyed on the beat so
                     each new roll pops in fresh. */}
+                {/* A throw on a runner waiting on its die, in the same spot its roll will play out. */}
+                {prompt?.throw && (
+                    <div
+                        className="absolute z-30 -translate-x-1/2 -translate-y-1/2 result-pop"
+                        style={atPercent(DEFENSE_SPOTS.pitcher)}
+                    >
+                        <PendingRunnerRoll attempt={prompt.throw} onRoll={prompt.onRoll} isBusy={prompt.isBusy} cardMap={cardMap} onCardSelect={onCardSelect} isLoadingCards={isLoadingCards} />
+                    </div>
+                )}
+
                 {transition?.runnerRolls && (
                     <div
                         key={`runner-rolls-${transition.toIndex}`}
                         className="absolute z-30 -translate-x-1/2 -translate-y-1/2 result-pop"
                         style={atPercent(DEFENSE_SPOTS.pitcher)}
                     >
-                        <SimRunnerRolls rolls={transition.runnerRolls} beatId={`beat-${transition.toIndex}`} phase={phase} speed={playbackSpeed} cardMap={cardMap} onCardSelect={onCardSelect} isLoadingCards={isLoadingCards} />
+                        <SimRunnerRolls rolls={transition.runnerRolls} beatId={`beat-${transition.toIndex}`} phase={phase} speed={playbackSpeed} cardMap={cardMap} onCardSelect={onCardSelect} isLoadingCards={isLoadingCards} plateDice={isHandThrown ? 0 : 2} />
                     </div>
                 )}
 
+                {/* Raised clear of a host's cards over the field's bottom edge (`GameBoard`'s
+                    `--field-corner-lift`) */}
                 {corner ? (
-                    <div className="absolute bottom-0 right-0 z-20 flex items-end gap-2">{corner}</div>
+                    <div className={`${CORNER_CLASS} right-0`} style={CORNER_STYLE}>{corner}</div>
                 ) : lastPlay && (
                     <div className="absolute bottom-0 left-3/4 right-0 pl-1">
                         <LastPlaySummary play={lastPlay} />
                     </div>
                 )}
                 {cornerLeft && (
-                    <div className="absolute bottom-0 left-0 z-20 flex items-end gap-2">{cornerLeft}</div>
+                    <div className={`${CORNER_CLASS} left-0`} style={CORNER_STYLE}>{cornerLeft}</div>
                 )}
                 {drawer && <div className="absolute inset-x-0 bottom-0 z-40">{drawer}</div>}
             </div>

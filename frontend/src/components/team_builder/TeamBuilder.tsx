@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
+import GameOverlay from "../games/GameOverlay";
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
 import {
@@ -582,7 +583,7 @@ export default function TeamBuilder() {
     // A Faceoff's replay takes over the view, and resolves on a cold link like a challenge does.
     if (faceoffId) {
         return (
-            <div className="flex flex-col h-full">
+            <GameOverlay>
                 <FaceoffView
                     key={faceoffId}
                     faceoffId={faceoffId}
@@ -590,16 +591,16 @@ export default function TeamBuilder() {
                     onBack={() => navigate('/teams')}
                     onOpenFaceoff={id => navigate('/teams/faceoffs/' + id)}
                 />
-            </div>
+            </GameOverlay>
         );
     }
 
     // A live game takes over the view the same way, as does the invite link that leads to one.
     if (liveGameId) {
         return (
-            <div className="flex flex-col h-full">
+            <GameOverlay>
                 <LiveGameView key={liveGameId} liveGameId={liveGameId} token={token} onBack={() => navigate('/teams')} />
-            </div>
+            </GameOverlay>
         );
     }
     if (inviteCode) {

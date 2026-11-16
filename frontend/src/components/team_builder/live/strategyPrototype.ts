@@ -10,6 +10,7 @@
  *
  * Pure reducer, randomness from a seed (the game's id), so React can run it twice.
  */
+import type { RollKind } from "../../../api/liveGame";
 import {
     STRATEGY_DECK_SIZE, STRATEGY_OPENING_HAND, strategyBlocker,
     type PlayedStrategyCard, type StrategyCard, type StrategyTiming,
@@ -72,7 +73,7 @@ export type StrategyInputs = {
     half: string;
     /** Plays so far: a new one is a result landing. */
     playCount: number;
-    pendingRoll: "pitch" | "swing" | null;
+    pendingRoll: RollKind | null;
     /** This viewer's club is at the plate. */
     isBatting: boolean;
     isFinal: boolean;

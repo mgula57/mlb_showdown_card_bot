@@ -4,20 +4,32 @@
  * over the top of the board rather than taking a row, so appearing never pushes the field down, and
  * they're in the scoreboard's layer, so where they cross the field they're always on top.
  *
- *  - The center tab is the game: whose turn it is, a move that failed, the last play.
- *  - A team tab drops from under that club's side of the scoreboard when the club does something:
- *    plays a strategy card, makes a substitution (`TeamAnnouncement`). It says it for a few
- *    seconds, then folds away. On a narrow board the center tab steps aside while one is out, so
- *    the two never overlap.
+ *  - The center tab is the last play: it drops when the play lands, says it for a few seconds,
+ *    then folds away.
+ *  - A team tab hangs under that club's side of the scoreboard while the game waits on the club
+ *    (`status`: "Your pitch", "Waiting on the Yankees to swing", a move that failed). When the club
+ *    does something (plays a strategy card, makes a substitution: `TeamAnnouncement`) the tab says
+ *    that for a few seconds instead, then goes back to the status.
+ *  - On a narrow board the tabs would overlap, so the center tab steps aside while an announcement
+ *    is out, and a status waits while the last play is out.
  */
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
+
+import { BOARD_OVERLAY_SURFACE_CLASS } from "./boardStyles";
 
 /** Something a club just did, said under its side of the scoreboard. `key` is unique per move, so
  *  each one drops in fresh. */
 export type TeamAnnouncement = { side: "away" | "home"; key: string; content: ReactNode };
 
-/** How long a team tab stays out. */
+/** How long a team announcement stays out. */
 const TEAM_TAB_MS = 3200;
+
+/** How long the last play stays out. */
+const LAST_PLAY_MS = 4000;
+
+/** What the game is waiting on a club for, said under that club's side until it changes. `key`
+ *  changes with the message, so a new one pops in. */
+export type TeamStatus = { side: "away" | "home"; key: string; content: ReactNode };
 
 type Size = { width: number; height: number };
 
@@ -77,7 +89,7 @@ function IslandTab({ content, contentKey, at }: { content?: ReactNode; contentKe
         >
             <div
                 className={`
-                    overflow-hidden rounded-b-card border border-t-0 border-(--divider) bg-(--background-primary)
+                    overflow-hidden rounded-b-card border border-t-0 border-(--divider) ${BOARD_OVERLAY_SURFACE_CLASS}
                     transition-[width,height,opacity] duration-300 ease-[cubic-bezier(0.34,1.3,0.64,1)]
                     ${isOpen ? "pointer-events-auto opacity-100" : "opacity-0"}
                 `}
@@ -86,7 +98,7 @@ function IslandTab({ content, contentKey, at }: { content?: ReactNode; contentKe
                     height: isOpen && size ? size.height : 0,
                 }}
             >
-                <div className="bg-(--background-secondary)/30">
+                <div>
                     <div ref={innerRef} className={`w-max px-3 py-1.5 ${TAB_MAX_WIDTH[at]}`}>
                         <div key={shown.key} className={isOpen ? "island-content" : ""}>
                             {shown.content}
@@ -101,10 +113,13 @@ function IslandTab({ content, contentKey, at }: { content?: ReactNode; contentKe
 type ScoreboardIslandProps = {
     /** The scoreboard it hangs from. */
     children: ReactNode;
-    /** What the center tab says. Nothing (null, false) folds it away. */
+    /** What the center tab says (the last play) for a few seconds after it changes. Nothing
+     *  (null, false) folds it away. */
     content?: ReactNode;
-    /** Changes whenever the message does, so the new one pops in rather than swapping silently. */
+    /** Changes whenever the message does, so the new one pops in and stays out a while. */
     contentKey: string;
+    /** What the game is waiting on a club for, under that club's side. */
+    status?: TeamStatus | null;
     /** What each club just did; the newest for each side drops from under it. */
     announcements?: TeamAnnouncement[];
     /** A narrow board: the center tab steps aside while a team tab is out, since they'd overlap. */
@@ -112,20 +127,30 @@ type ScoreboardIslandProps = {
     className?: string;
 };
 
-export default function ScoreboardIsland({ children, content, contentKey, announcements = [], isNarrow = false, className = "" }: ScoreboardIslandProps) {
+export default function ScoreboardIsland({ children, content, contentKey, status, announcements = [], isNarrow = false, className = "" }: ScoreboardIslandProps) {
     const newest = (side: TeamAnnouncement["side"]) => [...announcements].reverse().find((announcement) => announcement.side === side);
     const away = newest("away");
     const home = newest("home");
     const isAwayOut = useIsFresh(away?.key, TEAM_TAB_MS);
     const isHomeOut = useIsFresh(home?.key, TEAM_TAB_MS);
-    const isCenterAside = isNarrow && (isAwayOut || isHomeOut);
+    const isCenterOut = useIsFresh(content ? contentKey : undefined, LAST_PLAY_MS) && !(isNarrow && (isAwayOut || isHomeOut));
+    const isStatusAside = isNarrow && isCenterOut;
+
+    /** A side's tab: its fresh announcement, else what the game is waiting on it for. */
+    const sideTab = (side: TeamAnnouncement["side"], announcement: TeamAnnouncement | undefined, isOut: boolean) => {
+        if (isOut && announcement) return { content: announcement.content, key: announcement.key };
+        if (status?.side === side && !isStatusAside) return { content: status.content, key: `status:${status.key}` };
+        return { content: null, key: announcement?.key ?? "" };
+    };
+    const awayTab = sideTab("away", away, isAwayOut);
+    const homeTab = sideTab("home", home, isHomeOut);
 
     return (
         <div className={`relative ${className}`}>
             {children}
-            <IslandTab at="center" content={isCenterAside ? null : content} contentKey={contentKey} />
-            <IslandTab at="away" content={isAwayOut ? away?.content : null} contentKey={away?.key ?? ""} />
-            <IslandTab at="home" content={isHomeOut ? home?.content : null} contentKey={home?.key ?? ""} />
+            <IslandTab at="center" content={isCenterOut ? content : null} contentKey={contentKey} />
+            <IslandTab at="away" content={awayTab.content} contentKey={awayTab.key} />
+            <IslandTab at="home" content={homeTab.content} contentKey={homeTab.key} />
         </div>
     );
 }

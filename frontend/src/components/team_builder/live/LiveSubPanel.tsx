@@ -10,7 +10,7 @@ import { FaRobot } from "react-icons/fa6";
 
 import type { LiveAction, LiveSide, LiveSideState } from "../../../api/liveGame";
 import type { ShowdownBotCardAPIResponse } from "../../../api/showdownBotCard";
-import { CardItemCompactFromCard, CardItemCompactSkeleton } from "../../cards/CardItemCompact";
+import { CardItemFromCard, CardItemSkeleton } from "../../cards/CardItem";
 import { choiceClass } from "../../shared/choiceStyles";
 import { EmptyState } from "../../shared/EmptyState";
 import { CAPS_LABEL_CLASS } from "../../shared/fieldStyles";
@@ -54,8 +54,8 @@ function PlayerList({ ids, cardMap, onPick }: { ids: string[]; cardMap: Props["c
             {ids.map((id) => {
                 const card = cardMap[id]?.card;
                 return card
-                    ? <CardItemCompactFromCard key={id} card={card} onClick={() => onPick(id)} />
-                    : <CardItemCompactSkeleton key={id} />;
+                    ? <CardItemFromCard key={id} card={card} className="w-full" onClick={() => onPick(id)} />
+                    : <CardItemSkeleton key={id} className="w-full" />;
             })}
         </div>
     );

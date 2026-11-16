@@ -18,10 +18,13 @@ if TYPE_CHECKING:
 
 
 class RollKind(str, Enum):
-    """A die a person rolls in a played game. The defense rolls the pitch, the offense the swing."""
+    """A die a person rolls in a played game. The defense rolls the pitch and every throw on the
+    bases (a runner stealing, a runner sent for an extra base); the offense rolls the swing."""
 
     PITCH = "pitch"
     SWING = "swing"
+    STEAL = "steal"
+    ADVANCE = "advance"
 
 
 class GameController:

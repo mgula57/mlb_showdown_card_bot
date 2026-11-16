@@ -269,7 +269,9 @@ class Game:
             if pinch_hitter is not None:
                 team_hitting.pinch_hit(sub=pinch_hitter, for_player=hitter)
                 hitter = pinch_hitter
-            plate_appearance = PlateAppearance(hitter=hitter, pitcher=pitcher, inning=inning, rng=rng, pitcher_fatigue=(pitcher.fatigue_penalty(inning) if controller.applies_fatigue(team_pitching) else 0), was_last_result_single_plus=(single_plus_inning is inning), manager=team_hitting.manager, platoon_roll_adjustment=platoon_roll_adjustment, year=self.date.year, random_roll_adjustments=random_roll_adjustments)
+            plate_appearance = PlateAppearance(hitter=hitter, pitcher=pitcher, inning=inning, rng=rng, pitcher_fatigue=(pitcher.fatigue_penalty(inning) if controller.applies_fatigue(team_pitching) else 0), was_last_result_single_plus=(single_plus_inning is inning), manager=team_hitting.manager, platoon_roll_adjustment=platoon_roll_adjustment, year=self.date.year, random_roll_adjustments=random_roll_adjustments,
+                # THE FIELDING CLUB THROWS ON EVERY STEAL AND EXTRA-BASE SEND, SO A PLAYED GAME WAITS ON IT THERE.
+                throw_gate=lambda kind, team=team_pitching, half=inning: controller.before_roll(kind, team, half))
 
             self.current_plate_appearance = plate_appearance
 
@@ -313,45 +315,7 @@ class Game:
             single_plus_inning = inning if plate_appearance.swing.result == Result.SINGLE_PLUS else None
 
             if collect_log or log_callback:
-                narration = plate_appearance.narration
-                log_entry = GameLogEntry(
-                    inning=inning.inning,
-                    is_top=inning.is_top,
-                    outs=inning.outs,
-                    bases=inning.runners.base_squares_str(),
-                    away_score=int(away_score),
-                    home_score=int(home_score),
-                    pitcher=plate_appearance.pitcher.name,
-                    pitcher_id=plate_appearance.pitcher.id,
-                    hitter=plate_appearance.hitter.name,
-                    hitter_id=plate_appearance.hitter.id,
-                    runs_scored=int(plate_appearance.runs_scored),
-                    pitch_roll=plate_appearance.pitch.roll,
-                    pitch_result=plate_appearance.pitch.result.value,
-                    swing_roll=plate_appearance.swing.roll,
-                    swing_result=plate_appearance.swing.result.value,
-                    event=narration.event,
-                    description=narration.description,
-                    detail=plate_appearance.detail_str.strip(),
-                    summary=f"{inning.summary_str}  {self.away_team.name}:{away_score}|{self.home_team.name}:{home_score}  {plate_appearance.summary_str()}",
-                    bases_detail=[RunnerRef(id=r.id, name=r.name, base=r.base) for r in plate_appearance.runners.runners],
-                    scored=[
-                        RunnerRef(id=r.id, name=r.name, base=4, reason=("advance" if r in plate_appearance.scored_on_advance else "swing"))
-                        for r in plate_appearance.runners_scored
-                    ],
-                    retired=[RunnerRef(id=i, name=n, base=b, reason=reason) for i, n, b, reason in plate_appearance.retired_runners],
-                    bases_after_steal=(
-                        [RunnerRef(id=i, name=n, base=b) for i, n, b in plate_appearance.bases_snapshot_after_steal]
-                        if plate_appearance.bases_snapshot_after_steal is not None else None
-                    ),
-                    bases_after_swing=(
-                        [RunnerRef(id=i, name=n, base=b) for i, n, b in plate_appearance.bases_snapshot_after_swing]
-                        if plate_appearance.advance_attempts else None
-                    ),
-                    steal_rolls=[self._runner_roll_log(r) for r in plate_appearance.steal_attempts if r.roll],
-                    advance_rolls=[self._runner_roll_log(r) for r in plate_appearance.advance_attempts],
-                    double_play_roll=self._runner_roll_log(plate_appearance.double_play_roll) if plate_appearance.double_play_roll and plate_appearance.double_play_roll.runner else None,
-                )
+                log_entry = self.log_entry(plate_appearance, inning=inning, outs=inning.outs, away_score=int(away_score), home_score=int(home_score))
                 if collect_log:
                     self.logs.append(log_entry)
                 if log_callback:
@@ -370,6 +334,50 @@ class Game:
 
             if inning.inning >= 9 and (not inning.is_top) and home_score > away_score:
                 self.finalize_game()
+
+    def log_entry(self, plate_appearance: PlateAppearance, inning: Inning, outs: int, away_score: int, home_score: int) -> GameLogEntry:
+        """One plate appearance's line in the game log, as it stands: `outs` and the scores are the
+        half-inning's and game's with this plate appearance counted. A played game also builds one for
+        a plate appearance still waiting on a die, to show what's happened in it so far."""
+        narration = plate_appearance.narration
+        return GameLogEntry(
+            inning=inning.inning,
+            is_top=inning.is_top,
+            outs=outs,
+            bases=plate_appearance.runners.base_squares_str(),
+            away_score=away_score,
+            home_score=home_score,
+            pitcher=plate_appearance.pitcher.name,
+            pitcher_id=plate_appearance.pitcher.id,
+            hitter=plate_appearance.hitter.name,
+            hitter_id=plate_appearance.hitter.id,
+            runs_scored=int(plate_appearance.runs_scored),
+            pitch_roll=plate_appearance.pitch.roll,
+            pitch_result=plate_appearance.pitch.result.value,
+            swing_roll=plate_appearance.swing.roll,
+            swing_result=plate_appearance.swing.result.value,
+            event=narration.event,
+            description=narration.description,
+            detail=plate_appearance.detail_str.strip(),
+            summary=f"{inning.summary_str}  {self.away_team.name}:{away_score}|{self.home_team.name}:{home_score}  {plate_appearance.summary_str()}",
+            bases_detail=[RunnerRef(id=r.id, name=r.name, base=r.base) for r in plate_appearance.runners.runners],
+            scored=[
+                RunnerRef(id=r.id, name=r.name, base=4, reason=("advance" if r in plate_appearance.scored_on_advance else "swing"))
+                for r in plate_appearance.runners_scored
+            ],
+            retired=[RunnerRef(id=i, name=n, base=b, reason=reason) for i, n, b, reason in plate_appearance.retired_runners],
+            bases_after_steal=(
+                [RunnerRef(id=i, name=n, base=b) for i, n, b in plate_appearance.bases_snapshot_after_steal]
+                if plate_appearance.bases_snapshot_after_steal is not None else None
+            ),
+            bases_after_swing=(
+                [RunnerRef(id=i, name=n, base=b) for i, n, b in plate_appearance.bases_snapshot_after_swing]
+                if plate_appearance.advance_attempts else None
+            ),
+            steal_rolls=[self._runner_roll_log(r) for r in plate_appearance.steal_attempts if r.roll],
+            advance_rolls=[self._runner_roll_log(r) for r in plate_appearance.advance_attempts],
+            double_play_roll=self._runner_roll_log(plate_appearance.double_play_roll) if plate_appearance.double_play_roll and plate_appearance.double_play_roll.runner else None,
+        )
 
     def _stuck_error(self, inning: Inning, total_pa: int, half_inning_pa: int) -> GameStuckError:
         """Build the exception raised when `simulate`'s play loop can no longer end the game. The

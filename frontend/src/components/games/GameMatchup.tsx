@@ -2,7 +2,9 @@
  * @fileoverview The current pitcher-vs-batter spotlight: the roll about to happen. Shows both
  * cards with the Showdown advantage split between them. A wide game board gives each card a corner
  * through `MatchupSide`; a narrow one uses `GameMatchup`, the same full cards side by side when two
- * fit and stacked when they don't, so the chart is always there to show where a swing landed. Under
+ * fit and stacked when they don't, so the chart is always there to show where a swing landed. Card
+ * images (`MatchupCardImagesContext`) also sit side by side for the pitch, showing only each card's
+ * command, and stack once the advantage is known. Under
  * them, the rest of the batting club's order as it comes up, fading the further off each hitter is.
  */
 import { useContext, type ReactNode } from "react";
@@ -13,7 +15,6 @@ import type { ShowdownBotCardAPIResponse } from "../../api/showdownBotCard";
 import { CardItemFromCard, CardItemSkeleton } from "../cards/CardItem";
 import CardImageWithChart, { CardImageSkeleton } from "../cards/CardImageWithChart";
 import type { AdvantageSide } from "../../domain/play";
-import { CardItemCompactFromCard, CardItemCompactSkeleton } from "../cards/CardItemCompact";
 import { hittersAfter } from "../../domain/lineup";
 import { resolveCardKey } from "../../domain/players";
 import { CAPS_LABEL_CLASS } from "../shared/fieldStyles";
@@ -63,9 +64,9 @@ function UpNext({ game, cardMap, isLoadingCards, onCardSelect }: {
                         <span className="w-4 shrink-0 text-right text-[11px] font-semibold tabular-nums text-(--text-primary)">{spot}</span>
                         <div className="min-w-0 flex-1">
                             {response?.card ? (
-                                <CardItemCompactFromCard card={response.card} className="w-full" onClick={() => onCardSelect?.(response)} />
+                                <CardItemFromCard card={response.card} className="w-full" onClick={() => onCardSelect?.(response)} />
                             ) : isLoadingCards ? (
-                                <CardItemCompactSkeleton />
+                                <CardItemSkeleton className="w-full" />
                             ) : (
                                 <div className="truncate px-2 py-1 text-[12px] font-semibold text-(--text-primary)">{line.name}</div>
                             )}
@@ -98,8 +99,8 @@ type MatchupSideProps = {
     hideTrend?: boolean;
     /** Sim only: this side won the advantage roll. */
     hasAdvantage?: boolean;
-    /** The pitch has been rolled, so either side may hold the advantage: a card image zooms from
-     *  its command to its chart. */
+    /** The pitch has been rolled, so one side holds the advantage: a card image zooms from its
+     *  command to its chart, and the side without it fades back for the swing. */
     isAdvantageSettled?: boolean;
     /** Sim only: the chart result the swing landed on, lit up on the winning card. */
     chartHighlight?: string;
@@ -132,28 +133,32 @@ export function MatchupSide({ side, isLoadingCards, onCardSelect, hideTrend, has
 
             {accessory}
 
-            {cardImage?.status === "ready" && response ? (
-                <CardImageWithChart
-                    imageUrl={cardImage.image.image_url}
-                    chartCells={cardImage.image.chart_cells}
-                    commandBox={cardImage.image.command_box}
-                    focus={isAdvantageSettled || chartHighlight ? "chart" : "command"}
-                    name={player.name}
-                    onClick={() => onCardSelect?.(response)}
-                    hasAdvantage={hasAdvantage}
-                    chartHighlight={chartHighlight}
-                />
-            ) : cardImage?.status === "loading" ? (
-                <CardImageSkeleton />
-            ) : response?.card ? (
-                <CardItemFromCard card={response.card} className="w-full" onClick={() => onCardSelect?.(response)} hasAdvantage={hasAdvantage} chartHighlight={chartHighlight} />
-            ) : isLoadingCards ? (
-                <CardItemSkeleton className="w-full" />
-            ) : player.name ? (
-                <div className="truncate rounded-card bg-(--background-secondary) px-2 py-1 text-sm font-semibold text-(--primary)">{player.name}</div>
-            ) : (
-                <CardItemFromCard card={undefined} className="w-full opacity-50" />
-            )}
+            {/* The side that lost the advantage fades back for the swing, so the eye goes to the
+                chart being rolled on */}
+            <div className={`transition-opacity duration-300 ${isAdvantageSettled && !hasAdvantage ? "opacity-40" : ""}`}>
+                {cardImage?.status === "ready" && response ? (
+                    <CardImageWithChart
+                        imageUrl={cardImage.image.image_url}
+                        chartCells={cardImage.image.chart_cells}
+                        commandBox={cardImage.image.command_box}
+                        focus={isAdvantageSettled || chartHighlight ? "chart" : "command"}
+                        name={player.name}
+                        onClick={() => onCardSelect?.(response)}
+                        hasAdvantage={hasAdvantage}
+                        chartHighlight={chartHighlight}
+                    />
+                ) : cardImage?.status === "loading" ? (
+                    <CardImageSkeleton />
+                ) : response?.card ? (
+                    <CardItemFromCard card={response.card} className="w-full" onClick={() => onCardSelect?.(response)} hasAdvantage={hasAdvantage} chartHighlight={chartHighlight} />
+                ) : isLoadingCards ? (
+                    <CardItemSkeleton className="w-full" />
+                ) : player.name ? (
+                    <div className="truncate rounded-card bg-(--background-secondary) px-2 py-1 text-sm font-semibold text-(--primary)">{player.name}</div>
+                ) : (
+                    <CardItemFromCard card={undefined} className="w-full opacity-50" />
+                )}
+            </div>
         </div>
     );
 }
@@ -166,21 +171,27 @@ type GameMatchupProps = {
     /** See `resolveMatchup`. */
     hideStatlines?: boolean;
     advantage?: AdvantageSide;
+    /** See `MatchupSide`. */
+    isAdvantageSettled?: boolean;
     swingResult?: string;
     /** Each side's `MatchupSide` `accessory`. */
     accessories?: { pitcher?: ReactNode; hitter?: ReactNode };
 };
 
-export default function GameMatchup({ game, cardMap, isLoadingCards, onCardSelect, hideStatlines = false, advantage, swingResult, accessories }: GameMatchupProps) {
+export default function GameMatchup({ game, cardMap, isLoadingCards, onCardSelect, hideStatlines = false, advantage, isAdvantageSettled, swingResult, accessories }: GameMatchupProps) {
     const [rowRef, isFullRow] = useIsWiderThan<HTMLDivElement>(FULL_ROW_MIN_WIDTH);
+    const isShowingImages = useContext(MatchupCardImagesContext) != null;
     const matchup = resolveMatchup(game, cardMap, hideStatlines);
     if (!matchup) return null;
+    // Card images sit side by side for the pitch, when each shows only its command, then stack
+    // full width once the advantage is known so each chart can be read
+    const isSideBySide = isFullRow || (isShowingImages && !isAdvantageSettled && !swingResult);
 
-    const shared = { isLoadingCards, onCardSelect, hideTrend: hideStatlines, isAdvantageSettled: advantage != null };
+    const shared = { isLoadingCards, onCardSelect, hideTrend: hideStatlines, isAdvantageSettled };
 
     return (
         <div ref={rowRef} className="mx-2 space-y-1.5">
-            <div className={`grid gap-2 ${isFullRow ? "grid-cols-2" : "grid-cols-1"}`}>
+            <div className={`grid gap-2 ${isSideBySide ? "grid-cols-2" : "grid-cols-1"}`}>
                 <MatchupSide {...shared} side={matchup.pitcher} hasAdvantage={advantage === "pitcher"} chartHighlight={advantage === "pitcher" ? swingResult : undefined} accessory={accessories?.pitcher} />
                 <MatchupSide {...shared} side={matchup.hitter} hasAdvantage={advantage === "hitter"} chartHighlight={advantage === "hitter" ? swingResult : undefined} accessory={accessories?.hitter} />
             </div>

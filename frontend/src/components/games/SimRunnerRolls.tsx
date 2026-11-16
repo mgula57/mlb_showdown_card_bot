@@ -10,6 +10,9 @@
  *
  * All motion runs off the die's own clock (`useDieToss`) and is divided by playback speed; at high
  * speed or with reduced motion every step simply shows its final state.
+ *
+ * In a game people play, a throw waits on the fielding club's roll first: `PendingRunnerRoll` sets
+ * out the same test with the die still to roll.
  */
 import { useEffect, useState, type CSSProperties, type ReactNode } from "react";
 
@@ -17,6 +20,7 @@ import type { ShowdownBotCardAPIResponse } from "../../api/showdownBotCard";
 import type { RunnerRoll } from "../../domain/timeline";
 import type { PlayPhase } from "../../hooks/useGamePlayback";
 import { useDieToss } from "../../hooks/useDieToss";
+import { HandDie } from "./DiePrompt";
 import FieldMarker from "./FieldMarker";
 import RollDie from "./RollDie";
 
@@ -30,7 +34,10 @@ const FOLD_MS = 280;
 const OUT_ACCENT = "var(--red)";
 const SAFE_ACCENT = "var(--green)";
 
-const titleFor = (attempt: RunnerRoll): string =>
+/** A throw on the bases before its die is rolled. */
+export type PendingRunnerThrow = Omit<RunnerRoll, "kind" | "roll" | "isSafe"> & { kind: "steal" | "advance" };
+
+const titleFor = (attempt: Pick<RunnerRoll, "kind" | "base">): string =>
     attempt.kind === "double_play"
         ? "Double Play"
         : `${attempt.kind === "steal" ? "Steal" : "Extra Base"} · ${BASE_NAMES[attempt.base + 1] ?? ""}`;
@@ -78,7 +85,7 @@ function RollTotal({ from, to, isStatic, speed, verdictClass, accent }: {
     );
 }
 
-function RunnerRollRow({ attempt, index, beatId, phase, speed, cardMap, onCardSelect, isLoadingCards }: {
+function RunnerRollRow({ attempt, index, beatId, phase, speed, cardMap, onCardSelect, isLoadingCards, plateDice }: {
     attempt: RunnerRoll;
     index: number;
     beatId: string;
@@ -87,10 +94,11 @@ function RunnerRollRow({ attempt, index, beatId, phase, speed, cardMap, onCardSe
     cardMap: CardMap;
     onCardSelect?: (card: ShowdownBotCardAPIResponse) => void;
     isLoadingCards?: boolean;
+    plateDice: number;
 }) {
     const playId = `${beatId}-${index}`;
-    // A DP turn rides the swing beat, so its die waits for the pitch and swing dice to land first.
-    const staggerIndex = index + (attempt.kind === "double_play" ? 2 : 0);
+    // A DP turn rides the swing beat, so its die waits for the beat's pitch and swing dice to land first.
+    const staggerIndex = index + (attempt.kind === "double_play" ? plateDice : 0);
     const { isTumbling, isStatic } = useDieToss({ playId, phase, speed, staggerIndex });
     // The outcome is a spoiler until the dice have landed; the result beat onward reveals it.
     const isRevealed = phase !== "pitch";
@@ -171,8 +179,53 @@ function RunnerRollRow({ attempt, index, beatId, phase, speed, cardMap, onCardSe
     );
 }
 
-export default function SimRunnerRolls({ rolls, beatId, phase, speed = 1, cardMap, onCardSelect, isLoadingCards }: {
+/** A throw the game is waiting on: who's running and what the die has to beat. On this player's
+ *  throw the die takes a tap (as the next-move button rolls it too); on the other club's it's a blank. */
+export function PendingRunnerRoll({ attempt, onRoll, isBusy, cardMap, onCardSelect, isLoadingCards }: {
+    attempt: PendingRunnerThrow;
+    onRoll?: () => void;
+    isBusy?: boolean;
+    cardMap: CardMap;
+    onCardSelect?: (card: ShowdownBotCardAPIResponse) => void;
+    isLoadingCards?: boolean;
+}) {
+    const hasOdds = attempt.defense != null && attempt.target != null;
+    return (
+        <div className="flex flex-col gap-1.5 rounded-card border border-(--divider) bg-(--background-secondary) px-2.5 py-2 shadow-overlay">
+            <div className="flex items-center justify-between gap-3">
+                <span className="text-[9px] font-bold uppercase leading-none tracking-wider text-(--text-secondary)">{titleFor(attempt)}</span>
+                <span className="text-[9px] font-bold uppercase leading-none tracking-wider text-(--tertiary)">{onRoll ? "Your throw" : "Throwing"}</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+                {hasOdds && (
+                    <>
+                        <StatChip label={DEFENSE_LABELS[attempt.kind]}>{attempt.defense}</StatChip>
+                        <span className="text-xs font-bold leading-none text-(--tertiary)">+</span>
+                    </>
+                )}
+                {onRoll || isBusy
+                    ? <HandDie label="Throw" isAwaited onRoll={onRoll} isBusy={isBusy} />
+                    : <StatChip label="Roll" className="min-w-8">?</StatChip>}
+                <span className="min-w-4 text-center text-[9px] font-bold uppercase leading-none tracking-wider text-(--tertiary)">vs</span>
+                <FieldMarker
+                    player={attempt.runner}
+                    role="H"
+                    cardMap={cardMap}
+                    onCardSelect={onCardSelect}
+                    isLoadingCards={isLoadingCards}
+                    tone="offense"
+                    statBadge={hasOdds ? { label: "Spd", value: attempt.target! } : undefined}
+                />
+            </div>
+        </div>
+    );
+}
+
+export default function SimRunnerRolls({ rolls, beatId, phase, speed = 1, cardMap, onCardSelect, isLoadingCards, plateDice = 2 }: {
     rolls?: RunnerRoll[];
+    /** How many of the beat's pitch and swing dice are tossed ahead of a double play's: both in a
+     *  sim, none in a game people play, where each die is thrown on its own. */
+    plateDice?: number;
     /** Identifies the beat so every new one re-tosses. */
     beatId: string;
     phase: PlayPhase;
@@ -197,6 +250,7 @@ export default function SimRunnerRolls({ rolls, beatId, phase, speed = 1, cardMa
                     cardMap={cardMap}
                     onCardSelect={onCardSelect}
                     isLoadingCards={isLoadingCards}
+                    plateDice={plateDice}
                 />
             ))}
         </div>

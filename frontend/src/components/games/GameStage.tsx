@@ -4,7 +4,7 @@
  * so any host with a `GameTimeline` can use it. What differs between hosts arrives as slots: the
  * box score panel, the top bar's controls and anything under the bar.
  */
-import { useMemo, useRef, type Key, type ReactNode } from "react";
+import { useMemo, useRef, useState, type Key, type ReactNode } from "react";
 import { FaRing } from "react-icons/fa";
 import { FaStar } from "react-icons/fa6";
 
@@ -26,7 +26,7 @@ import { buttonVariantClass } from "../shared/buttonStyles";
 import GameBoard, { NARROW_FIELD_ZOOM } from "./GameBoard";
 import { LineupUpContext } from "./lineupUpContext";
 import { lineupUp, withLineupDefense } from "../../domain/lineup";
-import ScoreboardIsland, { type TeamAnnouncement } from "./ScoreboardIsland";
+import ScoreboardIsland, { type TeamAnnouncement, type TeamStatus } from "./ScoreboardIsland";
 import { GameScoreTrack, LastPlayLine } from "./GameBoardPanels";
 import GameField, { type RollPrompt } from "./GameField";
 import GameLinescore from "./GameLinescore";
@@ -91,13 +91,12 @@ type GameStageProps = {
     boxScorePanels: ReactNode;
     /** The rail's Info tab. Left out, the tab is too. */
     infoPanel?: ReactNode;
-    /** Narrow only: the player's next move, a thumb-sized button in the field's bottom-right corner
-     *  beside `boardTools` (a live game's roll). A wide board leaves the roll to the die on the
-     *  field. */
+    /** The player's next move, a thumb-sized button in the field's bottom-right corner beside
+     *  `boardTools` on every board (a live game's roll, the same one the die on the field offers). */
     boardAction?: ReactNode;
-    /** Whose turn it is, grown out of the scoreboard (`ScoreboardIsland`) above the last play.
-     *  `key` changes with the message, so a new one pops in. */
-    boardTurn?: { content: ReactNode; key: string } | null;
+    /** Whose turn it is, grown out of the scoreboard (`ScoreboardIsland`) under the club the game
+     *  is waiting on. `key` changes with the message, so a new one pops in. */
+    boardTurn?: TeamStatus | null;
     /** The field's bottom-right corner on every board, e.g. the button that opens a live game's
      *  moves. */
     boardTools?: ReactNode;
@@ -109,6 +108,8 @@ type GameStageProps = {
     strategy?: StrategyBoardSlots;
     /** A live game waiting on a die: see `GameField`'s `rollPrompt`. */
     rollPrompt?: RollPrompt;
+    /** A live game's dice are thrown one at a time: see `GameField`'s `isHandThrown`. */
+    isHandThrown?: boolean;
     /** Who won a pitch that's been rolled but not yet swung at, highlighted until the swing resolves. */
     heldAdvantage?: AdvantageSide;
     /** Shown on the board when no one is up yet, e.g. the probable pitchers. */
@@ -121,7 +122,7 @@ type GameStageProps = {
 export default function GameStage({
     stage, game: gameView, plays, playbackState, playbackControls, isReplaying, playbackBar, detailedState,
     cardMap, isLoadingCards, isSim, gameKey, title, titleAccessory, modeBarColor, onBack,
-    topBarStatus, topBarActions, boxScorePanels, infoPanel, boardAction, boardTurn, boardTools, teamAnnouncements, strategy, rollPrompt, heldAdvantage, preGamePanel, className, children,
+    topBarStatus, topBarActions, boxScorePanels, infoPanel, boardAction, boardTurn, boardTools, teamAnnouncements, strategy, rollPrompt, isHandThrown, heldAdvantage, preGamePanel, className, children,
 }: GameStageProps) {
     const {
         selectedCard, setSelectedCard, isFieldExpanded, setIsFieldExpanded, railTab, setRailTab, isPhoneFieldShown, setIsPhoneFieldShown,
@@ -177,6 +178,16 @@ export default function GameStage({
     const isResultRevealed = playbackState.phase === "result" || playbackState.phase === "runners" || playbackState.phase === "settle";
     const advantage = isResultRevealed ? advantageSideOf(playbackState.pendingPlay) : playbackState.phase === "idle" ? heldAdvantage : undefined;
     const swingResult = isResultRevealed ? playbackState.pendingPlay?.roll?.swingResult : undefined;
+    /* Once a plate appearance's advantage is known the matchup keeps it until the next one, so
+       through a live game's separate swing toss (when `advantage` is briefly unknown again) the
+       winner keeps its glow, the other card stays faded, and card images hold on the chart instead
+       of zooming back out to the command. */
+    const situation = game.situation;
+    const matchupKey = situation ? `${situation.inning}|${situation.isTop}|${situation.batter?.id}|${situation.pitcher?.id}` : null;
+    const [settled, setSettled] = useState<{ key: string | null; side: AdvantageSide } | null>(null);
+    if (advantage != null && (settled?.key !== matchupKey || settled.side !== advantage)) setSettled({ key: matchupKey, side: advantage });
+    const matchupAdvantage = advantage ?? (matchupKey != null && settled?.key === matchupKey ? settled.side : undefined);
+    const isAdvantageSettled = matchupAdvantage != null;
 
     const railTabs = infoPanel ? RAIL_TABS : RAIL_TABS.filter((tab) => tab.id !== 'info');
     /* The Info tab can leave while it's open: a host hides it mid-replay to avoid spoilers. */
@@ -201,7 +212,7 @@ export default function GameStage({
                 corner={showRecap ? undefined : (boardTools || boardAction) && (
                     <>
                         {boardTools}
-                        {!isWideBoard && boardAction}
+                        {boardAction}
                     </>
                 )}
                 cornerLeft={showRecap ? undefined : strategy?.hand}
@@ -214,6 +225,7 @@ export default function GameStage({
                 advantage={advantage}
                 playbackSpeed={playbackState.effectiveSpeed}
                 rollPrompt={showRecap ? undefined : rollPrompt}
+                isHandThrown={isHandThrown}
                 onPlayClick={isSim && playbackState.cursor === 0 && !simPlayStarted ? () => {
                     setSimPlayStarted(true);
                     playbackControls.seekToStart();
@@ -223,16 +235,11 @@ export default function GameStage({
         </div>
     );
 
-    /* The tab under the scoreboard: whose turn it is (a live game), then the last play. Each new
-       play or turn pops a fresh message out of it. */
+    /* The tab under the middle of the scoreboard: the last play, out for a few seconds after it
+       lands. Whose turn it is hangs under that club instead (`boardTurn`). */
     const lastPlay = showRecap ? undefined : plays[0];
-    const islandContent = (boardTurn || lastPlay) ? (
-        <div className="flex flex-col items-center gap-1">
-            {boardTurn?.content}
-            {lastPlay && <LastPlayLine play={lastPlay} />}
-        </div>
-    ) : null;
-    const islandKey = `${boardTurn?.key ?? ''}|${lastPlay?.id ?? ''}`;
+    const islandContent = lastPlay ? <LastPlayLine play={lastPlay} /> : null;
+    const islandKey = lastPlay?.id ?? '';
 
     const recap = showRecap ? (
         <GameFinalSummary
@@ -253,18 +260,20 @@ export default function GameStage({
             isLoadingCards={isLoadingCards}
             onCardSelect={setSelectedCard}
             hideTrend={isReplaying}
-            hasAdvantage={advantage === side}
-            isAdvantageSettled={advantage != null}
-            chartHighlight={advantage === side ? swingResult : undefined}
+            hasAdvantage={matchupAdvantage === side}
+            isAdvantageSettled={isAdvantageSettled}
+            chartHighlight={matchupAdvantage === side ? swingResult : undefined}
             accessory={strategy?.played?.[side]}
         />
     );
 
     return (
         <LineupUpContext.Provider value={lineup}>
-        <div className={`flex flex-col tall:h-[calc(100dvh-2.5rem)] overflow-hidden ${className ?? ''}`}>
+        <div className={`flex flex-col tall:h-[calc(100dvh-var(--app-nav-offset,2.5rem))] overflow-hidden ${className ?? ''}`}>
+            {/* Above the board (z-10), below the app's panels (the Manager drawer, z-30; slide-overs,
+                z-40+), so a panel opened from the board isn't cut off by this bar */}
             <div
-                className={`relative z-50 px-4 py-1 border-b border-(--divider) shrink-0 flex items-center gap-3 ${modeBarColor ? '' : 'bg-(--background-primary)'}`}
+                className={`relative z-20 px-4 py-1 border-b border-(--divider) shrink-0 flex items-center gap-3 ${modeBarColor ? '' : 'bg-(--background-primary)'}`}
                 style={modeBarColor ? { backgroundColor: modeBarColor } : undefined}
             >
                 <BackButton onBack={onBack} className="py-1" />
@@ -289,12 +298,12 @@ export default function GameStage({
             {/* From `md` up the board and the rail sit side by side, so the situation never leaves
                 the screen. Whether the board itself is wide is measured rather than breakpointed,
                 since the sidebar takes a varying share of the width. */}
-            <div ref={panesRef} className="flex min-h-0 flex-1 flex-col short:flex-none short:h-[calc(100dvh-2.5rem)] md:flex-row">
+            <div ref={panesRef} className="flex min-h-0 flex-1 flex-col short:flex-none short:h-[calc(100dvh-var(--app-nav-offset,2.5rem))] md:flex-row">
                 <div ref={boardRef} className={`relative min-h-0 flex-1 overflow-y-auto scrollbar-hide md:min-w-0 ${showsBoard ? '' : 'hidden'}`}>
                     <GameBoard
                         isWide={isWideBoard}
                         track={
-                            <ScoreboardIsland content={islandContent} contentKey={islandKey} announcements={showRecap ? undefined : teamAnnouncements} isNarrow={!isWideBoard}>
+                            <ScoreboardIsland content={islandContent} contentKey={islandKey} status={showRecap ? null : boardTurn} announcements={showRecap ? undefined : teamAnnouncements} isNarrow={!isWideBoard}>
                                 {isWideBoard
                                     ? <GameScoreTrack game={headerView} centerAction={recapToggle} />
                                     : <ScoreHeader game={headerView} compact centerAction={recapToggle} />}
@@ -317,7 +326,8 @@ export default function GameStage({
                                         isLoadingCards={isLoadingCards}
                                         onCardSelect={setSelectedCard}
                                         hideStatlines={isReplaying}
-                                        advantage={advantage}
+                                        advantage={matchupAdvantage}
+                                        isAdvantageSettled={isAdvantageSettled}
                                         swingResult={swingResult}
                                         accessories={strategy?.played}
                                     />

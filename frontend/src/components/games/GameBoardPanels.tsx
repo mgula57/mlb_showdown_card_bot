@@ -9,7 +9,7 @@ import type { ReactNode } from "react";
 import type { GameSide, GameView } from "../../domain/game";
 import type { PlayEntry } from "../../domain/play";
 import { CAPS_LABEL_CLASS } from "../shared/fieldStyles";
-import { BOARD_PANEL_CLASS } from "./boardStyles";
+import { BOARD_OVERLAY_CLASS } from "./boardStyles";
 import { ScoreSituation, TeamBadge } from "./detail/ScoreHeader";
 import GameLinescore from "./GameLinescore";
 
@@ -27,7 +27,7 @@ function TeamRuns({ side, reverse = false }: { side: GameSide; reverse?: boolean
  *  e.g. the Recap / Field toggle. */
 export function GameScoreTrack({ game, centerAction }: { game: GameView; centerAction?: ReactNode }) {
     return (
-        <div className={`${BOARD_PANEL_CLASS} flex items-center justify-between gap-4 px-3 py-1.5`}>
+        <div className={`${BOARD_OVERLAY_CLASS} flex items-center justify-between gap-4 px-3 py-1.5`}>
             <TeamRuns side={game.away} />
             <ScoreSituation game={game} compact centerAction={centerAction} />
             <GameLinescore game={game} variant="track" className="min-w-0" />

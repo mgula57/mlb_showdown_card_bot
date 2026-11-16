@@ -464,6 +464,11 @@ export type SimTimelineLiveEdge = {
     isTop: boolean;
     batter?: PlayerRef;
     pitcher?: PlayerRef;
+    /** The plate appearance the game stopped in the middle of, logged as far as it's got, and the
+     *  roll it waits on: the swing (after a steal, so only the steal beat plays) or an extra-base
+     *  throw (after the swing, so the send's beat is still to come). Its frames keep the ids the
+     *  finished play's will have, so the cursor carries on from them when it's done. */
+    playInProgress?: { entry: SimGameLogEntryJson; awaiting: "swing" | "advance" };
 };
 
 export const fromSimTimeline = (game: SimGameResultJson, gameId: number | string, startState?: SimGameStartState | null, liveEdge?: SimTimelineLiveEdge): GameTimeline => {
@@ -561,9 +566,15 @@ export const fromSimTimeline = (game: SimGameResultJson, gameId: number | string
     // total rather than the post-PA one.
     let carryOuts = startState?.outs ?? 0;
 
-    for (let i = 0; i < log.length; i++) {
-        const entry = log[i];
-        const nextEntry = log[i + 1];
+    // The finished plays, then any play still in progress (left out of the box score rebuild above,
+    // since the engine's box doesn't count it yet).
+    const inProgress = liveEdge?.playInProgress;
+    const entries = inProgress ? [...log, withRealCardIds(inProgress.entry)] : log;
+
+    for (let i = 0; i < entries.length; i++) {
+        const entry = entries[i];
+        const nextEntry = entries[i + 1];
+        const awaiting = inProgress && i === log.length ? inProgress.awaiting : undefined;
         inning = entry.inning;
         isTop = entry.is_top;
 
@@ -587,7 +598,7 @@ export const fromSimTimeline = (game: SimGameResultJson, gameId: number | string
         const isHit = ["1b", "1b+", "2b", "3b", "hr"].includes(swingResult);
         const swingIsEmpty = swingResult === "na"; // a pure steal/CS that ended the half-inning
         const isHalfInningChange = !!next && (next.inning !== inning || next.isTop !== isTop);
-        const isLastEntry = i === log.length - 1;
+        const isLastEntry = i === entries.length - 1;
         const outsStart = carryOuts;
 
         // Final post-PA base state. Identity comes from the backend (`bases_detail`); a legacy
@@ -614,7 +625,7 @@ export const fromSimTimeline = (game: SimGameResultJson, gameId: number | string
         // transition where a steal plays on top of the hit. The two intermediate base snapshots
         // are only present when that phase actually moved someone (see the backend), so a plain
         // PA collapses back to the single result beat below.
-        const canSplit = hasDetail && !swingIsEmpty;
+        const canSplit = hasDetail && (!swingIsEmpty || awaiting === "swing");
         const stealSnap = canSplit ? entry.bases_after_steal ?? null : null;
         const swingSnap = canSplit ? entry.bases_after_swing ?? null : null;
 
@@ -693,7 +704,10 @@ export const fromSimTimeline = (game: SimGameResultJson, gameId: number | string
         }
 
         const hasAdvanceLeg = swingSnap != null;
-        legs.push({
+        // Waiting on an extra-base throw: the swing leaves the batter's box empty, as when the send follows it.
+        const holdsForSend = hasAdvanceLeg || awaiting === "advance";
+        // Waiting on the swing, only the steal has happened.
+        if (awaiting !== "swing") legs.push({
             id: `sim-${i}`,
             bases: hasAdvanceLeg ? mapDetailBases(swingSnap) : finalBases,
             scored: swingIsEmpty ? (entry.scored ?? []).map(toPlayerRef) : scoredWhere((r) => (r.reason ?? "") !== "advance"),
@@ -702,8 +716,8 @@ export const fromSimTimeline = (game: SimGameResultJson, gameId: number | string
             moveBatter: entryBatter,
             // An extra-base send still to come plays out before the next hitter steps in — leave
             // the box empty (and the current pitcher on the mound) until that beat resolves.
-            standingBatter: hasAdvanceLeg ? undefined : nextBatter,
-            pitcher: hasAdvanceLeg ? entryPitcher : nextPitcher,
+            standingBatter: holdsForSend ? undefined : nextBatter,
+            pitcher: holdsForSend ? entryPitcher : nextPitcher,
             outs: hasAdvanceLeg ? entry.outs - advanceOuts : entry.outs,
             away: hasAdvanceLeg ? awayAfterSwing : entry.away_score,
             home: hasAdvanceLeg ? homeAfterSwing : entry.home_score,
@@ -742,7 +756,7 @@ export const fromSimTimeline = (game: SimGameResultJson, gameId: number | string
             }
             // The box score takes the whole plate appearance on its swing beat — the engine
             // credits a PA's stats as one unit, so there's no per-beat split to mirror.
-            if (leg.play) boxscoreAccumulator?.apply(entry);
+            if (leg.play && !awaiting) boxscoreAccumulator?.apply(entry);
 
             const moves = buildRunnerMoves({
                 prevBases: legCursor, nextBases: leg.bases, scored: leg.scored, retired: leg.retired, batter: leg.moveBatter,

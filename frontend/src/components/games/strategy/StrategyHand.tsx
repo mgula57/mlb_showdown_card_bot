@@ -12,6 +12,7 @@ import { FaChevronDown } from "react-icons/fa6";
 
 import type { StrategyCard } from "../../../domain/strategy";
 import { buttonClass } from "../../shared/buttonStyles";
+import BoardCornerButton from "../BoardCornerButton";
 import { CAPS_LABEL_CLASS } from "../../shared/fieldStyles";
 import IconButton from "../../shared/IconButton";
 import { StrategyCardFace } from "./StrategyCardFace";
@@ -31,29 +32,29 @@ type StackProps = {
     onToggle: () => void;
 };
 
-/** Thumb-sized, the same as the next-move button across the field, so the two corners match. */
+/** A `BoardCornerButton`, like the Manager and next-move buttons across the field, so the two
+ *  corners match. */
 export function StrategyHandStack({ count, hasPlayable, isOpen, onToggle }: StackProps) {
     const fan = FAN[Math.min(count, 3)] ?? [];
     return (
-        <button
-            type="button"
+        <BoardCornerButton
+            icon={
+                <span className="relative flex h-6 w-8 items-end justify-center">
+                    {fan.length === 0 && <span className="h-5 w-3.5 rounded-plate border border-dashed border-(--rule-strong)" />}
+                    {fan.map((rotation) => (
+                        <span
+                            key={rotation}
+                            className={`absolute bottom-0 h-5 w-3.5 origin-bottom rounded-plate border border-(--background-secondary) bg-(--showdown-blue-fill) ${rotation}`}
+                        />
+                    ))}
+                </span>
+            }
+            label={<span className="tabular-nums">{count}</span>}
             onClick={onToggle}
-            aria-expanded={isOpen}
-            aria-label={`Strategy hand, ${count} ${count === 1 ? "card" : "cards"}${hasPlayable ? ", one can be played now" : ""}`}
-            className={buttonClass("secondary", "sm", "relative h-14 w-14 flex-col justify-center gap-1 p-0! text-[11px]! shadow-raised")}
-        >
-            <span className="relative flex h-6 w-8 items-end justify-center" aria-hidden>
-                {fan.length === 0 && <span className="h-5 w-3.5 rounded-plate border border-dashed border-(--rule-strong)" />}
-                {fan.map((rotation) => (
-                    <span
-                        key={rotation}
-                        className={`absolute bottom-0 h-5 w-3.5 origin-bottom rounded-plate border border-(--background-secondary) bg-(--showdown-blue-fill) ${rotation}`}
-                    />
-                ))}
-            </span>
-            <span className="tabular-nums leading-none">{count}</span>
-            {hasPlayable && <span className="absolute -right-1 -top-1 h-2 w-2 rounded-full bg-(--live)" />}
-        </button>
+            isExpanded={isOpen}
+            ariaLabel={`Strategy hand, ${count} ${count === 1 ? "card" : "cards"}${hasPlayable ? ", one can be played now" : ""}`}
+            hasDot={hasPlayable}
+        />
     );
 }
 
@@ -86,7 +87,8 @@ export function StrategyHandTray({ hand, blockerOf, status, onPlay, onPass, onCl
             {hand.length === 0 ? (
                 <p className="px-3 pb-3 text-[12px] text-(--text-secondary)">No cards in hand. You draw one each time a club comes to the plate.</p>
             ) : (
-                <div className="flex gap-2 overflow-x-auto px-3 pb-3 pt-1 scrollbar-hide">
+                // Top-aligned, so cards of different heights line up along their tops
+                <div className="flex items-start gap-2 overflow-x-auto px-3 pb-3 pt-1 scrollbar-hide">
                     {hand.map((card) => {
                         const blocker = blockerOf(card);
                         return (

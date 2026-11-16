@@ -8,7 +8,7 @@ import { useEffect, useReducer, type ReactNode } from "react";
 
 import type { LiveGame } from "../../../api/liveGame";
 import { TeamMoveNote } from "../../games/GameBoardPanels";
-import type { TeamAnnouncement } from "../../games/ScoreboardIsland";
+import type { TeamAnnouncement, TeamStatus } from "../../games/ScoreboardIsland";
 import PlayedStrategyCards from "../../games/strategy/PlayedStrategyCards";
 import { StrategyCardFace } from "../../games/strategy/StrategyCardFace";
 import { StrategyHandStack, StrategyHandTray } from "../../games/strategy/StrategyHand";
@@ -26,7 +26,7 @@ const OPPONENT_THINK_MS = 900;
 export type LiveStrategy = {
     slots?: StrategyBoardSlots;
     /** What the island says while a window is open. */
-    island: { content: ReactNode; key: string } | null;
+    island: TeamStatus | null;
     /** The at-bat waits on strategy cards: no roll until both managers pass. */
     isHoldingRoll: boolean;
     /** The next-move button's job while the roll is held. */
@@ -125,6 +125,7 @@ export default function LiveStrategyPrototype({ game, isEnabled, isCaughtUp, chi
             },
         },
         island: activeWindow ? {
+            side: isMyCall ? mySide : otherSide(mySide),
             key: `${activeWindow.key}|${activeWindow.turn}`,
             content: (
                 <StrategyWindowStatus

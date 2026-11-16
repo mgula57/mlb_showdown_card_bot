@@ -1,9 +1,10 @@
 from enum import Enum
 from random import Random
-from typing import Optional
+from typing import Callable, Optional
 
 from ..shared.hand import Hand
 from ..shared.player_position import PlayerType, PositionSlot
+from .controller import RollKind
 from .inning import Inning
 from .models import NEUTRAL_MANAGER, ManagerPreference, league_steal_factor
 from .narration import PlateAppearanceNarrator
@@ -84,7 +85,7 @@ class Roll:
 
 class PlateAppearance:
 
-    def __init__(self, hitter: SimPlayer, pitcher: SimPitcher, inning: Inning, rng: Random, was_last_result_single_plus: bool = False, manager: Optional[ManagerPreference] = None, platoon_roll_adjustment: int = _DEFAULT_PLATOON_ROLL_ADJUSTMENT, year: Optional[int] = None, random_roll_adjustments: bool = True, pitcher_fatigue: int = 0) -> None:
+    def __init__(self, hitter: SimPlayer, pitcher: SimPitcher, inning: Inning, rng: Random, was_last_result_single_plus: bool = False, manager: Optional[ManagerPreference] = None, platoon_roll_adjustment: int = _DEFAULT_PLATOON_ROLL_ADJUSTMENT, year: Optional[int] = None, random_roll_adjustments: bool = True, pitcher_fatigue: int = 0, throw_gate: Optional[Callable[[RollKind], None]] = None) -> None:
         self.state = PlateAppearanceState.PITCH
         self.hitter = hitter
         self.pitcher = pitcher
@@ -104,6 +105,11 @@ class PlateAppearance:
         # CONTROL THE PITCHER HAS LOST TO FATIGUE (`SimPitcher.fatigue_penalty`). 0 OUTSIDE A GAME
         # PEOPLE MANAGE.
         self.pitcher_fatigue = pitcher_fatigue
+        # CALLED JUST BEFORE THE FIELDING CLUB THROWS ON A STEAL OR AN EXTRA-BASE SEND. A GAME PEOPLE
+        # PLAY STOPS THERE UNTIL THAT CLUB ROLLS (`GameController.before_roll`); IT NEVER TOUCHES THE RNG.
+        self.throw_gate = throw_gate
+        # THE THROW BEING WAITED ON (RUNNER, BASE, DEFENSE AND TARGET; NO ROLL YET) WHILE `throw_gate` HOLDS PLAY.
+        self.awaiting_throw: Optional[Roll] = None
         self.pitch = Roll()
         self.swing = Roll()
         self.double_play_roll = None
@@ -263,7 +269,7 @@ class PlateAppearance:
                     # WAY A REAL YEAR-OVER-YEAR LEAGUE RATE CHANGE WOULD.
                     attempt_probability = max(0.0, min(1.0, ((probability_of_steal_attempt - 34) / 66) * self.league_steal_factor))
                     if self.rng.random() < attempt_probability:
-                        dice_roll = self.__random_dice_roll()
+                        dice_roll = self._throw_roll(RollKind.STEAL, Roll(runner=runner, base=runner.base, defense=catcher_arm, target=runner.speed + runner_bonus))
                         steal_result = Result.OUT if ( (catcher_arm + dice_roll) > (runner.speed + runner_bonus) ) else Result.SAFE
                         steal_roll = Roll(roll=dice_roll, result=steal_result, runner=runner, base=runner.base, defense=catcher_arm, target=runner.speed + runner_bonus)
                         self.steal_attempts.append(steal_roll)
@@ -321,7 +327,7 @@ class PlateAppearance:
 
                     probability_of_safe = self.probability_of_advance(defense=outfield_defense, speed=runner.speed, runner_bonus=runner_bonus)
                     if probability_of_safe >= threshold:
-                        dice_roll = self.__random_dice_roll()
+                        dice_roll = self._throw_roll(RollKind.ADVANCE, Roll(runner=runner, base=runner.base, defense=outfield_defense, target=runner.speed + runner_bonus))
                         advance_result = Result.OUT if ( (outfield_defense + dice_roll) > (runner.speed + runner_bonus) ) else Result.SAFE
                         advance_roll = Roll(roll=dice_roll, result=advance_result, runner=runner, base=runner.base, defense=outfield_defense, target=runner.speed + runner_bonus)
                         self.advance_attempts.append(advance_roll)
@@ -337,6 +343,15 @@ class PlateAppearance:
                                 self.runners.advance_runner(runner.base)
                         else:
                             self.runners.remove_runner(runner.base)
+
+    def _throw_roll(self, kind: RollKind, attempt: Roll) -> int:
+        """The fielding club's die on a throw to a base. `throw_gate` is called first, with
+        `attempt` (no roll yet) held in `awaiting_throw`, so a game people play can wait on it."""
+        if self.throw_gate is not None:
+            self.awaiting_throw = attempt
+            self.throw_gate(kind)
+            self.awaiting_throw = None
+        return self.__random_dice_roll()
 
     def probability_of_advance(self, defense:int, speed:int, runner_bonus:int = 0):
         return max(0, (speed + runner_bonus - defense) / 20.0)

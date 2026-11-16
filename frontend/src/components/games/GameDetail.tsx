@@ -26,6 +26,7 @@ import TopBarButton from "./detail/TopBarButton";
 import { FaTerminal } from "react-icons/fa";
 import { FaClockRotateLeft, FaListUl } from "react-icons/fa6";
 import { buttonVariantClass } from '../shared/buttonStyles';
+import GameOverlay from "./GameOverlay";
 
 const OUTLINE_BUTTON_CLASS = `rounded-control px-2.5 py-1.5 ${buttonVariantClass('secondary')}`;
 const FEATURE_BUTTON_CLASS = `rounded-control px-3 py-1.5 text-[15px]! ${buttonVariantClass('feature')}`;
@@ -45,7 +46,11 @@ type GameDetailProps = {
     onBack: () => void;
 };
 
-export default function GameDetail({ gamePk, sportId, season, showdownSet, isActive = true, openSimSetupOnMount, openReplayOnMount = false, className, onBack }: GameDetailProps) {
+export default function GameDetail(props: GameDetailProps) {
+    return <GameOverlay><GameDetailContent {...props} /></GameOverlay>;
+}
+
+function GameDetailContent({ gamePk, sportId, season, showdownSet, isActive = true, openSimSetupOnMount, openReplayOnMount = false, className, onBack }: GameDetailProps) {
     const stage = useGameStage();
     const { selectedCard, setSelectedCard, resetForNewSim } = stage;
     // The transport strip (play/pause/scrub) is opt-in — collapsed by default so a plain live or
@@ -113,7 +118,7 @@ export default function GameDetail({ gamePk, sportId, season, showdownSet, isAct
 
     if (error || !boxscore || !view) {
         return (
-            <div className={`flex flex-col md:tall:h-[calc(100dvh-2.5rem)] overflow-hidden ${className ?? ''}`}>
+            <div className={`flex flex-col md:tall:h-[calc(100dvh-var(--app-nav-offset,2.5rem))] overflow-hidden ${className ?? ''}`}>
                 <div className="px-4 py-2.5 border-b border-(--divider) shrink-0">
                     <BackButton onBack={onBack} />
                 </div>
