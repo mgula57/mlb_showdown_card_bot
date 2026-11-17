@@ -34,7 +34,11 @@ const FACET_LINES = [
 /** The die itself. Rounded corners come from stroking the silhouette with its own fill and a
  *  round line join, which keeps the shape a single shape (no separate outline to fall out of
  *  sync with the gradient). */
-export function D20Face({ value, accent, ink = '#ffffff' }: { value: number | string; accent: string; ink?: string }) {
+/** `numeral`: `face` keeps the number inside the centre face, like a real die. `bold` sets it about
+ *  twice as large in the command-number face, haloed in the die's color so it reads over the facet
+ *  lines, for a small die that has to be read at a glance (`MiniDie` on a card). */
+export function D20Face({ value, accent, ink = '#ffffff', numeral = 'face' }: { value: number | string; accent: string; ink?: string; numeral?: 'face' | 'bold' }) {
+    const isBold = numeral === 'bold';
     // `useId` output contains colons, which are legal in an id but awkward inside `url(#…)`.
     const gradientId = `d20-${useId().replace(/:/g, '')}`;
     return (
@@ -67,10 +71,16 @@ export function D20Face({ value, accent, ink = '#ffffff' }: { value: number | st
                 y="0"
                 textAnchor="middle"
                 dominantBaseline="central"
-                fontSize="22"
+                fontSize={isBold ? 46 : 22}
                 fontWeight="800"
-                letterSpacing="-0.5"
+                fontFamily={isBold ? 'var(--font-display-black)' : undefined}
+                letterSpacing={isBold ? 0 : -0.5}
                 fill={ink}
+                // A halo in the die's own color cuts the facet lines away from behind the number
+                stroke={isBold ? accent : undefined}
+                strokeWidth={isBold ? 6 : undefined}
+                strokeLinejoin="round"
+                paintOrder="stroke"
             >
                 {value}
             </text>

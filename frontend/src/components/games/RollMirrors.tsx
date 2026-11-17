@@ -42,7 +42,8 @@ export function MiniDie({ die, size = "sm", className = "" }: { die: BoardDie; s
                 key={isShown ? `${die.key}|shown` : die.key}
                 className={`absolute inset-0 drop-shadow-[0_1px_0_rgb(0_0_0/0.25)] ${isShown ? "mini-die-land" : die.isTumbling ? "mini-die-tumble" : ""}`}
             >
-                <D20Face value={isShown ? die.value : scrambled} accent="var(--die-body)" ink="var(--die-ink)" />
+                {/* On a card the number has to read at a glance, so it's set large over the facets */}
+                <D20Face value={isShown ? die.value : scrambled} accent="var(--die-body)" ink="var(--die-ink)" numeral={size === "card" ? "bold" : "face"} />
             </span>
         </span>
     );
