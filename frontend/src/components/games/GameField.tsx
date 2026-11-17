@@ -70,6 +70,10 @@ type GameFieldProps = {
      *  during "result"/"runners") and nothing else here; the runner animations themselves are
      *  driven purely by `game`/`transition` changing, not by watching `phase`. */
     phase?: PlayPhase;
+    /** A roll is being read on the matchup cards (the pitch over their commands, the swing on the
+     *  winner's chart), so the field itself mutes until it has something of its own to show. Only
+     *  the field (its art, players and docked dice), never the corner controls or the scoreboard. */
+    isDimmed?: boolean;
     /** The most recent completed play — its text description sits in the field's bottom-right
      *  corner, opposite the defense summary. Undefined before the first play of the game. */
     lastPlay?: PlayEntry;
@@ -646,7 +650,7 @@ function HandDieAt({ label, input, toss, onRoll }: { label: string; input: HandT
         : <HandDie label={label} {...input} onRoll={onRoll} />;
 }
 
-export default function GameField({ game, cardMap, onCardSelect, expanded = false, onToggleExpanded, isLoadingCards, transition, pendingPlay, phase = "idle", lastPlay, advantage, playbackSpeed, onPlayClick, rollPrompt, isHandThrown = false, handTosses, hideFieldArt = false, corner, cornerLeft, drawer, zoom = 1, plopIn = false, className = "" }: GameFieldProps) {
+export default function GameField({ game, cardMap, onCardSelect, expanded = false, onToggleExpanded, isLoadingCards, transition, pendingPlay, phase = "idle", lastPlay, advantage, isDimmed = false, playbackSpeed, onPlayClick, rollPrompt, isHandThrown = false, handTosses, hideFieldArt = false, corner, cornerLeft, drawer, zoom = 1, plopIn = false, className = "" }: GameFieldProps) {
     const situation = game.situation;
     // A prompt only stands in while nothing is animating; once a play resolves the toss takes over.
     const prompt = pendingPlay ? undefined : rollPrompt;
@@ -697,8 +701,10 @@ export default function GameField({ game, cardMap, onCardSelect, expanded = fals
             <div className={`relative px-1 transition-[padding] duration-300 ease-out ${expanded ? "pb-12" : "pb-0"}`} style={{ paddingTop: `calc(${FIELD_ART_HEADROOM_PADDING} * ${zoom})` }}>
                 {/* Zoomed, the box overhangs both sides equally, so home stays centered; the
                     summaries below stay pinned to the host's own corners. */}
+                {/* Always its own stacking group (`isolate`), so muting it with a filter while a
+                    roll is read on the cards never reorders it against the corners above it */}
                 <div
-                    className="relative aspect-703/369 w-full overflow-visible transition-[width,margin] duration-300 ease-out"
+                    className={`relative isolate aspect-703/369 w-full overflow-visible transition-[width,margin,filter] duration-300 ease-out ${isDimmed ? "brightness-[0.85] saturate-[0.55]" : ""}`}
                     style={{ width: `${zoom * 100}%`, marginLeft: `${(1 - zoom) * 50}%` }}
                 >
                     {!hideFieldArt && <FieldArt />}

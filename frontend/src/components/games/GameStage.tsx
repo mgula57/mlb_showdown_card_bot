@@ -290,6 +290,14 @@ export default function GameStage({
             swing: { key: `${pendingPlay.id}|swing`, value: simRoll.swingRoll, isTumbling: swingSimToss.isTumbling, speed },
         } : {};
 
+    /* While a roll is read on the matchup cards (the pitch over their commands, the swing on the
+       winner's chart) the field mutes, then comes back to full color as the result lands on it: the
+       cue to look back up. A live game's own roll mutes from the tap, never while it's waited on.
+       Not when the dice don't animate (reduced motion, 4x and up), where it would only strobe. */
+    const isRollOnCards = isPitchInPlay || isSwingInPlay
+        || ((playbackState.phase === 'pitch' || playbackState.phase === 'read') && !!pendingPlay?.roll);
+    const isFieldDimmed = isRollOnCards && !pitchSimToss.isStatic && !showRecap;
+
     const railTabs = infoPanel ? RAIL_TABS : RAIL_TABS.filter((tab) => tab.id !== 'info');
     /* The Info tab can leave while it's open: a host hides it mid-replay to avoid spoilers. */
     const activeRailTab = railTabs.some((tab) => tab.id === railTab) ? railTab : 'playbyplay';
@@ -324,6 +332,7 @@ export default function GameStage({
                 pendingPlay={playbackState.pendingPlay}
                 phase={playbackState.phase}
                 advantage={advantage}
+                isDimmed={isFieldDimmed}
                 playbackSpeed={playbackState.effectiveSpeed}
                 rollPrompt={fieldPrompt}
                 isHandThrown={isHandThrown}
