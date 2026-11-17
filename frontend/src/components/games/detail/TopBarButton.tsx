@@ -17,18 +17,21 @@ type TopBarButtonProps = {
     badge?: number;
     /** Colors/border/padding for this button's look — layout and truncation are handled here. */
     className?: string;
+    /** Shows only the icon; the label stays as the title and accessible name. */
+    isIconOnly?: boolean;
 };
 
-export default function TopBarButton({ label, shortLabel, onClick, icon, badge, className = "" }: TopBarButtonProps) {
+export default function TopBarButton({ label, shortLabel, onClick, icon, badge, className = "", isIconOnly = false }: TopBarButtonProps) {
     return (
         <button
             type="button"
             onClick={onClick}
             title={label}
+            aria-label={isIconOnly ? label : undefined}
             className={`relative inline-flex min-w-0 shrink items-center gap-x-1 whitespace-nowrap cursor-pointer text-[11px] font-bold transition-colors ${className}`}
         >
             {icon && <span className="shrink-0 flex items-center">{icon}</span>}
-            {shortLabel ? (
+            {isIconOnly ? null : shortLabel ? (
                 <>
                     <span className={`truncate sm:hidden ${SLANT_ROOM_CLASS}`}>{shortLabel}</span>
                     <span className={`truncate hidden sm:inline ${SLANT_ROOM_CLASS}`}>{label}</span>

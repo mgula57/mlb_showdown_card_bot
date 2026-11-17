@@ -9,7 +9,7 @@
  * made the game, a note for anyone else.
  */
 import { useEffect, useMemo, useState } from "react";
-import { FaImage, FaLink, FaTableList } from "react-icons/fa6";
+import { FaCheck, FaGear, FaLink, FaShareNodes } from "react-icons/fa6";
 
 import { cancelLiveGame, fetchLiveGameCards, inviteUrl, type LiveAction, type LiveGame } from "../../../api/liveGame";
 import type { ShowdownBotCardAPIResponse } from "../../../api/showdownBotCard";
@@ -25,9 +25,12 @@ import SimBoxScorePanels from "../../games/SimBoxScorePanels";
 import TimelinePlayback from "../../games/TimelinePlayback";
 import { useGameStage } from "../../games/useGameStage";
 import TopBarButton from "../../games/detail/TopBarButton";
+import TopBarPopover from "../../games/detail/TopBarPopover";
 import { cardKeyOf } from "../../games/matchupCardImages";
 import BackButton from "../../shared/BackButton";
 import { buttonClass } from "../../shared/buttonStyles";
+import { FIELD_LABEL_CLASS } from "../../shared/fieldStyles";
+import FormEnabler from "../../customs/FormEnabler";
 import { Heading } from "../../shared/Heading";
 import { InlineError } from "../../shared/InlineError";
 import { actingSide, defaultPickerMode, liveTurnLabel, isMyTurn, LIVE_SIDES, liveEdgeOf, pendingThrowOf, teamName, type SubPickerMode } from "./liveGameState";
@@ -191,14 +194,22 @@ function LiveBoard({ game, token, cardMap, isLoadingCards, isSubmitting, moveErr
                                     topBarStatus={share.error && <span className="text-[11px] text-(--red)">{share.error}</span>}
                                     topBarActions={
                                         <>
+                                            <TopBarPopover label="Settings" icon={<FaGear />} isIconOnly className={barButton}>
+                                                <span className={FIELD_LABEL_CLASS}>Settings</span>
+                                                <FormEnabler
+                                                    size="sm"
+                                                    label="Card images"
+                                                    description="Show the matchup as full rendered cards instead of card details."
+                                                    isEnabled={cardView === "image"}
+                                                    onChange={(isOn) => setCardView(isOn ? "item" : "image")}
+                                                />
+                                            </TopBarPopover>
                                             <TopBarButton
-                                                label={cardView === "image" ? "Card details" : "Card images"}
-                                                shortLabel={cardView === "image" ? "Details" : "Images"}
-                                                icon={cardView === "image" ? <FaTableList /> : <FaImage />}
-                                                onClick={() => setCardView(cardView === "image" ? "item" : "image")}
+                                                label={share.copied ? "Copied" : "Share"}
+                                                icon={share.copied ? <FaCheck /> : <FaShareNodes />}
+                                                onClick={share.copy}
                                                 className={barButton}
                                             />
-                                            <TopBarButton label={share.copied ? "Copied" : "Share"} onClick={share.copy} className={barButton} />
                                         </>
                                     }
                                     boxScorePanels={<SimBoxScorePanels game={activeView} cardMap={cardMap} onCardSelect={stage.setSelectedCard} isLoadingCards={isLoadingCards} isShowingModal={stage.selectedCard !== null} />}

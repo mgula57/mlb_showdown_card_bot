@@ -7,8 +7,11 @@
  *
  * With room (`isFullCard`) the window is the card's own shape and rests on the whole card, zooming
  * in only while a roll plays out. Without it, the window is short and always on one part.
+ *
+ * A swing being rolled on the chart (`chartDie`) sits at the chart's leading edge while it's in the
+ * air, then slides along to the result it landed on as that cell lights up.
  */
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 
 import type { CardImageBox } from "../../api/liveGame";
 import AdvantageBadge from "./card_elements/AdvantageBadge";
@@ -21,6 +24,18 @@ const SHORT_WINDOW_ASPECT = 2;
 const SHORT_WINDOW_ASPECT_CLASS = "aspect-[2/1]";
 /** Room left around the focused part, as a share of the window. */
 const FOCUS_PADDING = 0.85;
+/** Where a die on the chart sits, as a share of the card: at the leading edge of the chart (its
+ *  left on a chart of rows, its top on one of columns), level with the landed cell once there is one. */
+function chartDieSpot(chartBox: CardImageBox, cells: CardImageBox[], cell?: CardImageBox) {
+    const centers = cells.map(([x, y, w, h]) => [x + w / 2, y + h / 2]);
+    const spread = (axis: 0 | 1) => Math.max(...centers.map((c) => c[axis])) - Math.min(...centers.map((c) => c[axis]));
+    const isColumns = spread(0) > spread(1);
+    const [x, y, w, h] = cell ?? chartBox;
+    return isColumns
+        ? { left: `${(x + w / 2) * 100}%`, top: `${chartBox[1] * 100}%` }
+        : { left: `${chartBox[0] * 100}%`, top: `${(y + h / 2) * 100}%` };
+}
+
 /** Card widths across the window at most, so a small badge keeps some of its surroundings. */
 const MAX_ZOOM = 3;
 
@@ -69,25 +84,29 @@ type CardImageWithChartProps = {
     /** The chart result the swing landed on (e.g. "1b+"), any case. */
     chartHighlight?: string;
     hasAdvantage?: boolean;
+    /** A swing being rolled on this chart: a copy of its die (`RollMirrors`'s `MiniDie`). */
+    chartDie?: ReactNode;
     onClick?: () => void;
     className?: string;
 };
 
-export default function CardImageWithChart({ imageUrl, chartCells, commandBox, focus, isFullCard = false, name, chartHighlight, hasAdvantage, onClick, className = "" }: CardImageWithChartProps) {
+export default function CardImageWithChart({ imageUrl, chartCells, commandBox, focus, isFullCard = false, name, chartHighlight, hasAdvantage, chartDie, onClick, className = "" }: CardImageWithChartProps) {
     // Track which URL loaded so a new card shows its skeleton until its own image is in
     const [loadedUrl, setLoadedUrl] = useState<string | null>(null);
     const isLoaded = loadedUrl === imageUrl;
     const highlightKey = chartHighlight?.toLowerCase();
     const cell = highlightKey ? Object.entries(chartCells).find(([key]) => key.toLowerCase() === highlightKey)?.[1] : undefined;
+    const chartBox = unionBox(Object.values(chartCells));
     const focusBox: CardImageBox = (focus === "card" && isFullCard)
         ? [0, 0, 1, 1]
-        : (focus === "chart" ? unionBox(Object.values(chartCells)) : undefined) ?? commandBox;
+        : (focus === "chart" ? chartBox : undefined) ?? commandBox;
 
     return (
         <div className={`relative ${className}`}>
             {hasAdvantage && <AdvantageBadge />}
             <div
-                className={`relative ${windowAspectClass(isFullCard)} w-full overflow-hidden rounded-trading-card border border-(--divider) bg-(--background-tertiary) ${onClick ? "cursor-pointer" : ""} ${hasAdvantage ? "card-advantage" : ""}`}
+                // A size container, so what's laid on the card (`chartDie`) can size off it
+                className={`@container relative ${windowAspectClass(isFullCard)} w-full overflow-hidden rounded-trading-card border border-(--divider) bg-(--background-tertiary) ${onClick ? "cursor-pointer" : ""} ${hasAdvantage ? "card-advantage" : ""}`}
                 onClick={onClick}
                 title={name}
             >
@@ -106,6 +125,15 @@ export default function CardImageWithChart({ imageUrl, chartCells, commandBox, f
                             className="chart-image-cell-landed pointer-events-none absolute rounded-plate"
                             style={{ left: `${cell[0] * 100}%`, top: `${cell[1] * 100}%`, width: `${cell[2] * 100}%`, height: `${cell[3] * 100}%` }}
                         />
+                    )}
+                    {isLoaded && chartDie && chartBox && (
+                        <div
+                            aria-hidden
+                            className="pointer-events-none absolute z-10 -translate-x-1/2 -translate-y-1/2 transition-[left,top] duration-300 ease-out"
+                            style={chartDieSpot(chartBox, Object.values(chartCells), cell)}
+                        >
+                            {chartDie}
+                        </div>
                     )}
                 </div>
             </div>

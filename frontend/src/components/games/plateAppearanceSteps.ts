@@ -17,8 +17,9 @@ export type PlateAppearanceStep = {
     kind: PlateAppearanceStepKind;
     label: string;
     state: PlateAppearanceStepState;
-    /** What a throw on a runner came to. */
+    /** What a throw on a runner came to, and its die. */
     isSafe?: boolean;
+    roll?: number;
     /** The pitch's winner, once it's read. */
     advantage?: AdvantageSide;
     pitchRoll?: number;
@@ -46,7 +47,7 @@ export function plateAppearanceSteps({ throws, pendingThrow, pitch, swing }: {
     const thrown = (kind: RunnerRoll["kind"]) => throws
         .filter((roll) => roll.kind === kind)
         .map((roll): Omit<PlateAppearanceStep, "state"> & { isDone: boolean } => ({
-            key: runnerRollKey(roll), kind, label: throwLabel(kind, roll.base), isSafe: roll.isSafe, isDone: true,
+            key: runnerRollKey(roll), kind, label: throwLabel(kind, roll.base), isSafe: roll.isSafe, roll: roll.roll, isDone: true,
         }));
     const pending = (kind: PendingRunnerThrow["kind"]) => pendingThrow?.kind === kind && !throws.some((roll) => runnerRollKey(roll) === runnerRollKey(pendingThrow))
         ? [{ key: runnerRollKey(pendingThrow), kind, label: throwLabel(kind, pendingThrow.base), isDone: false }]

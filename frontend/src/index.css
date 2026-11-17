@@ -808,6 +808,43 @@
 
 .hand-die-throw { animation: hand-die-throw 380ms cubic-bezier(0.33, 0, 0.3, 1) forwards; }
 
+/* The ring that calls for a tap on a die waiting to be thrown (`HandDieFace`). Not Tailwind's
+   `animate-ping`: that scales a layer to 2x, and each time it grows over the fielder card beside
+   the die (and shrinks back) the browser moves that card on or off a composited layer, which on a
+   field laid out at fractional pixels (narrow widths) nudges the card - and the field around it -
+   by a pixel every beat. A spreading box-shadow repaints just the ring and creates no layer. */
+@keyframes die-tap-ring {
+    0%       { box-shadow: 0 0 0 0 color-mix(in srgb, var(--showdown-blue-fill) 45%, transparent); }
+    75%, 100% { box-shadow: 0 0 0 0.6rem transparent; }
+}
+.die-tap-ring { animation: die-tap-ring 1s cubic-bezier(0, 0, 0.2, 1) infinite; }
+
+/* A copy of a die set where its result is read (`RollMirrors`): it doesn't make the throw, it
+   wobbles in place while its face scrambles, then pops as the number comes up. */
+@keyframes mini-die-tumble {
+    0%, 100% { transform: rotate(-12deg); }
+    50%      { transform: rotate(12deg); }
+}
+.mini-die-tumble { animation: mini-die-tumble 180ms ease-in-out infinite; }
+
+@keyframes mini-die-land {
+    0%   { transform: scale(1.45); }
+    55%  { transform: scale(0.9); }
+    100% { transform: scale(1); }
+}
+.mini-die-land { animation: mini-die-land 320ms cubic-bezier(0.3, 1.5, 0.5, 1) both; }
+
+/* The last play's tab opens on its two rolls; the play itself reads in a beat after. */
+@keyframes last-play-text-in {
+    from { opacity: 0; transform: translateY(2px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+.last-play-text-in { animation: last-play-text-in 260ms ease-out 450ms both; }
+
+@media (prefers-reduced-motion: reduce) {
+    .mini-die-tumble, .mini-die-land, .last-play-text-in { animation: none; }
+}
+
 /* Ground shadow under a tossed die: tight and faint at the top of the arc, wide and dark on the
    landing. Only scaleX/opacity, so the element's own centering stays on `margin` rather than a
    `transform` this would overwrite. */
@@ -893,6 +930,7 @@
 @media (prefers-reduced-motion: reduce) {
     .sim-die-toss,
     .hand-die-throw,
+    .die-tap-ring,
     .sim-die-shadow { animation: none; }
     /* Removed rather than paused - a stopped sheen is just a stray white band parked over the
        left of the fill. */

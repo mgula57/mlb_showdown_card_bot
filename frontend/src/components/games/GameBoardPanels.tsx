@@ -7,10 +7,11 @@
 import type { ReactNode } from "react";
 
 import type { GameSide, GameView } from "../../domain/game";
-import type { PlayEntry } from "../../domain/play";
+import { advantageSideOf, type PlayEntry } from "../../domain/play";
 import { CAPS_LABEL_CLASS } from "../shared/fieldStyles";
 import { BOARD_OVERLAY_CLASS } from "./boardStyles";
 import { ScoreSituation, TeamBadge } from "./detail/ScoreHeader";
+import { PlayRolls } from "./RollMirrors";
 import GameLinescore from "./GameLinescore";
 
 function TeamRuns({ side, reverse = false }: { side: GameSide; reverse?: boolean }) {
@@ -40,11 +41,20 @@ export function GameScoreTrack({ game, centerAction }: { game: GameView; centerA
 export function LastPlayLine({ play }: { play: PlayEntry }) {
     const description = play.description?.trim();
     if (!description && !play.event) return null;
-    return (
-        <p className="line-clamp-2 text-center text-[12px] leading-snug text-(--text-primary)">
+    const roll = play.roll;
+    const text = (
+        <p className={`line-clamp-2 text-center text-[12px] leading-snug text-(--text-primary) ${roll ? "last-play-text-in" : ""}`}>
             {play.event && <span className="font-semibold">{play.event}</span>}
             {description && description !== play.event && <span className="ml-1">{description}</span>}
         </p>
+    );
+    // A play the dice decided opens on its two rolls, and the play reads in a beat after.
+    if (!roll || !roll.pitchRoll || !roll.swingRoll) return text;
+    return (
+        <div className="flex flex-col items-center gap-0.5">
+            <PlayRolls playId={play.id} pitchRoll={roll.pitchRoll} advantage={advantageSideOf(play)} swingRoll={roll.swingRoll} swingResult={roll.swingResult} />
+            {text}
+        </div>
     );
 }
 

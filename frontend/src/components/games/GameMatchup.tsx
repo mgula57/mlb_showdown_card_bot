@@ -5,6 +5,9 @@
  * fit and stacked when they don't, so the chart is always there to show where a swing landed. Card
  * images (`MatchupCardImagesContext`) always sit side by side, each showing the whole card. Under
  * them, the rest of the batting club's order as it comes up, fading the further off each hitter is.
+ *
+ * While a roll plays out, a copy of its die sits where it's read (`RollMirrors`): the pitch over
+ * both cards as the sum against On-Base, the swing on the winner's chart.
  */
 import { useContext, type ReactNode } from "react";
 
@@ -18,9 +21,11 @@ import { hittersAfter } from "../../domain/lineup";
 import { resolveCardKey } from "../../domain/players";
 import { CAPS_LABEL_CLASS } from "../shared/fieldStyles";
 import { Plate } from "../shared/Plate";
+import type { BoardDie } from "./boardDie";
 import { BOARD_PANEL_CLASS } from "./boardStyles";
 import { fullCardWidthIn, MatchupCardImagesContext, MatchupCardRoomContext } from "./matchupCardImages";
 import { resolveMatchup, type MatchupSideData } from "./resolveMatchup";
+import { MiniDie, PitchCompare } from "./RollMirrors";
 
 type CardMap = Record<string, ShowdownBotCardAPIResponse>;
 
@@ -110,6 +115,13 @@ const FULL_ROW_MIN_WIDTH = 600;
 /** A matchup card's part to zoom to while a roll plays out (`MatchupSide`'s `rollFocus`). */
 export type MatchupRollFocus = Exclude<CardImageFocus, "card">;
 
+/** The copies of a roll's die a matchup card carries while it plays out: the pitch laid over the
+ *  card as the sum against On-Base, or the swing on the chart it's rolled on. */
+export type MatchupRollDice = {
+    pitch?: { die: BoardDie; control?: number; onbase?: number; advantage?: AdvantageSide };
+    chart?: BoardDie;
+};
+
 function PointsTrend({ card }: { card?: ShowdownBotCardAPIResponse }) {
     const change = card?.in_season_trends?.pts_change.day;
     if (change == null || change === 0) return null;
@@ -138,9 +150,11 @@ type MatchupSideProps = {
     /** A roll is playing out: a card image zooms to this part, and back out to the whole card
      *  (when there's room for it) once the roll is done. */
     rollFocus?: MatchupRollFocus;
+    /** A roll playing out on this card. */
+    rollDice?: MatchupRollDice;
 };
 
-export function MatchupSide({ side, isLoadingCards, onCardSelect, hideTrend, hasAdvantage, isAdvantageSettled, chartHighlight, accessory, rollFocus }: MatchupSideProps) {
+export function MatchupSide({ side, isLoadingCards, onCardSelect, hideTrend, hasAdvantage, isAdvantageSettled, chartHighlight, accessory, rollFocus, rollDice }: MatchupSideProps) {
     const { label, player, cardKey, response, summary, advantagePct } = side;
     // A host showing card images answers for each card; anything else (or a failed render) is a CardItem.
     const imageFor = useContext(MatchupCardImagesContext);
@@ -149,6 +163,8 @@ export function MatchupSide({ side, isLoadingCards, onCardSelect, hideTrend, has
     const isFullCard = fullCardWidthIn(useContext(MatchupCardRoomContext)) != null;
     // Without room the short window rests on the command until the advantage is won, then the chart
     const restingFocus: CardImageFocus = isFullCard ? "card" : isAdvantageSettled || chartHighlight ? "chart" : "command";
+    // On a card image the die sizes off the card; in a card's chart row it stays row-sized
+    const chartDie = (size: "card" | "md") => rollDice?.chart && <MiniDie die={rollDice.chart} size={size} />;
     // A finished game's last frame has a pitcher but no one left to bat.
     if (!player) return null;
 
@@ -171,30 +187,38 @@ export function MatchupSide({ side, isLoadingCards, onCardSelect, hideTrend, has
 
             {/* The side that lost the advantage fades back for the swing, so the eye goes to the
                 chart being rolled on */}
-            <div className={`transition-opacity duration-300 ${isAdvantageSettled && !hasAdvantage ? "opacity-40" : ""}`}>
-                {cardImage?.status === "ready" && response ? (
-                    <CardImageWithChart
-                        imageUrl={cardImage.image.image_url}
-                        chartCells={cardImage.image.chart_cells}
-                        commandBox={cardImage.image.command_box}
-                        focus={rollFocus ?? restingFocus}
-                        isFullCard={isFullCard}
-                        name={player.name}
-                        onClick={() => onCardSelect?.(response)}
-                        hasAdvantage={hasAdvantage}
-                        chartHighlight={chartHighlight}
-                    />
-                ) : cardImage?.status === "loading" ? (
-                    <CardImageSkeleton isFullCard={isFullCard} />
-                ) : response?.card ? (
-                    <CardItemFromCard card={response.card} className="w-full" onClick={() => onCardSelect?.(response)} hasAdvantage={hasAdvantage} chartHighlight={chartHighlight} />
-                ) : isLoadingCards ? (
-                    <CardItemSkeleton className="w-full" />
-                ) : player.name ? (
-                    <div className="truncate rounded-card bg-(--background-secondary) px-2 py-1 text-sm font-semibold text-(--primary)">{player.name}</div>
-                ) : (
-                    <CardItemFromCard card={undefined} className="w-full opacity-50" />
+            <div className="@container relative">
+                {rollDice?.pitch && (
+                    <div className="pointer-events-none absolute inset-x-0 bottom-1.5 z-20 flex justify-center">
+                        <PitchCompare {...rollDice.pitch} />
+                    </div>
                 )}
+                <div className={`transition-opacity duration-300 ${isAdvantageSettled && !hasAdvantage ? "opacity-40" : ""}`}>
+                    {cardImage?.status === "ready" && response ? (
+                        <CardImageWithChart
+                            imageUrl={cardImage.image.image_url}
+                            chartCells={cardImage.image.chart_cells}
+                            commandBox={cardImage.image.command_box}
+                            focus={rollFocus ?? restingFocus}
+                            isFullCard={isFullCard}
+                            name={player.name}
+                            onClick={() => onCardSelect?.(response)}
+                            hasAdvantage={hasAdvantage}
+                            chartHighlight={chartHighlight}
+                            chartDie={chartDie("card")}
+                        />
+                    ) : cardImage?.status === "loading" ? (
+                        <CardImageSkeleton isFullCard={isFullCard} />
+                    ) : response?.card ? (
+                        <CardItemFromCard card={response.card} className="w-full" onClick={() => onCardSelect?.(response)} hasAdvantage={hasAdvantage} chartHighlight={chartHighlight} chartDie={chartDie("md")} />
+                    ) : isLoadingCards ? (
+                        <CardItemSkeleton className="w-full" />
+                    ) : player.name ? (
+                        <div className="truncate rounded-card bg-(--background-secondary) px-2 py-1 text-sm font-semibold text-(--primary)">{player.name}</div>
+                    ) : (
+                        <CardItemFromCard card={undefined} className="w-full opacity-50" />
+                    )}
+                </div>
             </div>
         </div>
     );
@@ -215,9 +239,11 @@ type GameMatchupProps = {
     accessories?: { pitcher?: ReactNode; hitter?: ReactNode };
     /** Each side's `MatchupSide` `rollFocus`. */
     rollFocus?: Partial<Record<AdvantageSide, MatchupRollFocus>>;
+    /** Each side's `MatchupSide` `rollDice`. */
+    rollDice?: Partial<Record<AdvantageSide, MatchupRollDice>>;
 };
 
-export default function GameMatchup({ game, cardMap, isLoadingCards, onCardSelect, hideStatlines = false, advantage, isAdvantageSettled, swingResult, accessories, rollFocus }: GameMatchupProps) {
+export default function GameMatchup({ game, cardMap, isLoadingCards, onCardSelect, hideStatlines = false, advantage, isAdvantageSettled, swingResult, accessories, rollFocus, rollDice }: GameMatchupProps) {
     const [rowRef, isFullRow] = useIsWiderThan<HTMLDivElement>(FULL_ROW_MIN_WIDTH);
     const isShowingImages = useContext(MatchupCardImagesContext) != null;
     const matchup = resolveMatchup(game, cardMap, hideStatlines);
@@ -230,8 +256,8 @@ export default function GameMatchup({ game, cardMap, isLoadingCards, onCardSelec
     return (
         <div ref={rowRef} className="mx-2 space-y-1.5">
             <div className={`grid gap-2 ${isSideBySide ? "grid-cols-2" : "grid-cols-1"}`}>
-                <MatchupSide {...shared} side={matchup.pitcher} hasAdvantage={advantage === "pitcher"} chartHighlight={advantage === "pitcher" ? swingResult : undefined} accessory={accessories?.pitcher} rollFocus={rollFocus?.pitcher} />
-                <MatchupSide {...shared} side={matchup.hitter} hasAdvantage={advantage === "hitter"} chartHighlight={advantage === "hitter" ? swingResult : undefined} accessory={accessories?.hitter} rollFocus={rollFocus?.hitter} />
+                <MatchupSide {...shared} side={matchup.pitcher} hasAdvantage={advantage === "pitcher"} chartHighlight={advantage === "pitcher" ? swingResult : undefined} accessory={accessories?.pitcher} rollFocus={rollFocus?.pitcher} rollDice={rollDice?.pitcher} />
+                <MatchupSide {...shared} side={matchup.hitter} hasAdvantage={advantage === "hitter"} chartHighlight={advantage === "hitter" ? swingResult : undefined} accessory={accessories?.hitter} rollFocus={rollFocus?.hitter} rollDice={rollDice?.hitter} />
             </div>
 
             <UpNext game={game} cardMap={cardMap} isLoadingCards={isLoadingCards} onCardSelect={onCardSelect} />

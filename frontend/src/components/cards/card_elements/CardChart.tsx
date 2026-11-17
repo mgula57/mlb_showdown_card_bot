@@ -1,3 +1,5 @@
+import type { ReactNode } from "react";
+
 import { getContrastTextColor } from "../../../functions/colors";
 
 /**
@@ -16,6 +18,8 @@ type CardChartProps = {
     /** Result key (e.g. "1b+", case-insensitive) a sim swing landed on — that cell lights up and
      *  the rest of the chart dims. Ignored when no cell matches. */
     highlightResult?: string;
+    /** A swing being rolled on this chart: a copy of its die, leading the row. */
+    leadingDie?: ReactNode;
 };
 
 /**
@@ -36,7 +40,7 @@ type CardChartProps = {
  * />
  * ```
  */
-export function CardChart({ chartRanges, showdownSet, primaryColor, secondaryColor, team, cellClassName, className, highlightResult }: CardChartProps) {
+export function CardChart({ chartRanges, showdownSet, primaryColor, secondaryColor, team, cellClassName, className, highlightResult, leadingDie }: CardChartProps) {
     // Extract chart data with fallback to empty object
     const chartData = chartRanges || {};
     const showdownSetValue = showdownSet || '2001';
@@ -116,7 +120,7 @@ export function CardChart({ chartRanges, showdownSet, primaryColor, secondaryCol
     const highlightKey = highlightResult?.toLowerCase();
     const hasHighlight = !!highlightKey && Object.keys(chartDataToRender).some((key) => key.toLowerCase() === highlightKey);
 
-    return (
+    const chart = (
         <div className={`inline-flex rounded-control overflow-hidden text-xs font-semibold border border-(--divider) ${className || ''}`}>
             {Object.entries(chartDataToRender).map(([key, value], index) => {
                 const colorInfo = getColorClass(key, index);
@@ -146,6 +150,13 @@ export function CardChart({ chartRanges, showdownSet, primaryColor, secondaryCol
                     </div>
                 );
             })}
+        </div>
+    );
+    if (!leadingDie) return chart;
+    return (
+        <div className="inline-flex items-center gap-1">
+            {leadingDie}
+            {chart}
         </div>
     );
 };

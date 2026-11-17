@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import type { ShowdownBotCard, StatsPeriod } from "../../api/showdownBotCard";
 import AdvantageBadge from "./card_elements/AdvantageBadge";
 import type { CardDatabaseRecord } from "../../api/card_db/cardDatabase";
@@ -100,6 +101,8 @@ type CardItemProps = {
     hasAdvantage?: boolean;
     /** Sim only — the chart result the swing landed on (e.g. "1b+"); that cell lights up. */
     chartHighlight?: string;
+    /** A swing being rolled on this chart: a copy of its die, leading the chart row. */
+    chartDie?: ReactNode;
 };
 
 /**
@@ -140,7 +143,7 @@ export const CardItem = ({
     cardSet, cardExpansion, cardSetNumber,
     cardIcons, cardAwardList, cardStatHighlightsList,
     cardChartRanges, cardChartVersion, cardLeague, cardSource, cardStatus,
-    onClick, className, isSelected, actionButton, secondaryActionButton, hasAdvantage, chartHighlight
+    onClick, className, isSelected, actionButton, secondaryActionButton, hasAdvantage, chartHighlight, chartDie
 }: CardItemProps) => {
 
     const isRedacted = cardId === null || cardId === undefined;
@@ -322,6 +325,7 @@ export const CardItem = ({
                         team={cardTeam}
                         cellClassName="min-w-6 md:min-w-8"
                         highlightResult={chartHighlight}
+                        leadingDie={chartDie}
                     />
                 </div>
 
@@ -461,9 +465,11 @@ type CardItemFromCardProps = {
     hasAdvantage?: boolean;
     /** Sim only — the chart result the swing landed on (e.g. "1b+"); that cell lights up. */
     chartHighlight?: string;
+    /** A swing being rolled on this chart: a copy of its die, leading the chart row. */
+    chartDie?: ReactNode;
 };
 
-export const CardItemFromCard = ({ card, onClick, className, isSelected, hideYear, ptsChange, actionButton, sourceOverride, hasAdvantage, chartHighlight }: CardItemFromCardProps) => {
+export const CardItemFromCard = ({ card, onClick, className, isSelected, hideYear, ptsChange, actionButton, sourceOverride, hasAdvantage, chartHighlight, chartDie }: CardItemFromCardProps) => {
 
     const primaryColor = (['NYM', 'SDP'].includes(card?.wbc_team || card?.team || '') 
                             ? card?.image.color_secondary 
@@ -513,6 +519,7 @@ export const CardItemFromCard = ({ card, onClick, className, isSelected, hideYea
             actionButton={actionButton}
             hasAdvantage={hasAdvantage}
             chartHighlight={chartHighlight}
+            chartDie={chartDie}
         />
     );
 }

@@ -13,8 +13,9 @@ import { bannerTokens } from "../../functions/colors";
 import type { GameView } from "../../domain/game";
 import { advantageSideOf, type AdvantageSide, type PlayEntry } from "../../domain/play";
 import type { RunnerRoll } from "../../domain/timeline";
-import { HAND_DIE_REVEAL_MS, HAND_RESULT_BEAT_MS } from "../../hooks/useDieToss";
+import { HAND_DIE_REVEAL_MS, HAND_RESULT_BEAT_MS, useDieToss } from "../../hooks/useDieToss";
 import type { GamePlaybackControls, GamePlaybackState } from "../../hooks/useGamePlayback";
+import { useHandToss, type HandToss } from "../../hooks/useHandToss";
 import { useHasHeld } from "../../hooks/useHasHeld";
 import { useIsWiderThan } from "../../hooks/useIsWiderThan";
 import { useMediaQuery } from "../../hooks/useMediaQuery";
@@ -33,7 +34,8 @@ import ScoreboardIsland, { type TeamAnnouncement, type TeamStatus } from "./Scor
 import { GameScoreTrack, LastPlayLine } from "./GameBoardPanels";
 import GameField, { type RollPrompt } from "./GameField";
 import GameLinescore from "./GameLinescore";
-import GameMatchup, { MatchupSide, type MatchupRollFocus } from "./GameMatchup";
+import { handTossInputs, type BoardDie } from "./boardDie";
+import GameMatchup, { MatchupSide, type MatchupRollDice, type MatchupRollFocus } from "./GameMatchup";
 import { cardKeyOf, MatchupCardImagesContext } from "./matchupCardImages";
 import MatchupCenterPanel from "./MatchupCenterPanel";
 import { plateAppearanceSteps, runnerRollKey } from "./plateAppearanceSteps";
@@ -262,6 +264,27 @@ export default function GameStage({
         ? { pitcher: 'command', hitter: 'command' }
         : isSwingRolling && matchupAdvantage ? { [matchupAdvantage]: 'chart' } : {};
 
+    /* The pitch and swing dice, kept here so the field's die and every copy of it on the board
+       (`RollMirrors`) run off one throw and land on the same frame: a live game's hand throws (the
+       field's `HandDie` is handed these), or a sim's tosses (the same clock its `RollDie` runs on). */
+    const pendingPlay = playbackState.pendingPlay;
+    const fieldPrompt = showRecap || !rollPrompt ? undefined : { ...rollPrompt, heldPitchThrowKey: heldPitchKey };
+    const handInputs = handTossInputs(fieldPrompt, pendingPlay);
+    const pitchHandToss = useHandToss(handInputs.pitch);
+    const swingHandToss = useHandToss(handInputs.swing);
+    const speed = playbackState.effectiveSpeed;
+    const pitchSimToss = useDieToss({ playId: pendingPlay?.id ?? '', phase: playbackState.phase, speed, staggerIndex: 0 });
+    const swingSimToss = useDieToss({ playId: pendingPlay?.id ?? '', phase: playbackState.phase, speed, staggerIndex: 1 });
+    const handDie = (kind: string, toss: HandToss, value: number | null | undefined): BoardDie | undefined =>
+        toss.phase === 'rest' && value == null ? undefined : { key: `${kind}|${toss.throwCount}|${value ?? ''}`, value: value ?? null, isTumbling: toss.phase !== 'rest', speed: 1 };
+    const simRoll = pendingPlay?.roll;
+    const dice: { pitch?: BoardDie; swing?: BoardDie } = isHandThrown
+        ? { pitch: handDie('pitch', pitchHandToss, handInputs.pitch.value), swing: handDie('swing', swingHandToss, handInputs.swing.value) }
+        : simRoll && pendingPlay ? {
+            pitch: { key: `${pendingPlay.id}|pitch`, value: simRoll.pitchRoll, isTumbling: pitchSimToss.isTumbling, speed },
+            swing: { key: `${pendingPlay.id}|swing`, value: simRoll.swingRoll, isTumbling: swingSimToss.isTumbling, speed },
+        } : {};
+
     const railTabs = infoPanel ? RAIL_TABS : RAIL_TABS.filter((tab) => tab.id !== 'info');
     /* The Info tab can leave while it's open: a host hides it mid-replay to avoid spoilers. */
     const activeRailTab = railTabs.some((tab) => tab.id === railTab) ? railTab : 'playbyplay';
@@ -297,8 +320,9 @@ export default function GameStage({
                 phase={playbackState.phase}
                 advantage={advantage}
                 playbackSpeed={playbackState.effectiveSpeed}
-                rollPrompt={showRecap || !rollPrompt ? undefined : { ...rollPrompt, heldPitchThrowKey: heldPitchKey }}
+                rollPrompt={fieldPrompt}
                 isHandThrown={isHandThrown}
+                handTosses={{ pitch: pitchHandToss, swing: swingHandToss }}
                 onPlayClick={isSim && playbackState.cursor === 0 && !simPlayStarted ? () => {
                     setSimPlayStarted(true);
                     playbackControls.seekToStart();
@@ -325,6 +349,19 @@ export default function GameStage({
     ) : undefined;
 
     const matchup = resolveMatchup(matchupGame, cardMap, isReplaying);
+    /* Where each card carries a copy of the roll playing out on it: the pitch over both cards
+       zoomed to their commands, the swing on the chart the winner's card is zoomed to. */
+    const pitchCompare = dice.pitch && {
+        die: dice.pitch,
+        control: matchup?.pitcher.response?.card?.chart.command,
+        onbase: matchup?.hitter.response?.card?.chart.command,
+        advantage: matchupAdvantage,
+    };
+    const rollDiceFor = (side: AdvantageSide): MatchupRollDice => ({
+        pitch: rollFocus[side] === 'command' ? pitchCompare : undefined,
+        chart: rollFocus[side] === 'chart' ? dice.swing : undefined,
+    });
+    const rollDice: Record<AdvantageSide, MatchupRollDice> = { pitcher: rollDiceFor('pitcher'), hitter: rollDiceFor('hitter') };
     /* A card opened from the board shows the render a host already made for it (card images), or
        waits for the one on its way, rather than generating another. */
     const cardImageFor = useContext(MatchupCardImagesContext);
@@ -343,6 +380,7 @@ export default function GameStage({
             chartHighlight={matchupAdvantage === side ? swingResult : undefined}
             accessory={strategy?.played?.[side]}
             rollFocus={rollFocus[side]}
+            rollDice={rollDice[side]}
         />
     );
 
@@ -405,6 +443,7 @@ export default function GameStage({
                                 pitchRoll={matchupPitchRoll}
                                 swingResult={swingResult}
                                 steps={steps}
+                                dice={dice}
                             />
                         )}
                         cardView={cardImageFor ? 'image' : 'item'}
@@ -424,6 +463,7 @@ export default function GameStage({
                                         swingResult={swingResult}
                                         accessories={strategy?.played}
                                         rollFocus={rollFocus}
+                                        rollDice={rollDice}
                                     />
                                 )}
                             </>

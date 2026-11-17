@@ -17,7 +17,9 @@ import type { PlayEntry } from "../../domain/play";
 import type { ShowdownBotCardAPIResponse } from "../../api/showdownBotCard";
 import { defenseAtPosition, IF_POSITIONS, OF_POSITIONS } from "../shared/DefenseUtils";
 import SimFieldDie from "./SimFieldDie";
-import { HandDie } from "./DiePrompt";
+import { HandDie, HandDieFace } from "./DiePrompt";
+import { handTossInputs } from "./boardDie";
+import type { HandToss, HandTossInput } from "../../hooks/useHandToss";
 import SimRunnerRolls, { PendingRunnerRoll, type PendingRunnerThrow } from "./SimRunnerRolls";
 import FieldMarker from "./FieldMarker";
 import FielderMarker from "./FielderMarker";
@@ -89,6 +91,9 @@ type GameFieldProps = {
     /** A game people play, where each die is thrown on its own (`HandDie`): only the roll being
      *  waited on is thrown, and a play's pitch die holds the face already shown through the swing. */
     isHandThrown?: boolean;
+    /** The two hand-thrown dice's throws, kept by the host so its copies of them elsewhere on the
+     *  board land with these (`RollMirrors`). Left out, each die keeps its own. */
+    handTosses?: Record<"pitch" | "swing", HandToss>;
     /** Skips the diamond art, for callers that paint `FieldArt` themselves so it can outlive this
      *  field (e.g. stay put while the field's contents crossfade). */
     hideFieldArt?: boolean;
@@ -634,23 +639,24 @@ const CORNER_OUTSET = "calc(-1 * var(--field-corner-reach, 0px))";
 const CORNER_RIGHT_STYLE = { bottom: CORNER_BOTTOM, right: CORNER_OUTSET };
 const CORNER_LEFT_STYLE = { bottom: CORNER_BOTTOM, left: CORNER_OUTSET };
 
-export default function GameField({ game, cardMap, onCardSelect, expanded = false, onToggleExpanded, isLoadingCards, transition, pendingPlay, phase = "idle", lastPlay, advantage, playbackSpeed, onPlayClick, rollPrompt, isHandThrown = false, hideFieldArt = false, corner, cornerLeft, drawer, zoom = 1, plopIn = false, className = "" }: GameFieldProps) {
+/** A hand-thrown die at its dock: on the host's throw when it keeps one, else on its own. */
+function HandDieAt({ label, input, toss, onRoll }: { label: string; input: HandTossInput; toss?: HandToss; onRoll?: () => void }) {
+    return toss
+        ? <HandDieFace label={label} value={input.value} isBusy={input.isBusy} onRoll={onRoll} toss={toss} />
+        : <HandDie label={label} {...input} onRoll={onRoll} />;
+}
+
+export default function GameField({ game, cardMap, onCardSelect, expanded = false, onToggleExpanded, isLoadingCards, transition, pendingPlay, phase = "idle", lastPlay, advantage, playbackSpeed, onPlayClick, rollPrompt, isHandThrown = false, handTosses, hideFieldArt = false, corner, cornerLeft, drawer, zoom = 1, plopIn = false, className = "" }: GameFieldProps) {
     const situation = game.situation;
     // A prompt only stands in while nothing is animating; once a play resolves the toss takes over.
     const prompt = pendingPlay ? undefined : rollPrompt;
     // A game people play keeps one die at each dock from the tap through the play it decides, so a
     // throw started on the tap carries on while the play loads, and only the die that was waited on
     // is thrown (the pitch die just holds its face through the swing).
+    const handInputs = handTossInputs(rollPrompt, pendingPlay);
     const pitchDie = isHandThrown
         ? (
-            <HandDie
-                label="Pitch"
-                value={prompt ? prompt.heldPitch : pendingPlay?.roll?.pitchRoll}
-                isAwaited={prompt?.kind === "pitch" || prompt?.kind === "steal"}
-                onRoll={prompt?.kind === "pitch" ? prompt.onRoll : undefined}
-                isBusy={prompt?.kind === "pitch" && prompt.isBusy}
-                throwKey={prompt?.heldPitchThrowKey}
-            />
+            <HandDieAt label="Pitch" input={handInputs.pitch} toss={handTosses?.pitch} onRoll={prompt?.kind === "pitch" ? prompt.onRoll : undefined} />
         )
         : <SimFieldDie kind="pitch" pendingPlay={pendingPlay} phase={phase} speed={playbackSpeed} />;
 
@@ -882,13 +888,7 @@ export default function GameField({ game, cardMap, onCardSelect, expanded = fals
                         >
                             <DieDock>
                                 {isHandThrown ? (
-                                    <HandDie
-                                        label="Swing"
-                                        value={pendingPlay?.roll?.swingRoll}
-                                        isAwaited={prompt?.kind === "swing"}
-                                        onRoll={prompt?.kind === "swing" ? prompt.onRoll : undefined}
-                                        isBusy={prompt?.kind === "swing" && prompt.isBusy}
-                                    />
+                                    <HandDieAt label="Swing" input={handInputs.swing} toss={handTosses?.swing} onRoll={prompt?.kind === "swing" ? prompt.onRoll : undefined} />
                                 ) : (
                                     <SimFieldDie kind="swing" pendingPlay={pendingPlay} phase={phase} speed={playbackSpeed} />
                                 )}
