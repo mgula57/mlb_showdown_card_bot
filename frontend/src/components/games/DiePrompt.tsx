@@ -19,6 +19,9 @@ type HandDieProps = HandTossInput & {
     label: string;
     /** Set while it's this player's throw: the blank die takes a tap. */
     onRoll?: () => void;
+    /** Leave the label under the die off (still read out), for a die set inside a readout that
+     *  labels it already (`RollFaceoff`). */
+    isLabelHidden?: boolean;
 };
 
 /** A die that keeps its own throw (`useHandToss`). */
@@ -29,7 +32,7 @@ export function HandDie(props: HandDieProps) {
 
 /** A die whose throw is kept by its host, so the copies of it elsewhere on the board
  *  (`RollMirrors`) run off the same throw and land with it. */
-export function HandDieFace({ label, value = null, onRoll, isBusy = false, toss }: Omit<HandDieProps, "isAwaited" | "throwKey"> & { toss: HandToss }) {
+export function HandDieFace({ label, value = null, onRoll, isBusy = false, isLabelHidden = false, toss }: Omit<HandDieProps, "isAwaited" | "throwKey"> & { toss: HandToss }) {
     const { phase, throwCount } = toss;
     const isHidden = phase !== "rest";
     const scrambled = useScrambledFace(isHidden);
@@ -61,14 +64,14 @@ export function HandDieFace({ label, value = null, onRoll, isBusy = false, toss 
                 className="group pointer-events-auto flex cursor-pointer flex-col items-center gap-0.5"
             >
                 {face}
-                <span className={DIE_LABEL}>Roll</span>
+                {!isLabelHidden && <span className={DIE_LABEL}>Roll</span>}
             </button>
         );
     }
     return (
         <div aria-label={value != null && !isHidden ? `${label} roll ${value}` : `Rolling ${label.toLowerCase()}`} className="pointer-events-none flex flex-col items-center gap-0.5">
             {face}
-            <span className={DIE_LABEL}>{label}</span>
+            {!isLabelHidden && <span className={DIE_LABEL}>{label}</span>}
         </div>
     );
 }

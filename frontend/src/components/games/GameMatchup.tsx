@@ -163,8 +163,8 @@ export function MatchupSide({ side, isLoadingCards, onCardSelect, hideTrend, has
     const isFullCard = fullCardWidthIn(useContext(MatchupCardRoomContext)) != null;
     // Without room the short window rests on the command until the advantage is won, then the chart
     const restingFocus: CardImageFocus = isFullCard ? "card" : isAdvantageSettled || chartHighlight ? "chart" : "command";
-    // On a card image the die sizes off the card; in a card's chart row it stays row-sized
-    const chartDie = (size: "card" | "md") => rollDice?.chart && <MiniDie die={rollDice.chart} size={size} />;
+    // On a card image the die sizes off the card; on a card item it waits large over the header
+    const chartDie = (size: "card" | "xl") => rollDice?.chart && <MiniDie die={rollDice.chart} size={size} />;
     // A finished game's last frame has a pitcher but no one left to bat.
     if (!player) return null;
 
@@ -210,7 +210,7 @@ export function MatchupSide({ side, isLoadingCards, onCardSelect, hideTrend, has
                     ) : cardImage?.status === "loading" ? (
                         <CardImageSkeleton isFullCard={isFullCard} />
                     ) : response?.card ? (
-                        <CardItemFromCard card={response.card} className="w-full" onClick={() => onCardSelect?.(response)} hasAdvantage={hasAdvantage} chartHighlight={chartHighlight} chartDie={chartDie("md")} />
+                        <CardItemFromCard card={response.card} className="w-full" onClick={() => onCardSelect?.(response)} hasAdvantage={hasAdvantage} chartHighlight={chartHighlight} chartDie={chartDie("xl")} />
                     ) : isLoadingCards ? (
                         <CardItemSkeleton className="w-full" />
                     ) : player.name ? (
@@ -252,12 +252,26 @@ export default function GameMatchup({ game, cardMap, isLoadingCards, onCardSelec
     const isSideBySide = isFullRow || isShowingImages;
 
     const shared = { isLoadingCards, onCardSelect, hideTrend: hideStatlines, isAdvantageSettled };
+    /* Stacked, the two cards share one pitch face-off on the seam between them rather than each
+       carrying the same one; side by side, each card carries its own over its command. */
+    const sharedPitch = isSideBySide ? undefined : rollDice?.pitcher?.pitch ?? rollDice?.hitter?.pitch;
+    const sideDice = (side: AdvantageSide): MatchupRollDice | undefined =>
+        sharedPitch ? { ...rollDice?.[side], pitch: undefined } : rollDice?.[side];
 
     return (
         <div ref={rowRef} className="mx-2 space-y-1.5">
             <div className={`grid gap-2 ${isSideBySide ? "grid-cols-2" : "grid-cols-1"}`}>
-                <MatchupSide {...shared} side={matchup.pitcher} hasAdvantage={advantage === "pitcher"} chartHighlight={advantage === "pitcher" ? swingResult : undefined} accessory={accessories?.pitcher} rollFocus={rollFocus?.pitcher} rollDice={rollDice?.pitcher} />
-                <MatchupSide {...shared} side={matchup.hitter} hasAdvantage={advantage === "hitter"} chartHighlight={advantage === "hitter" ? swingResult : undefined} accessory={accessories?.hitter} rollFocus={rollFocus?.hitter} rollDice={rollDice?.hitter} />
+                <MatchupSide {...shared} side={matchup.pitcher} hasAdvantage={advantage === "pitcher"} chartHighlight={advantage === "pitcher" ? swingResult : undefined} accessory={accessories?.pitcher} rollFocus={rollFocus?.pitcher} rollDice={sideDice("pitcher")} />
+                {sharedPitch && (
+                    // A zero-height row on the seam (its negative margin takes back the extra grid
+                    // gap), sized as a container so the face-off sizes off the cards' width
+                    <div className="@container pointer-events-none relative z-20 -my-1 h-0">
+                        <div className="absolute left-1/2 top-0 w-max -translate-x-1/2 -translate-y-1/2">
+                            <PitchCompare {...sharedPitch} />
+                        </div>
+                    </div>
+                )}
+                <MatchupSide {...shared} side={matchup.hitter} hasAdvantage={advantage === "hitter"} chartHighlight={advantage === "hitter" ? swingResult : undefined} accessory={accessories?.hitter} rollFocus={rollFocus?.hitter} rollDice={sideDice("hitter")} />
             </div>
 
             <UpNext game={game} cardMap={cardMap} isLoadingCards={isLoadingCards} onCardSelect={onCardSelect} />

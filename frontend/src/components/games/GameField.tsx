@@ -938,7 +938,7 @@ export default function GameField({ game, cardMap, onCardSelect, expanded = fals
                         className="absolute z-30 -translate-x-1/2 -translate-y-1/2 result-pop"
                         style={atPercent(DEFENSE_SPOTS.pitcher)}
                     >
-                        <PendingRunnerRoll attempt={prompt.throw} onRoll={prompt.onRoll} isBusy={prompt.isBusy} cardMap={cardMap} onCardSelect={onCardSelect} isLoadingCards={isLoadingCards} />
+                        <PendingRunnerRoll attempt={prompt.throw} onRoll={prompt.onRoll} isBusy={prompt.isBusy} />
                     </div>
                 )}
 
@@ -948,7 +948,7 @@ export default function GameField({ game, cardMap, onCardSelect, expanded = fals
                         className="absolute z-30 -translate-x-1/2 -translate-y-1/2 result-pop"
                         style={atPercent(DEFENSE_SPOTS.pitcher)}
                     >
-                        <SimRunnerRolls rolls={transition.runnerRolls} beatId={`beat-${transition.toIndex}`} phase={phase} speed={playbackSpeed} cardMap={cardMap} onCardSelect={onCardSelect} isLoadingCards={isLoadingCards} plateDice={isHandThrown ? 0 : 2} />
+                        <SimRunnerRolls rolls={transition.runnerRolls} beatId={`beat-${transition.toIndex}`} phase={phase} speed={playbackSpeed} plateDice={isHandThrown ? 0 : 2} />
                     </div>
                 )}
 

@@ -1,8 +1,9 @@
-import type { ReactNode } from "react";
+import { useRef, type ReactNode } from "react";
 import type { ShowdownBotCard, StatsPeriod } from "../../api/showdownBotCard";
 import AdvantageBadge from "./card_elements/AdvantageBadge";
 import type { CardDatabaseRecord } from "../../api/card_db/cardDatabase";
 import { CardChart } from "./card_elements/CardChart";
+import { ChartDieOverlay } from "./card_elements/ChartDieOverlay";
 import CardCommand from "./card_elements/CardCommand";
 import { cardSecondaryStyle, getContrastTextColor } from "../../functions/colors";
 import { showdownSets } from "../shared/SiteSettingsContext";
@@ -101,7 +102,8 @@ type CardItemProps = {
     hasAdvantage?: boolean;
     /** Sim only — the chart result the swing landed on (e.g. "1b+"); that cell lights up. */
     chartHighlight?: string;
-    /** A swing being rolled on this chart: a copy of its die, leading the chart row. */
+    /** A swing being rolled on this chart: a copy of its die, over the header while it's in the
+     *  air, then on the cell it lands on (`ChartDieOverlay`). */
     chartDie?: ReactNode;
 };
 
@@ -147,6 +149,10 @@ export const CardItem = ({
 }: CardItemProps) => {
 
     const isRedacted = cardId === null || cardId === undefined;
+    // Where a swing's die rolled on this chart waits and lands (`ChartDieOverlay`)
+    const cardRef = useRef<HTMLDivElement>(null);
+    const headerRef = useRef<HTMLDivElement>(null);
+    const chartRef = useRef<HTMLDivElement>(null);
 
     // Some older seasons had 2 All-Star games, which yields duplicate 'AS' entries
     const awardList = (cardAwardList ?? []).filter((award, index, list) => award !== 'AS' || list.indexOf(award) === index);
@@ -209,6 +215,7 @@ export const CardItem = ({
             {actionButton && <CardActionButton action={actionButton} />}
             {secondaryActionButton && <CardActionButton action={secondaryActionButton} />}
             <div
+                ref={cardRef}
                 className={`
                     ${className}
                     relative
@@ -223,7 +230,7 @@ export const CardItem = ({
                 onClick={onClick}
             >
                 {/* Header: Command Rating + Player Info */}
-                <div className="flex flex-row gap-2 items-center text-nowrap">
+                <div ref={headerRef} className="flex flex-row gap-2 items-center text-nowrap">
                     {/* Command rating with themed background */}
                     <CardCommand
                         isPitcher={cardIsPitcher || false}
@@ -316,7 +323,7 @@ export const CardItem = ({
                 </div>
 
                 {/* Interactive chart showing dice roll outcomes */}
-                <div className="overflow-x-scroll scrollbar-hide">
+                <div ref={chartRef} className="overflow-x-scroll scrollbar-hide">
                     <CardChart
                         chartRanges={cardChartRanges || {}}
                         showdownSet={cardSet || '2001'}
@@ -325,9 +332,13 @@ export const CardItem = ({
                         team={cardTeam}
                         cellClassName="min-w-6 md:min-w-8"
                         highlightResult={chartHighlight}
-                        leadingDie={chartDie}
                     />
                 </div>
+                {chartDie && (
+                    <ChartDieOverlay cardRef={cardRef} headerRef={headerRef} chartRef={chartRef} highlight={chartHighlight}>
+                        {chartDie}
+                    </ChartDieOverlay>
+                )}
 
                 {/* Bottom bar */}
                 <div className={`flex flex-row justify-between items-center gap-x-1`}>

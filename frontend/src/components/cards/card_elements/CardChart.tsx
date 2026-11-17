@@ -1,4 +1,3 @@
-import type { ReactNode } from "react";
 
 import { getContrastTextColor } from "../../../functions/colors";
 
@@ -18,8 +17,6 @@ type CardChartProps = {
     /** Result key (e.g. "1b+", case-insensitive) a sim swing landed on — that cell lights up and
      *  the rest of the chart dims. Ignored when no cell matches. */
     highlightResult?: string;
-    /** A swing being rolled on this chart: a copy of its die, leading the row. */
-    leadingDie?: ReactNode;
 };
 
 /**
@@ -40,7 +37,7 @@ type CardChartProps = {
  * />
  * ```
  */
-export function CardChart({ chartRanges, showdownSet, primaryColor, secondaryColor, team, cellClassName, className, highlightResult, leadingDie }: CardChartProps) {
+export function CardChart({ chartRanges, showdownSet, primaryColor, secondaryColor, team, cellClassName, className, highlightResult }: CardChartProps) {
     // Extract chart data with fallback to empty object
     const chartData = chartRanges || {};
     const showdownSetValue = showdownSet || '2001';
@@ -131,6 +128,8 @@ export function CardChart({ chartRanges, showdownSet, primaryColor, secondaryCol
                 return (
                     <div
                         key={isHighlighted ? `${key}-landed` : key}
+                        // Found by a die rolled on this chart (`ChartDieOverlay`) to land on
+                        data-chart-result={key.toLowerCase()}
                         className={`
                             ${cellClassName || 'min-w-8 sm:min-w-11'}
                             px-1 py-1 text-center text-primary
@@ -152,13 +151,7 @@ export function CardChart({ chartRanges, showdownSet, primaryColor, secondaryCol
             })}
         </div>
     );
-    if (!leadingDie) return chart;
-    return (
-        <div className="inline-flex items-center gap-1">
-            {leadingDie}
-            {chart}
-        </div>
-    );
+    return chart;
 };
 
 // ----------------------------
