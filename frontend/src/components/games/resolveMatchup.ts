@@ -6,19 +6,10 @@
 import type { ShowdownBotCardAPIResponse } from "../../api/showdownBotCard";
 import type { GameView, PlayerRef } from "../../domain/game";
 import type { AdvantageSide } from "../../domain/play";
+import { pitcherAdvantagePct } from "../../domain/matchupOdds";
 import { resolveCardKey } from "../../domain/players";
 
 type CardMap = Record<string, ShowdownBotCardAPIResponse>;
-
-/**
- * Share of d20 rolls that leave the pitcher with the advantage. A Showdown plate appearance
- * gives the hitter the advantage when `control + roll <= onbase`, so the pitcher keeps it on
- * `20 - (onbase - control)` of the twenty faces.
- */
-const pitcherAdvantagePct = (control: number, onbase: number): number => {
-    const favorable = 20 - (onbase - control);
-    return Math.round((Math.max(0, Math.min(20, favorable)) / 20) * 100);
-};
 
 export type MatchupSideData = {
     label: string;

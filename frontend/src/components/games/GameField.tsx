@@ -125,7 +125,7 @@ const plopDelay = (order: number): React.CSSProperties => ({ animationDelay: `${
  * outfielders stand), the fan's corners to each side (faded out in the image, so a host can clip
  * them anywhere) and a strip of foul ground below.
  */
-const ART = { width: 2549, height: 1320, left: 348.5, top: 274.7, right: 2205.3, bottom: 1249.3 } as const;
+const ART = { width: 2549, height: 1319, left: 348.5, top: 273.7, right: 2205.3, bottom: 1248.3 } as const;
 const FIELD_W = ART.right - ART.left;
 const FIELD_H = ART.bottom - ART.top;
 /** Width over height of the field box. */
@@ -168,7 +168,7 @@ const HOME: readonly [number, number] = [49.9, 82.4];
  *  spread over the whole fan instead of crowding second base. */
 const DEFENSE_SPOTS: Record<keyof DefenseAlignment, readonly [number, number]> = {
     pitcher: [49.9, 43.2],
-    catcher: [49.9, 110],
+    catcher: [49.9, 97],
     first: [84, 32.1],
     second: [69.4, 14],
     third: [15.7, 32.1],

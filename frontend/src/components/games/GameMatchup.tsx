@@ -12,13 +12,14 @@ import { useIsWiderThan } from "../../hooks/useIsWiderThan";
 import type { GameView } from "../../domain/game";
 import type { ShowdownBotCardAPIResponse } from "../../api/showdownBotCard";
 import { CardItemFromCard, CardItemSkeleton } from "../cards/CardItem";
-import CardImageWithChart, { CARD_ASPECT, CardImageSkeleton, type CardImageFocus } from "../cards/CardImageWithChart";
+import CardImageWithChart, { CardImageSkeleton, type CardImageFocus } from "../cards/CardImageWithChart";
 import type { AdvantageSide } from "../../domain/play";
 import { hittersAfter } from "../../domain/lineup";
 import { resolveCardKey } from "../../domain/players";
 import { CAPS_LABEL_CLASS } from "../shared/fieldStyles";
+import { Plate } from "../shared/Plate";
 import { BOARD_PANEL_CLASS } from "./boardStyles";
-import { MatchupCardImagesContext, MatchupCardRoomContext } from "./matchupCardImages";
+import { fullCardWidthIn, MatchupCardImagesContext, MatchupCardRoomContext } from "./matchupCardImages";
 import { resolveMatchup, type MatchupSideData } from "./resolveMatchup";
 
 type CardMap = Record<string, ShowdownBotCardAPIResponse>;
@@ -29,12 +30,14 @@ const UP_NEXT_FADE_FLOOR = "opacity-45";
 
 /** The batting club's order after the hitter at the plate, back around to him: who's on deck, in
  *  the hole and beyond. Falls back to the feed's on-deck and in-hole names when there's no box
- *  score to read the order from. */
-function UpNext({ game, cardMap, isLoadingCards, onCardSelect }: {
+ *  score to read the order from. `rows` lists each hitter on one line (name and points) for a
+ *  tight spot, like the wide board's center panel. */
+export function UpNext({ game, cardMap, isLoadingCards, onCardSelect, variant = "cards" }: {
     game: GameView;
     cardMap: CardMap;
     isLoadingCards?: boolean;
     onCardSelect?: (card: ShowdownBotCardAPIResponse) => void;
+    variant?: "cards" | "rows";
 }) {
     const situation = game.situation;
     if (!situation) return null;
@@ -48,6 +51,30 @@ function UpNext({ game, cardMap, isLoadingCards, onCardSelect }: {
             <div className={`${BOARD_PANEL_CLASS} flex flex-wrap items-center gap-x-4 px-2 py-0.5 text-[11px]`}>
                 {onDeck && <span className="text-(--secondary)"><span className={CAPS_LABEL_CLASS}>On Deck</span> {onDeck.name}</span>}
                 {inHole && <span className="text-(--secondary)"><span className={CAPS_LABEL_CLASS}>In Hole</span> {inHole.name}</span>}
+            </div>
+        );
+    }
+
+    if (variant === "rows") {
+        return (
+            <div className="space-y-0.5">
+                <div className={`${CAPS_LABEL_CLASS} text-(--text-tertiary)`}>Up next</div>
+                {upcoming.map(({ line, spot }, i) => {
+                    const response = cardMap[resolveCardKey(line.id, "H") ?? ""];
+                    return (
+                        <button
+                            key={line.id}
+                            type="button"
+                            disabled={!response}
+                            onClick={() => response && onCardSelect?.(response)}
+                            className={`flex w-full cursor-pointer items-center gap-2 rounded-control px-1 py-0.5 text-left transition-opacity hover:bg-(--background-secondary) hover:opacity-100 disabled:cursor-default ${UP_NEXT_FADE[i] ?? UP_NEXT_FADE_FLOOR}`}
+                        >
+                            <span className="w-3 shrink-0 text-right text-[11px] font-semibold tabular-nums text-(--text-tertiary)">{spot}</span>
+                            <span className="min-w-0 flex-1 truncate text-[12px] font-semibold text-(--text-primary)">{line.name}</span>
+                            {response?.card && <Plate size="sm">{response.card.points} PT</Plate>}
+                        </button>
+                    );
+                })}
             </div>
         );
     }
@@ -79,10 +106,6 @@ function UpNext({ game, cardMap, isLoadingCards, onCardSelect }: {
 
 /** Room for two full cards side by side, charts and all. */
 const FULL_ROW_MIN_WIDTH = 600;
-
-/** The narrowest a whole card image is shown. With less room (`MatchupCardRoomContext`) it's a
- *  short window on one part of the card instead. */
-const MIN_FULL_CARD_WIDTH = 200;
 
 /** A matchup card's part to zoom to while a roll plays out (`MatchupSide`'s `rollFocus`). */
 export type MatchupRollFocus = Exclude<CardImageFocus, "card">;
@@ -122,17 +145,15 @@ export function MatchupSide({ side, isLoadingCards, onCardSelect, hideTrend, has
     // A host showing card images answers for each card; anything else (or a failed render) is a CardItem.
     const imageFor = useContext(MatchupCardImagesContext);
     const cardImage = cardKey && response?.card ? imageFor?.(cardKey) : undefined;
-    // The whole card when it fits at a readable width, narrowed to stand no taller than the room
-    const imageRoom = useContext(MatchupCardRoomContext);
-    const fullCardMaxWidth = imageRoom == null ? undefined : imageRoom * CARD_ASPECT;
-    const isFullCard = fullCardMaxWidth == null || fullCardMaxWidth >= MIN_FULL_CARD_WIDTH;
+    // The whole card when it fits at a readable width (the wide board sizes its corners to it)
+    const isFullCard = fullCardWidthIn(useContext(MatchupCardRoomContext)) != null;
     // Without room the short window rests on the command until the advantage is won, then the chart
     const restingFocus: CardImageFocus = isFullCard ? "card" : isAdvantageSettled || chartHighlight ? "chart" : "command";
     // A finished game's last frame has a pitcher but no one left to bat.
     if (!player) return null;
 
     return (
-        <div className="w-full min-w-0 space-y-1" style={cardImage && cardImage.status !== "failed" && isFullCard && fullCardMaxWidth != null ? { maxWidth: fullCardMaxWidth } : undefined}>
+        <div className="w-full min-w-0 space-y-1">
             <div className={`${BOARD_PANEL_CLASS} flex items-center justify-between gap-1.5 px-2 py-0.5`}>
                 <div className="flex min-w-0 items-center gap-2">
                     <span className={`${CAPS_LABEL_CLASS} text-(--text-primary)`}>{label}</span>

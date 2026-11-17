@@ -32,6 +32,7 @@ import GameField, { type RollPrompt } from "./GameField";
 import GameLinescore from "./GameLinescore";
 import GameMatchup, { MatchupSide, type MatchupRollFocus } from "./GameMatchup";
 import { cardKeyOf, MatchupCardImagesContext } from "./matchupCardImages";
+import MatchupCenterPanel from "./MatchupCenterPanel";
 import PlayByPlayLog from "./PlayByPlayLog";
 import { resolveMatchup } from "./resolveMatchup";
 import GameFinalSummary from "./detail/GameFinalSummary";
@@ -182,6 +183,9 @@ export default function GameStage({
     const isResultRevealed = playbackState.phase === "result" || playbackState.phase === "runners" || playbackState.phase === "settle";
     const advantage = isResultRevealed ? advantageSideOf(playbackState.pendingPlay) : playbackState.phase === "idle" ? heldAdvantage : undefined;
     const swingResult = isResultRevealed ? playbackState.pendingPlay?.roll?.swingResult : undefined;
+    /* The face the pitch die landed on: the play's own while its result shows, or a live game's
+       pitch held for the swing once its winner has been revealed. */
+    const pitchRoll = isResultRevealed ? playbackState.pendingPlay?.roll?.pitchRoll : heldAdvantage ? rollPrompt?.heldPitch ?? undefined : undefined;
     /* Once a plate appearance's advantage is known the matchup keeps it until the next one, so
        through a live game's separate swing toss (when `advantage` is briefly unknown again) the
        winner keeps its glow, the other card stays faded, and card images hold on the chart instead
@@ -333,6 +337,19 @@ export default function GameStage({
                         isFieldExpanded={isFieldExpanded}
                         bottomLeft={cornerCard("pitcher")}
                         bottomRight={cornerCard("hitter")}
+                        bottomCenter={matchup && (
+                            <MatchupCenterPanel
+                                matchup={matchup}
+                                game={game}
+                                cardMap={cardMap}
+                                isLoadingCards={isLoadingCards}
+                                onCardSelect={setSelectedCard}
+                                advantage={matchupAdvantage}
+                                pitchRoll={pitchRoll}
+                                swingResult={swingResult}
+                            />
+                        )}
+                        cardView={cardImageFor ? 'image' : 'item'}
                         bottomSpan={matchup ? undefined : preGamePanel}
                         below={
                             <>

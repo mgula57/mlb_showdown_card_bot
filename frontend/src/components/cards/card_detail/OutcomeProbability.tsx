@@ -8,9 +8,8 @@ import { FaMagnifyingGlass } from 'react-icons/fa6';
 import { CAPS_LABEL_CLASS } from '../../shared/fieldStyles';
 import { choiceClass } from '../../shared/choiceStyles';
 import { StatTile } from '../../shared/StatTile';
+import { matchupOutcomeOdds } from '../../../domain/matchupOdds';
 
-const OUTCOME_ORDER = ['PU', 'SO', 'GB', 'FB', 'BB', '1B', '1B+', '2B', '3B', 'HR'];
-const TOTAL = 20;
 const LABEL_MIN_PCT = 6;
 const SEASON_PA = 600;
 
@@ -33,30 +32,13 @@ function calcProbabilities(
     opponentValuesOverride?: Record<string, number>,
 ): { key: string; prob: number }[] {
     const isPitcher = playerChart.is_pitcher;
-
-    const batterOB    = isPitcher ? opponentCommand     : playerChart.command;
-    const pitcherCtrl = isPitcher ? playerChart.command : opponentCommand;
-
-    const pBatterChart  = Math.max(0, Math.min(batterOB - pitcherCtrl, TOTAL)) / TOTAL;
-    const pPitcherChart = 1 - pBatterChart;
-
-    const batterValues  = isPitcher ? (opponentValuesOverride ?? playerChart.opponent?.values ?? {}) : playerChart.values;
-    const pitcherValues = isPitcher ? playerChart.values : (opponentValuesOverride ?? playerChart.opponent?.values ?? {});
-
-    const allKeys = Array.from(new Set([...Object.keys(batterValues), ...Object.keys(pitcherValues)]));
-
-    return allKeys
-        .map(key => ({
-            key,
-            prob: pBatterChart  * ((batterValues[key]  ?? 0) / TOTAL)
-                + pPitcherChart * ((pitcherValues[key] ?? 0) / TOTAL),
-        }))
-        .filter(r => r.prob > 0)
-        .sort((a, b) => {
-            const ia = OUTCOME_ORDER.indexOf(a.key.toUpperCase());
-            const ib = OUTCOME_ORDER.indexOf(b.key.toUpperCase());
-            return (ia === -1 ? 99 : ia) - (ib === -1 ? 99 : ib);
-        });
+    const opponentValues = opponentValuesOverride ?? playerChart.opponent?.values ?? {};
+    return matchupOutcomeOdds({
+        control: isPitcher ? playerChart.command : opponentCommand,
+        onbase: isPitcher ? opponentCommand : playerChart.command,
+        pitcherValues: isPitcher ? playerChart.values : opponentValues,
+        hitterValues: isPitcher ? opponentValues : playerChart.values,
+    });
 }
 
 const RUN_WEIGHTS: Record<string, number> = {
