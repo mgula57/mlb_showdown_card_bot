@@ -55,6 +55,8 @@ export default function GameDetailPlayback({
             onApplyBuffer={onApplyBuffer}
             // A sim either rebuilds its box score per frame or hides it mid-replay (see GameDetail).
             showFrozenBoxscoreCaveat={!simResult}
+            // A sim tosses both dice in its pitch beat, so it holds there for the pitch to read
+            holdsPitchRead={!!simResult}
         >
             {children}
         </TimelinePlayback>

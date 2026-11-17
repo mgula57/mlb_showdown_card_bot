@@ -14,6 +14,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { nextInningFrameIndex, type FrameTransition, type GameFrame, type GameTimeline, type TransitionSeverity } from "../domain/timeline";
 import type { PlayEntry } from "../domain/play";
+import { SIM_PITCH_BEAT_MS } from "./useDieToss";
 import { usePrefersReducedMotion } from "./usePrefersReducedMotion";
 
 export type PlaybackMode = "live" | "playback" | "interactive";
@@ -103,8 +104,12 @@ export function useGamePlayback(options: {
     initialCursor?: "live" | "start";
     gate?: (frame: GameFrame) => AwaitingInput;
     onFrameEnter?: (frame: GameFrame, transition?: FrameTransition) => void;
+    /** A play with dice holds its "pitch" beat long enough for the pitch to read over the matchup
+     *  cards (`SIM_PITCH_BEAT_MS`): a sim's, where both dice are tossed in that beat. Not a game
+     *  people play, whose pitch was already read before the swing comes in. */
+    holdsPitchRead?: boolean;
 }): [GamePlaybackState, GamePlaybackControls] {
-    const { timeline, initialMode, initialCursor = "live", gate, onFrameEnter } = options;
+    const { timeline, initialMode, initialCursor = "live", gate, onFrameEnter, holdsPitchRead = false } = options;
     const frames = timeline.frames;
     if (frames.length === 0) throw new Error("useGamePlayback: timeline has no frames");
 
@@ -198,7 +203,11 @@ export function useGamePlayback(options: {
         const scale = SEVERITY_SCALE[severity];
         const speedNow = effectiveSpeed;
         const reducedMotionMultiplier = prefersReducedMotion ? 0.001 : 1;
-        const durationFor = (p: keyof typeof PHASE_MS) => (PHASE_MS[p] * scale * reducedMotionMultiplier) / speedNow;
+        // A sim's play with dice holds its pitch long enough for the pitch to read: the sum, then
+        // the winner, both before the result (`SIM_PITCH_BEAT_MS`).
+        const baseFor = (p: keyof typeof PHASE_MS) =>
+            p === "pitch" && holdsPitchRead && nextFrame.play?.roll ? Math.max(PHASE_MS.pitch * scale, SIM_PITCH_BEAT_MS) : PHASE_MS[p] * scale;
+        const durationFor = (p: keyof typeof PHASE_MS) => (baseFor(p) * reducedMotionMultiplier) / speedNow;
 
         setTransition(nextFrame.transition);
         setPendingPlay(nextFrame.play);

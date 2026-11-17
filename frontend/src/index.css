@@ -909,6 +909,27 @@
 }
 .roll-clash-lose { animation: roll-clash-lose calc(380ms / var(--roll-speed, 1)) ease-in-out calc(100ms / var(--roll-speed, 1)) both; }
 
+/* The pitch laid over the matchup cards (`PitchCompare`): its two sides slide in from opposite
+   edges to meet at the VS, which slams down between them (and again as the die's number comes up).
+   The winner then takes `roll-clash-win`, the loser `roll-clash-lose`. */
+@keyframes pitch-compare-in-left {
+    from { transform: translateX(-16px); opacity: 0; }
+    to   { transform: translateX(0);     opacity: 1; }
+}
+@keyframes pitch-compare-in-right {
+    from { transform: translateX(16px); opacity: 0; }
+    to   { transform: translateX(0);    opacity: 1; }
+}
+.pitch-compare-in-left  { display: flex; animation: pitch-compare-in-left  calc(260ms / var(--roll-speed, 1)) cubic-bezier(0.2, 0.8, 0.3, 1) both; }
+.pitch-compare-in-right { display: flex; animation: pitch-compare-in-right calc(260ms / var(--roll-speed, 1)) cubic-bezier(0.2, 0.8, 0.3, 1) both; }
+
+@keyframes pitch-compare-vs {
+    0%   { transform: scale(2.4) rotate(-10deg); opacity: 0; }
+    55%  { transform: scale(0.88) rotate(0);     opacity: 1; }
+    100% { transform: scale(1);                  opacity: 1; }
+}
+.pitch-compare-vs { display: inline-block; animation: pitch-compare-vs calc(380ms / var(--roll-speed, 1)) cubic-bezier(0.3, 1.5, 0.5, 1) calc(120ms / var(--roll-speed, 1)) both; }
+
 /* Light sweeping across the progress fill, so the bar still reads as working through the setup
    phases that hold it at a fixed width. Needs `overflow: hidden` on the element it's applied to. */
 @keyframes sim-progress-sheen {

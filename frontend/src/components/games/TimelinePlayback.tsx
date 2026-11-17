@@ -62,13 +62,15 @@ type TimelinePlaybackProps = {
     /** Whether the bar should caveat a frozen box score. A host that rebuilds its box score per
      *  frame or hides it mid-replay turns this off, since the caveat never applies there. */
     showFrozenBoxscoreCaveat: boolean;
+    /** See `useGamePlayback`: a sim's pitch holds for its read over the matchup cards. */
+    holdsPitchRead?: boolean;
     children: (props: PlaybackRenderProps) => ReactNode;
 };
 
 export default function TimelinePlayback({
-    timeline, initialMode, initialCursor, trailingPlays, bufferedCount, onApplyBuffer, showFrozenBoxscoreCaveat, children,
+    timeline, initialMode, initialCursor, trailingPlays, bufferedCount, onApplyBuffer, showFrozenBoxscoreCaveat, holdsPitchRead, children,
 }: TimelinePlaybackProps) {
-    const [playbackState, playbackControls] = useGamePlayback({ timeline, initialMode, initialCursor });
+    const [playbackState, playbackControls] = useGamePlayback({ timeline, initialMode, initialCursor, holdsPitchRead });
 
     const revealedPlays = useMemo(() => {
         const upTo = timeline.frames.slice(0, playbackState.cursor + 1);

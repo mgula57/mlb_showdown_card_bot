@@ -44,7 +44,7 @@ function FaceoffReplay({ faceoffId, entry, cardMap, isLoadingCards, onBack, onRe
     const barColor = entry.game.away_team_identity?.primary_color ?? NEUTRAL_TEAM_COLOR;
 
     return (
-        <TimelinePlayback timeline={timeline} initialMode="playback" initialCursor="start" showFrozenBoxscoreCaveat={false}>
+        <TimelinePlayback timeline={timeline} initialMode="playback" initialCursor="start" showFrozenBoxscoreCaveat={false} holdsPitchRead>
             {({ activeView, activePlays, playbackBar, playbackControls, playbackState, isReplaying }) => (
                 <GameStage
                     stage={stage}

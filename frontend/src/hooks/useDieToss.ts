@@ -9,19 +9,22 @@ import type { PlayPhase } from "./useGamePlayback";
 import { usePrefersReducedMotion } from "./usePrefersReducedMotion";
 
 // The in-game toss is quicker than the season-sim one and has to be over before the result badge
-// reveals. The shortest "pitch" beat is 1500ms * 0.7 (a quiet play) = 1050ms at 1x (see PHASE_MS
-// in useGamePlayback), so the longest a die can run — its stagger plus its toss — leaves the
-// landed dice a clear beat on screen before the result. All of it is divided by playback speed,
-// exactly as the phase beats are, so the margin holds at 2x and 4x.
+// reveals. A play with dice gets a "pitch" beat of at least `SIM_PITCH_BEAT_MS` (see PHASE_MS in
+// useGamePlayback), so the landed dice hold well clear of the result. All of it is divided by
+// playback speed, exactly as the phase beats are, so the margin holds at 2x and 4x.
 export const FIELD_TOSS_MS = 450;
 /** A die thrown by hand in a game people play (`HandDie`): one rattling jump, then a still beat
  *  before its number shows. Whatever that roll decides waits for the whole of it. */
 export const HAND_THROW_MS = 380;
 export const HAND_REVEAL_BEAT_MS = 180;
 export const HAND_DIE_REVEAL_MS = HAND_THROW_MS + HAND_REVEAL_BEAT_MS;
-/** Once a hand-thrown die's number is up, what it decides (the pitch's advantage) waits this much
- *  longer, so the number reads on its own before the board reacts to it. */
-export const HAND_RESULT_BEAT_MS = 450;
+/** The pitch reads in two beats once its die's number is up (sim or hand thrown): first the sum
+ *  against On-Base holds on its own (`PitchCompare`, with no winner yet), then the winner shows and
+ *  holds on the cards' commands before anything about the swing does. */
+export const PITCH_READ_BEAT_MS = 1000;
+export const PITCH_VERDICT_BEAT_MS = 1000;
+/** A sim's whole "pitch" beat at 1x when the play has dice: the toss, then both pitch beats. */
+export const SIM_PITCH_BEAT_MS = FIELD_TOSS_MS + PITCH_READ_BEAT_MS + PITCH_VERDICT_BEAT_MS;
 export const FIELD_STAGGER_MS = 80;
 /** From this effective speed up the dice skip their motion and just show the roll — the beats are
  *  too short for a toss to read as anything but a flicker. */

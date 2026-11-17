@@ -13,7 +13,7 @@ import { bannerTokens } from "../../functions/colors";
 import type { GameView } from "../../domain/game";
 import { advantageSideOf, type AdvantageSide, type PlayEntry } from "../../domain/play";
 import type { RunnerRoll } from "../../domain/timeline";
-import { HAND_DIE_REVEAL_MS, HAND_RESULT_BEAT_MS, useDieToss } from "../../hooks/useDieToss";
+import { FIELD_TOSS_MS, HAND_DIE_REVEAL_MS, PITCH_READ_BEAT_MS, PITCH_VERDICT_BEAT_MS, useDieToss } from "../../hooks/useDieToss";
 import type { GamePlaybackControls, GamePlaybackState } from "../../hooks/useGamePlayback";
 import { useHandToss, type HandToss } from "../../hooks/useHandToss";
 import { useHasHeld } from "../../hooks/useHasHeld";
@@ -67,12 +67,10 @@ const RAIL_MIN_WIDTH = 288;
 const BOARD_MIN_WIDTH = 360;
 const railMaxWidth = (container: number) => Math.min(960, container - BOARD_MIN_WIDTH);
 
-/** When a held pitch's winner shows: once its die has landed and shown its number, then a beat more
- *  so the number reads first. */
-const PITCH_REVEAL_MS = HAND_DIE_REVEAL_MS + HAND_RESULT_BEAT_MS;
-/** How long card images stay on their commands after a held pitch's winner shows, before zooming
- *  back out to the whole card. */
-const PITCH_ZOOM_HOLD_MS = 1200;
+/** When a held pitch's winner shows: once its die has landed and shown its number, then the read
+ *  beat so the sum against On-Base reads first. Card images then hold on their commands for the
+ *  verdict beat before zooming back out to the whole card. */
+const PITCH_REVEAL_MS = HAND_DIE_REVEAL_MS + PITCH_READ_BEAT_MS;
 
 const RAIL_PANEL_CLASS = 'min-h-0 flex-1 overflow-y-auto p-4 pb-[calc(1rem+var(--safe-bottom))] scrollbar-hide';
 
@@ -214,13 +212,19 @@ export default function GameStage({
        read and zoomed into rather than having run its course unseen. */
     const heldPitchKey = heldPitch ? `${matchupKey}|${heldPitch.roll}` : null;
     const isHeldPitchRevealed = useHasHeld(heldPitchKey, PITCH_REVEAL_MS);
-    const isHeldPitchRead = useHasHeld(heldPitchKey, PITCH_REVEAL_MS + PITCH_ZOOM_HOLD_MS);
+    const isHeldPitchRead = useHasHeld(heldPitchKey, PITCH_REVEAL_MS + PITCH_VERDICT_BEAT_MS);
     const heldAdvantage = isHeldPitchRevealed ? heldPitch?.advantage : undefined;
-    const advantage = isResultRevealed ? advantageSideOf(playbackState.pendingPlay) : playbackState.phase === "idle" ? heldAdvantage : undefined;
+    /* A sim's pitch reads the same way inside its "pitch" beat: the die lands, the sum holds on its
+       own for the read beat, then the winner shows on the commands for the rest of the beat. The
+       swing's result waits for the "result" beat after it. Not a hand-thrown game's: its "pitch"
+       beat is the swing, the pitch having been read while it was held. */
+    const simPitchKey = !isHandThrown && playbackState.phase === 'pitch' && playbackState.pendingPlay?.roll ? playbackState.pendingPlay.id : null;
+    const isSimPitchDecided = useHasHeld(simPitchKey, (FIELD_TOSS_MS + PITCH_READ_BEAT_MS) / playbackState.effectiveSpeed);
+    const advantage = isResultRevealed || isSimPitchDecided ? advantageSideOf(playbackState.pendingPlay) : playbackState.phase === "idle" ? heldAdvantage : undefined;
     const swingResult = isResultRevealed ? playbackState.pendingPlay?.roll?.swingResult : swungPlay?.roll?.swingResult;
     /* The face the pitch die landed on: the play's own while its result shows, or a live game's
        pitch held for the swing once its winner has been revealed. */
-    const pitchRoll = isResultRevealed ? playbackState.pendingPlay?.roll?.pitchRoll : heldAdvantage ? heldPitch?.roll : swungPlay?.roll?.pitchRoll;
+    const pitchRoll = isResultRevealed || isSimPitchDecided ? playbackState.pendingPlay?.roll?.pitchRoll : heldAdvantage ? heldPitch?.roll : swungPlay?.roll?.pitchRoll;
     /* Once a plate appearance's advantage is known the matchup keeps it until the next one, so
        through a live game's separate swing toss (when `advantage` is briefly unknown again) the
        winner keeps its glow, the other card stays faded, and card images hold on the chart instead
@@ -238,7 +242,7 @@ export default function GameStage({
        they rest on the whole card. A live game's roll zooms in from the tap, not once it's back. */
     const isPitchInPlay = (rollPrompt?.kind === 'pitch' && !!rollPrompt.isBusy) || (heldPitchKey != null && !isHeldPitchRead);
     const isSwingInPlay = rollPrompt?.kind === 'swing' && !!rollPrompt.isBusy;
-    const isPitchRolling = isPitchInPlay || (playbackState.phase === 'pitch' && !isAdvantageSettled);
+    const isPitchRolling = isPitchInPlay || (playbackState.phase === 'pitch' && (!isAdvantageSettled || isSimPitchDecided));
     const isSwingRolling = isSwingInPlay || isResultRevealed || playbackState.phase === 'pitch';
 
     /* The throws on runners so far in this plate appearance, for its steps: each one as its die
