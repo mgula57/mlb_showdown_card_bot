@@ -23,6 +23,10 @@ export const HAND_DIE_REVEAL_MS = HAND_THROW_MS + HAND_REVEAL_BEAT_MS;
  *  holds on the cards' commands before anything about the swing does. */
 export const PITCH_READ_BEAT_MS = 1000;
 export const PITCH_VERDICT_BEAT_MS = 1000;
+/** Once the swing's result lights up on the winner's chart (the die sliding to its cell, the cell
+ *  landing), the field waits this long before reacting, so the eye reads the chart first and then
+ *  comes back up to the field (the "read" phase in `useGamePlayback`). */
+export const CHART_READ_BEAT_MS = 900;
 /** A sim's whole "pitch" beat at 1x when the play has dice: the toss, then both pitch beats. */
 export const SIM_PITCH_BEAT_MS = FIELD_TOSS_MS + PITCH_READ_BEAT_MS + PITCH_VERDICT_BEAT_MS;
 export const FIELD_STAGGER_MS = 80;

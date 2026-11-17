@@ -14,7 +14,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { nextInningFrameIndex, type FrameTransition, type GameFrame, type GameTimeline, type TransitionSeverity } from "../domain/timeline";
 import type { PlayEntry } from "../domain/play";
-import { SIM_PITCH_BEAT_MS } from "./useDieToss";
+import { CHART_READ_BEAT_MS, SIM_PITCH_BEAT_MS } from "./useDieToss";
 import { usePrefersReducedMotion } from "./usePrefersReducedMotion";
 
 export type PlaybackMode = "live" | "playback" | "interactive";
@@ -27,6 +27,7 @@ export type PlayPhase =
     | "idle"          // parked on a frame, nothing animating
     | "await-input"   // SUSPENDED — `submitInput` must be called before the next frame plays
     | "pitch"         // pre-result beat — matchup emphasis, a dice slot if interactive
+    | "read"          // a swing's result lights up on the chart; the field holds still a beat
     | "result"        // event badge reveals, log row enters
     | "runners"       // runner cards translate to their new spots
     | "settle"        // score ticks, outs update, linescore cell fills
@@ -108,8 +109,12 @@ export function useGamePlayback(options: {
      *  cards (`SIM_PITCH_BEAT_MS`): a sim's, where both dice are tossed in that beat. Not a game
      *  people play, whose pitch was already read before the swing comes in. */
     holdsPitchRead?: boolean;
+    /** A play with dice puts a "read" beat between "pitch" and "result": the swing's result lights
+     *  up on the winner's chart first and the field reacts a beat later (`CHART_READ_BEAT_MS`), for
+     *  a host that shows the chart. */
+    holdsChartRead?: boolean;
 }): [GamePlaybackState, GamePlaybackControls] {
-    const { timeline, initialMode, initialCursor = "live", gate, onFrameEnter, holdsPitchRead = false } = options;
+    const { timeline, initialMode, initialCursor = "live", gate, onFrameEnter, holdsPitchRead = false, holdsChartRead = false } = options;
     const frames = timeline.frames;
     if (frames.length === 0) throw new Error("useGamePlayback: timeline has no frames");
 
@@ -207,15 +212,17 @@ export function useGamePlayback(options: {
         // the winner, both before the result (`SIM_PITCH_BEAT_MS`).
         const baseFor = (p: keyof typeof PHASE_MS) =>
             p === "pitch" && holdsPitchRead && nextFrame.play?.roll ? Math.max(PHASE_MS.pitch * scale, SIM_PITCH_BEAT_MS) : PHASE_MS[p] * scale;
-        const durationFor = (p: keyof typeof PHASE_MS) => (baseFor(p) * reducedMotionMultiplier) / speedNow;
+        const durationFor = (p: keyof typeof PHASE_MS | "read") => ((p === "read" ? CHART_READ_BEAT_MS : baseFor(p)) * reducedMotionMultiplier) / speedNow;
+        const isChartRead = holdsChartRead && !!nextFrame.play?.roll;
 
         setTransition(nextFrame.transition);
         setPendingPlay(nextFrame.play);
 
-        const runPhase = (p: keyof typeof PHASE_MS) => {
+        const runPhase = (p: keyof typeof PHASE_MS | "read") => {
             setPhase(p);
             timerRef.current = setTimeout(() => {
-                if (p === "pitch") runPhase("result");
+                if (p === "pitch") runPhase(isChartRead ? "read" : "result");
+                else if (p === "read") runPhase("result");
                 else if (p === "result") runPhase("runners");
                 else if (p === "runners") runPhase("settle");
                 else commit();

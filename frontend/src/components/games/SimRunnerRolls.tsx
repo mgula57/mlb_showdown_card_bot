@@ -100,8 +100,9 @@ function RunnerRollRow({ attempt, index, beatId, phase, speed, cardMap, onCardSe
     // A DP turn rides the swing beat, so its die waits for the beat's pitch and swing dice to land first.
     const staggerIndex = index + (attempt.kind === "double_play" ? plateDice : 0);
     const { isTumbling, isStatic } = useDieToss({ playId, phase, speed, staggerIndex });
-    // The outcome is a spoiler until the dice have landed; the result beat onward reveals it.
-    const isRevealed = phase !== "pitch";
+    // The outcome is a spoiler until the dice have landed; the result beat onward reveals it, with
+    // the rest of the field, once the swing has been read off the chart (the "read" beat).
+    const isRevealed = phase !== "pitch" && phase !== "read";
     const hasOdds = attempt.defense != null && attempt.target != null;
     const isFolded = hasOdds && !isTumbling;
     const total = (attempt.defense ?? 0) + attempt.roll;

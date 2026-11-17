@@ -64,13 +64,15 @@ type TimelinePlaybackProps = {
     showFrozenBoxscoreCaveat: boolean;
     /** See `useGamePlayback`: a sim's pitch holds for its read over the matchup cards. */
     holdsPitchRead?: boolean;
+    /** See `useGamePlayback`. On by default: every host here shows the matchup's charts. */
+    holdsChartRead?: boolean;
     children: (props: PlaybackRenderProps) => ReactNode;
 };
 
 export default function TimelinePlayback({
-    timeline, initialMode, initialCursor, trailingPlays, bufferedCount, onApplyBuffer, showFrozenBoxscoreCaveat, holdsPitchRead, children,
+    timeline, initialMode, initialCursor, trailingPlays, bufferedCount, onApplyBuffer, showFrozenBoxscoreCaveat, holdsPitchRead, holdsChartRead = true, children,
 }: TimelinePlaybackProps) {
-    const [playbackState, playbackControls] = useGamePlayback({ timeline, initialMode, initialCursor, holdsPitchRead });
+    const [playbackState, playbackControls] = useGamePlayback({ timeline, initialMode, initialCursor, holdsPitchRead, holdsChartRead });
 
     const revealedPlays = useMemo(() => {
         const upTo = timeline.frames.slice(0, playbackState.cursor + 1);

@@ -203,8 +203,9 @@ export default function GameStage({
 
     /* Who won the pitch roll, flagged on the matching cards from the moment the result reveals until
        the play commits — before that the dice are still in the air, and after it the cursor has
-       moved on to the next plate appearance. */
-    const isResultRevealed = playbackState.phase === "result" || playbackState.phase === "runners" || playbackState.phase === "settle";
+       moved on to the next plate appearance. The swing's result shows on the chart from the "read"
+       beat; the field (and the throws on runners) reacts a beat later, from "result". */
+    const isResultRevealed = playbackState.phase === "read" || playbackState.phase === "result" || playbackState.phase === "runners" || playbackState.phase === "settle";
     const situation = matchupGame.situation;
     const matchupKey = situation ? `${situation.inning}|${situation.isTop}|${situation.batter?.id}|${situation.pitcher?.id}` : null;
     /* A live game's held pitch is timed from when it shows on the board, not from when it came in,
@@ -248,7 +249,7 @@ export default function GameStage({
     /* The throws on runners so far in this plate appearance, for its steps: each one as its die
        lands, and a steal the board opened on. Kept until the next plate appearance. */
     const seenRunnerRolls: RunnerRoll[] = [
-        ...(isResultRevealed ? playbackState.transition?.runnerRolls ?? [] : []),
+        ...(isResultRevealed && playbackState.phase !== 'read' ? playbackState.transition?.runnerRolls ?? [] : []),
         ...(playbackState.phase === 'idle' ? (playbackState.frame.transition?.runnerRolls ?? []).filter((roll) => roll.kind === 'steal') : []),
     ];
     const [paThrows, setPaThrows] = useState<{ key: string | null; rolls: RunnerRoll[] }>({ key: matchupKey, rolls: seenRunnerRolls });
