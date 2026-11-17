@@ -37,29 +37,45 @@ type HandDieProps = {
     onRoll?: () => void;
     /** This die's roll is on its way to the server. */
     isBusy?: boolean;
+    /** A roll that shows up without being waited on (one made while the field was still playing out
+     *  the last play) is thrown when this changes to a new key with the roll in hand. */
+    throwKey?: string | null;
 };
 
-export function HandDie({ label, value = null, isAwaited = false, onRoll, isBusy = false }: HandDieProps) {
+export function HandDie({ label, value = null, isAwaited = false, onRoll, isBusy = false, throwKey = null }: HandDieProps) {
     const prefersReducedMotion = usePrefersReducedMotion();
     const [phase, setPhase] = useState<ThrowPhase>("rest");
     const [throwCount, setThrowCount] = useState(0);
     const [isWaitedOn, setIsWaitedOn] = useState(false);
     const [seenValue, setSeenValue] = useState(value);
+    const [seenThrowKey, setSeenThrowKey] = useState(throwKey);
 
     const startThrow = () => {
         setPhase("throwing");
         setThrowCount((count) => count + 1);
     };
+    // At most one throw starts per render, however many reasons there are for it.
+    let isThrowing = phase !== "rest" || prefersReducedMotion;
+    const throwNow = () => {
+        if (isThrowing) return;
+        isThrowing = true;
+        startThrow();
+    };
     // Tapped (or rolled from the next-move button): the throw starts now, before the roll is back
-    if (isBusy && value == null && phase === "rest" && !prefersReducedMotion) startThrow();
+    if (isBusy && value == null) throwNow();
     if (isAwaited && value == null && !isWaitedOn) setIsWaitedOn(true);
     if (value !== seenValue) {
         setSeenValue(value);
         if (value != null && isWaitedOn) {
             setIsWaitedOn(false);
             // The other player's roll: thrown as it arrives
-            if (phase === "rest" && !prefersReducedMotion) startThrow();
+            throwNow();
         }
+    }
+    // A roll that arrived unseen, thrown as it first shows
+    if (throwKey !== seenThrowKey) {
+        setSeenThrowKey(throwKey);
+        if (throwKey != null && value != null) throwNow();
     }
     // The roll didn't go through: back to the blank die to tap again
     if (phase === "landed" && value == null && !isBusy && isAwaited) setPhase("rest");

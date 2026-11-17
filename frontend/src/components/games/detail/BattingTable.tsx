@@ -3,9 +3,9 @@ import {
     useFloating, useHover, useInteractions, offset, flip, shift, autoUpdate, FloatingPortal
 } from "@floating-ui/react";
 
-import type { BoxscoreTeamData, BoxscoreBatter } from "../../../api/mlbAPI";
+import type { BoxscoreTableBatter, BoxscoreTableTeam } from "./boxscoreTableTypes";
 import type { ShowdownBotCardAPIResponse } from "../../../api/showdownBotCard";
-import { cardKey } from "../../../domain/players";
+import { resolveCardKey } from "../../../domain/players";
 import { useIsSmallScreen } from "../../../hooks/useIsSmallScreen";
 import { defenseAtPosition } from "../../shared/DefenseUtils";
 import { CardItemCompactFromCard } from "../../cards/CardItemCompact";
@@ -22,7 +22,7 @@ type CardMap = Record<string, ShowdownBotCardAPIResponse>;
 const cardDefenseForPosition = (card: ShowdownBotCardAPIResponse["card"] | undefined, position: string | null) =>
     defenseAtPosition(card?.positions_and_defense, position);
 
-export default function BattingTable({ team, sportId, cardMap, onCardSelect, isShowingModal, isLoadingCards, hasGameStarted }: { team: BoxscoreTeamData; sportId?: number; cardMap: CardMap; onCardSelect?: (card: ShowdownBotCardAPIResponse) => void; isShowingModal?: boolean; isLoadingCards?: boolean; hasGameStarted?: boolean }) {
+export default function BattingTable({ team, sportId, cardMap, onCardSelect, isShowingModal, isLoadingCards, hasGameStarted }: { team: BoxscoreTableTeam; sportId?: number; cardMap: CardMap; onCardSelect?: (card: ShowdownBotCardAPIResponse) => void; isShowingModal?: boolean; isLoadingCards?: boolean; hasGameStarted?: boolean }) {
     const badgeBgSecondary = team.team.secondary_color ?? NEUTRAL_TEAM_COLOR_SECONDARY;
     const hasCards = Object.keys(cardMap).length > 0;
     const lineupUp = useContext(LineupUpContext);
@@ -37,10 +37,10 @@ export default function BattingTable({ team, sportId, cardMap, onCardSelect, isS
 
     // PTS
     const totalPoints = hasCards
-        ? sortedBatters.reduce((sum, b) => sum + (cardMap[cardKey(b.id, 'H')]?.card?.points ?? 0), 0)
+        ? sortedBatters.reduce((sum, b) => sum + (cardMap[resolveCardKey(b.id, 'H') ?? '']?.card?.points ?? 0), 0)
         : 0;
     const totalPointsChange = hasCards && hasGameStarted
-        ? sortedBatters.reduce((sum, b) => sum + (cardMap[cardKey(b.id, 'H')]?.in_season_trends?.pts_change.day ?? 0), 0)
+        ? sortedBatters.reduce((sum, b) => sum + (cardMap[resolveCardKey(b.id, 'H') ?? '']?.in_season_trends?.pts_change.day ?? 0), 0)
         : 0;
 
     // CURRENT DEFENSE
@@ -49,7 +49,7 @@ export default function BattingTable({ team, sportId, cardMap, onCardSelect, isS
     const defTotals = hasCards
         ? sortedBatters.filter((b) => b.is_in_lineup).reduce(
             (acc, b) => {
-                const card = cardMap[cardKey(b.id, 'H')]?.card ?? undefined;
+                const card = cardMap[resolveCardKey(b.id, 'H') ?? '']?.card ?? undefined;
                 const pos = b.position.replaceAll('PH-', '');
                 const val = cardDefenseForPosition(card, pos ?? null);
                 if (val == null) return acc;
@@ -94,7 +94,7 @@ export default function BattingTable({ team, sportId, cardMap, onCardSelect, isS
                     </thead>
                     <tbody>
                         {sortedBatters.map((batter) => (
-                            <BatterRow key={batter.id} batter={batter} mark={lineupMarkOf(lineupUp, batter.id)} cardResponse={cardMap[cardKey(batter.id, 'H')]} onCardSelect={onCardSelect} isShowingModal={isShowingModal} isLoadingCards={isLoadingCards} />
+                            <BatterRow key={batter.id} batter={batter} mark={lineupMarkOf(lineupUp, batter.id)} cardResponse={cardMap[resolveCardKey(batter.id, 'H') ?? '']} onCardSelect={onCardSelect} isShowingModal={isShowingModal} isLoadingCards={isLoadingCards} />
                         ))}
                         {sortedBatters.length === 0 && (
                             <tr>
@@ -121,7 +121,7 @@ export default function BattingTable({ team, sportId, cardMap, onCardSelect, isS
     );
 }
 
-function BatterRow({ batter, mark, cardResponse, onCardSelect, isShowingModal, isLoadingCards }: { batter: BoxscoreBatter; mark?: LineupMark; cardResponse?: ShowdownBotCardAPIResponse; onCardSelect?: (card: ShowdownBotCardAPIResponse) => void; isShowingModal?: boolean; isLoadingCards?: boolean }) {
+function BatterRow({ batter, mark, cardResponse, onCardSelect, isShowingModal, isLoadingCards }: { batter: BoxscoreTableBatter; mark?: LineupMark; cardResponse?: ShowdownBotCardAPIResponse; onCardSelect?: (card: ShowdownBotCardAPIResponse) => void; isShowingModal?: boolean; isLoadingCards?: boolean }) {
     const [isOpen, setIsOpen] = useState(false);
     const isSmallScreen = useIsSmallScreen();
     const { refs, floatingStyles, context } = useFloating({

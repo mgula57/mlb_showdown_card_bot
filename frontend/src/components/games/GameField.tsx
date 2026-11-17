@@ -37,6 +37,9 @@ export type RollPrompt = {
     isBusy?: boolean;
     /** The pitch already rolled in this plate appearance, once it has been. */
     heldPitch?: number | null;
+    /** Names the held pitch while it's new to the board (set by `GameStage`): a pitch that came in
+     *  while the field was still playing out the last play is thrown when it shows, like one waited on. */
+    heldPitchThrowKey?: string | null;
     /** A throw's runner and test, set out over the mound with the die to roll. */
     throw?: PendingRunnerThrow;
 };
@@ -646,6 +649,7 @@ export default function GameField({ game, cardMap, onCardSelect, expanded = fals
                 isAwaited={prompt?.kind === "pitch" || prompt?.kind === "steal"}
                 onRoll={prompt?.kind === "pitch" ? prompt.onRoll : undefined}
                 isBusy={prompt?.kind === "pitch" && prompt.isBusy}
+                throwKey={prompt?.heldPitchThrowKey}
             />
         )
         : <SimFieldDie kind="pitch" pendingPlay={pendingPlay} phase={phase} speed={playbackSpeed} />;

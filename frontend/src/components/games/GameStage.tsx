@@ -12,7 +12,10 @@ import type { ShowdownBotCardAPIResponse } from "../../api/showdownBotCard";
 import { bannerTokens } from "../../functions/colors";
 import type { GameView } from "../../domain/game";
 import { advantageSideOf, type AdvantageSide, type PlayEntry } from "../../domain/play";
+import type { RunnerRoll } from "../../domain/timeline";
+import { HAND_DIE_REVEAL_MS, HAND_RESULT_BEAT_MS } from "../../hooks/useDieToss";
 import type { GamePlaybackControls, GamePlaybackState } from "../../hooks/useGamePlayback";
+import { useHasHeld } from "../../hooks/useHasHeld";
 import { useIsWiderThan } from "../../hooks/useIsWiderThan";
 import { useMediaQuery } from "../../hooks/useMediaQuery";
 import { useResizablePanel } from "../../hooks/useResizablePanel";
@@ -33,6 +36,7 @@ import GameLinescore from "./GameLinescore";
 import GameMatchup, { MatchupSide, type MatchupRollFocus } from "./GameMatchup";
 import { cardKeyOf, MatchupCardImagesContext } from "./matchupCardImages";
 import MatchupCenterPanel from "./MatchupCenterPanel";
+import { plateAppearanceSteps, runnerRollKey } from "./plateAppearanceSteps";
 import PlayByPlayLog from "./PlayByPlayLog";
 import { resolveMatchup } from "./resolveMatchup";
 import GameFinalSummary from "./detail/GameFinalSummary";
@@ -60,6 +64,13 @@ const SIDE_RAIL_QUERY = '(width >= 48rem)';
 const RAIL_MIN_WIDTH = 288;
 const BOARD_MIN_WIDTH = 360;
 const railMaxWidth = (container: number) => Math.min(960, container - BOARD_MIN_WIDTH);
+
+/** When a held pitch's winner shows: once its die has landed and shown its number, then a beat more
+ *  so the number reads first. */
+const PITCH_REVEAL_MS = HAND_DIE_REVEAL_MS + HAND_RESULT_BEAT_MS;
+/** How long card images stay on their commands after a held pitch's winner shows, before zooming
+ *  back out to the whole card. */
+const PITCH_ZOOM_HOLD_MS = 1200;
 
 const RAIL_PANEL_CLASS = 'min-h-0 flex-1 overflow-y-auto p-4 pb-[calc(1rem+var(--safe-bottom))] scrollbar-hide';
 
@@ -112,11 +123,11 @@ type GameStageProps = {
     rollPrompt?: RollPrompt;
     /** A live game's dice are thrown one at a time: see `GameField`'s `isHandThrown`. */
     isHandThrown?: boolean;
-    /** Who won a pitch that's been rolled but not yet swung at, highlighted until the swing resolves. */
-    heldAdvantage?: AdvantageSide;
-    /** A live game's pitch die is on the field and being read, so the matchup's card images zoom
-     *  to their commands until it's done (the playback's own `pitch` phase does this for a sim). */
-    isPitchInPlay?: boolean;
+    /** A live game's pitch, rolled but not yet swung at. Passed once the field has caught up to it:
+     *  from then its die is thrown (if it wasn't already), its winner shows a beat after the number,
+     *  and card images hold on their commands meanwhile. One already made when the board opens
+     *  shows straight away. */
+    heldPitch?: { roll: number; advantage?: AdvantageSide };
     /** Shown on the board when no one is up yet, e.g. the probable pitchers. */
     preGamePanel?: ReactNode;
     className?: string;
@@ -127,7 +138,7 @@ type GameStageProps = {
 export default function GameStage({
     stage, game: gameView, plays, playbackState, playbackControls, isReplaying, playbackBar, detailedState,
     cardMap, isLoadingCards, isSim, gameKey, title, titleAccessory, modeBarColor, onBack,
-    topBarStatus, topBarActions, boxScorePanels, infoPanel, boardAction, boardTurn, boardTools, teamAnnouncements, strategy, rollPrompt, isHandThrown, heldAdvantage, isPitchInPlay = false, preGamePanel, className, children,
+    topBarStatus, topBarActions, boxScorePanels, infoPanel, boardAction, boardTurn, boardTools, teamAnnouncements, strategy, rollPrompt, isHandThrown, heldPitch, preGamePanel, className, children,
 }: GameStageProps) {
     const {
         selectedCard, setSelectedCard, isFieldExpanded, setIsFieldExpanded, railTab, setRailTab, isPhoneFieldShown, setIsPhoneFieldShown,
@@ -177,30 +188,76 @@ export default function GameStage({
         </button>
     ) : undefined;
 
+    /* A swing that sends a runner for an extra base, or ends the half-inning, leaves the box empty
+       until the next hitter steps in. The plate appearance isn't over for the matchup until then:
+       its cards, chart and steps stay up through the send, read off the play just swung. */
+    const lastPlay = plays[0];
+    const swungPlay = game.state !== "FINAL" && game.situation && !game.situation.batter && lastPlay?.roll
+        && lastPlay.inning === game.situation.inning && lastPlay.isTop === game.situation.isTop ? lastPlay : undefined;
+    const matchupGame = useMemo<GameView>(
+        () => swungPlay && game.situation
+            ? { ...game, situation: { ...game.situation, batter: { id: swungPlay.batterId, name: swungPlay.batterName } } }
+            : game,
+        [game, swungPlay],
+    );
+
     /* Who won the pitch roll, flagged on the matching cards from the moment the result reveals until
        the play commits — before that the dice are still in the air, and after it the cursor has
        moved on to the next plate appearance. */
     const isResultRevealed = playbackState.phase === "result" || playbackState.phase === "runners" || playbackState.phase === "settle";
+    const situation = matchupGame.situation;
+    const matchupKey = situation ? `${situation.inning}|${situation.isTop}|${situation.batter?.id}|${situation.pitcher?.id}` : null;
+    /* A live game's held pitch is timed from when it shows on the board, not from when it came in,
+       so one that arrived while the field was still playing out the last play is still thrown,
+       read and zoomed into rather than having run its course unseen. */
+    const heldPitchKey = heldPitch ? `${matchupKey}|${heldPitch.roll}` : null;
+    const isHeldPitchRevealed = useHasHeld(heldPitchKey, PITCH_REVEAL_MS);
+    const isHeldPitchRead = useHasHeld(heldPitchKey, PITCH_REVEAL_MS + PITCH_ZOOM_HOLD_MS);
+    const heldAdvantage = isHeldPitchRevealed ? heldPitch?.advantage : undefined;
     const advantage = isResultRevealed ? advantageSideOf(playbackState.pendingPlay) : playbackState.phase === "idle" ? heldAdvantage : undefined;
-    const swingResult = isResultRevealed ? playbackState.pendingPlay?.roll?.swingResult : undefined;
+    const swingResult = isResultRevealed ? playbackState.pendingPlay?.roll?.swingResult : swungPlay?.roll?.swingResult;
     /* The face the pitch die landed on: the play's own while its result shows, or a live game's
        pitch held for the swing once its winner has been revealed. */
-    const pitchRoll = isResultRevealed ? playbackState.pendingPlay?.roll?.pitchRoll : heldAdvantage ? rollPrompt?.heldPitch ?? undefined : undefined;
+    const pitchRoll = isResultRevealed ? playbackState.pendingPlay?.roll?.pitchRoll : heldAdvantage ? heldPitch?.roll : swungPlay?.roll?.pitchRoll;
     /* Once a plate appearance's advantage is known the matchup keeps it until the next one, so
        through a live game's separate swing toss (when `advantage` is briefly unknown again) the
        winner keeps its glow, the other card stays faded, and card images hold on the chart instead
        of zooming back out to the command. */
-    const situation = game.situation;
-    const matchupKey = situation ? `${situation.inning}|${situation.isTop}|${situation.batter?.id}|${situation.pitcher?.id}` : null;
-    const [settled, setSettled] = useState<{ key: string | null; side: AdvantageSide } | null>(null);
-    if (advantage != null && (settled?.key !== matchupKey || settled.side !== advantage)) setSettled({ key: matchupKey, side: advantage });
-    const matchupAdvantage = advantage ?? (matchupKey != null && settled?.key === matchupKey ? settled.side : undefined);
+    const [settled, setSettled] = useState<{ key: string | null; side: AdvantageSide; pitchRoll?: number } | null>(null);
+    if (advantage != null && (settled?.key !== matchupKey || settled.side !== advantage || (pitchRoll != null && settled.pitchRoll !== pitchRoll))) {
+        setSettled({ key: matchupKey, side: advantage, pitchRoll: pitchRoll ?? (settled?.key === matchupKey ? settled.pitchRoll : undefined) });
+    }
+    const settledHere = matchupKey != null && settled?.key === matchupKey ? settled : undefined;
+    const matchupAdvantage = advantage ?? settledHere?.side ?? advantageSideOf(swungPlay);
+    const matchupPitchRoll = pitchRoll ?? settledHere?.pitchRoll;
     const isAdvantageSettled = matchupAdvantage != null;
     /* Card images zoom in only while a roll plays out: both to their command for the pitch, then
        the winner to its chart for the swing until the play has settled on the field. In between
-       they rest on the whole card. */
+       they rest on the whole card. A live game's roll zooms in from the tap, not once it's back. */
+    const isPitchInPlay = (rollPrompt?.kind === 'pitch' && !!rollPrompt.isBusy) || (heldPitchKey != null && !isHeldPitchRead);
+    const isSwingInPlay = rollPrompt?.kind === 'swing' && !!rollPrompt.isBusy;
     const isPitchRolling = isPitchInPlay || (playbackState.phase === 'pitch' && !isAdvantageSettled);
-    const isSwingRolling = isResultRevealed || playbackState.phase === 'pitch';
+    const isSwingRolling = isSwingInPlay || isResultRevealed || playbackState.phase === 'pitch';
+
+    /* The throws on runners so far in this plate appearance, for its steps: each one as its die
+       lands, and a steal the board opened on. Kept until the next plate appearance. */
+    const seenRunnerRolls: RunnerRoll[] = [
+        ...(isResultRevealed ? playbackState.transition?.runnerRolls ?? [] : []),
+        ...(playbackState.phase === 'idle' ? (playbackState.frame.transition?.runnerRolls ?? []).filter((roll) => roll.kind === 'steal') : []),
+    ];
+    const [paThrows, setPaThrows] = useState<{ key: string | null; rolls: RunnerRoll[] }>({ key: matchupKey, rolls: seenRunnerRolls });
+    if (paThrows.key !== matchupKey) {
+        setPaThrows({ key: matchupKey, rolls: seenRunnerRolls });
+    } else {
+        const newRolls = seenRunnerRolls.filter((roll) => !paThrows.rolls.some((seen) => runnerRollKey(seen) === runnerRollKey(roll)));
+        if (newRolls.length > 0) setPaThrows({ key: matchupKey, rolls: [...paThrows.rolls, ...newRolls] });
+    }
+    const steps = plateAppearanceSteps({
+        throws: paThrows.key === matchupKey ? paThrows.rolls : [],
+        pendingThrow: rollPrompt?.throw,
+        pitch: { roll: matchupPitchRoll, advantage: matchupAdvantage },
+        swing: { result: swingResult },
+    });
     const rollFocus: Partial<Record<AdvantageSide, MatchupRollFocus>> = isPitchRolling
         ? { pitcher: 'command', hitter: 'command' }
         : isSwingRolling && matchupAdvantage ? { [matchupAdvantage]: 'chart' } : {};
@@ -240,7 +297,7 @@ export default function GameStage({
                 phase={playbackState.phase}
                 advantage={advantage}
                 playbackSpeed={playbackState.effectiveSpeed}
-                rollPrompt={showRecap ? undefined : rollPrompt}
+                rollPrompt={showRecap || !rollPrompt ? undefined : { ...rollPrompt, heldPitchThrowKey: heldPitchKey }}
                 isHandThrown={isHandThrown}
                 onPlayClick={isSim && playbackState.cursor === 0 && !simPlayStarted ? () => {
                     setSimPlayStarted(true);
@@ -253,9 +310,9 @@ export default function GameStage({
 
     /* The tab under the middle of the scoreboard: the last play, out for a few seconds after it
        lands. Whose turn it is hangs under that club instead (`boardTurn`). */
-    const lastPlay = showRecap ? undefined : plays[0];
-    const islandContent = lastPlay ? <LastPlayLine play={lastPlay} /> : null;
-    const islandKey = lastPlay?.id ?? '';
+    const islandPlay = showRecap ? undefined : lastPlay;
+    const islandContent = islandPlay ? <LastPlayLine play={islandPlay} /> : null;
+    const islandKey = islandPlay?.id ?? '';
 
     const recap = showRecap ? (
         <GameFinalSummary
@@ -267,7 +324,7 @@ export default function GameStage({
         />
     ) : undefined;
 
-    const matchup = resolveMatchup(game, cardMap, isReplaying);
+    const matchup = resolveMatchup(matchupGame, cardMap, isReplaying);
     /* A card opened from the board shows the render a host already made for it (card images), or
        waits for the one on its way, rather than generating another. */
     const cardImageFor = useContext(MatchupCardImagesContext);
@@ -340,13 +397,14 @@ export default function GameStage({
                         bottomCenter={matchup && (
                             <MatchupCenterPanel
                                 matchup={matchup}
-                                game={game}
+                                game={matchupGame}
                                 cardMap={cardMap}
                                 isLoadingCards={isLoadingCards}
                                 onCardSelect={setSelectedCard}
                                 advantage={matchupAdvantage}
-                                pitchRoll={pitchRoll}
+                                pitchRoll={matchupPitchRoll}
                                 swingResult={swingResult}
+                                steps={steps}
                             />
                         )}
                         cardView={cardImageFor ? 'image' : 'item'}
@@ -356,7 +414,7 @@ export default function GameStage({
                                 {preGamePanel && <div className="mx-2">{preGamePanel}</div>}
                                 {!showRecap && (
                                     <GameMatchup
-                                        game={game}
+                                        game={matchupGame}
                                         cardMap={cardMap}
                                         isLoadingCards={isLoadingCards}
                                         onCardSelect={setSelectedCard}

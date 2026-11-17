@@ -8,7 +8,7 @@ import { fetchGameSimCount, startGameSim, type SimGameRecord, type SimGameResult
 import { useAuth } from "../auth/AuthContext";
 import GameSimSetupModal from "./GameSimSetupModal";
 import GameSimHistoryModal from "./GameSimHistoryModal";
-import SimBoxScoreTable from "./SimBoxScoreTable";
+import { SimBoxScoreSide } from "./SimBoxScorePanels";
 import GameBoxScoreTabs from "./GameBoxScoreTabs";
 import { useGameDetailData } from "./useGameDetailData";
 import GameDetailPlayback from "./GameDetailPlayback";
@@ -218,7 +218,7 @@ function GameDetailContent({ gamePk, sportId, season, showdownSet, isActive = tr
                         const team = side === 'away' ? away : home;
                         const simSide = activeView[side].boxscore;
                         return simResult && simSide ? (
-                            <SimBoxScoreTable boxscore={simSide} cardMap={cardMap} onCardSelect={setSelectedCard} />
+                            <SimBoxScoreSide boxscore={simSide} cardMap={cardMap} onCardSelect={setSelectedCard} isLoadingCards={isLoadingCards} isShowingModal={selectedCard !== null} />
                         ) : (
                             <>
                                 <BattingTable team={team} sportId={sportId} cardMap={cardMap} onCardSelect={setSelectedCard} isLoadingCards={isLoadingCards} hasGameStarted={!isNotStarted} isShowingModal={selectedCard !== null} />

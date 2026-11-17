@@ -82,7 +82,7 @@ function FaceoffReplay({ faceoffId, entry, cardMap, isLoadingCards, onBack, onRe
                             />
                         </>
                     }
-                    boxScorePanels={<SimBoxScorePanels game={activeView} cardMap={cardMap} onCardSelect={stage.setSelectedCard} />}
+                    boxScorePanels={<SimBoxScorePanels game={activeView} cardMap={cardMap} onCardSelect={stage.setSelectedCard} isLoadingCards={isLoadingCards} isShowingModal={stage.selectedCard !== null} />}
                 />
             )}
         </TimelinePlayback>
