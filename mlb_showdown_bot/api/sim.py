@@ -20,6 +20,8 @@ from ..core.card.sets import Set
 from ..core.card.team_builder.player_filters import PlayerFilterSet
 from ..core.card.team_builder.team import BULLPEN_ROLES, FIELD_POSITIONS, ROTATION_ROLES, Team as BuilderTeam
 from ..core.database.postgres_db import PostgresDB
+from ..core.mlb_stats_api import MLBStatsAPI
+from ..core.offseason import OffseasonWindow
 from ..core.simulation.challenge_generator import BeatTarget
 from ..core.simulation.faceoff import SUPPORTED_BEST_OF, FaceoffEntrant, FaceoffError, TeamMatchupSimulator
 from ..core.simulation.mlb_game import MLBGameLineupSlot, MLBGameSetup, MLBGameSimulator, MLBGameTeamSetup
@@ -146,11 +148,21 @@ def get_sim_guide():
         return jsonify({'error': str(exc)}), 500
 
 
+# Season calendars and World Series results change rarely; its own client caches the lookups.
+_offseason_api = MLBStatsAPI(cache_ttl=60 * 60)
+
+
 @sim_bp.route('/sim/seasons', methods=['GET'])
 def get_sim_seasons():
-    """Seasons that can be simulated, newest first."""
+    """Seasons that can be simulated, newest first.
+
+    Once the World Series is over, next year's season leads the list: it plays on this year's
+    cards, with clubs as their current 40-man rosters stand.
+    """
     try:
         latest = datetime.now().year
+        if OffseasonWindow.for_season(season=latest + 1, mlb_stats_api=_offseason_api) is not None:
+            latest += 1
         seasons = list(range(latest, _EARLIEST_SEASON - 1, -1))
         return jsonify({'seasons': seasons}), 200
     except Exception as exc:

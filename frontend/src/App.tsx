@@ -45,9 +45,12 @@ import { ResetPasswordPage } from "./components/auth/ResetPasswordPage";
 import TeamBuilder from "./components/team_builder/TeamBuilder";
 import SeasonSimulator from "./components/simulate/SeasonSimulator";
 
-// MLB seasons selectable on the Seasons page: current season first, then prior years.
+// MLB seasons selectable on the Seasons page: newest first, then prior years. An upcoming season
+// (2027 here) is listed once the prior World Series is over; the page opens on the newest season
+// that has started (see `defaultSeason`) and shows an upcoming one as its offseason.
 const MLB_SEASONS_EARLIEST_YEAR = 1920;
 const mlbSeasons = [
+    { regular_season_start_date: "2027-03-25", season_end_date: "2027-10-31", season_id: "2027" },
     { regular_season_start_date: "2026-03-25", season_end_date: "2026-10-31", season_id: "2026" },
     ...Array.from({ length: 2025 - MLB_SEASONS_EARLIEST_YEAR + 1 }, (_, index) => {
         const year = 2025 - index;
