@@ -20,6 +20,9 @@ import type { GameState } from '../domain/game';
 import { TeamChip } from './shared/TeamChip';
 import { markNavItemSeen, useNavItemIsNew } from '../hooks/useSeenNavItems';
 import HomeGameReel from './home/HomeGameReel';
+import { HomeBand } from './home/HomeBand';
+import { HomeHotStove } from './home/HomeHotStove';
+import { isSeasonInProgress, isSeasonUpcoming } from '../functions/seasons';
 import { Plate } from './shared/Plate';
 import { Eyebrow } from './shared/Eyebrow';
 import { NewBadge } from './shared/NewBadge';
@@ -239,6 +242,8 @@ export default function Home() {
     // Today's games ticker
     const [todaysGames, setTodaysGames] = useState<GameScheduled[]>([]);
     const [tickerSeason, setTickerSeason] = useState<Season | null>(null);
+    // The offseason's Hot Stove band takes the ticker's place, leading into this season
+    const [hotStoveSeason, setHotStoveSeason] = useState<Season | null>(null);
     const [isLoadingGames, setIsLoadingGames] = useState<boolean>(false);
     const [starredTeamKeys] = useState<string[]>(() => {
         try {
@@ -294,14 +299,13 @@ export default function Home() {
     useEffect(() => {
         setIsLoadingGames(true);
         fetchSeasons().then(seasons => {
-            const today = new Date();
-            const active = seasons.find(s => {
-                if (s.postseason_complete) return false;
-                const start = new Date(s.regular_season_start_date);
-                const end = new Date(s.season_end_date);
-                return today >= start && today <= end;
-            });
-            if (!active) { setIsLoadingGames(false); return; }
+            const active = seasons.find(isSeasonInProgress);
+            if (!active) {
+                // Offseason: the earliest season still ahead (seasons come newest first)
+                setHotStoveSeason([...seasons].reverse().find(isSeasonUpcoming) ?? null);
+                setIsLoadingGames(false);
+                return;
+            }
             setTickerSeason(active);
 
             const gamesPromise = fetchTodaysSchedule(1, active).then(schedule => {
@@ -514,21 +518,18 @@ export default function Home() {
             </div>
 
             {/* Game Ticker — only while a season is in progress (hidden in the offseason) */}
+            {/* Offseason: the week's biggest moves in the ticker's place */}
+            {!tickerSeason && hotStoveSeason && (
+                <HomeHotStove season={hotStoveSeason} showdownSet={userShowdownSet} onCardSelect={setSelectedModalCard} />
+            )}
+
             {tickerSeason && (
-            <div className="rounded-card border border-(--divider) overflow-hidden max-w-7xl mx-auto bg-(--background-secondary)">
-                {/* Ticker header: navy band over a red rule, from the Showdown logo */}
-                <div className="flex items-center justify-between gap-4 px-4 md:px-6 py-2.5 bg-(--showdown-blue-fill) border-b-2 border-(--showdown-red)">
-                    <p className="flex items-center gap-2 text-white">
-                        <LiveIcon size={7} title="Live" color="var(--field-live)" />
-                        <Heading level="section" as="h2" style={{ color: 'white' }}>Today's Games</Heading>
-                        <span className="text-xs text-white/70">
-                            {new Date().toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
-                        </span>
-                    </p>
-                    <Link to="/seasons" className="text-xs font-semibold text-white/80 hover:text-white flex items-center gap-1 shrink-0">
-                        Full season details <FaChevronRight className="text-[10px]" />
-                    </Link>
-                </div>
+            <HomeBand
+                title="Today's Games"
+                icon={<LiveIcon size={7} title="Live" color="var(--field-live)" />}
+                meta={new Date().toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
+                link={{ label: 'Full season details', to: '/seasons' }}
+            >
 
                 {/* Sim hint */}
                 {todaysGames.length > 0 && (
@@ -643,7 +644,7 @@ export default function Home() {
                         );
                     })}
                 </div>
-            </div>
+            </HomeBand>
             )}
 
             {/* Your Recent Cards - logged in users only */}

@@ -25,11 +25,13 @@ import SidebarPanel, { type SidebarSection } from "../shared/SidebarPanel";
 import ReactCountryFlag from "react-country-flag";
 import { countryCodeForTeam } from "../../functions/flags";
 import StandingsTab from "./Standings";
+import Transactions from "./Transactions";
+import { defaultSeason, isSeasonOver, isSeasonUpcoming } from "../../functions/seasons";
 
 import {
     FaRankingStar, FaClipboardList, FaEarthAmericas, FaCalendarDays,
     FaChevronDown, FaChevronRight, FaChevronLeft,
-    FaStar, FaRegStar, FaTrophy, FaXmark, FaMedal, FaDice, FaCircleQuestion
+    FaStar, FaRegStar, FaTrophy, FaXmark, FaMedal, FaDice, FaCircleQuestion, FaRightLeft
 } from "react-icons/fa6";
 
 // import ShowdownCardSearch from "../cards/ShowdownCardSearch";
@@ -76,15 +78,6 @@ const formatDateForApi = (date: Date): string => {
     const month = `${date.getMonth() + 1}`.padStart(2, '0');
     const day = `${date.getDate()}`.padStart(2, '0');
     return `${year}-${month}-${day}`;
-};
-
-/** A season is over once its end date has passed — schedule browsing only applies to ongoing seasons. */
-const isSeasonOver = (season: Season | null): boolean => {
-    if (!season?.season_end_date) {
-        return false;
-    }
-    const endDate = new Date(`${season.season_end_date}T23:59:59`);
-    return !Number.isNaN(endDate.getTime()) && endDate < new Date();
 };
 
 const isSameCalendarDay = (a: Date, b: Date): boolean => {
@@ -209,8 +202,10 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
 
     // `?sim=1` (e.g. "Run again" from a finished sim) opens the Simulate tab with the setup form
     // up, then clears the param.
+    // With `?season=` too, the season effect below opens it once that season is selected.
     useEffect(() => {
-        if (new URLSearchParams(location.search).get('sim') === '1') {
+        const params = new URLSearchParams(location.search);
+        if (params.get('sim') === '1' && !params.get('season')) {
             setActiveTab('simulate');
             setIsSimModalOpen(true);
             navigate('/seasons', { replace: true });
@@ -220,7 +215,8 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
 
     // A game opened from another view (e.g. Home's "Today's Games") can pin the season it
     // belongs to via `?season=<id>`, so a previously selected season doesn't leak stale
-    // cards into the game view. Apply it, then strip the param (keeping the game path).
+    // cards into the game view. Home's Hot Stove band also adds `tab=<id>`, or `sim=1` to open
+    // the sim setup on that season. Apply them, then strip the params (keeping the game path).
     useEffect(() => {
         const params = new URLSearchParams(location.search);
         const seasonParam = params.get('season');
@@ -229,7 +225,16 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
         if (match && match.season_id !== selectedSeason?.season_id) {
             setSelectedSeason(match);
         }
+        const tabParam = params.get('tab');
+        if (params.get('sim') === '1') {
+            setActiveTab('simulate');
+            setIsSimModalOpen(true);
+        } else if (tabParam) {
+            setActiveTab(tabParam);
+        }
         params.delete('season');
+        params.delete('tab');
+        params.delete('sim');
         navigate({ pathname: location.pathname, search: params.toString() }, { replace: true });
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [location.search, seasons]);
@@ -330,7 +335,7 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
         .filter(season => season.season_id != null)
         .map(season => ({
             value: season.season_id.toString(),
-            label: season.season_id.toString()
+            label: isSeasonUpcoming(season) ? `${season.season_id} (Upcoming)` : season.season_id.toString(),
         }));
     
     const sportOptions: SelectOption[] = sports
@@ -379,6 +384,9 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
 
     // Schedule browsing only applies while the selected season is ongoing
     const isSelectedSeasonOver = isSeasonOver(selectedSeason);
+    // Before Opening Day: no games, stats or awards yet. The page becomes the offseason - moves,
+    // standings projected from current 40-man rosters on last season's cards, and sims of the year ahead.
+    const isSelectedSeasonUpcoming = type === "mlb" && isSeasonUpcoming(selectedSeason);
 
     // Awards aren't announced until after the season ends — hide the tab for the
     // current year until Nov 1, when award coverage becomes meaningful.
@@ -387,7 +395,12 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
     const hideAwardWinners = selectedSeasonYear === nowForAwards.getFullYear()
         && nowForAwards < new Date(nowForAwards.getFullYear(), 10, 1);
 
-    const tabs = useMemo(() => [
+    const tabs = useMemo(() => isSelectedSeasonUpcoming ? [
+        { id: "transactions", label: "Transactions", icon: <FaRightLeft /> },
+        { id: "standings", label: "Standings", icon: <FaRankingStar /> },
+        { id: "simulate", label: "Simulations", icon: <FaDice /> },
+        { id: "teams", label: "Teams", icon: <FaClipboardList /> },
+    ] : [
         ...(isSelectedSeasonOver ? [] : [{ id: "schedule", label: "Schedule", icon: <FaCalendarDays /> }]),
         { id: "standings", label: "Standings", icon: <FaRankingStar /> },
         { id: "leaders", label: "Leaders", icon: <FaTrophy /> },
@@ -395,7 +408,7 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
         ...(type === "mlb" ? [{ id: "simulate", label: "Simulations", icon: <FaDice /> }] : []),
         { id: "teams", label: "Teams", icon: <FaClipboardList /> },
         // { id: "players", label: "Players", icon: <FaUserGroup /> },
-    ], [isSelectedSeasonOver, hideAwardWinners, type]);
+    ], [isSelectedSeasonOver, isSelectedSeasonUpcoming, hideAwardWinners, type]);
 
     // ************************
     // Loading Methods
@@ -417,7 +430,7 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
                     if (previousSeason && normalizedSeasons.some((season) => season.season_id === previousSeason.season_id)) {
                         return previousSeason;
                     }
-                    return seasonFromStorage ?? normalizedSeasons[0];
+                    return seasonFromStorage ?? defaultSeason(normalizedSeasons) ?? null;
                 });
             }
             return;
@@ -445,7 +458,7 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
                     if (previousSeason && normalizedSeasons.some((season) => season.season_id === previousSeason.season_id)) {
                         return previousSeason;
                     }
-                    return seasonFromStorage ?? normalizedSeasons[0];
+                    return seasonFromStorage ?? defaultSeason(normalizedSeasons) ?? null;
                 });
             }
         } catch (error) {
@@ -610,7 +623,7 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
             // 4. Parallel: standings + gamesSchedule (schedule only applies to ongoing seasons)
             setIsLoadingStandings(true);
             setIsLoadingSchedule(true);
-            const schedulePromise = isSeasonOver(selectedSeason)
+            const schedulePromise = isSeasonOver(selectedSeason) || isSeasonUpcoming(selectedSeason)
                 ? Promise.resolve().then(() => { setGamesSchedule(null); setIsLoadingSchedule(false); })
                 : fetchSchedule(resolvedSport.id, selectedSeason, selectedDate, leaguesToQuery, userShowdownSet)
                     .then(data => {
@@ -699,7 +712,7 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
     };
 
     const loadGamesSchedule = async () => {
-        if (!selectedSeason || leagues.length === 0 || isSeasonOver(selectedSeason)) {
+        if (!selectedSeason || leagues.length === 0 || isSeasonOver(selectedSeason) || isSeasonUpcoming(selectedSeason)) {
             setGamesSchedule(null);
             return;
         }
@@ -794,9 +807,9 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
 
     useEffect(() => {
         if (!tabs.some((tab) => tab.id === activeTab)) {
-            setActiveTab("standings");
+            setActiveTab(isSelectedSeasonUpcoming ? "transactions" : "standings");
         }
-    }, [tabs, activeTab]);
+    }, [tabs, activeTab, isSelectedSeasonUpcoming]);
 
     useEffect(() => {
         if (activeTab === "teams") {
@@ -933,7 +946,7 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
                                     >
                                         <span className="text-(--text-secondary)">{tab.icon}</span>
                                         {tab.label}
-                                        {(tab.id === "awards" || tab.id === "simulate" || tab.id === "schedule") && <NewBadge />}
+                                        {(tab.id === "awards" || tab.id === "simulate" || tab.id === "schedule" || tab.id === "transactions") && <NewBadge />}
                                     </Tabs.Trigger>
 
                                     {isTeamsTab && (
@@ -1183,7 +1196,14 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
                                     >
                                         <div className="px-3 lg:px-0 space-y-2 pb-24 lg:pt-6 lg:pr-6">
                                             <div className="space-y-2 flex justify-between items-top">
-                                                <Heading level="section" as="h2">Standings</Heading>
+                                                <div className="space-y-1">
+                                                    <Heading level="section" as="h2">{isSelectedSeasonUpcoming ? "Projected standings" : "Standings"}</Heading>
+                                                    {isSelectedSeasonUpcoming && (
+                                                        <p className="text-xs text-(--text-secondary)">
+                                                            Ranked by each club's 26-man card points, from today's 40-man rosters using {Number(selectedSeason.season_id) - 1} cards.
+                                                        </p>
+                                                    )}
+                                                </div>
                                                 <p className="px-1 text-xs text-(--text-secondary)">
                                                     Select a team to view its Showdown roster below.
                                                 </p>
@@ -1329,6 +1349,20 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
                                             </div>
                                     </Tabs.Content>
 
+                                    {/* Transactions Tab - Upcoming seasons only */}
+                                    <Tabs.Content
+                                        value="transactions"
+                                        className="focus:outline-none data-[state=inactive]:hidden"
+                                    >
+                                        {isSelectedSeasonUpcoming && (
+                                            <Transactions
+                                                seasonId={selectedSeason.season_id}
+                                                showdownSet={userShowdownSet}
+                                                isActive={activeTab === "transactions"}
+                                            />
+                                        )}
+                                    </Tabs.Content>
+
                                     {/* Teams Tab */}
                                     <Tabs.Content
                                         value="teams"
@@ -1355,7 +1389,9 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
                                                 <div>
                                                     <Heading level="section" as="h2">Simulations</Heading>
                                                     <p className="text-xs text-(--text-secondary) mt-1">
-                                                        Play out any MLB season, then jump back to your past runs here.
+                                                        {isSelectedSeasonUpcoming
+                                                            ? `Play out ${selectedSeason.season_id} with clubs as they stand today and ${Number(selectedSeason.season_id) - 1} cards, then jump back to your past runs here.`
+                                                            : "Play out any MLB season, then jump back to your past runs here."}
                                                     </p>
                                                 </div>
                                                 <div className="flex items-center gap-2 shrink-0">
