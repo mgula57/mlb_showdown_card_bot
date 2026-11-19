@@ -23,6 +23,9 @@ from .takeover import TakeoverOptions
 from .team import SimTeam
 from .trade_deadline import TradeDeadline
 
+# Leads the one status message that carries every club's roster notes, so a progress reader can
+# tell it apart from a setup milestone (see `_friendly_phase` in api/sim.py).
+ROSTER_NOTES_PREFIX = "Roster notes"
 
 @dataclass
 class SeasonCardPool:
@@ -528,6 +531,11 @@ class Season:
             if team_abbr:
                 cards_by_team.setdefault(team_abbr, []).append(card)
 
+        # PER-CLUB ROSTER NOTES (GAP FIXES, ROSTER WARNINGS), SENT AS ONE STATUS MESSAGE ONCE EVERY
+        # CLUB IS BUILT. THE WEB SIM WRITES EACH STATUS MESSAGE TO THE JOB ROW, SO ONE MESSAGE PER
+        # NOTE COST A DB ROUND TRIP APIECE - ~60 OF THEM FOR A PRE-OPENING DAY SEASON.
+        roster_notes: list[str] = []
+
         # BEFORE OPENING DAY, CLOSE EACH CLUB'S HOLES (A POSITION NOBODY PLAYS, A SHORT ROTATION)
         # WITH ADJACENT POSITIONS, THEN REPLACEMENT-LEVEL CARDS FOR ITS UNCARDED 40-MAN PLAYERS.
         if self._upcoming_rosters:
@@ -536,8 +544,7 @@ class Season:
             for abbr, entries in self._upcoming_rosters.items():
                 filler = RosterGapFiller(card_year=card_year, set=config.set, uncarded=[e for e in entries if e.mlb_id not in carded_mlb_ids], min_pa=config.min_pa)
                 cards_by_team[abbr] = filler.fill(cards_by_team.get(abbr, []))
-                for note in filler.notes:
-                    status(f"{abbr}: {note}")
+                roster_notes.extend(f"{abbr}: {note}" for note in filler.notes)
 
         real_games_per_team = self.schedule.original_games_per_team or 162
 
@@ -582,8 +589,10 @@ class Season:
             )
             seed(team)
             teams[team_name] = team
-            for warning in team.roster.warnings:
-                status(f"{team_name}: {warning}")
+            roster_notes.extend(f"{team_name}: {warning}" for warning in team.roster.warnings)
+
+        if roster_notes:
+            status(f"{ROSTER_NOTES_PREFIX} ({len(roster_notes)}):\n" + "\n".join(f"  {note}" for note in roster_notes))
 
         if missing_teams:
             raise ValueError(f"No player cards found for scheduled team(s): {missing_teams}. Check team abbreviation mappings.")
