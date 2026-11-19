@@ -1,15 +1,20 @@
+import logging
 from datetime import date
 from enum import Enum
 from typing import Optional
 
 from pydantic import BaseModel
 
+from ..card.minor_league_cards import MinorLeagueCardBuilder
+from ..card.sets import Set
 from ..card.showdown_player_card import ShowdownPlayerCard
 from ..card.stats.normalized_player_stats import Datasource
 from ..database.postgres_db import PostgresDB, CARD_DATA_DIAGNOSTIC_KEYS
 from ..mlb_stats_api import MLBStatsAPI, Transaction, TransactionTypeEnum
 from ..mlb_stats_api.models.teams.team import TeamWithColors
 from .window import OffseasonWindow
+
+logger = logging.getLogger(__name__)
 
 
 class MoveKind(str, Enum):
@@ -28,7 +33,12 @@ class FeedTeam(BaseModel):
 
 
 class FeedPlayer(BaseModel):
-    """One player in a move. `card` is the player's card from the season before, in the requested set."""
+    """One player in a move. `card` is the player's card from the season before, in the requested set.
+
+    A player with no big-league card that year may get a minor-league one instead
+    (`is_minor_league`). Its points stay off `points`, so a prospect never counts toward a move's
+    total or a club's net change - those are about the cards the sim plays with.
+    """
 
     mlb_id: int
     name: Optional[str] = None
@@ -36,6 +46,7 @@ class FeedPlayer(BaseModel):
     to_team_id: Optional[int] = None
     points: Optional[int] = None
     card: Optional[dict] = None
+    is_minor_league: bool = False
 
 
 class FeedMove(BaseModel):
@@ -55,6 +66,10 @@ class FeedMove(BaseModel):
     @property
     def has_cards(self) -> bool:
         return any(player.card for player in self.players)
+
+    @property
+    def has_mlb_cards(self) -> bool:
+        return any(player.card and not player.is_minor_league for player in self.players)
 
 
 class TeamNetChange(BaseModel):
@@ -177,13 +192,16 @@ class TransactionFeedBuilder:
         team_id_by_card_team = {t.abbreviation_bref: t.id for t in teams.values() if t.abbreviation_bref}
 
         moves = self._group_moves(transactions)
+        minor_league_cards = self._fetch_minor_league_cards(moves, cards=cards, card_year=card_year, showdown_set=showdown_set)
         for move in moves:
-            self._attach_cards(move, cards=cards, team_id_by_card_team=team_id_by_card_team)
+            self._attach_cards(move, cards=cards, minor_league_cards=minor_league_cards, team_id_by_card_team=team_id_by_card_team)
 
         kept: list[FeedMove] = []
         other: list[FeedMove] = []
         for move in moves:
-            if move.has_cards:
+            # A minor-league card alone doesn't carry an elected-free-agency or waiver row: those
+            # are mostly fringe 40-man arms, and only make the feed with a big-league card.
+            if move.has_mlb_cards or (move.has_cards and move.kind not in self._CARD_REQUIRED_KINDS):
                 kept.append(move)
             elif move.kind not in self._CARD_REQUIRED_KINDS:
                 other.append(move)
@@ -214,6 +232,23 @@ class TransactionFeedBuilder:
             for player_id, card in by_player_id.items()
             if card is not None
         }
+
+    def _fetch_minor_league_cards(self, moves: list[FeedMove], cards: dict[int, ShowdownPlayerCard], card_year: int, showdown_set: str) -> dict[int, ShowdownPlayerCard]:
+        """Minor-league cards for the uncarded players in trades and signings - the prospects and
+        depth pieces a deal sends along. One batched MLB API call per year tried."""
+        mlb_ids = [
+            player.mlb_id
+            for move in moves if move.kind in (MoveKind.TRADE, MoveKind.SIGNING)
+            for player in move.players if player.mlb_id not in cards
+        ]
+        if not mlb_ids:
+            return {}
+        try:
+            return MinorLeagueCardBuilder(mlb_stats_api=self.api).build_many(mlb_ids=mlb_ids, year=card_year, set=Set(showdown_set))
+        except Exception:
+            # A minor-league card is a nice-to-have on the feed; never fail the feed over one.
+            logger.exception("Couldn't build minor-league cards for the transaction feed")
+            return {}
 
     def _fetch_teams(self, season: int) -> dict[int, '_ResolvedTeam']:
         teams: dict[int, _ResolvedTeam] = {}
@@ -293,10 +328,15 @@ class TransactionFeedBuilder:
         return moves
 
     @classmethod
-    def _attach_cards(cls, move: FeedMove, cards: dict[int, ShowdownPlayerCard], team_id_by_card_team: dict[str, int]) -> None:
+    def _attach_cards(cls, move: FeedMove, cards: dict[int, ShowdownPlayerCard], minor_league_cards: dict[int, ShowdownPlayerCard],
+                      team_id_by_card_team: dict[str, int]) -> None:
         for player in move.players:
             card = cards.get(player.mlb_id)
             if card is None:
+                minor_league_card = minor_league_cards.get(player.mlb_id)
+                if minor_league_card is not None:
+                    player.card = minor_league_card.as_json(exclude=cls._CARD_JSON_EXCLUDE)
+                    player.is_minor_league = True
                 continue
             player.points = card.points
             player.card = card.as_json(exclude=cls._CARD_JSON_EXCLUDE)
@@ -320,7 +360,7 @@ class TransactionFeedBuilder:
         journeys: dict[int, tuple[Optional[int], Optional[int], int]] = {}  # mlb_id -> (start club, current club, points)
         for move in sorted(moves, key=lambda m: (m.date or '', m.id)):
             for player in move.players:
-                if not player.card:
+                if not player.card or player.is_minor_league:
                     continue
                 start, _, _ = journeys.get(player.mlb_id, (player.from_team_id, None, 0))
                 journeys[player.mlb_id] = (start, player.to_team_id, player.points or 0)
