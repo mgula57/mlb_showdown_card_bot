@@ -9,6 +9,7 @@ from .clients.games_client import GamesClient, Schedule
 from .clients.stats_client import StatsClient, StatTypeEnum
 from .clients.metadata_client import MetadataClient
 from .clients.awards_client import AwardsClient
+from .clients.transactions_client import TransactionsClient, Transaction, TransactionTypeEnum
 from .models.person import Player, Players
 from .models.leagues.league import LeagueListEnum
 from typing import Optional
@@ -57,6 +58,7 @@ class MLBStatsAPI:
         self.stats = StatsClient(**config)
         self.metadata = MetadataClient(**config)
         self.awards = AwardsClient(**config)
+        self.transactions = TransactionsClient(**config)
         
     # -------------------------
     # PLAYER SEARCH + BUILD
@@ -320,5 +322,7 @@ __all__ = [
     'SportEnum',
     'Standings',
     'Schedule',
-    'LeagueEnum'
+    'LeagueEnum',
+    'Transaction',
+    'TransactionTypeEnum',
 ]

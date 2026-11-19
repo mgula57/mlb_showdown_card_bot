@@ -505,17 +505,26 @@ class GamesClient(BaseMLBClient):
 
     def is_world_series_over(self, season: int, sport_id: int = 1) -> bool:
         """True once a team has clinched the World Series (won a majority of its games)."""
+        return self.get_world_series_clinch_date(season=season, sport_id=sport_id) is not None
+
+    def get_world_series_clinch_date(self, season: int, sport_id: int = 1) -> Optional[str]:
+        """The date (YYYY-MM-DD) of the game that clinched the World Series, or None before then.
+
+        This is the real end of a season - `season_end_date` is the scheduled Game 7 date.
+        """
         schedule = self.get_season_schedule(season=season, sport_id=sport_id, game_types=["W"])
         games = schedule.games or []
         if not games:
-            return False
+            return None
         wins_needed = (games[0].games_in_series or 7) // 2 + 1
         wins: dict[int, int] = {}
-        for game in games:
+        for game in games:  # get_season_schedule returns games in date order
             for side in (game.teams.away, game.teams.home) if game.teams else ():
                 if side and side.is_winner and side.team:
                     wins[side.team.id] = wins.get(side.team.id, 0) + 1
-        return max(wins.values(), default=0) >= wins_needed
+                    if wins[side.team.id] >= wins_needed:
+                        return game.official_date or (game.game_date or '')[:10] or None
+        return None
 
     def get_season_schedule(self, season: int, sport_id: int = 1, game_types: list[str] = ["R"]) -> Schedule:
         """Get every game for a season (regular season only by default).
