@@ -165,7 +165,8 @@ def fill_empty_stat_categories(stats_data:dict, is_pitcher:bool, is_game_logs:bo
     # CHECK FOR PA
     current_categories = stats_data.keys()
     
-    if stats_data.get('PA', None) is None:
+    # BLANK BREF CELLS (EX: PRE-1916 PITCHER "INCOMPLETE SPLITS" ROWS) PARSE AS 0, SO TREAT 0 AS MISSING TOO
+    if not stats_data.get('PA', None):
         stats_data['is_stats_estimate'] = True
         bf = stats_data.get('batters_faced', 0)
         is_bf_above_than_hits_and_bb = bf > ( stats_data.get('H', 0) + stats_data.get('BB', 0) ) # ACCOUNTS FOR BLANK BF ON PARTIAL SEASONS
