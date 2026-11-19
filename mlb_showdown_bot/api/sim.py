@@ -26,7 +26,7 @@ from ..core.simulation.challenge_generator import BeatTarget
 from ..core.simulation.faceoff import SUPPORTED_BEST_OF, FaceoffEntrant, FaceoffError, TeamMatchupSimulator
 from ..core.simulation.mlb_game import MLBGameLineupSlot, MLBGameSetup, MLBGameSimulator, MLBGameTeamSetup
 from ..core.simulation.models import GameStuckError, ManagerPreference, PostseasonFormat, PostseasonRound, SeasonSimulationConfig
-from ..core.simulation.season import Season
+from ..core.simulation.season import ROSTER_NOTES_PREFIX, Season
 from ..core.simulation.summary import SeasonSummaryBuilder
 from ..core.simulation.takeover import TakeoverOptions
 from .user_settings import optional_user_id, require_auth
@@ -1010,10 +1010,14 @@ def start_sim_lobby(lobby_id: str):
 def _friendly_phase(message: str) -> str | None:
     """Coarse user-facing stage for a `status_callback` message.
 
-    The engine emits setup milestones and per-team roster warnings ("STL: 7 man(s) short of a
-    40-man roster") down the same channel. Warnings are useful in the CLI but are noise in a
-    progress bar, so anything unrecognized returns None and leaves the phase as it was.
+    The engine emits setup milestones and one batch of per-team roster notes ("STL: 7 man(s) short
+    of a 40-man roster") down the same channel. Notes are useful in the CLI but are noise in a
+    progress bar, so they and anything unrecognized return None and leave the phase as it was.
     """
+    # CHECKED FIRST: THE NOTES MENTION "CARD" AND "ROSTER", WHICH WOULD OTHERWISE MATCH A STAGE
+    # (AND "card" WOULD SEND THE BAR BACK TO 'Loading players').
+    if message.startswith(ROSTER_NOTES_PREFIX):
+        return None
     text = message.lower()
     if 'postseason' in text:
         return 'Simulating the postseason'
