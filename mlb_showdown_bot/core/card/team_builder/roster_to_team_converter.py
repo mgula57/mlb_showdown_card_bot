@@ -104,6 +104,7 @@ class RosterToTeamConverter:
         forced_positions: Optional[dict[str, str]] = None,
         forced_batting_order: Optional[dict[str, int]] = None,
         forced_starting_pitcher_id: Optional[str] = None,
+        allow_adjacent_positions: bool = False,
     ) -> None:
         # Optional real-roster overrides (used for All-Star teams, where the actual starting
         # lineup positions, batting order, and starting pitcher are known rather than derived
@@ -111,6 +112,10 @@ class RosterToTeamConverter:
         self.forced_positions = forced_positions or {}
         self.forced_batting_order = forced_batting_order or {}
         self.forced_starting_pitcher_id = forced_starting_pitcher_id
+        # Lets a hitter cover a lineup position nobody plays from a neighboring one (see
+        # PositionSlot.adjacent_positions). Off by default: a real season's roster is what it was.
+        # On for a club before Opening Day, whose holes are unsigned free agents.
+        self.allow_adjacent_positions = allow_adjacent_positions
 
         # A card can't be placed on the roster without an identifier the frontend can look up.
         # Cameo-sample cards are dropped too, except any card a forced override depends on --
@@ -365,6 +370,15 @@ class RosterToTeamConverter:
         for position in [p for p in OFFENSE_POSITIONS if p not in assignment]:
             self._fill_by_shifting(position, assignment, hitters, used_ids)
 
+        if self.allow_adjacent_positions:
+            for position in [p for p in OFFENSE_POSITIONS if p not in assignment]:
+                adjacent = self._slot(position).adjacent_positions
+                candidates = [c for c in hitters if c.card_id not in used_ids and any(pos in (c.positions_list or []) for pos in adjacent)]
+                if candidates:
+                    picked = max(candidates, key=self._by_games_played)
+                    assignment[position] = picked
+                    used_ids.add(picked.card_id)
+
         return assignment
 
     @staticmethod
@@ -604,10 +618,19 @@ class RosterToTeamConverter:
             ],
         )
 
-    def build_api_dict(self) -> dict:
-        """Serialize the composed team to the same shape as the /user/teams endpoints."""
+    def rostered_points(self, team: Optional[Team] = None) -> int:
+        """Card points of the composed roster only. Pass an already-built `team` to avoid composing it twice."""
+        team = team or self.build()
+        rostered_ids = {s.card_id for s in team.roster}
+        return sum(card.points or 0 for card in self.cards if card.card_id in rostered_ids)
+
+    def build_api_dict(self, rostered_points_only: bool = False) -> dict:
+        """Serialize the composed team to the same shape as the /user/teams endpoints.
+
+        `total_points` sums the whole card pool by default. `rostered_points_only` sums just the
+        composed roster, for a pool much bigger than a roster (a 40-man).
+        """
         team = self.build()
         data = team.model_dump(mode='json')
-        total_points = sum(card.points or 0 for card in self.cards)
-        data['total_points'] = total_points
+        data['total_points'] = self.rostered_points(team) if rostered_points_only else sum(card.points or 0 for card in self.cards)
         return data

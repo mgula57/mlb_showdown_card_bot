@@ -351,6 +351,10 @@ class PositionSlotParent(Enum):
     NONE = "NONE"
 
 
+# Defense lost playing a slot through `PositionSlot.adjacent_positions` rather than at a card position.
+ADJACENT_DEFENSE_PENALTY = 1
+
+
 class PositionSlot(Enum):
     CA = "CA"
     _1B = "1B"
@@ -398,6 +402,32 @@ class PositionSlot(Enum):
             case PositionSlot.BP: return PositionSlotParent.BULLPEN
             case PositionSlot.BE: return PositionSlotParent.BENCH
             case _: return PositionSlotParent.NONE
+
+    @property
+    def card_position(self) -> "Position | None":
+        """The card position that plays this slot. Used to put a position on a card that lacks it."""
+        match self:
+            case PositionSlot.LF | PositionSlot.RF: return Position.LFRF
+            case PositionSlot.CA | PositionSlot._1B | PositionSlot._2B | PositionSlot._3B | PositionSlot.SS | PositionSlot.CF:
+                return self.valid_positions[0]
+            case _: return None
+
+    @property
+    def adjacent_positions(self) -> list[Position]:
+        """Card positions that can cover this slot when nobody on the roster plays it, best first.
+
+        Neighbors on the field, the way a manager fills a hole: a corner outfielder slides to
+        center, a middle infielder to the other middle spot or third. Nobody covers catcher.
+        Positions already in `valid_positions` (IF, OF) aren't repeated here.
+        """
+        match self:
+            case PositionSlot.CF: return [Position.LFRF]
+            case PositionSlot.LF | PositionSlot.RF: return [Position.CF]
+            case PositionSlot.SS: return [Position._2B, Position._3B]
+            case PositionSlot._2B: return [Position.SS, Position._3B]
+            case PositionSlot._3B: return [Position.SS, Position._2B]
+            case PositionSlot._1B: return [Position._3B, Position.LFRF, Position.CA, Position.OF]
+            case _: return []
 
     @property
     def has_defense(self) -> bool:

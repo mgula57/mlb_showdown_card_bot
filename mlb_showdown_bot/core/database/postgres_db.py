@@ -91,7 +91,6 @@ from ..card.stats.normalized_player_stats import Datasource
 from ..card.stats.award_voting import AwardVotingResult
 from ..card.command_out_selections import StoredCardSelectionRecord
 from ..card.variable_speed import VariableSpeedVariant
-from ..data.replacement_season_averages import get_replacement_hitting_avgs, get_replacement_pitching_avgs, build_replacement_level_stats_for_card
 from ..card.utils.shared_functions import convert_year_string_to_list
 from ..shared.google_drive import fetch_image_metadata
 from ..card.images import ImageMatchType, AutoImageFile
@@ -2097,12 +2096,6 @@ class PostgresDB:
                 print("No showdown card data found for MLB API roster.")
                 return roster
 
-            # LOAD REPLACEMENT LEVEL STATS IN CASE THERE IS NOT A CARD FOR THE PLAYER 
-            replacement_stat_baselines = {
-                'HITTER': get_replacement_hitting_avgs(year=year),
-                'PITCHER': get_replacement_pitching_avgs(year=year)
-            }
-
             # ADD CARD DATA TO ROSTER
             for roster_slot in roster.roster:
                 player_id = roster_slot.person.id
@@ -2119,29 +2112,21 @@ class PostgresDB:
 
                 # If no card, fill in with replacement player data based on limited info from the roster slot
                 if card is None:
-                    player_type = "PITCHER" if roster_slot.is_pitcher else "HITTER"
                     try: showdown_position = Position(roster_slot.position.abbreviation.upper())
                     except: showdown_position = None
-                    replacement_stat_baseline = replacement_stat_baselines.get(player_type, {}).copy()
-                    replacement_stats = build_replacement_level_stats_for_card(year=year, player_type=player_type, positions=[showdown_position], original_stats=replacement_stat_baseline)
-                    replacement_stats['name'] = roster_slot.person.full_name
-                    replacement_stats['team'] = 'MLB'
-                    
-                    card = ShowdownPlayerCard(
+                    card = ShowdownPlayerCard.replacement_level(
                         name=roster_slot.person.full_name,
-                        year=str(year),
+                        year=year,
                         set=showdown_set,
+                        player_type="PITCHER" if roster_slot.is_pitcher else "HITTER",
+                        position=showdown_position,
                         wbc_team=wbc_team,
                         wbc_year=wbc_year,
                         image={
                             "edition": Edition.WBC if wbc_team else Edition.NONE,
                             "special_edition": SpecialEdition.WBC,
                         },
-                        era="DYNAMIC",
-                        stats_period=StatsPeriod(year=str(year), type=StatsPeriodType.REPLACEMENT),
-                        stats=replacement_stats,
                     )
-                    card.warnings.append(f"This player does not have a {year} Showdown card. A replacement level card has been generated based on their position.")
 
                 # POST PROCESSING APPLIED TO ALL CARDS (BOTH REAL AND REPLACEMENT)
                 if sport_id == SportEnum.INTERNATIONAL:
@@ -2157,6 +2142,14 @@ class PostgresDB:
             print("Error fetching cards for MLB API roster:", e)
             traceback.print_exc()
             return roster
+
+    @staticmethod
+    def apply_points_to_standing(standing: Standings, points_by_team_id: dict[int, int]) -> None:
+        """Set each club's `showdown_points`, ordering by points while no games have been played."""
+        for record in standing.team_records:
+            record.showdown_points = points_by_team_id.get(record.team.id, 0)
+        if all(record.league_record.wins == 0 and record.league_record.losses == 0 for record in standing.team_records):
+            standing.team_records.sort(key=lambda r: r.showdown_points, reverse=True)
 
     def add_points_to_mlb_api_standings(self, standings: List[Standings], showdown_set: str) -> List[Standings]:
         """Fetch aggregated points data per team from the proper table.
@@ -2260,13 +2253,7 @@ class PostgresDB:
                         filter_values=(showdown_set, standing.league.season, sport_id),
                     )
 
-                points_by_team_id = {row['team_id']: row['total_points'] for row in results}
-                for record in standing.team_records:
-                    record.showdown_points = points_by_team_id.get(record.team.id, 0)
-
-                # If there have not been games played yet, sort by points
-                if all(record.league_record.wins == 0 and record.league_record.losses == 0 for record in standing.team_records):
-                    standing.team_records.sort(key=lambda r: r.showdown_points, reverse=True)
+                self.apply_points_to_standing(standing, {row['team_id']: row['total_points'] for row in results})
 
             return standings
         
@@ -2497,6 +2484,22 @@ class PostgresDB:
             )
             return [dict(r) for r in cur.fetchall()]
 
+    def fetch_card_bot_records_for_mlb_ids(self, mlb_ids: list[int], card_year: int, showdown_set: str) -> list[ExploreDataRecord]:
+        """card_bot records for a list of players in one card year and set.
+
+        A two-way player comes back twice (hitter and pitcher), and a player with no card that
+        year is simply absent.
+        """
+        if self.connection is None or not mlb_ids:
+            return []
+        query = sql.SQL("""
+            SELECT cards.*, 'BOT' AS source
+            FROM card_bot AS cards
+            WHERE cards.mlb_id IN %s AND cards.year = %s AND cards.showdown_set = %s
+        """)
+        rows = self.execute_query(query=query, filter_values=(tuple(mlb_ids), card_year, showdown_set))
+        return [ExploreDataRecord(**row) for row in rows] if rows else []
+
     def fetch_asg_card_pool(self, season: int, showdown_set: str, league: str, sport_id: int = 1) -> tuple[list[ExploreDataRecord], list[dict]]:
         """Fetch the ASG team's participant cards plus their stored starter/position metadata.
 
@@ -2512,14 +2515,7 @@ class PostgresDB:
         mlb_ids = [r['mlb_id'] for r in meta_rows if r.get('mlb_id') is not None]
         if not mlb_ids:
             return [], meta_rows
-        card_year = self._season_card_year(season)
-        query = sql.SQL("""
-            SELECT cards.*, 'BOT' AS source
-            FROM card_bot AS cards
-            WHERE cards.mlb_id IN %s AND cards.year = %s AND cards.showdown_set = %s
-        """)
-        rows = self.execute_query(query=query, filter_values=(tuple(mlb_ids), card_year, showdown_set))
-        cards = [ExploreDataRecord(**row) for row in rows] if rows else []
+        cards = self.fetch_card_bot_records_for_mlb_ids(mlb_ids=mlb_ids, card_year=self._season_card_year(season), showdown_set=showdown_set)
         return cards, meta_rows
 
     # ------------------------------------------------------------------------
@@ -2885,14 +2881,7 @@ class PostgresDB:
         mlb_ids = [r['mlb_id'] for r in meta_rows if r.get('mlb_id') is not None]
         if not mlb_ids:
             return [], meta_rows
-        card_year = self._season_card_year(season)
-        query = sql.SQL("""
-            SELECT cards.*, 'BOT' AS source
-            FROM card_bot AS cards
-            WHERE cards.mlb_id IN %s AND cards.year = %s AND cards.showdown_set = %s
-        """)
-        rows = self.execute_query(query=query, filter_values=(tuple(mlb_ids), card_year, showdown_set))
-        cards = [ExploreDataRecord(**row) for row in rows] if rows else []
+        cards = self.fetch_card_bot_records_for_mlb_ids(mlb_ids=mlb_ids, card_year=self._season_card_year(season), showdown_set=showdown_set)
         return cards, meta_rows
 
     def fetch_historical_roster_audit_rows(self, showdown_set: str, start_season: int, end_season: int,

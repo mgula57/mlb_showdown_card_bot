@@ -8,6 +8,7 @@ from ..core.mlb_stats_api.models.leagues.league import League
 from ..core.mlb_stats_api.models.leagues.standings import StandingsType
 from ..core.mlb_stats_api.models.stats.enums import PlayerPoolEnum, StatGroupEnum, LeaderLeaderStatEnum
 from ..core.database.postgres_db import PostgresDB, Set as ShowdownSet
+from ..core.offseason import TransactionFeed, TransactionFeedBuilder, UpcomingSeasonRosters
 from ..core.card.team_builder import (
     RosterToTeamConverter, StoredRosterToTeamConverter, TeamSource, EraRosterDrafter, RosterEraRegistry,
     LEAGUE_WIDE_TEAM_ID, LEAGUE_WIDE_ABBR, LEAGUE_WIDE_NAME,
@@ -39,6 +40,10 @@ _world_series_over_cache: dict[str, tuple[bool, datetime]] = {}
 
 AWARDS_CACHE_TTL = timedelta(hours=24)
 _awards_cache: dict[str, tuple[dict, datetime]] = {}
+# New moves land a few times a day; the feed is one MLB API call plus one card lookup to rebuild.
+TRANSACTIONS_CACHE_TTL = timedelta(minutes=30)
+_transactions_cache: dict[str, tuple[TransactionFeed, datetime]] = {}
+
 AWARD_TYPES = ['MVP', 'CY', 'ROY', 'GG', 'SS']
 AWARD_LEAGUES = ['AL', 'NL']
 
@@ -122,20 +127,32 @@ def fetch_standings(season_id: str, league_id: str):
         # Showdown Set is passed in for PTS context
         showdown_set = request.args.get('showdown_set', None)  # Default to 2000
 
+        # IF LEAGUE ID IS CL OR GL, USE SPRING_TRAINING STANDINGS TYPE, OTHERWISE USE BY_DIVISION
+        is_spring = str(league_id) in ['114', '115']
+        # Before Opening Day, points come from live 40-man rosters, which change with every move -
+        # those skip the 12-hour standings cache (UpcomingSeasonRosters caches for 30 minutes).
+        upcoming = UpcomingSeasonRosters(mlb_stats_api=_mlb_stats_api)
+        is_upcoming = not is_spring and season_id.isdigit() and upcoming.applies_to(int(season_id))
+
         cache_key = f"{season_id}:{league_id}:{showdown_set}"
         cached = _standings_cache.get(cache_key)
-        if cached and datetime.now() - cached[1] < STANDINGS_CACHE_TTL:
+        if not is_upcoming and cached and datetime.now() - cached[1] < STANDINGS_CACHE_TTL:
             return jsonify({'standings': cached[0]}), 200
 
-        # IF LEAGUE ID IS CL OR GL, USE SPRING_TRAINING STANDINGS TYPE, OTHERWISE USE BY_DIVISION
-        standings_type = StandingsType.SPRING_TRAINING if str(league_id) in ['114', '115'] else StandingsType.BY_DIVISION
+        standings_type = StandingsType.SPRING_TRAINING if is_spring else StandingsType.BY_DIVISION
         standings = _mlb_stats_api.leagues.get_standings(season=season_id, league_id=league_id, standings_type=standings_type)
         if showdown_set:
             with PostgresDB() as db:
-                standings = db.add_points_to_mlb_api_standings(standings, showdown_set=showdown_set)
+                if is_upcoming:
+                    points_by_team_id = upcoming.team_points(season=int(season_id), showdown_set=showdown_set, db=db)
+                    for standing in standings:
+                        db.apply_points_to_standing(standing, points_by_team_id)
+                else:
+                    standings = db.add_points_to_mlb_api_standings(standings, showdown_set=showdown_set)
 
         standings_data = [standing.model_dump() for standing in standings]
-        _standings_cache[cache_key] = (standings_data, datetime.now())
+        if not is_upcoming:
+            _standings_cache[cache_key] = (standings_data, datetime.now())
         return jsonify({'standings': standings_data}), 200
 
     except Exception as e:
@@ -265,6 +282,22 @@ def fetch_showdown_team(season_id: str, team_id: str):
             return jsonify({'team': cached[0]}), 200
 
         synthetic_team_id = f"mlb-{sport_id}-{team_id}-{season_id}-{showdown_set_enum.value}"
+
+        # Before Opening Day: the club's live 40-man with last season's cards. Not cached here -
+        # the rosters are (for 30 minutes), and composing one team from them is cheap.
+        upcoming = UpcomingSeasonRosters(mlb_stats_api=_mlb_stats_api, sport_id=sport_id)
+        if sport_id == 1 and upcoming.applies_to(season):
+            with PostgresDB() as db:
+                cards = upcoming.card_pools(season=season, showdown_set=showdown_set_enum.value, db=db, team_ids=[int(team_id)]).get(int(team_id), [])
+            builder = RosterToTeamConverter(
+                cards=cards,
+                team_id=synthetic_team_id,
+                name=team_name or team_abbr or f"Team {team_id}",
+                abbreviation=team_abbr or str(team_id),
+                season=season,
+                allow_adjacent_positions=True,
+            )
+            return jsonify({'team': builder.build_api_dict(rostered_points_only=True)}), 200
 
         with PostgresDB() as db:
             stored_cards, stored_slots = db.fetch_historical_team_card_pool(
@@ -651,6 +684,56 @@ def fetch_awards_for_season(season_id: str):
 
         _awards_cache[cache_key] = (awards_data, datetime.now())
         return jsonify({'awards': awards_data}), 200
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': str(e)}), 500
+
+@seasons_bp.route('/seasons/<season_id>/transactions', methods=["GET"])
+def fetch_transactions_for_season(season_id: str):
+    """Trades and free-agent moves in the offseason leading into `season_id`, with each player's card.
+
+    The window runs from the day after the prior World Series to the day before Opening Day, and
+    cards come from the year before `season_id` (see `TransactionFeedBuilder`). Before the prior
+    World Series ends, the feed comes back empty with a null `window_start`.
+
+    Query params: showdown_set, team_id (moves involving one club), since (YYYY-MM-DD),
+    sort ('date' default, or 'points'), limit.
+    """
+    try:
+        try:
+            season = int(season_id)
+        except ValueError:
+            return jsonify({'error': f'Invalid season: {season_id}'}), 400
+
+        showdown_set = request.args.get('showdown_set', ShowdownSet._2000.value)
+        try:
+            showdown_set_enum = ShowdownSet(showdown_set)
+        except ValueError:
+            return jsonify({'error': f'Invalid showdown_set: {showdown_set}. Valid options are: {[s.value for s in ShowdownSet]}'}), 400
+
+        team_id = request.args.get('team_id', None, type=int)
+        sort = request.args.get('sort', 'date')
+        if sort not in ('date', 'points'):
+            sort = 'date'
+        limit = request.args.get('limit', None, type=int)
+        since_param = request.args.get('since', None)
+        try:
+            since = datetime.strptime(since_param, '%Y-%m-%d').date() if since_param else None
+        except ValueError:
+            return jsonify({'error': f'Invalid since: {since_param}. Use YYYY-MM-DD.'}), 400
+
+        cache_key = f"{season}:{showdown_set_enum.value}"
+        cached = _transactions_cache.get(cache_key)
+        if cached and datetime.now() - cached[1] < TRANSACTIONS_CACHE_TTL:
+            feed = cached[0]
+        else:
+            feed = TransactionFeedBuilder(mlb_stats_api=_mlb_stats_api).build(season=season, showdown_set=showdown_set_enum.value)
+            _transactions_cache[cache_key] = (feed, datetime.now())
+
+        feed = feed.filtered(team_id=team_id, since=since, sort=sort, limit=limit)
+        return jsonify({'feed': feed.as_json()}), 200
 
     except Exception as e:
         import traceback
