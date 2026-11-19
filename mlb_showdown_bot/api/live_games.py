@@ -29,7 +29,7 @@ from ..core.card.showdown_player_card import ShowdownPlayerCard
 from ..core.card.team_builder.synthetic_teams import SyntheticTeamError, SyntheticTeams
 from ..core.card.team_builder.team import Team as BuilderTeam
 from ..core.database.postgres_db import PostgresDB
-from ..core.simulation.live_game import LiveAction, LiveMatch, LiveMatchError, LiveMatchSettings, LiveMatchState, LiveSide
+from ..core.simulation.live_game import LiveAction, LiveActionKind, LiveMatch, LiveMatchError, LiveMatchSettings, LiveMatchState, LiveSide
 from ..core.simulation.live_card_images import LiveCardImages
 from ..core.simulation.live_contexts import LIVE_GAME_CONTEXTS as _CONTEXTS, LiveGameContext
 from ..core.simulation.matchup import MatchupClub, MatchupError
@@ -141,11 +141,13 @@ class LiveGameSession:
     @staticmethod
     def build_match(row: dict) -> LiveMatch:
         setup = row['setup']
+        settings = LiveMatchSettings(**(row.get('settings') or {}))
         return LiveMatch(
             clubs={side: MatchupClub(**setup[side.value]['club']) for side in LiveSide},
             cards={side: {card_id: ShowdownPlayerCard(**data) for card_id, data in setup[side.value]['cards'].items()} for side in LiveSide},
             seed=int(row['seed']),
             sim_sides=frozenset(side for side in LiveSide if row.get(f'{side.value}_controller') == 'sim'),
+            every_roll_by_hand=settings.every_roll_by_hand,
         )
 
     def sides_for(self, user_id: Optional[str]) -> list[LiveSide]:
@@ -167,11 +169,17 @@ class LiveGameSession:
     def act(self, action: LiveAction, user_id: str, expected_seq: int) -> LiveMatchState:
         if self.row['status'] != 'active':
             raise LiveMatchError('This game is not being played.')
-        if action.side not in self.sides_for(user_id):
+        mine = self.sides_for(user_id)
+        if not mine:
             raise _RequestError("That's not your team.", 403)
         if expected_seq != len(self.actions):
             raise _RequestError('The game moved on. Refresh and try again.', 409)
-        new_state = self._commit(action, user_id=user_id, expected_state=self.match.replay(self.actions))
+        state = self.match.replay(self.actions)
+        # A SIDE ON AUTOPILOT (THE SIM'S SEAT, OR AN IDLE PLAYER'S) HAS ITS DICE ROLLED BY ANY PLAYER IN THE GAME.
+        rolls_for_autopilot = action.kind == LiveActionKind.ROLL and state.sides[action.side].autopilot
+        if action.side not in mine and not rolls_for_autopilot:
+            raise _RequestError("That's not your team.", 403)
+        new_state = self._commit(action, user_id=user_id, expected_state=state)
         if new_state is None:
             raise _RequestError('The game moved on. Refresh and try again.', 409)
         return new_state
@@ -247,11 +255,13 @@ def open_live_game(
     """
     if context_kind not in _CONTEXTS:
         raise ValueError(f"Unknown live game context: {context_kind}")
+    # EVERY GAME OPENED NOW THROWS EVERY DIE FROM A BUTTON, THE SIM'S SEAT INCLUDED.
+    settings = LiveMatchSettings(**(settings or {})).model_copy(update={'every_roll_by_hand': True}).model_dump(mode='json')
     seed, pending_side = None, None
     if invite_code is None:
-        seed, pending_side = _start({f'{side}_controller': seat['controller'] for side, seat in seats.items()}, setup)
+        seed, pending_side = _start({'settings': settings, **{f'{side}_controller': seat['controller'] for side, seat in seats.items()}}, setup)
     return db.create_live_game(
-        created_by=created_by, seats=seats, setup=setup, settings=settings or LiveMatchSettings().model_dump(mode='json'),
+        created_by=created_by, seats=seats, setup=setup, settings=settings,
         invite_code=invite_code, context_kind=context_kind, context_ref=context_ref, seed=seed, pending_side=pending_side,
     )
 
@@ -540,7 +550,10 @@ def get_my_live_games():
                 'identities': {'away': row.get('away_identity'), 'home': row.get('home_identity')},
                 'controllers': {'away': row.get('away_controller'), 'home': row.get('home_controller')},
                 'my_sides': sides,
-                'is_my_turn': row['status'] == 'active' and row.get('pending_side') in sides,
+                # THE SIM'S ROLLS ARE THE PLAYER'S TO MAKE TOO.
+                'is_my_turn': row['status'] == 'active' and bool(sides) and (
+                    row.get('pending_side') in sides or row.get(f"{row.get('pending_side')}_controller") == 'sim'
+                ),
                 'winner_side': row.get('winner_side'),
                 'invite_code': row['invite_code'] if row['status'] == 'invited' and row.get('created_by') == g.user_id else None,
                 'last_action_at': row['last_action_at'].isoformat() if row.get('last_action_at') else None,

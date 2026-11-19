@@ -38,7 +38,12 @@ export type LiveAction = {
 export const IDLE_AUTOPILOT_CHOICES = [null, 2, 5, 15, 60] as const;
 export type IdleAutopilotMinutes = (typeof IDLE_AUTOPILOT_CHOICES)[number];
 
-export type LiveGameSettings = { idle_autopilot_minutes: IdleAutopilotMinutes };
+export type LiveGameSettings = {
+    idle_autopilot_minutes: IdleAutopilotMinutes;
+    /** Every roll waits for a button, a side on autopilot's too (any seated player rolls for it). Off
+     *  only for games stored before it. */
+    every_roll_by_hand?: boolean;
+};
 
 export type PendingRoll = {
     side: LiveSide;

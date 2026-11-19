@@ -59,10 +59,19 @@ export function actingSide(game: LiveGame): LiveSide | null {
     return pending && game.my_sides.includes(pending) ? pending : game.my_sides[0];
 }
 
+/** True while the game waits on a roll this player makes: their own, or one for a side on autopilot
+ *  (the sim's seat, or an idle player's), which any player in the game rolls. */
 export const isMyTurn = (game: LiveGame) => {
     const pending = game.state?.pending?.side;
-    return !!pending && game.my_sides.includes(pending);
+    if (!pending || game.my_sides.length === 0) return false;
+    return game.my_sides.includes(pending) || isRollingFor(game);
 };
+
+/** True while this player rolls for a side that isn't theirs, one on autopilot. */
+export function isRollingFor(game: LiveGame): boolean {
+    const pending = game.state?.pending?.side;
+    return !!pending && game.my_sides.length > 0 && !game.my_sides.includes(pending) && !!game.state?.sides[pending].autopilot;
+}
 
 /** A seat's club by name, or what the seat is waiting for. */
 export function seatName(seat: LiveSeat | undefined, side: LiveSide): string {
@@ -105,6 +114,7 @@ export function liveTurnLabel(game: LiveGame): LiveTurn | null {
     const pending = game.state && !game.state.is_final ? game.state.pending : null;
     if (!pending) return null;
     const verb = TURN_VERB[pending.roll];
+    if (isRollingFor(game)) return { label: `Roll the ${verb} for ${teamName(game, pending.side)}`, isWaiting: false };
     if (isMyTurn(game)) return { label: `Your ${verb}`, isWaiting: false };
     return { label: `Waiting on ${teamName(game, pending.side)} to ${verb}`, isWaiting: true };
 }

@@ -25,6 +25,9 @@ time, and it applies at the next point it can:
   - a pinch hitter when the batter he's named for next comes up, provided that batter isn't
     already at the plate.
 Autopilot hands a side's decisions to the sim's own manager, from the point it's switched on.
+In a game with every roll by hand (`LiveMatchSettings.every_roll_by_hand`, every game opened since
+it was added) a side on autopilot, the sim's seat included, still waits for each of its rolls, and
+any player seated in the game makes them, so every die on the field is thrown from a button.
 """
 
 from datetime import date, datetime, timedelta, timezone
@@ -92,6 +95,9 @@ class LiveMatchSettings(BaseModel):
     # A SIDE THAT HASN'T MOVED FOR THIS LONG WHILE IT'S ITS TURN GOES ON AUTOPILOT. NONE TURNS THE
     # TIMER OFF, FOR A GAME PLAYED A TURN AT A TIME OVER HOURS OR DAYS.
     idle_autopilot_minutes: Optional[int] = None
+    # EVERY ROLL WAITS FOR A PLAYER, A SIDE ON AUTOPILOT'S TOO (ANY SEATED PLAYER ROLLS FOR IT). OFF
+    # FOR GAMES STORED BEFORE IT, WHOSE ACTIONS HAVE NO ROLLS FOR THOSE SIDES.
+    every_roll_by_hand: bool = False
 
 
 class PendingRoll(BaseModel):
@@ -174,8 +180,12 @@ class ScriptedController(GameController):
         # A CLUB ON AUTOPILOT IS THE SIM'S TO MANAGE, SO IT PLAYS BY THE SIM'S RULES.
         return not self.autopilot[self._side(team)]
 
-    def __init__(self, actions: list[LiveAction], side_for_team: dict[int, LiveSide], sim_sides: frozenset[LiveSide] = frozenset()) -> None:
+    def __init__(
+        self, actions: list[LiveAction], side_for_team: dict[int, LiveSide], sim_sides: frozenset[LiveSide] = frozenset(),
+        every_roll_by_hand: bool = False,
+    ) -> None:
         self._actions = actions
+        self._every_roll_by_hand = every_roll_by_hand
         self._next = 0
         self._side_for_team = side_for_team
         self.autopilot = {side: side in sim_sides for side in LiveSide}
@@ -230,7 +240,7 @@ class ScriptedController(GameController):
     def before_roll(self, kind: RollKind, team: SimTeam, inning: Inning) -> None:
         side = self._side(team)
         self._drain()
-        if self.autopilot[side]:
+        if self.autopilot[side] and not self._every_roll_by_hand:
             return
         if self._next < len(self._actions):
             action = self._actions[self._next]
@@ -248,12 +258,15 @@ class LiveMatch:
         self, clubs: dict[LiveSide, MatchupClub], seed: int,
         cards: dict[LiveSide, dict[str, ShowdownPlayerCard]],
         sim_sides: frozenset[LiveSide] = frozenset(),
+        every_roll_by_hand: bool = False,
     ) -> None:
         self.clubs = clubs
         self.seed = seed
         self.cards = cards
-        # SEATS THE SIM PLAYS: ON AUTOPILOT FROM THE FIRST PITCH, AND NEVER WAITED ON.
+        # SEATS THE SIM PLAYS: ON AUTOPILOT FROM THE FIRST PITCH. WAITED ON ONLY FOR ITS ROLLS, AND
+        # ONLY WITH `every_roll_by_hand`.
         self.sim_sides = frozenset(sim_sides)
+        self.every_roll_by_hand = every_roll_by_hand
 
     # ------------------------------------------------------------------
     # REPLAY
@@ -263,7 +276,9 @@ class LiveMatch:
         """Rebuild the game from its actions, up to the roll it's waiting on or the final out."""
         teams = {side: build_club(self.clubs[side], self.cards[side], schedule_key=side.schedule_key) for side in LiveSide}
         game = setup_game(home=teams[LiveSide.HOME], away=teams[LiveSide.AWAY])
-        controller = ScriptedController(actions, side_for_team={id(team): side for side, team in teams.items()}, sim_sides=self.sim_sides)
+        controller = ScriptedController(actions, side_for_team={id(team): side for side, team in teams.items()}, sim_sides=self.sim_sides,
+            every_roll_by_hand=self.every_roll_by_hand,
+        )
 
         pending: Optional[PendingRoll] = None
         try:
@@ -375,7 +390,7 @@ class LiveMatch:
     def validate(self, state: LiveMatchState, action: LiveAction) -> None:
         if state.is_final:
             raise LiveMatchError('This game is over.')
-        if action.side in self.sim_sides:
+        if action.side in self.sim_sides and action.kind != LiveActionKind.ROLL:
             raise LiveMatchError('The sim manages that club.')
         mine = state.sides[action.side]
         queued_ids = {a.player_id for a in mine.queued}
@@ -405,6 +420,9 @@ class LiveMatch:
     def idle_autopilot_action(state: LiveMatchState, settings: LiveMatchSettings, last_action_at: datetime, now: Optional[datetime] = None) -> Optional[LiveAction]:
         """The autopilot switch the idle timer owes the side being waited on, if its time is up."""
         if settings.idle_autopilot_minutes is None or state.is_final or state.pending is None:
+            return None
+        # ALREADY ON AUTOPILOT, IT'S WAITING ON A PLAYER TO ROLL FOR IT.
+        if state.sides[state.pending.side].autopilot:
             return None
         now = now or datetime.now(timezone.utc)
         if now - last_action_at < timedelta(minutes=settings.idle_autopilot_minutes):

@@ -72,11 +72,11 @@ def frozen_cards(rows: list[dict]) -> dict[str, ShowdownPlayerCard]:
     return {card_id: ShowdownPlayerCard(**card.model_dump(mode='json')) for card_id, card in cards.items()}
 
 
-def match(seed: int = 7, sim_sides: frozenset = frozenset()) -> LiveMatch:
+def match(seed: int = 7, sim_sides: frozenset = frozenset(), every_roll_by_hand: bool = False) -> LiveMatch:
     return LiveMatch(
         clubs={AWAY: tf.entrant(CHALLENGER), HOME: tf.entrant(OPPONENT)},
         cards={AWAY: frozen_cards(CHALLENGER["roster"]), HOME: frozen_cards(OPPONENT["roster"])},
-        seed=seed, sim_sides=sim_sides,
+        seed=seed, sim_sides=sim_sides, every_roll_by_hand=every_roll_by_hand,
     )
 
 
@@ -237,6 +237,16 @@ def test_autopilot() -> None:
     owed = LiveMatch.idle_autopilot_action(state, LiveMatchSettings(idle_autopilot_minutes=10), then)
     check("an expired timer switches the waited-on side to autopilot", owed is not None and owed.side == state.pending.side and owed.by_timeout)
     check("a running timer doesn't", LiveMatch.idle_autopilot_action(state, LiveMatchSettings(idle_autopilot_minutes=60), then) is None)
+
+    by_hand = match(seed=5, sim_sides=frozenset({HOME}), every_roll_by_hand=True)
+    state = by_hand.replay([])
+    check("by hand, the sim's seat waits for its roll", state.pending.side == HOME and state.pending.roll == RollKind.PITCH, str(state.pending))
+    check("an autopilot side's roll owes no idle autopilot", LiveMatch.idle_autopilot_action(state, LiveMatchSettings(idle_autopilot_minutes=10), then) is None)
+    check("the sim's roll can be made", not refused(by_hand, [], roll(state)))
+    check("but it still can't be moved for", refused(by_hand, [], LiveAction(side=HOME, kind=LiveActionKind.PITCHING_CHANGE, player_id=state.sides[HOME].available_reliever_ids[0])))
+    actions, final = play_out(by_hand, [])
+    check("by hand, both sides roll to a final", final.is_final and {a.side for a in actions} == {AWAY, HOME})
+    check("and it's the same game as the sim rolling for itself", final.game.home_score == play_out(against_sim, [])[1].game.home_score)
 
 
 def test_engine_unchanged() -> None:
@@ -449,8 +459,13 @@ def test_api() -> None:
     check("a game against the sim starts at once", status == 201 and created["invite_code"] is None and StubLiveDB.games[created["live_game_id"]]["status"] == "active", str(created))
     check("the random club is stored as the club it landed on", StubLiveDB.games[created["live_game_id"]]["home_team_ref"]["kind"] == "historical")
     _, data = call(live_api.get_live_game, user=ALICE, live_game_id=created["live_game_id"])
-    check("the sim's seat is never waited on", data["state"]["pending"]["side"] == "away" and data["seats"]["home"]["controller"] == "sim")
-    data, _ = play_through_api(created["live_game_id"], {"away": ALICE})
+    check("the sim's seat waits for its roll", data["state"]["pending"]["side"] == "home" and data["seats"]["home"]["controller"] == "sim", str(data["state"]["pending"]))
+    pending = data["state"]["pending"]
+    sim_roll = {"expected_seq": 0, "action": {"side": "home", "kind": "roll", "roll": pending["roll"]}}
+    check("a spectator can't roll for the sim", call(live_api.post_live_game_action, method="POST", body=sim_roll, user=CAROL, live_game_id=created["live_game_id"])[0] == 403)
+    status, mine = call(live_api.get_my_live_games, user=ALICE)
+    check("the sim's roll is the player's turn", any(g_["live_game_id"] == created["live_game_id"] and g_["is_my_turn"] for g_ in mine["games"]))
+    data, _ = play_through_api(created["live_game_id"], {"away": ALICE, "home": ALICE})
     check("a game against the sim plays to a final", data["status"] == "final")
 
     # BOTH SEATS YOURS.
@@ -466,7 +481,12 @@ def test_api() -> None:
     _, data = call(live_api.get_live_game, user=CAROL, live_game_id=idle_id)
     first = StubLiveDB.actions[idle_id][0] if StubLiveDB.actions[idle_id] else {}
     check("an idle side goes on autopilot when the game is next looked at", first.get("kind") == "autopilot" and first.get("by_timeout") is True, str(first))
-    check("and the game waits on the other side", data["state"]["pending"]["side"] != first.get("side"))
+    pending = data["state"]["pending"]
+    check("and still waits for that side's roll", pending["side"] == first.get("side"), str(pending))
+    other = BOB if pending["side"] == "away" else ALICE
+    status, _ = call(live_api.post_live_game_action, method="POST", user=other, live_game_id=idle_id,
+                     body={"expected_seq": data["state"]["seq"], "action": {"side": pending["side"], "kind": "roll", "roll": pending["roll"]}})
+    check("which the other player rolls for it", status == 200, str(status))
 
     status, mine = call(live_api.get_my_live_games, user=BOB)
     turns = {game["live_game_id"]: game["is_my_turn"] for game in mine["games"]}
@@ -494,7 +514,7 @@ def test_faceoff() -> None:
     row = StubLiveDB.games[game_id]
     check("it's a live game in the Faceoff context", row["context_kind"] == "faceoff" and row["status"] == "active")
     check("the challenger is away, the challenged team home and played by the sim", row["away_user_id"] == ALICE and row["home_controller"] == "sim")
-    data, _ = play_through_api(game_id, {"away": ALICE})
+    data, _ = play_through_api(game_id, {"away": ALICE, "home": ALICE})
     check("it plays to a final", data["status"] == "final")
     user_id, result, is_own = recorded[-1] if recorded else (None, {}, None)
     winner = "challenger" if data["state"]["winner_side"] == "away" else "opponent"

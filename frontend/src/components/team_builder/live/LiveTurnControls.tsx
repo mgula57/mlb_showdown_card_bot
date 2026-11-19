@@ -68,8 +68,9 @@ type Props = {
 
 /** The next-move button: thumb-sized, in the field's bottom-right corner on every board, and always
  *  there while this player has a seat. On their turn it rolls the pitch, the swing, or the throw on
- *  a runner stealing or sent for an extra base (the same die the field offers); otherwise it says
- *  to wait, so the spot never jumps. */
+ *  a runner stealing or sent for an extra base (the same die the field offers), and the same for a
+ *  side on autopilot, the sim's seat included, so every die is thrown from a button; otherwise it
+ *  says to wait, so the spot never jumps. */
 export default function LiveActionButton({ game, isCaughtUp, isSubmitting, onRoll, pass }: Props) {
     const state = game.state;
     if (!state || state.is_final || !actingSide(game)) return null;
