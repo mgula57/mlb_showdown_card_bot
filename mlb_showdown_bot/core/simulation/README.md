@@ -363,8 +363,10 @@ written to Postgres via two callbacks passed into `Season.simulate`:
 - `status_callback(message)` — fires with human-readable setup milestones (card loading, schedule
   building, roster construction). `_friendly_phase` maps these onto a small set of coarse,
   user-facing phase labels (`SETUP_PHASES` in the frontend's `SimProgress.tsx` mirrors this list)
-  and drops anything it doesn't recognize (e.g. per-team roster warnings), so the progress bar
-  never shows raw internal log lines.
+  and drops anything it doesn't recognize, so the progress bar never shows raw internal log
+  lines. Per-club roster notes (gap fixes, roster warnings) arrive as one batched message led by
+  `ROSTER_NOTES_PREFIX` rather than one message each, since the web worker writes every status
+  message to the job row.
 
 A single real-game sim (`start_game_sim`) is synchronous instead — a few hundred plate
 appearances runs in milliseconds, so there's no job/poll cycle for it.
