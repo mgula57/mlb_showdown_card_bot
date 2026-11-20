@@ -755,6 +755,9 @@ class SeasonSimulationResult(BaseModel):
 
     schedule_length: int
     original_schedule_length: int
+    # PER-CLUB GAME COUNTS (schedule_length IS LEAGUE-WIDE GAMES, e.g. 2430). 0 = UNKNOWN.
+    games_per_team: int = 0
+    original_games_per_team: int = 0
     stats_min_pa: int
     stats_min_ip: int      # QUALIFYING IP FOR STARTERS
     stats_min_ip_rp: int   # QUALIFYING IP FOR RELIEVERS/CLOSERS - LOWER, SINCE THEY THROW FAR FEWER INNINGS
