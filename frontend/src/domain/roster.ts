@@ -5,7 +5,7 @@
  * file does not invent a new roster type; it just gives that type a domain-facing name and a
  * `TeamIdentity` projection so a roster and an MLB team can render through the same `TeamChip`.
  */
-import { BULLPEN_ROLES, type PitcherAssignment, type Team, type TeamRosterSlot } from "../api/userTeams";
+import { BULLPEN_ROLES, type PitcherAssignment, type RosterSlotRef, type Team, type TeamRosterSlot } from "../api/userTeams";
 import type { TeamIdentity } from "./team";
 
 export type RosterView = Team;
@@ -20,14 +20,14 @@ export const toTeamIdentity = (team: RosterView): TeamIdentity => ({
 });
 
 const CLOSER_ROLE = 'CL';
-const isCloserSlot = (slot: TeamRosterSlot) => slot.roster_position.toUpperCase() === CLOSER_ROLE;
-const isBullpenSlot = (slot: TeamRosterSlot) => BULLPEN_ROLES.includes(slot.roster_position.toUpperCase());
+const isCloserSlot = (slot: RosterSlotRef) => slot.roster_position.toUpperCase() === CLOSER_ROLE;
+const isBullpenSlot = (slot: RosterSlotRef) => BULLPEN_ROLES.includes(slot.roster_position.toUpperCase());
 
 /** The bullpen as the team page shows it: the closer on top, then the owner's order if they've set
  *  one, otherwise highest points first. Read from the roster rather than `Team.rotation`, which
  *  reports every reliever as a plain 'RP'. */
 export function orderedBullpen(
-    roster: TeamRosterSlot[], isCustomOrder: boolean | undefined, pointsOf: (cardId: string) => number,
+    roster: RosterSlotRef[], isCustomOrder: boolean | undefined, pointsOf: (cardId: string) => number,
 ): PitcherAssignment[] {
     const bullpen = roster.filter(isBullpenSlot);
     const ordered = isCustomOrder
