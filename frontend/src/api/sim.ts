@@ -1,4 +1,5 @@
 import type { ManagerPreference } from './manager';
+import type { Lineup, PitcherAssignment, RosterSlotRef } from './userTeams';
 
 const API_BASE = import.meta.env.PROD ? "/api" : "http://127.0.0.1:5000/api";
 
@@ -204,6 +205,21 @@ export type SimTeamSeason = {
     longest_losing_streak: number;
 };
 
+/** Mirrors `SimClubRoster` (`club_roster.py`) — a club's depth chart for the My Team field view:
+ *  a takeover club's drafted roster as it ran, or a followed real club's most-used players.
+ *  Card ids only; `rotation` holds starters only (the bullpen is read off `roster`). */
+export type SimClubRoster = {
+    source: 'drafted' | 'most_used';
+    roster: RosterSlotRef[];
+    lineup: Lineup | null;
+    rotation: PitcherAssignment[];
+    bench_pts_multiplier: number;
+    bullpen_order_custom: boolean;
+    min_bench: number;
+    min_bullpen: number;
+    num_starters: number;
+};
+
 export type SeasonSimSummary = {
     year: number;
     set: string;
@@ -240,6 +256,10 @@ export type SeasonSimSummary = {
     /** Schedule keys of every club replaced by a builder team this run. Absent for summaries
      *  persisted before open sims existed. */
     takeover_abbrs?: string[];
+    /** Schedule key -> depth chart for the My Team field view: every takeover club's drafted
+     *  roster, plus a followed real club's most-used one. Absent on summaries persisted before
+     *  roster snapshots existed. */
+    club_rosters?: Record<string, SimClubRoster>;
     /** Schedule key -> the non-neutral manager profile that club played with this run. Absent
      *  for a plain sim and for summaries persisted before manager preference existed. */
     manager_preferences?: Record<string, ManagerPreference>;
