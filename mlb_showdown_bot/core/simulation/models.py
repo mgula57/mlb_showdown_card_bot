@@ -295,6 +295,14 @@ class SeasonSimulationConfig(BaseModel):
     # ALONGSIDE `enable_trade_deadline`; ONLY THE SELL SIDE IS GATED.
     trade_deadline_respects_standings: bool = False
 
+    # OFFSEASON FREE AGENTS. ONLY APPLY BEFORE OPENING DAY, WHEN CLUBS ARE BUILT FROM LIVE 40-MANS
+    # (SEE `UpcomingSeasonRosters`) AND AN UNSIGNED FREE AGENT IS ON NO CLUB. `return_free_agents`
+    # PUTS EACH ONE BACK ON THE CLUB HE LEFT; `free_agent_signings` (MLB ID -> SCHEDULE
+    # ABBREVIATION) SENDS SPECIFIC ONES TO CHOSEN CLUBS, AND WINS OVER A RETURN. A PLAYER WHO HAS
+    # SIGNED IS NEVER MOVED. NO-OP FOR ANY OTHER SEASON.
+    return_free_agents: bool = False
+    free_agent_signings: dict[int, str] = {}
+
     # STANDINGS PTS DISPLAY. A BUILDER/TOURNAMENT TEAM'S BENCH SLOTS COST LESS THAN THEIR CARD'S
     # FULL POINTS AT DRAFT TIME (SEE `Team.bench_pts_multiplier`), SO THE RAW SUM OF EVERY ACTIVE
     # PLAYER'S POINTS OVERSTATES WHAT THE TEAM ACTUALLY SPENT. DEFAULT ON - IT IS A NO-OP FOR

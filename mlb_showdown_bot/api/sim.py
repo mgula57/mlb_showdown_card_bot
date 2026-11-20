@@ -21,11 +21,13 @@ from ..core.card.team_builder.player_filters import PlayerFilterSet
 from ..core.card.team_builder.team import BULLPEN_ROLES, FIELD_POSITIONS, ROTATION_ROLES, Team as BuilderTeam
 from ..core.database.postgres_db import PostgresDB
 from ..core.mlb_stats_api import MLBStatsAPI
-from ..core.offseason import OffseasonWindow
+from ..core.offseason import OffseasonWindow, UnsignedFreeAgents, UpcomingSeasonRosters
 from ..core.simulation.challenge_generator import BeatTarget
 from ..core.simulation.faceoff import SUPPORTED_BEST_OF, FaceoffEntrant, FaceoffError, TeamMatchupSimulator
 from ..core.simulation.mlb_game import MLBGameLineupSlot, MLBGameSetup, MLBGameSimulator, MLBGameTeamSetup
 from ..core.simulation.models import GameStuckError, ManagerPreference, PostseasonFormat, PostseasonRound, SeasonSimulationConfig
+from ..core.simulation.roster import RESERVE_MIN_IP_PITCHER, RESERVE_MIN_PA_POSITION
+from ..core.simulation.schedule import normalized_team_abbr
 from ..core.simulation.season import ROSTER_NOTES_PREFIX, Season
 from ..core.simulation.summary import SeasonSummaryBuilder
 from ..core.simulation.takeover import TakeoverOptions
@@ -152,6 +154,18 @@ def get_sim_guide():
 _offseason_api = MLBStatsAPI(cache_ttl=60 * 60)
 
 
+def _regular_season_finished(year: int) -> bool:
+    """True once every regular-season game of `year` is in the books. Before that there's no real
+    postseason to resume from."""
+    today = date.today()
+    if year < today.year:
+        return True
+    calendar = _offseason_api.seasons.get_season(season=year, sport_id=1)
+    if not calendar or not calendar.regular_season_end_date:
+        return False
+    return today > date.fromisoformat(calendar.regular_season_end_date)
+
+
 @sim_bp.route('/sim/seasons', methods=['GET'])
 def get_sim_seasons():
     """Seasons that can be simulated, newest first.
@@ -164,7 +178,9 @@ def get_sim_seasons():
         if OffseasonWindow.for_season(season=latest + 1, mlb_stats_api=_offseason_api) is not None:
             latest += 1
         seasons = list(range(latest, _EARLIEST_SEASON - 1, -1))
-        return jsonify({'seasons': seasons}), 200
+        # ONLY THIS YEAR AND AN UPCOMING ONE CAN STILL HAVE REGULAR SEASON LEFT TO PLAY.
+        unfinished = [season for season in seasons[:2] if not _regular_season_finished(season)]
+        return jsonify({'seasons': seasons, 'unfinished': unfinished}), 200
     except Exception as exc:
         traceback.print_exc()
         return jsonify({'error': str(exc)}), 500
@@ -183,6 +199,44 @@ def get_sim_season_teams(year: int):
         teams = [club.model_dump() for club in options.clubs]
         _seasons_cache[cache_key] = (teams, datetime.now())
         return jsonify({'teams': teams, 'default': options.default_abbr}), 200
+    except Exception as exc:
+        traceback.print_exc()
+        return jsonify({'error': str(exc)}), 500
+
+
+@sim_bp.route('/sim/seasons/<int:year>/free_agents', methods=['GET'])
+def get_sim_season_free_agents(year: int):
+    """Unsigned free agents with a card in `set`, best first - the players an offseason sim can
+    place. Empty for any season that has already reached Opening Day."""
+    try:
+        try:
+            showdown_set = Set(str(request.args.get('set') or '2000'))
+        except ValueError:
+            return jsonify({'error': f"unknown set '{request.args.get('set')}'"}), 400
+        if not UpcomingSeasonRosters(mlb_stats_api=_offseason_api).applies_to(year):
+            return jsonify({'free_agents': []}), 200
+        with PostgresDB() as db:
+            free_agents = UnsignedFreeAgents(mlb_stats_api=_offseason_api).with_cards(season=year, showdown_set=showdown_set.value, db=db)
+
+        # THE SAME SAMPLE FLOORS THE SIM'S CARD POOL USES (`SeasonPreload.load`): A CARD UNDER THEM
+        # NEVER REACHES A CLUB, SO SIGNING IT WOULD DO NOTHING. A CARD UNDER THE ACTIVE-ROSTER
+        # THRESHOLDS ONLY PLAYS AS DEPTH, SO IT LISTS AFTER THE REGULARS.
+        defaults = SeasonSimulationConfig(year=year)
+        def sample(fa) -> float:
+            return (fa.ip or 0) if fa.is_pitcher else (fa.pa or 0)
+        def is_regular(fa) -> bool:
+            return sample(fa) >= (defaults.min_ip_rp if fa.is_pitcher else defaults.min_pa)
+        usable = [fa for fa in free_agents if sample(fa) >= (RESERVE_MIN_IP_PITCHER if fa.is_pitcher else RESERVE_MIN_PA_POSITION)]
+        usable.sort(key=lambda fa: (not is_regular(fa), -(fa.points or 0)))
+        return jsonify({'free_agents': [
+            {
+                'mlb_id': fa.mlb_id, 'name': fa.name, 'points': fa.points,
+                'positions': fa.card_positions, 'is_pitcher': fa.is_pitcher,
+                'pa': fa.pa, 'ip': fa.ip, 'is_small_sample': not is_regular(fa),
+                'original_team': normalized_team_abbr(fa.original_team_abbreviation, year),
+            }
+            for fa in usable
+        ]}), 200
     except Exception as exc:
         traceback.print_exc()
         return jsonify({'error': str(exc)}), 500
@@ -473,6 +527,8 @@ def _parse_engine_settings(payload: dict) -> dict:
     # `resume_from_real_season` and forces off the other resume-only toggle below, which means
     # nothing when no regular season is simulated.
     resume_from_real_postseason = bool(payload.get('resume_from_real_postseason'))
+    if resume_from_real_postseason and not _regular_season_finished(year):
+        raise ValueError(f"The {year} regular season isn't over yet, so there's no real postseason to resume from.")
     if resume_from_real_postseason:
         resume_from_real_season = True
 
@@ -581,6 +637,57 @@ def _launch_open_sim_job(
     return job_id, None
 
 
+def _parse_free_agent_signings(raw) -> dict[int, str]:
+    """`[{mlb_id, team}]` from an open sim payload as MLB id -> requested club. Shape only - the
+    players and clubs are checked against the season in `_SimLaunchPlan`'s factory."""
+    if raw is None:
+        return {}
+    if not isinstance(raw, list):
+        raise ValueError('free_agent_signings must be a list')
+    signings: dict[int, str] = {}
+    for entry in raw:
+        if not isinstance(entry, dict):
+            raise ValueError('each free agent signing needs an mlb_id and a team')
+        try:
+            mlb_id = int(entry.get('mlb_id'))
+        except (TypeError, ValueError):
+            raise ValueError('each free agent signing needs an mlb_id')
+        team = str(entry.get('team') or '').upper()
+        if not team:
+            raise ValueError('each free agent signing needs a team')
+        if mlb_id in signings:
+            raise ValueError('a free agent can only sign with one club')
+        signings[mlb_id] = team
+    return signings
+
+
+def _resolve_free_agent_signings(year: int, requested: dict[int, str], options: TakeoverOptions,
+                                 taken_over: set[str]) -> tuple[dict[int, str], list[dict]]:
+    """Checks requested signings against the season, on the worker thread (it reads the MLB API).
+
+    Returns the signings to apply (MLB id -> schedule abbreviation) and their echo for the job's
+    stored config. A player who signed somewhere since the form loaded is dropped rather than
+    failing the run - the sim would leave him on his new club anyway.
+    """
+    if not requested:
+        return {}, []
+    if not UpcomingSeasonRosters(mlb_stats_api=_offseason_api).applies_to(year):
+        raise ValueError(f'Free agents can only be signed before {year} Opening Day.')
+    unsigned = {fa.mlb_id: fa for fa in UnsignedFreeAgents(mlb_stats_api=_offseason_api).for_season(year)}
+    signings: dict[int, str] = {}
+    echo: list[dict] = []
+    for mlb_id, requested_team in requested.items():
+        free_agent = unsigned.get(mlb_id)
+        if free_agent is None:
+            continue
+        team = options.resolve(requested_team)
+        if team in taken_over:
+            raise ValueError(f"{free_agent.name} can't sign with {team} - that club is being taken over.")
+        signings[mlb_id] = team
+        echo.append({'mlb_id': mlb_id, 'name': free_agent.name, 'team': team})
+    return signings, echo
+
+
 class _RequestError(Exception):
     """A validation failure that already knows its HTTP status - lets a helper called from
     several routes raise the right status code without the caller having to guess from message
@@ -636,6 +743,14 @@ def start_open_sim():
             return jsonify({'error': 'takeovers must be a list'}), 400
         if settings['resume_from_real_postseason'] and raw_takeovers:
             return jsonify({'error': "Resuming from the real postseason isn't available when taking over a club."}), 400
+
+        # OFFSEASON FREE AGENTS - SHAPE ONLY HERE. WHETHER THE SEASON IS PRE-OPENING DAY AND THE
+        # PLAYERS ARE STILL UNSIGNED NEEDS THE MLB API, SO `build_plan` CHECKS THAT.
+        try:
+            requested_signings = _parse_free_agent_signings(payload.get('free_agent_signings'))
+        except ValueError as exc:
+            return jsonify({'error': str(exc)}), 400
+        return_free_agents = bool(payload.get('return_free_agents'))
 
         # DB-BOUND CHECKS FIRST, IN ONE SHORT-LIVED CONNECTION: THE PER-USER CAP, PLUS OWNERSHIP
         # AND ROSTER VALIDATION FOR EACH REQUESTED TAKEOVER (MIRRORING `start_season_sim`'s
@@ -694,6 +809,9 @@ def start_open_sim():
                     manager_prefs[replaces] = manager_pref
 
             focus_abbr = options.resolve(requested_focus) if requested_focus else None
+            signings, signing_echo = _resolve_free_agent_signings(
+                year=year, requested=requested_signings, options=options, taken_over=set(takeover_teams),
+            )
 
             return _SimLaunchPlan(
                 config=SeasonSimulationConfig(
@@ -701,6 +819,8 @@ def start_open_sim():
                     set=showdown_set,
                     takeovers=takeover_teams,
                     manager_preferences=manager_prefs,
+                    return_free_agents=return_free_agents,
+                    free_agent_signings=signings,
                     **_config_kwargs_from_stored(_settings_to_stored_config(settings)),
                     # NEVER ACCEPTED FROM THE CLIENT - 3.2 MB OF THE 6.1 MB RESULT, AND NOTHING ON
                     # THE OPEN-SIM RESULT SCREEN READS THEM. SEE `start_season_sim`'s SAME OMISSION.
@@ -715,6 +835,7 @@ def start_open_sim():
                          'manager': manager_prefs[abbr].model_dump() if abbr in manager_prefs else None}
                         for abbr, team in takeover_teams.items()
                     ],
+                    'free_agent_signings': signing_echo,
                 },
             )
 
@@ -730,6 +851,8 @@ def start_open_sim():
                      'manager': manager_pref.model_dump() if manager_pref and not manager_pref.is_neutral else None}
                     for manager_pref, (team, requested) in zip(requested_managers, takeover_rows)
                 ],
+                'return_free_agents': return_free_agents,
+                'free_agent_signings': [{'mlb_id': mlb_id, 'team': team} for mlb_id, team in requested_signings.items()],
                 **_settings_to_stored_config(settings),
             },
         )
