@@ -351,6 +351,10 @@ export type SimSeasonListItem = {
     /** Username of whoever ran this season. Null for a run by a since-deleted account, or one
      *  persisted before this was joined in. */
     creator_username?: string | null;
+    /** The creator's uploaded avatar, and the default primary color behind their initials when
+     *  they haven't set one - both for `UserAvatar`. */
+    creator_avatar_url?: string | null;
+    creator_primary_color?: string | null;
 };
 
 /** A leaderboard row: one team's best run at a season, ranked against every other team's best. */
