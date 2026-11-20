@@ -17,6 +17,22 @@ export type SimTeamIdentity = {
 };
 
 /** A real club available to take over, with the record it actually posted. */
+/** An unsigned free agent an offseason sim can place, with his card from the season before. */
+export type SimFreeAgent = {
+    mlb_id: number;
+    name: string;
+    points: number | null;
+    /** Card positions (e.g. `['2B', 'DH']`, `['P']`). */
+    positions: string[];
+    is_pitcher: boolean;
+    pa: number | null;
+    ip: number | null;
+    /** Under the sim's active-roster thresholds, so he only plays as depth. Listed after the regulars. */
+    is_small_sample: boolean;
+    /** Era-correct abbreviation of the club he left, or null if unknown. */
+    original_team: string | null;
+};
+
 export type TakeoverClub = {
     abbreviation: string;
     name: string;
@@ -499,6 +515,11 @@ export type OpenSimPayload = {
     /** Same-handed matchups (RHP-RHB, LHP-LHB) nudge the pitch/swing rolls toward the pitcher;
      *  opposite-handed matchups (including every switch hitter) nudge them toward the hitter. */
     enable_platoon_effect?: boolean;
+    /** Before Opening Day only: every unsigned free agent goes back to the club he left. */
+    return_free_agents?: boolean;
+    /** Before Opening Day only: unsigned free agents sent to chosen clubs (era-correct
+     *  abbreviations). Wins over `return_free_agents` for that player. */
+    free_agent_signings?: { mlb_id: number; team: string }[];
 };
 
 export type ChallengeGoalType = 'made_playoffs' | 'win_division' | 'win_pennant' | 'win_world_series' | 'min_wins' | 'beat_team_record';
@@ -583,7 +604,15 @@ async function parseError(res: Response, fallback: string): Promise<never> {
 
 // Season and club lists are stable for a given year, so they are cached for the browser
 // session the same way `_splitsCache` works in mlbAPI.
-const _seasonsCache: { value: number[] | null } = { value: null };
+export type SimSeasonList = {
+    /** Every simulatable season, newest first. */
+    seasons: number[];
+    /** Seasons whose regular season isn't over yet (an upcoming or in-progress year), so there's
+     *  no real postseason to resume from. */
+    unfinished: number[];
+};
+
+const _seasonsCache: { value: SimSeasonList | null } = { value: null };
 const _clubsCache = new Map<number, { teams: TakeoverClub[]; default: string | null }>();
 const _guideCache: { value: string | null } = { value: null };
 
@@ -599,13 +628,17 @@ export async function fetchSimGuide(): Promise<string> {
     return _guideCache.value!;
 }
 
-export async function fetchSimSeasons(): Promise<number[]> {
+export async function fetchSimSeasonList(): Promise<SimSeasonList> {
     if (_seasonsCache.value) return _seasonsCache.value;
     const res = await fetch(`${API_BASE}/sim/seasons`);
     if (!res.ok) await parseError(res, 'Failed to load seasons');
     const data = await res.json();
-    _seasonsCache.value = data.seasons ?? [];
-    return _seasonsCache.value!;
+    _seasonsCache.value = { seasons: data.seasons ?? [], unfinished: data.unfinished ?? [] };
+    return _seasonsCache.value;
+}
+
+export async function fetchSimSeasons(): Promise<number[]> {
+    return (await fetchSimSeasonList()).seasons;
 }
 
 export async function fetchSimSeasonTeams(year: number): Promise<{ teams: TakeoverClub[]; default: string | null }> {
@@ -616,6 +649,22 @@ export async function fetchSimSeasonTeams(year: number): Promise<{ teams: Takeov
     const data = await res.json();
     const value = { teams: data.teams ?? [], default: data.default ?? null };
     _clubsCache.set(year, value);
+    return value;
+}
+
+const _freeAgentsCache = new Map<string, SimFreeAgent[]>();
+
+/** Unsigned free agents with a card in `set`, regulars first then by points. Empty for any season
+ *  that has reached Opening Day, so an empty list also means "no free agent options here". */
+export async function fetchSimFreeAgents(year: number, set: string): Promise<SimFreeAgent[]> {
+    const key = `${year}-${set}`;
+    const cached = _freeAgentsCache.get(key);
+    if (cached) return cached;
+    const res = await fetch(`${API_BASE}/sim/seasons/${year}/free_agents?set=${encodeURIComponent(set)}`);
+    if (!res.ok) await parseError(res, 'Failed to load free agents');
+    const data = await res.json();
+    const value: SimFreeAgent[] = data.free_agents ?? [];
+    _freeAgentsCache.set(key, value);
     return value;
 }
 

@@ -8,7 +8,7 @@ from ..card.showdown_player_card import ShowdownPlayerCard
 from ..card.stats.stats_period import StatsPeriod, StatsPeriodType
 from ..database.postgres_db import PlayerArchive, PostgresDB
 from ..mlb_stats_api import MLBStatsAPI
-from ..offseason import UpcomingSeasonRosters
+from ..offseason import UnsignedFreeAgents, UpcomingSeasonRosters
 from ..offseason.upcoming_rosters import RosterEntry
 from ..shared.player_position import PlayerType
 from .models import DeadlineTrade, PostseasonFormat, SeasonSimulationConfig, SeasonSimulationResult
@@ -507,6 +507,28 @@ class Season:
             raise ValueError("Tournament mode requires at least 2 custom teams")
         return teams
 
+    def _free_agent_placements(self, signed: set[int], status: Callable[[str], None]) -> dict[int, str]:
+        """Clubs for unsigned free agents this run (MLB id -> schedule abbreviation), from
+        `config.return_free_agents` and `config.free_agent_signings`. Before Opening Day only.
+
+        A player already on a 40-man (`signed`) is never moved, even if he was asked for.
+        """
+        config = self.config
+        if not (config.return_free_agents or config.free_agent_signings):
+            return {}
+        placements: dict[int, str] = {}
+        if config.return_free_agents:
+            for free_agent in UnsignedFreeAgents(mlb_stats_api=self.mlb_stats_api).for_season(config.year):
+                abbr = normalized_team_abbr(free_agent.original_team_abbreviation, config.year)
+                if abbr in self._upcoming_rosters:
+                    placements[free_agent.mlb_id] = abbr
+            status(f"Returning {len(placements)} unsigned free agent(s) to their {UpcomingSeasonRosters.card_year(config.year)} clubs")
+        signings = {mlb_id: abbr for mlb_id, abbr in config.free_agent_signings.items() if mlb_id not in signed}
+        if signings:
+            status(f"Signing {len(signings)} free agent(s) to chosen clubs")
+        placements.update(signings)
+        return {mlb_id: abbr for mlb_id, abbr in placements.items() if mlb_id not in signed}
+
     def _build_season_teams(self, cards: list[ShowdownPlayerCard], card_ids: dict[str, str], status_callback: Optional[Callable[[str], None]] = None) -> dict[str, SimTeam]:
         config = self.config
 
@@ -521,6 +543,8 @@ class Season:
         initial_team_by_card_id = self._trade_deadline.plan.initial_team_by_card_id if self._trade_deadline is not None else {}
 
         upcoming_team_by_mlb_id = {entry.mlb_id: abbr for abbr, entries in self._upcoming_rosters.items() for entry in entries}
+        if upcoming_team_by_mlb_id:
+            upcoming_team_by_mlb_id.update(self._free_agent_placements(signed=set(upcoming_team_by_mlb_id), status=status))
         cards_by_team: dict[str, list[ShowdownPlayerCard]] = {}
         for card in cards:
             if upcoming_team_by_mlb_id:
@@ -587,6 +611,11 @@ class Season:
                 games_per_season=real_games_per_team,
                 regress_small_sample_stats=config.regress_small_sample_stats,
             )
+            # BEFORE OPENING DAY A PLAYER'S CLUB IS HIS 40-MAN (OR A FREE AGENT SIGNING), NOT THE
+            # CLUB ON LAST SEASON'S CARD, SO EVERY STATLINE HAS TO REPORT THE CLUB HE PLAYS FOR HERE.
+            if self._upcoming_rosters:
+                for player in team.all_players:
+                    player.team_override = team_name
             seed(team)
             teams[team_name] = team
             roster_notes.extend(f"{team_name}: {warning}" for warning in team.roster.warnings)

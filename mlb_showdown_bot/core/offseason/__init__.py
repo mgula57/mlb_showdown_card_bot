@@ -2,6 +2,7 @@
 
 from .window import OffseasonWindow
 from .upcoming_rosters import UpcomingSeasonRosters
+from .free_agents import UnsignedFreeAgent, UnsignedFreeAgents
 from .transaction_feed import TransactionFeed, TransactionFeedBuilder, FeedMove, FeedPlayer, MoveKind, TeamNetChange
 
-__all__ = ['OffseasonWindow', 'UpcomingSeasonRosters', 'TransactionFeed', 'TransactionFeedBuilder', 'FeedMove', 'FeedPlayer', 'MoveKind', 'TeamNetChange']
+__all__ = ['OffseasonWindow', 'UpcomingSeasonRosters', 'UnsignedFreeAgent', 'UnsignedFreeAgents', 'TransactionFeed', 'TransactionFeedBuilder', 'FeedMove', 'FeedPlayer', 'MoveKind', 'TeamNetChange']
