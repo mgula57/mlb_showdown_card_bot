@@ -12468,7 +12468,9 @@ class PostgresDB:
                     job_id, user_id, team_id,
                     team.get('name') or identity.get('name'),
                     team.get('abbreviation') or identity.get('abbreviation'),
-                    team.get('primary_color'), team.get('secondary_color'),
+                    # An open sim has no takeover team, so fall back to the club's real colors
+                    team.get('primary_color') or identity.get('primary_color'),
+                    team.get('secondary_color') or identity.get('secondary_color'),
                     summary.get('year'), summary.get('set'), team_season.get('replaced_abbr'),
                     team_season.get('wins', 0), team_season.get('losses', 0),
                     team_season.get('win_pct', 0), team_season.get('points', 0),
@@ -12527,10 +12529,13 @@ class PostgresDB:
                        ct.title AS challenge_title, ct.slug AS challenge_slug, ct.description AS challenge_description,
                        ci.starts_at AS challenge_starts_at, ci.expires_at AS challenge_expires_at,
                        p.username AS creator_username,
+                       us.avatar_url AS creator_avatar_url,
+                       us.default_primary_color AS creator_primary_color,
                        (l.user_id IS NOT DISTINCT FROM %(user_id)s) AS is_own
                   FROM internal.sim_season l
                   JOIN internal.user_teams t ON t.team_id = l.team_id
                   LEFT JOIN public.profiles p ON p.id::text = l.user_id
+                  LEFT JOIN internal.user_settings us ON us.user_id = l.user_id
                   LEFT JOIN internal.challenge_instance ci ON ci.instance_id = l.challenge_instance_id
                   LEFT JOIN internal.challenge_template ct ON ct.template_id = ci.template_id
                  WHERE (t.is_public = TRUE OR l.user_id IS NOT DISTINCT FROM %(user_id)s)
@@ -12560,7 +12565,8 @@ class PostgresDB:
                    made_playoffs, is_champion, longest_win_streak, seed, created_at,
                    roster_points, challenge_instance_id, challenge_result,
                    challenge_title, challenge_slug, challenge_description,
-                   challenge_starts_at, challenge_expires_at, creator_username, is_own, rank, attempts
+                   challenge_starts_at, challenge_expires_at, creator_username,
+                   creator_avatar_url, creator_primary_color, is_own, rank, attempts
               FROM ranked
              WHERE rank <= %(limit)s
              ORDER BY year DESC, (challenge_instance_id IS NOT NULL) ASC, challenge_title ASC,
@@ -12582,12 +12588,17 @@ class PostgresDB:
         s.wins, s.losses, s.win_pct, s.points, s.division, s.division_rank,
         s.made_playoffs, s.is_champion, s.longest_win_streak, s.seed, s.created_at,
         s.challenge_instance_id, s.challenge_result, s.won_pennant, s.roster_points,
-        p.username AS creator_username
+        p.username AS creator_username,
+        us.avatar_url AS creator_avatar_url,
+        us.default_primary_color AS creator_primary_color
     """
 
     # Pairs with `_SIM_SEASON_LIST_COLUMNS` - every query selecting those columns must also carry
-    # this join so `creator_username` resolves (profiles are keyed by the auth user id as text).
-    _SIM_SEASON_LIST_JOINS = "LEFT JOIN public.profiles p ON p.id::text = s.user_id"
+    # these joins so the creator's username/avatar resolve (both keyed by the auth user id as text).
+    _SIM_SEASON_LIST_JOINS = """
+        LEFT JOIN public.profiles p ON p.id::text = s.user_id
+        LEFT JOIN internal.user_settings us ON us.user_id = s.user_id
+    """
 
     @staticmethod
     def _stringify_sim_season_ids(rows: list[dict]) -> list[dict]:
