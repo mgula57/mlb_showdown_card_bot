@@ -1,8 +1,7 @@
 import { useState } from 'react';
-import { FaPlus, FaXmark } from 'react-icons/fa6';
+import { FaXmark } from 'react-icons/fa6';
 import FormDropdown from '../customs/FormDropdown';
 import IconButton from '../shared/IconButton';
-import { buttonClass } from '../shared/buttonStyles';
 import type { SimFreeAgent, TakeoverClub } from '../../api/sim';
 
 export type FreeAgentSigning = { mlb_id: number; team: string };
@@ -21,8 +20,10 @@ function freeAgentDetail(freeAgent: SimFreeAgent): string {
 }
 
 /**
- * Picks unsigned free agents and the clubs they sign with for an offseason sim: choose a player
- * and a club, add the pair, repeat. Each player can sign once, so an added one leaves the picker.
+ * Picks unsigned free agents and the clubs they sign with for an offseason sim. Choosing both a
+ * player and a club signs him right away (no separate Add step to forget, which would otherwise
+ * leave a half-made signing out of the run). Each player can sign once, so a signed one leaves
+ * the picker.
  */
 export default function FreeAgentSigningsFields({ freeAgents, clubs, value, onChange }: Props) {
     const [pickedId, setPickedId] = useState('');
@@ -41,20 +42,25 @@ export default function FreeAgentSigningsFields({ freeAgents, clubs, value, onCh
             trailing: <span className="text-[11px] text-(--text-tertiary)">{freeAgentDetail(freeAgent)}</span>,
         }));
 
-    function add() {
-        if (!pickedId || !pickedTeam) return;
-        onChange([...value, { mlb_id: Number(pickedId), team: pickedTeam }]);
-        setPickedId('');
+    function pick(playerId: string, team: string) {
+        if (playerId && team) {
+            onChange([...value, { mlb_id: Number(playerId), team }]);
+            setPickedId('');
+            setPickedTeam('');
+            return;
+        }
+        setPickedId(playerId);
+        setPickedTeam(team);
     }
 
     return (
         <div className="flex flex-col gap-3">
-            <div className="grid grid-cols-1 sm:grid-cols-[1fr_1fr_auto] gap-3 sm:items-end">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <FormDropdown
                     label="Free agent"
                     options={playerOptions}
                     selectedOption={pickedId}
-                    onChange={setPickedId}
+                    onChange={playerId => pick(playerId, pickedTeam)}
                     disabled={playerOptions.length === 0}
                     placeholder={playerOptions.length === 0 ? 'Everyone is signed' : 'Select a player'}
                 />
@@ -62,18 +68,9 @@ export default function FreeAgentSigningsFields({ freeAgents, clubs, value, onCh
                     label="Signs with"
                     options={clubs.map(club => ({ label: club.name, value: club.abbreviation }))}
                     selectedOption={pickedTeam}
-                    onChange={setPickedTeam}
+                    onChange={team => pick(pickedId, team)}
                     placeholder="Select a team"
                 />
-                <button
-                    type="button"
-                    onClick={add}
-                    disabled={!pickedId || !pickedTeam}
-                    className={buttonClass('secondary', 'md')}
-                >
-                    <FaPlus className="text-[11px]" />
-                    Add
-                </button>
             </div>
 
             {value.length > 0 && (
