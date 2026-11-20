@@ -24,6 +24,7 @@ from ..fangraphs.client import FangraphsAPIClient, FieldingStats
 from ..statcast.client import StatcastAPIClient
 from .stats.normalized_player_stats import PlayerStatsNormalizer, NormalizedPlayerStats, Datasource, PositionStats
 from .stats.datasource import MLB_API_FIRST_SEASON
+from ..npb.player_stats_builder import NPBPlayerStatsBuilder
 
 def clean_kwargs(kwargs: dict) -> dict:
     """Clean the kwargs dictionary by removing 'image_' and 'image_source_' prefixes from keys."""
@@ -205,12 +206,22 @@ def generate_card(image_libraries: list[ImageLibrary] = None, **kwargs) -> dict[
         stats_period_type = kwargs.get('stats_period_type', 'REGULAR')
         stats_period = StatsPeriod(type=stats_period_type, **kwargs)
 
-        # ALL NON-MLB CARDS ARE THROUGH MLB'S API
-        if not stats_period.is_mlb:
+        # NPB CARDS COME FROM THE PRE-SCRAPED BASEBALL REFERENCE REGISTER (FULL REGULAR SEASONS ONLY)
+        if stats_period.league == StatsPeriodLeague.NPB:
+            if stats_period.type != StatsPeriodType.REGULAR_SEASON:
+                raise Exception("NPB cards only support full regular seasons.")
+            expected_source = Datasource.BREF_REGISTER
+
+        # ALL OTHER NON-MLB CARDS ARE THROUGH MLB'S API
+        elif not stats_period.is_mlb:
             expected_source = Datasource.MLB_API
             # IF THE PLAYER ID LOOKS LIKE A BREF ID, RESET IT TO THE NAME FIELD AND LET MLB API FIGURE IT OUT. THIS ALLOWS USERS TO INPUT BREF IDS FOR NON-MLB PLAYERS WITHOUT CAUSING ISSUES WITH THE BASEBALL REFERENCE SCRAPER.
             if str(kwargs.get('name', '')).endswith(('1', '2', '3', '4', '5', '6', '7', '8', '9', '0')):
                 kwargs['name'] = kwargs.get('name_original', '')
+
+        # OPTIONALLY TRANSLATE NON-MLB STATS TO AN MLB-EQUIVALENT LEVEL OF COMPETITION (NATIVE LEAGUE STATS BY DEFAULT)
+        if not stats_period.is_mlb and str(kwargs.get('is_mlb_equivalent', False)).lower() in ('true', '1') and not kwargs.get('nerf_by_run_value'):
+            kwargs['nerf_by_run_value'] = stats_period.league.mlb_equivalent_run_value_nerf
         
         # CHANGE EXPECTED DATASOURCE TO MLB API IF MULTI-YEAR DATE RANGE
         if stats_period.has_game_logs and stats_period.is_multi_year:
@@ -405,6 +416,16 @@ def generate_card(image_libraries: list[ImageLibrary] = None, **kwargs) -> dict[
                 # ALWAYS APPLY THESE
                 kwargs['player_type_override'] = baseball_reference_stats.player_type_override
                 kwargs['team_override'] = baseball_reference_stats.team_override
+
+            case Datasource.BREF_REGISTER:
+                start_time = datetime.now()
+                normalized_player_stats = NPBPlayerStatsBuilder.from_database(
+                    name=kwargs.get('name_original', None) or kwargs.get('name', ''),
+                    stats_period=stats_period,
+                )
+                stats = normalized_player_stats.as_dict()
+                stats_period.source = 'Baseball Reference Register'
+                scraper_load_time = (datetime.now() - start_time).total_seconds()
 
             case Datasource.MANUAL:
                 """"""

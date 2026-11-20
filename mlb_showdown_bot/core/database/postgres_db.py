@@ -84,6 +84,7 @@ from enum import Enum
 
 # MODELS
 from .classes import WbcShowdownCardRecord, FangraphsLeaderboardRecord, ShowdownBotCardCompact
+from ..npb.models import NPBPlayerTeamSeason
 
 # INTERNAL
 from ..card.showdown_player_card import ShowdownPlayerCard, Team, PlayerType, Era, Edition, Expansion, SpecialEdition, Set, StatsPeriod, StatsPeriodType, __version__, Position, WBCTeam, StatHighlightsType
@@ -11155,6 +11156,105 @@ class PostgresDB:
             return []
         finally:
             cursor.close()
+
+    NPB_PLAYER_SEASON_TABLE = "internal.dim_npb_player_team_season"
+
+    def store_npb_player_team_seasons(self, rows: list[NPBPlayerTeamSeason]) -> None:
+        """Upsert NPB player-team-season rows scraped from Baseball Reference's register. Used to build NPB cards.
+
+        Args:
+            rows: Player stats per team and season, with synthetic defense already applied.
+        """
+        if self.connection is None:
+            print("ERROR: NO CONNECTION TO DB")
+            return
+
+        table_name = self.NPB_PLAYER_SEASON_TABLE
+        create_table_sql = f'''
+            CREATE TABLE IF NOT EXISTS {table_name} (
+                id VARCHAR(255) PRIMARY KEY,
+                register_id VARCHAR(50) NOT NULL,
+                player_name VARCHAR(255),
+                name_key VARCHAR(255),
+                season INT NOT NULL,
+                league VARCHAR(10),
+                team VARCHAR(100),
+                team_name VARCHAR(255),
+                age INT,
+                bats VARCHAR(5),
+                throws VARCHAR(5),
+                batting JSONB,
+                pitching JSONB,
+                fielding JSONB,
+                modified_date TIMESTAMP WITHOUT TIME ZONE DEFAULT NOW()
+            );
+            CREATE INDEX IF NOT EXISTS idx_npb_player_team_season_name_key ON {table_name} (name_key, season);
+            CREATE INDEX IF NOT EXISTS idx_npb_player_team_season_register_id ON {table_name} (register_id, season);
+        '''
+        upsert_sql = f'''
+            INSERT INTO {table_name} (
+                id, register_id, player_name, name_key, season, league, team, team_name, age, bats, throws,
+                batting, pitching, fielding, modified_date
+            ) VALUES %s
+            ON CONFLICT (id) DO UPDATE SET
+                player_name = EXCLUDED.player_name,
+                name_key = EXCLUDED.name_key,
+                league = EXCLUDED.league,
+                team = EXCLUDED.team,
+                team_name = EXCLUDED.team_name,
+                age = EXCLUDED.age,
+                bats = EXCLUDED.bats,
+                throws = EXCLUDED.throws,
+                batting = EXCLUDED.batting,
+                pitching = EXCLUDED.pitching,
+                fielding = EXCLUDED.fielding,
+                modified_date = NOW()
+        '''
+        values = [
+            (
+                row.id, row.register_id, row.name, row.name_key, row.season, row.league.value, row.team, row.team_name,
+                row.age, row.bats.value if row.bats else None, row.throws.value if row.throws else None,
+                json.dumps(row.batting), json.dumps(row.pitching), json.dumps(row.fielding), datetime.now(),
+            )
+            for row in rows
+        ]
+        cursor = self.connection.cursor()
+        try:
+            cursor.execute(create_table_sql)
+            execute_values(cursor, upsert_sql, values)
+            self.connection.commit()
+            print(f"✓ Stored {len(values)} NPB player-team-season rows.")
+        except Exception as e:
+            traceback.print_exc()
+            print(f"ERROR storing NPB player seasons: {e}")
+            self.connection.rollback()
+        finally:
+            cursor.close()
+
+    def fetch_npb_player_team_seasons(self, seasons: list[int], register_id: Optional[str] = None, name_key: Optional[str] = None) -> list[NPBPlayerTeamSeason]:
+        """Fetch NPB player-team-season rows for a player, by register id or normalized name key (see NPBName.key).
+        With neither, returns every row for the seasons (used for name suggestions)."""
+        if self.connection is None:
+            return []
+        filters = ["season = ANY(%s)"]
+        filter_values: list[Any] = [list(seasons)]
+        if register_id:
+            filters.append("register_id = %s")
+            filter_values.append(register_id)
+        elif name_key:
+            filters.append("name_key = %s")
+            filter_values.append(name_key)
+        query = f'''
+            SELECT register_id, player_name AS name, season, league, team, team_name, age, bats, throws, batting, pitching, fielding
+            FROM {self.NPB_PLAYER_SEASON_TABLE}
+            WHERE {" AND ".join(filters)}
+            ORDER BY season, team
+        '''
+        try:
+            return [NPBPlayerTeamSeason(**{k: v for k, v in row.items() if v is not None}) for row in self.execute_query(query=query, filter_values=tuple(filter_values))]
+        except Exception as e:
+            print(f"ERROR fetching NPB player seasons: {e}")
+            return []
 
     def store_fangraphs_fielding_stats(self, season: int, data: list[dict]) -> None:
         """Append a snapshot of Fangraphs MLB fielding leaderboard stats (including DRS) to the database.

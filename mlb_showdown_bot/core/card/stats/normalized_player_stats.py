@@ -1583,7 +1583,7 @@ class PlayerStatsNormalizer:
         combined_positions: Dict[str, 'PositionStats'] = {}
 
         years_with_stat: Dict[str, list] = {}  # Track number of years with stats for deciding which to use
-        metrics = ['tzr', 'drs', 'oaa', 'uzr',]
+        metrics = ['tzr', 'drs', 'oaa', 'uzr', 'rf_fld',]
 
         for stats in stats_list:
             if not stats.positions:
@@ -1598,7 +1598,8 @@ class PlayerStatsNormalizer:
                         tzr=pos_stats.tzr,
                         drs=pos_stats.drs,
                         oaa=pos_stats.oaa,
-                        uzr=pos_stats.uzr
+                        uzr=pos_stats.uzr,
+                        rf_fld=pos_stats.rf_fld,
                     )
                     for metric in metrics:
                         if getattr(pos_stats, metric) is not None and stats.year_id not in years_with_stat.get(metric, []):
@@ -1632,7 +1633,7 @@ class PlayerStatsNormalizer:
         # REMOVE METRICS THAT HAVE A SMALL PERCENTAGE OF YEARS WITH DATA
         total_years = len(stats_list)
         for pos, pos_stats in combined_positions.items():
-            metrics = ['tzr', 'drs', 'oaa', 'uzr',]
+            metrics = ['tzr', 'drs', 'oaa', 'uzr', 'rf_fld',]
             for metric in metrics:
                 year_list_for_metric = years_with_stat.get(metric, [])
                 if len(year_list_for_metric) / total_years < 0.80:
@@ -1715,6 +1716,7 @@ class PositionStats(BaseModel):
     oaa: Optional[float] = None  # Outs Above Average
     uzr: Optional[float] = None  # Ultimate Zone Rating
     fld_pct: Optional[float] = None  # Fielding Percentage
+    rf_fld: Optional[float] = None  # Synthetic runs from range factor + fielding % (NPB), on the TZR scale
 
     @staticmethod
     def from_fangraphs_fielding_stats(fangraphs_stats: FieldingStats) -> 'PositionStats':

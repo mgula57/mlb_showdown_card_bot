@@ -201,6 +201,14 @@ class StatsPeriodLeague(str, Enum):
     NPB = "NPB"
     KBO = "KBO"
 
+    @property
+    def mlb_equivalent_run_value_nerf(self) -> Optional[int]:
+        """Runs taken off a non-MLB player's stat line to translate it to an MLB-equivalent level of competition."""
+        match self:
+            case StatsPeriodLeague.NPB: return 20
+            case StatsPeriodLeague.KBO | StatsPeriodLeague.MILB: return 25
+            case _: return None
+
 class TeamSelection(str, Enum):
     """How to choose which team a card displays when a player's stats span multiple teams (multi-year or trade)."""
 

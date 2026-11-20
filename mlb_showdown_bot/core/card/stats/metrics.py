@@ -7,6 +7,7 @@ class DefenseMetric(Enum):
     TZR = 'tzr'
     DWAR = 'dWAR'
     FLD_PCT = 'fld_pct'
+    RF_FLD = 'rf_fld' # SYNTHETIC RUNS FROM RANGE FACTOR + FIELDING % (NPB). ON THE TZR SCALE.
     
     def range_min(self, position_str:str, set_str:str, max_year:int) -> float:
         """ Returns the minimum range value for the given position """
@@ -193,7 +194,7 @@ class DefenseMetric(Enum):
                     case _: basis = 16
                 return basis * multiplier
             case DefenseMetric.DRS: return 19 * multiplier
-            case DefenseMetric.TZR: return 17 * multiplier
+            case DefenseMetric.TZR | DefenseMetric.RF_FLD: return 17 * multiplier
             case DefenseMetric.DWAR: 
                 match position_str:
                     case 'C': basis = 2.25
@@ -226,7 +227,7 @@ class DefenseMetric(Enum):
         match self.value:
             case 'oaa': return 13
             case 'drs': return 17
-            case 'tzr': return 16
+            case 'tzr' | 'rf_fld': return 16
             case 'dWAR': return 1.5
             case 'fld_pct': return 1.001 # MAKE IMPOSSIBLE TO GET +2 FOR FLD_PCT SINCE IT'S A RATE STAT
 
@@ -238,7 +239,7 @@ class DefenseMetric(Enum):
                 if max_year >= 2026 and set_str == '2002': return 3
                 return 2
             case 'drs': return 4
-            case 'tzr': return 4
+            case 'tzr' | 'rf_fld': return 4
             case 'dWAR': return -0.25
             case 'fld_pct': return 0.992
 
@@ -260,7 +261,7 @@ class DefenseMetric(Enum):
                 if max_year >= 2026: return -5
                 else: return -5
             case 'drs': return -5
-            case 'tzr': return -5
+            case 'tzr' | 'rf_fld': return -5
             case 'dWAR': return -1.0
             case 'fld_pct': return 0.975
     

@@ -18,6 +18,7 @@ from ...core.database.classes import WbcShowdownCardRecord, FangraphsLeaderboard
 from ...core.card.utils.shared_functions import convert_year_string_to_list
 from ...core.card.command_out_selections import CommandOutSelections
 from ...core.card.showdown_player_card import Edition, SpecialEdition, StatsPeriod, WBCTeam, Position, ShowdownPlayerCard, PlayerType, StatsPeriodType, Hand, StatHighlightsType
+from ...core.card.stats.stats_period import StatsPeriodLeague
 from ...core.data.replacement_season_averages import get_replacement_hitting_avgs, get_replacement_pitching_avgs, build_replacement_level_stats_for_card
 from ...core.card.stats.normalized_player_stats import NormalizedPlayerStats, PlayerStatsNormalizer
 
@@ -366,6 +367,27 @@ def store_leaderboard_stats_fangraphs(
         data = fg_api.fetch_leaderboard_stats(stats_period=StatsPeriod(year=season), stat_type=type, league=league, fangraphs_player_ids=[])  
         db.store_league_fangraphs_leaderboard_stats(league=league, stat_type=type, data=data)
 
+@app.command("store_npb_stats")
+def store_npb_stats(
+    env: str = typer.Option("dev", "--env", "-e", help="Environment to run the command in"),
+    seasons: str = typer.Option("2018-2025", "--seasons", "-s", help="NPB season(s) to scrape, as a year string (e.g. '2024', '2018-2025')"),
+):
+    """Scrape NPB batting, pitching and fielding from Baseball Reference's register, apply synthetic defense, and store in Postgres for NPB card generation"""
+    from ...core.npb.register_scraper import NPBRegisterScraper
+    from ...core.npb.synthetic_defense import NPBSyntheticDefense
+
+    scraper = NPBRegisterScraper()
+    synthetic_defense = NPBSyntheticDefense()
+    for season in convert_year_string_to_list(seasons):
+        print(f"Scraping NPB {season}...")
+        rows = scraper.fetch_season(season)
+        if not rows:
+            print(f"No NPB rows found for {season}, skipping.")
+            continue
+        synthetic_defense.apply(rows)
+        with PostgresDB(is_archive=env.lower() == "prod") as db:
+            db.store_npb_player_team_seasons(rows)
+
 # -------------------------------
 # MARK: - WBC
 # -------------------------------
@@ -495,7 +517,7 @@ def store_wbc_data(
                     era="DYNAMIC",
                     stats_period=StatsPeriod(year=str(year), type=StatsPeriodType.REGULAR_SEASON),
                     stats=stats,
-                    nerf_by_run_value=20 if player_stats.league == "NPB" else 25, # APPLY A NERF
+                    nerf_by_run_value=StatsPeriodLeague(player_stats.league).mlb_equivalent_run_value_nerf, # APPLY A NERF
                 )
                 record.stat_source = player_stats.league
                 roster_progress_rows[record_index]["processed"] = "✅"
@@ -527,7 +549,7 @@ def store_wbc_data(
                     era="DYNAMIC",
                     stats_period=stats_period,
                     stats=stats,
-                    nerf_by_run_value=25
+                    nerf_by_run_value=StatsPeriodLeague.MILB.mlb_equivalent_run_value_nerf,
                 )
                 record.stat_source = "MILB"
                 roster_progress_rows[record_index]["processed"] = "✅"

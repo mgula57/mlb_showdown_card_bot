@@ -85,7 +85,8 @@ export interface CustomCardFormState {
     start_date?: string | null; // e.g. "2023-05-01"
     end_date?: string | null; // e.g. "2023-10-01"
     split?: string | null; // e.g. "First Half". For POST periods, the postseason round code (e.g. "W")
-    league: string; // e.g. "MLB" or "MILB"
+    league: string; // e.g. "MLB", "MILB" or "NPB"
+    is_mlb_equivalent?: boolean; // Non-MLB leagues: translate stats to an MLB-equivalent level of competition instead of native league stats
     team_selection?: string; // e.g. "GAMES_PLAYED". Only applies to multi-year stats periods (CAREER, ranges, combos)
 
     // Set
@@ -135,6 +136,7 @@ export const FORM_DEFAULTS: CustomCardFormState = {
     end_date: null, 
     split: null,
     league: 'MLB',
+    is_mlb_equivalent: false,
     team_selection: 'GAMES_PLAYED',
 
     expansion: "BS", 
@@ -170,7 +172,7 @@ type FormSectionName = 'Player' | 'Set' | 'Image' | 'Chart';
 
 /** The form fields each section's reset button restores to `FORM_DEFAULTS` */
 const FORM_SECTION_FIELDS: Record<FormSectionName, (keyof CustomCardFormState)[]> = {
-    Player: ['name', 'player_id', 'player_type_override', 'year', 'stats_period_type', 'start_date', 'end_date', 'split', 'league', 'team_selection'],
+    Player: ['name', 'player_id', 'player_type_override', 'year', 'stats_period_type', 'start_date', 'end_date', 'split', 'league', 'is_mlb_equivalent', 'team_selection'],
     Set: ['expansion', 'set_number', 'edition', 'add_one_to_set_year', 'set_year', 'show_year_text', 'disable_display_text_on_card'],
     Image: [
         'image_source', 'image_parallel', 'image_parallel_coloring', 'image_coloring', 'image_glow_multiplier', 'image_url', 'image_upload',
@@ -348,8 +350,12 @@ function CustomCardBuilder({ isHidden, embed }: CustomCardBuilderProps) {
 
     const leagueOptions: SelectOption[] = [
         { 'value': 'MLB', 'label': 'MLB' },
-        { 'value': 'MILB', 'label': 'MiLB' }
+        { 'value': 'MILB', 'label': 'MiLB' },
+        { 'value': 'NPB', 'label': 'NPB (2018+)' },
     ]
+
+    // Leagues outside MLB only support full regular seasons, and can optionally be scaled to MLB-equivalent stats
+    const isNonMlbLeague = form.league !== 'MLB';
 
     // Team Selection Options (only shown for multi-year stats periods)
     const teamSelectionOptions: SelectOption[] = [
@@ -446,6 +452,7 @@ function CustomCardBuilder({ isHidden, embed }: CustomCardBuilderProps) {
                 }
                 if (form.league !== FORM_DEFAULTS.league) {
                     summaries.push(optionSummaryItem(leagueOptions, form.league, 'League'));
+                    if (form.is_mlb_equivalent) summaries.push({ value: 'MLB Equivalent' });
                 }
                 if (isMultiYearInput(form.year) && form.team_selection && form.team_selection !== FORM_DEFAULTS.team_selection) {
                     summaries.push(optionSummaryItem(teamSelectionOptions, form.team_selection, 'Team'));
@@ -1269,7 +1276,7 @@ function CustomCardBuilder({ isHidden, embed }: CustomCardBuilderProps) {
                                                 options={statsPeriodOptions}
                                                 selectedOption={form.stats_period_type}
                                                 onChange={(value) => setForm({ ...form, stats_period_type: value, split: null })}
-                                                disabled={form.league === 'MILB'}
+                                                disabled={isNonMlbLeague}
                                             />
 
                                             <FormDropdown
@@ -1278,11 +1285,12 @@ function CustomCardBuilder({ isHidden, embed }: CustomCardBuilderProps) {
                                                 options={leagueOptions}
                                                 selectedOption={form.league}
                                                 onChange={(value) => {
-                                                    const isMiLB = value === 'MILB';
+                                                    const isNonMlb = value !== 'MLB';
                                                     setForm({
                                                         ...form,
                                                         league: value,
-                                                        ...(isMiLB && ['POST', 'DATES', 'SPLIT'].includes(form.stats_period_type) && {
+                                                        is_mlb_equivalent: isNonMlb ? form.is_mlb_equivalent : false,
+                                                        ...(isNonMlb && form.stats_period_type !== 'REGULAR' && {
                                                             stats_period_type: 'REGULAR',
                                                             start_date: null,
                                                             end_date: null,
@@ -1291,6 +1299,17 @@ function CustomCardBuilder({ isHidden, embed }: CustomCardBuilderProps) {
                                                     });
                                                 }}
                                             />
+
+                                            {isNonMlbLeague && (
+                                                <FormEnabler
+                                                    label="MLB Equivalent"
+                                                    description="Scale stats down to an MLB level of competition. Off keeps native league stats."
+                                                    isChanged={isChanged('is_mlb_equivalent')}
+                                                    className="col-span-full"
+                                                    isEnabled={form.is_mlb_equivalent || false}
+                                                    onChange={(isEnabled) => setForm({ ...form, is_mlb_equivalent: !isEnabled })}
+                                                />
+                                            )}
 
                                             {renderStatsPeriodInputs()}
 

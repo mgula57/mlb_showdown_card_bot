@@ -953,6 +953,8 @@ class ShowdownPlayerCard(BaseModel):
                     fld_pct = float(defensive_stats.get('fld_pct', None)) if defensive_stats.get('fld_pct', None) is not None else None
                 except:
                     fld_pct = None
+                # RF_FLD (SYNTHETIC RANGE + FIELDING % RUNS, NPB)
+                rf_fld = defensive_stats.get('rf_fld', None)
                 # DWAR
                 dWar = float(0 if len(str(stats_dict.get('dWAR', 0))) == 0 else stats_dict.get('dWAR', 0))
                 
@@ -965,6 +967,9 @@ class ShowdownPlayerCard(BaseModel):
                 elif tzr != None: 
                     metric = DefenseMetric.TZR
                     defensive_rating = tzr
+                elif rf_fld is not None:
+                    metric = DefenseMetric.RF_FLD
+                    defensive_rating = float(rf_fld)
                 elif fld_pct != None and not self.stats_period.is_mlb: # MINOR LEAGUES ONLY
                     metric = DefenseMetric.FLD_PCT
                     defensive_rating = fld_pct
@@ -6088,6 +6093,11 @@ class ShowdownPlayerCard(BaseModel):
 
         # GAIN ACCESS TO GOOGLE DRIVE
         file_versions: dict[str, str] = {}
+
+        # WITHOUT AN ID, AN EMPTY BREF ID WOULD MATCH EVERY FILE IN THE FOLDER
+        if not (bref_id or '').replace("'", '') and not mlb_id:
+            return (components_dict, file_versions, None)
+
         file_service = drive_client.files_service()
         if file_service is None:
             # IF NO CREDS, RETURN NONE

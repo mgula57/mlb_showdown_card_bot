@@ -7,6 +7,7 @@ class Datasource(str, Enum):
     MLB_API = "mlb_api"
     BREF = "bref"
     FANGRAPHS = "fangraphs"
+    BREF_REGISTER = "bref_register" # BASEBALL REFERENCE'S REGISTER (NPB), PRE-SCRAPED INTO POSTGRES
 
     MANUAL = "manual"
 

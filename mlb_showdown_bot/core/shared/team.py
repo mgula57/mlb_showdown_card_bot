@@ -1,3 +1,4 @@
+import re
 from enum import Enum
 from typing import Optional
 from .color import color_name
@@ -159,6 +160,22 @@ class Team(str, Enum):
     MLB = "MLB"
     MILB = "MILB"
 
+    # NPB (NIPPON PROFESSIONAL BASEBALL). CODES ARE CHOSEN TO AVOID COLLIDING WITH BREF IDS.
+    # CENTRAL LEAGUE
+    YOM = 'YOM' # Yomiuri Giants
+    HAN = 'HAN' # Hanshin Tigers
+    YDB = 'YDB' # Yokohama DeNA BayStars
+    HIR = 'HIR' # Hiroshima Toyo Carp
+    YAK = 'YAK' # Tokyo Yakult Swallows
+    CHU = 'CHU' # Chunichi Dragons
+    # PACIFIC LEAGUE
+    SBH = 'SBH' # Fukuoka SoftBank Hawks
+    NHF = 'NHF' # Hokkaido Nippon-Ham Fighters
+    CLM = 'CLM' # Chiba Lotte Marines
+    RAK = 'RAK' # Tohoku Rakuten Golden Eagles
+    ORX = 'ORX' # Orix Buffaloes
+    SEI = 'SEI' # Saitama Seibu Lions
+
     @classmethod
     def _missing_(cls, value):
         if isinstance(value, str):
@@ -166,7 +183,38 @@ class Team(str, Enum):
                 if member.value.upper() == value.upper():
                     return member
         return cls.MLB
-    
+
+    @staticmethod
+    def from_npb_team_name(team_name: str, year: int) -> Optional['Team']:
+        """Maps an NPB club name (as written by Baseball Reference's register, e.g. 'Fukuoka Softbank Hawks')
+        to its Team. Matching is on the club nickname, guarded by the years that nickname belongs to the
+        current franchise, so pre-2018 names (e.g. Kintetsu Buffaloes, a different franchise than Orix) don't
+        silently map to the wrong club. Returns None when the club isn't supported yet."""
+        name = re.sub(r'[^a-z]', '', (team_name or '').lower()) # IGNORE SPACING (EX: 'Bay Stars' VS 'BayStars')
+        nickname_map: list[tuple[str, 'Team', int]] = [
+            # (NICKNAME SUBSTRING, TEAM, FIRST YEAR THE CURRENT FRANCHISE USED THIS NAME + NICKNAME)
+            ('giants', Team.YOM, 1947),
+            ('tigers', Team.HAN, 1961),
+            ('baystars', Team.YDB, 2012),
+            ('carp', Team.HIR, 1968),
+            ('swallows', Team.YAK, 2006),
+            ('dragons', Team.CHU, 1954),
+            ('hawks', Team.SBH, 2005),
+            ('fighters', Team.NHF, 2004),
+            ('marines', Team.CLM, 1992),
+            ('goldeneagles', Team.RAK, 2005),
+            ('buffaloes', Team.ORX, 2005),
+            ('lions', Team.SEI, 2008),
+        ]
+        for nickname, team, first_year in nickname_map:
+            if nickname in name and year >= first_year:
+                return team
+        return None
+
+    @property
+    def is_npb(self) -> bool:
+        return self in NPB_TEAMS
+
     @staticmethod
     def map_from_mlb_api_team(mlb_api_team: str, year: Optional[int] = None) -> 'Team':
         """Helper method to map a team object from the MLB API to a Team enum member. This is used to convert team data from the MLB API into the corresponding Team enum member based on the team's abbreviation.
@@ -438,6 +486,20 @@ class Team(str, Enum):
             case 'WSN': return (171, 0, 3, 255)
 
             case 'MILB': return (1, 37, 142, 255)
+
+            # NPB
+            case 'YOM': return (240, 110, 15, 255)
+            case 'HAN': return (35, 24, 21, 255)
+            case 'YDB': return (0, 63, 142, 255)
+            case 'HIR': return (181, 10, 20, 255)
+            case 'YAK': return (19, 37, 79, 255)
+            case 'CHU': return (0, 47, 135, 255)
+            case 'SBH': return (35, 24, 21, 255)
+            case 'NHF': return (0, 98, 152, 255)
+            case 'CLM': return (20, 20, 20, 255)
+            case 'RAK': return (134, 0, 16, 255)
+            case 'ORX': return (14, 27, 58, 255)
+            case 'SEI': return (16, 41, 97, 255)
             case _: return (55, 55, 55, 255)
 
     @property
@@ -701,6 +763,20 @@ class Team(str, Enum):
             case 'WSH': return (204, 9, 47, 255)
 
             case 'MILB': return (0, 111, 255, 255)
+
+            # NPB
+            case 'YOM': return (20, 20, 20, 255)
+            case 'HAN': return (255, 209, 0, 255)
+            case 'YDB': return (0, 156, 222, 255)
+            case 'HIR': return (0, 9, 48, 255)
+            case 'YAK': return (0, 153, 68, 255)
+            case 'CHU': return (0, 152, 218, 255)
+            case 'SBH': return (249, 190, 0, 255)
+            case 'NHF': return (20, 20, 20, 255)
+            case 'CLM': return (170, 170, 170, 255)
+            case 'RAK': return (190, 154, 82, 255)
+            case 'ORX': return (178, 148, 73, 255)
+            case 'SEI': return (0, 129, 204, 255)
 
             case _: return self.primary_color
     
@@ -1460,3 +1536,13 @@ class Team(str, Enum):
         x_adjustment, y_adjustment = self.background_image_paste_adjustment(year=year, set=set, is_alternate=is_alternate)
         x_standard, y_standard = (-40, -70) if set == '2001' else ( int( (image_width - logo_width) / 2 ), int( (image_height - logo_height) / 2 ) )
         return (x_standard + x_adjustment, y_standard + y_adjustment)
+
+
+# ------------------------------------------------------------------------
+# NPB
+# ------------------------------------------------------------------------
+
+NPB_TEAMS: frozenset[Team] = frozenset({
+    Team.YOM, Team.HAN, Team.YDB, Team.HIR, Team.YAK, Team.CHU,
+    Team.SBH, Team.NHF, Team.CLM, Team.RAK, Team.ORX, Team.SEI,
+})
