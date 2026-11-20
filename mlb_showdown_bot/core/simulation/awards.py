@@ -50,7 +50,8 @@ class AwardsBuilder:
       - Cy Young: runs saved below the league-average ERA, scaled by innings pitched (see
         `_cy_young_score`). A pure ERA race would hand the award to any reliever who ran a tiny
         sample of scoreless innings - weighting by IP means a reliever has to be truly
-        exceptional (elite ERA AND a heavy workload for the role) to beat a workhorse starter.
+        exceptional (elite ERA AND a heavy workload for the role) to beat a workhorse starter,
+        and a reliever's score is further discounted so an RP Cy Young stays rare.
       - Rookie of the Year: reuses the MVP score for rookie hitters and the Cy Young score for
         rookie pitchers, then picks whichever rookie ranks higher by percentile within their own
         type's full qualified pool - i.e. "how dominant were you relative to your peers,"
@@ -73,7 +74,8 @@ class AwardsBuilder:
     _SILVER_SLUGGER_POSITIONS = ['C', '1B', '2B', '3B', 'SS', 'LF', 'CF', 'RF', 'DH']
     _DEFENSE_BOOST_PER_POINT = 0.01     # EACH +1 CARD DEFENSE RATING NUDGES MVP SCORE UP 1%
     _NET_SB_BOOST_PER_STEAL = 0.001     # EACH NET STOLEN BASE (SB - CS) NUDGES MVP SCORE UP 0.1%
-    _DH_PA_MAJORITY_THRESHOLD = 0.5     # SHARE OF SEASON PAs AT DH NEEDED TO QUALIFY WITHOUT A DH-CARDED POSITION
+    _CY_YOUNG_RELIEVER_WEIGHT = 0.6     # RELIEVER RUNS SAVED COUNT 60% - KEEPS RP CY YOUNGS RARE (SEE `_cy_young_score`)
+    _DH_PA_MAJORITY_THRESHOLD = 0.5    # SHARE OF SEASON PAs AT DH NEEDED TO QUALIFY WITHOUT A DH-CARDED POSITION
 
     def __init__(self, result: SeasonSimulationResult) -> None:
         self.result = result
@@ -150,7 +152,10 @@ class AwardsBuilder:
 
     @property
     def _playing_time_denominator(self) -> int:
-        """Schedule length MVP playing time is measured against.
+        """Games per club that MVP playing time is measured against.
+
+        Uses the per-team game count (e.g. 162), not `schedule_length`, which counts every game
+        league-wide (e.g. 2430) and would shrink every score by the same ~1/15 factor.
 
         A `merge_real_stats` resume's stat lines cover the whole regular season (real portion +
         simulated remainder), so they're measured against the full schedule - the same reasoning
@@ -159,10 +164,11 @@ class AwardsBuilder:
         `schedule_length` is 0 and would zero out every MVP score, leaving the award to whoever
         happens to be listed first.
         """
-        config = self.result.config
+        result = self.result
+        config = result.config
         if config.resume_from_real_season and config.merge_real_stats:
-            return self.result.original_schedule_length or self.result.schedule_length
-        return self.result.schedule_length
+            return result.original_games_per_team or result.games_per_team or result.original_schedule_length or result.schedule_length
+        return result.games_per_team or result.schedule_length
 
     def _mvp_score(self, stats: Stats) -> float:
         league_stats = self.result.league_totals.get(PlayerType.HITTER.value)
@@ -182,13 +188,21 @@ class AwardsBuilder:
         (league ERA - ERA) * (IP / 9) is the earned runs they saved versus a league-average
         pitcher who threw exactly as many innings, so a short, dominant relief season only
         outscores a good, deep starting season if it's truly special.
+
+        A reliever's runs saved are further discounted by `_CY_YOUNG_RELIEVER_WEIGHT`. Sim bullpens
+        routinely hand elite relievers 100-140 IP, and undiscounted they won about half of the 2027
+        Cy Youngs - real voters almost never pick a reliever. At 0.6 a reliever has to save ~1.67x
+        the runs of the league's best starter to win.
         """
         league_stats = self.result.league_totals.get(PlayerType.PITCHER.value)
         league_era = league_stats.era if league_stats else 0.0
         if league_era <= 0:
             return -stats.era
         ip = stats.stat(StatCategory.IP)
-        return (league_era - stats.era) * (ip / 9)
+        runs_saved = (league_era - stats.era) * (ip / 9)
+        if stats.player_sub_type == PlayerSubType.RELIEF_PITCHER and runs_saved > 0:
+            runs_saved *= self._CY_YOUNG_RELIEVER_WEIGHT
+        return runs_saved
 
     @staticmethod
     def _percentile_rank(value: float, population: list[float]) -> float:

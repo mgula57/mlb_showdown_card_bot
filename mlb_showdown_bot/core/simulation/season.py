@@ -690,6 +690,8 @@ class Season:
             ended_at=ended_at,
             schedule_length=schedule_length,
             original_schedule_length=original_schedule_length,
+            games_per_team=self.schedule.games_per_team,
+            original_games_per_team=self.schedule.original_games_per_team,
             stats_min_pa=stats_min_pa,
             stats_min_ip=stats_min_ip,
             stats_min_ip_rp=stats_min_ip_rp,
