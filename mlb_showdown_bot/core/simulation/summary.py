@@ -6,6 +6,7 @@ from pydantic import BaseModel
 from ..card.team_builder.team import CardSource
 from ..shared.player_position import PlayerSubType, PlayerType
 from .awards import AwardsBuilder, SeasonAwards
+from .club_roster import MostUsedRosterBuilder, SimClubRoster
 from .models import (
     DeadlineTrade, ManagerPreference, OutlierEntry, SeasonSimulationResult, SimGameStarter,
     SimTeamIdentity, StandingsResult, TeamRecord, TransactionType,
@@ -186,6 +187,12 @@ class SeasonSimSummary(BaseModel):
     # CLUB PICKER. EMPTY FOR A PLAIN SIM.
     takeover_abbrs: list[str] = []
 
+    # SCHEDULE KEY -> A DEPTH CHART FOR THE MY TEAM TAB'S FIELD VIEW (SEE `club_roster.py`): EVERY
+    # TAKEOVER CLUB'S DRAFTED ROSTER AS IT RAN, PLUS - WHEN THE SUMMARY FOLLOWS A REAL CLUB - THAT
+    # CLUB'S MOST-USED ROSTER. EMPTY ON SUMMARIES PERSISTED BEFORE THIS FIELD EXISTED (THE CLIENT
+    # THEN SKIPS THE FIELD VIEW).
+    club_rosters: dict[str, SimClubRoster] = {}
+
     # SCHEDULE KEY -> THE CUSTOM MANAGER TENDENCIES THAT CLUB PLAYED WITH THIS RUN. ONLY NON-NEUTRAL
     # PROFILES ARE RECORDED (EMPTY FOR A PLAIN SIM), SO THE RESULT/LEADERBOARD SCREENS CAN SHOW
     # WHAT STRATEGY A RUN USED.
@@ -286,6 +293,7 @@ class SeasonSummaryBuilder:
             outliers=self._outliers(),
             awards=AwardsBuilder(result=result).build(),
             takeover_abbrs=list(self.roster_player_ids.keys()),
+            club_rosters=self._build_club_rosters(),
             manager_preferences={
                 abbr: pref for abbr, pref in result.config.all_manager_preferences.items()
                 if not pref.is_neutral
@@ -466,21 +474,12 @@ class SeasonSummaryBuilder:
         Otherwise, unchanged: only the focus team's own players, `team` left as reported.
         """
         is_open_sim = self.team_abbr is None
-        if is_open_sim:
-            selected = [stats for stats in self.result.player_stats if stats.player_type is not None]
-            card_id_to_abbr = {
-                card_id: abbr
-                for abbr, card_ids in self.roster_player_ids.items()
-                for card_id in card_ids
-            }
-        else:
-            roster_ids = self.roster_player_ids.get(self.team_abbr)
-            on_team = (
-                (lambda stats: stats.id in roster_ids) if roster_ids is not None
-                else (lambda stats: stats.team == self.team_abbr)
-            )
-            selected = [stats for stats in self.result.player_stats if stats.player_type is not None and on_team(stats)]
-            card_id_to_abbr = {}
+        selected = self._selected_stats()
+        card_id_to_abbr = {
+            card_id: abbr
+            for abbr, card_ids in self.roster_player_ids.items()
+            for card_id in card_ids
+        } if is_open_sim else {}
 
         lines: list[SimStatLine] = []
         for stats in selected:
@@ -490,6 +489,34 @@ class SeasonSummaryBuilder:
                 line = line.model_copy(update={'team': resolved_abbr})
             lines.append(line)
         return sorted(lines, key=lambda line: (line.player_type or '', -line.points))
+
+    def _selected_stats(self) -> list[Stats]:
+        """The statlines `players` covers: every player in an open sim, else the focus club's own."""
+        if self.team_abbr is None:
+            return [stats for stats in self.result.player_stats if stats.player_type is not None]
+        roster_ids = self.roster_player_ids.get(self.team_abbr)
+        on_team = (
+            (lambda stats: stats.id in roster_ids) if roster_ids is not None
+            else (lambda stats: stats.team == self.team_abbr)
+        )
+        return [stats for stats in self.result.player_stats if stats.player_type is not None and on_team(stats)]
+
+    def _build_club_rosters(self) -> dict[str, SimClubRoster]:
+        """Takeover clubs' drafted rosters (only the focus one outside an open sim), plus a
+        most-used roster for a followed real club. An open sim's other real clubs get none - one
+        per club would roughly double the stored summary."""
+        rosters = {
+            abbr: SimClubRoster.from_team(team)
+            for abbr, team in self.result.config.all_takeovers.items()
+            if self.team_abbr is None or abbr == self.team_abbr
+        }
+        if self.team_abbr is not None and self.team_abbr not in rosters:
+            card_sources = self.result.config.card_sources
+            rosters[self.team_abbr] = MostUsedRosterBuilder(
+                stats=self._selected_stats(),
+                card_source_for=lambda card_id: card_sources.get(card_id, CardSource.BOT.value),
+            ).build()
+        return rosters
 
     def _leaderboard(self, player_sub_type: PlayerSubType) -> list[SimStatLine]:
         player_type = player_sub_type.parent_type

@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import CardCommand from "./CardCommand";
 import PointsBadge from "./PointsBadge";
 import { defenseAtPosition } from "../../shared/DefenseUtils";
@@ -24,12 +25,14 @@ type CardIdentityCellProps = {
     points?: number;
     ptsChange?: number | null;
     positionsAndDefense?: Record<string, number> | null;
+    /** Extra content beside the points badge, e.g. a sim-vs-real trend arrow. */
+    pointsAccessory?: ReactNode;
 };
 
 export default function CardIdentityCell({
     name, position, isLoadingCard, hasCard = false,
     isPitcher, primaryColor, secondaryColor, command, team, set,
-    points, ptsChange, positionsAndDefense,
+    points, ptsChange, positionsAndDefense, pointsAccessory,
 }: CardIdentityCellProps) {
     const defense = defenseAtPosition(positionsAndDefense, position);
     const pointsStyle = secondaryColor ? cardSecondaryStyle(secondaryColor, team, set) : undefined;
@@ -53,6 +56,7 @@ export default function CardIdentityCell({
                 <div className="flex items-center gap-1">
                     {isLoadingCard && <div className="h-4 w-10 rounded-plate bg-(--background-tertiary) animate-pulse" />}
                     {hasCard && points != null && <PointsBadge points={points} bg_color={pointsStyle?.backgroundColor} textColor={pointsStyle?.color} />}
+                    {hasCard && pointsAccessory}
                     {hasCard && ptsChange != null && ptsChange !== 0 && (
                         <span className={`text-[9px] font-bold leading-none ${ptsChange > 0 ? 'text-(--green)' : 'text-(--red)'}`}>
                             {ptsChange > 0 ? '▲' : '▼'}{Math.abs(ptsChange)}

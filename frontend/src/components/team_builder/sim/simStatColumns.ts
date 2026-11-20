@@ -1,4 +1,5 @@
 import type { SimStatLine } from '../../../api/sim';
+import type { CardDatabaseRecord } from '../../../api/card_db/cardDatabase';
 
 // Column sets mirror HITTER_CATEGORIES / PITCHER_CATEGORIES in reporting.py so the web tables
 // and the CLI tables never drift. Keys are StatCategory values.
@@ -237,4 +238,42 @@ export function buildLeagueStatsKpis(leagueTotals: Record<string, SimStatLine>):
         { label: 'Pitcher Chart HR', value: formatStat('hr', pitcher['hr_own_chart'] ?? 0) },
         { label: '21+ Swing Rolls', value: formatStat('hr', (hitter['swing21'] ?? 0) + (pitcher['swing21'] ?? 0)) },
     ];
+}
+
+/** A finite number, or undefined - for stat values that may arrive as strings or nulls. */
+function toNumber(value: unknown): number | undefined {
+    if (value === null || value === undefined || value === '') return undefined;
+    const num = Number(value);
+    return Number.isFinite(num) ? num : undefined;
+}
+
+// A SIM-VS-REAL GAP INSIDE THESE COUNTS AS EVEN (GREY DASH) RATHER THAN A NOISY ARROW.
+const SIM_VS_REAL_FLAT_THRESHOLD = { ops: 0.010, era: 0.10 };
+
+export type SimVsReal = {
+    /** 'ops' for a hitter, 'era' for a pitcher. */
+    key: 'ops' | 'era';
+    simValue: number | undefined;
+    /** Undefined when the card has no real-life stat (e.g. some custom cards) - then no `diff`. */
+    diff: StatDiff | undefined;
+    /** "Sim OPS .784 vs. real .812", or just "Sim OPS" with no real value to compare. */
+    title: string;
+};
+
+/** A player's headline sim stat (OPS / ERA) against their card's real-life season - drives the
+ * green/red arrows on the My Team roster cards and the Batting/Pitching tables. */
+export function simVsReal(line: SimStatLine, card: CardDatabaseRecord | null | undefined): SimVsReal {
+    const key = line.player_type === 'Pitcher' ? 'era' : 'ops';
+    const label = key.toUpperCase();
+    const simValue = toNumber(line.stats[key]);
+    // THE ARCHIVE'S NUMERIC COLUMNS CAN ARRIVE AS STRINGS (POSTGRES NUMERIC -> JSON), SO COERCE.
+    const realValue = toNumber(key === 'era' ? card?.real_earned_run_avg : card?.real_onbase_plus_slugging);
+    if (simValue === undefined || realValue === undefined) {
+        return { key, simValue, diff: undefined, title: `Sim ${label}` };
+    }
+    return {
+        key, simValue,
+        diff: computeDiff(simValue - realValue, { lowerIsBetter: key === 'era', flatThreshold: SIM_VS_REAL_FLAT_THRESHOLD[key] }),
+        title: `Sim ${label} ${formatStat(key, simValue)} vs. real ${formatStat(key, realValue)}`,
+    };
 }

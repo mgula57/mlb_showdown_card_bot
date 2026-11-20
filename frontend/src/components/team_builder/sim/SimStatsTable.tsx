@@ -5,7 +5,8 @@ import CardIdentityCell from '../../cards/card_elements/CardIdentityCell';
 import { CardDetail } from '../../cards/CardDetail';
 import { Modal } from '../../shared/Modal';
 import { DiffBadge } from './DiffIndicator';
-import { COLUMN_LABELS, computeDiff, formatStat, SIM_STATS_TOOLTIP } from './simStatColumns';
+import { COLUMN_LABELS, computeDiff, formatStat, simVsReal, SIM_STATS_TOOLTIP } from './simStatColumns';
+import { StatBadgeTrend } from '../../cards/CardItemCompact';
 import { useCardLinks } from './useCardLinks';
 
 // Columns ending in "_diff" (currently just SimOutliers' `ops_diff`) render as a colored up/down
@@ -66,6 +67,9 @@ type Props = {
      * here, its identity colors win over the card's own archived colors — a takeover/tournament
      * team's players should show that team's colors, not whatever real club they used to play for. */
     identities?: Record<string, SimTeamIdentity>;
+    /** Adds a green/red arrow beside each name: sim OPS (hitters) / ERA (pitchers) against the
+     *  card's real-life season. Needs `cardsEnabled`, since the real stat comes off the card. */
+    showRealTrend?: boolean;
 };
 
 /**
@@ -73,7 +77,7 @@ type Props = {
  * additionally links each row to its real Showdown Bot card via the same (card_id, card_source)
  * pair `useCardMap` already fetches roster cards with in `TeamDetail.tsx` — no re-derivation.
  */
-export function SimStatsTable({ rows, columns, emptyLabel, cardsEnabled = false, identities }: Props) {
+export function SimStatsTable({ rows, columns, emptyLabel, cardsEnabled = false, identities, showRealTrend = false }: Props) {
     const [sort, setSort] = useState<SortState>(null);
     const showPosition = rows.some(row => row.position != null);
 
@@ -123,6 +127,7 @@ export function SimStatsTable({ rows, columns, emptyLabel, cardsEnabled = false,
                         const record = recordFor(row);
                         const clickable = !!record;
                         const teamIdentity = identities?.[row.team ?? ''];
+                        const realTrend = showRealTrend && record ? simVsReal(row, record) : undefined;
                         return (
                             <tr
                                 key={row.id}
@@ -137,6 +142,11 @@ export function SimStatsTable({ rows, columns, emptyLabel, cardsEnabled = false,
                                             primaryColor={teamIdentity?.primary_color ?? record?.color_primary}
                                             secondaryColor={teamIdentity?.secondary_color ?? record?.color_secondary}
                                             command={record?.command} team={row.team} set={record?.showdown_set} points={record?.points}
+                                            pointsAccessory={realTrend?.diff && (
+                                                <span title={realTrend.title}>
+                                                    <StatBadgeTrend trend={realTrend.diff} />
+                                                </span>
+                                            )}
                                         />
                                     ) : (
                                         <span className="font-medium text-(--text-primary)">{row.name}</span>
