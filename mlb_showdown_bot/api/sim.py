@@ -831,7 +831,7 @@ def start_open_sim():
                 config_patch={
                     'focus_abbr': focus_abbr,
                     'takeovers': [
-                        {'replaces': abbr, 'team_name': team.name,
+                        {'replaces': abbr, 'team_id': team.team_id, 'team_name': team.name,
                          'manager': manager_prefs[abbr].model_dump() if abbr in manager_prefs else None}
                         for abbr, team in takeover_teams.items()
                     ],
@@ -847,7 +847,7 @@ def start_open_sim():
             job_config_echo={
                 'year': year, 'set': showdown_set.value, 'focus_abbr': requested_focus,
                 'takeovers': [
-                    {'replaces': requested, 'team_name': team.name,
+                    {'replaces': requested, 'team_id': team.team_id, 'team_name': team.name,
                      'manager': manager_pref.model_dump() if manager_pref and not manager_pref.is_neutral else None}
                     for manager_pref, (team, requested) in zip(requested_managers, takeover_rows)
                 ],

@@ -287,11 +287,32 @@ export type SeasonSimSummary = {
     /** Players relocated by the in-sim trade deadline. Absent for summaries persisted before the
      *  feature existed, empty for a run that didn't use it. */
     deadline_trades?: DeadlineTrade[];
+    /** Pre-Opening Day sims only: players on a new club (offseason trades/signings, plus the run's
+     *  free agent placements) with their sim statline beside last season's real one. Absent for
+     *  summaries persisted before the field existed. */
+    offseason_moves?: SimOffseasonMove[];
     /** 40-man roster moves (IL / activation / callup) — every club's for an open sim, just the
      *  focus club's for a takeover/challenge run. Absent unless injuries were enabled. */
     transactions?: SimTransaction[];
     /** Schedule key -> { stints, games_missed, callups } roll-up for every club. */
     injury_summary?: Record<string, { stints: number; games_missed: number; callups: number }>;
+};
+
+/** A player who started a pre-Opening Day sim on a new club. `real` is the card's real season. */
+export type SimOffseasonMove = {
+    player_id: string;
+    player_name: string;
+    position: string;
+    player_type: string;
+    /** Club on his card (last season). */
+    from_team: string | null;
+    to_team: string;
+    /** Placed by this run's free agent options rather than a real move. */
+    is_sim_signing: boolean;
+    card_source?: string | null;
+    /** Null if he never appeared in the sim. */
+    sim: SimStatLine | null;
+    real: SimStatLine | null;
 };
 
 /** One player moved by the in-sim trade deadline (`enable_trade_deadline`). */
@@ -348,6 +369,64 @@ export type SimJob = {
     updated_at: string;
     finished_at: string | null;
 };
+
+/** An open sim's setup, read back from its job's stored `config` so "Run again" can start the
+ *  setup form where the last run left off. Every field is optional: older jobs lack some keys
+ *  (e.g. a takeover's `team_id`), and the form keeps its own default for anything missing. */
+export type OpenSimRerunPreset = {
+    year?: number;
+    set?: string;
+    focusAbbr?: string;
+    takeover?: { teamId?: string; teamName?: string; replaces?: string; manager?: ManagerPreference };
+    enableInjuries?: boolean;
+    simulatePostseason?: boolean;
+    postseasonFormat?: string;
+    resume?: boolean;
+    mergeRealStats?: boolean;
+    resumeFromRealPostseason?: boolean;
+    tradeDeadlineEnabled?: boolean;
+    tradeDeadlineRespectsStandings?: boolean;
+    regressSmallSampleStats?: boolean;
+    enablePlatoonEffect?: boolean;
+    returnFreeAgents?: boolean;
+    freeAgentSignings?: { mlb_id: number; team: string }[];
+};
+
+const configBool = (value: unknown): boolean | undefined => (typeof value === 'boolean' ? value : undefined);
+const configString = (value: unknown): string | undefined => (typeof value === 'string' && value ? value : undefined);
+
+/** Reads `job.config` (the open-sim echo written by `/sim/open_season`) into a rerun preset. */
+export function rerunPresetFromJob(job: SimJob): OpenSimRerunPreset | null {
+    const config = job.config;
+    if (!config) return null;
+    const takeover = Array.isArray(config.takeovers) ? config.takeovers[0] as Record<string, unknown> | undefined : undefined;
+    const signings = Array.isArray(config.free_agent_signings) ? config.free_agent_signings as Record<string, unknown>[] : [];
+    return {
+        year: typeof config.year === 'number' ? config.year : undefined,
+        set: configString(config.set),
+        focusAbbr: configString(config.focus_abbr),
+        takeover: takeover ? {
+            teamId: configString(takeover.team_id),
+            teamName: configString(takeover.team_name),
+            replaces: configString(takeover.replaces),
+            manager: takeover.manager && typeof takeover.manager === 'object' ? takeover.manager as ManagerPreference : undefined,
+        } : undefined,
+        enableInjuries: configBool(config.enable_injuries),
+        simulatePostseason: configBool(config.simulate_postseason),
+        postseasonFormat: configString(config.postseason_format),
+        resume: !!config.resume_as_of_date,
+        mergeRealStats: configBool(config.merge_real_stats),
+        resumeFromRealPostseason: configBool(config.resume_from_real_postseason),
+        tradeDeadlineEnabled: configBool(config.enable_trade_deadline),
+        tradeDeadlineRespectsStandings: configBool(config.trade_deadline_respects_standings),
+        regressSmallSampleStats: configBool(config.regress_small_sample_stats),
+        enablePlatoonEffect: typeof config.platoon_roll_adjustment === 'number' ? config.platoon_roll_adjustment > 0 : undefined,
+        returnFreeAgents: configBool(config.return_free_agents),
+        freeAgentSignings: signings
+            .filter(signing => typeof signing.mlb_id === 'number' && typeof signing.team === 'string')
+            .map(signing => ({ mlb_id: signing.mlb_id as number, team: signing.team as string })),
+    };
+}
 
 /**
  * A played season's list-view fields — shared by the leaderboard and personal history.

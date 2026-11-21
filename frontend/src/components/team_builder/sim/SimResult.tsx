@@ -3,7 +3,7 @@ import * as Tabs from '@radix-ui/react-tabs';
 import {
     FaTrophy, FaArrowRotateLeft, FaChartLine, FaCalendarDays, FaBaseballBatBall, FaBaseball,
     FaTableList, FaRankingStar, FaSitemap, FaCheck, FaXmark, FaRightLeft, FaFire, FaSnowflake,
-    FaChevronRight, FaDiceD20,
+    FaChevronRight, FaDiceD20, FaFileSignature,
 } from 'react-icons/fa6';
 import type { ChallengeStanding, SeasonSimSummary } from '../../../api/sim';
 import Standings from '../../seasons/Standings';
@@ -12,6 +12,7 @@ import { SimAwardsList } from './SimAwardsList';
 import { SimBracket } from './SimBracket';
 import { SimSummaryTab } from './SimSummaryTab';
 import { SimTransactionsTab } from './SimTransactionsTab';
+import { SimOffseasonMovesTab } from './SimOffseasonMovesTab';
 import { SimStatsTable } from './SimStatsTable';
 import { HITTER_COLUMNS, PITCHER_COLUMNS, buildHitterTeamKpis, buildPitcherTeamKpis, buildLeagueStatsKpis } from './simStatColumns';
 import { SimRealLifeComparison } from './SimRealLifeComparison';
@@ -158,6 +159,7 @@ export function SimResult({ summary, challengeResult, challengeStanding, onOpenC
     }, [summary.awards]);
 
     const hasTransactions = (summary.deadline_trades?.length ?? 0) > 0 || (summary.transactions?.length ?? 0) > 0;
+    const hasOffseasonMoves = (summary.offseason_moves?.length ?? 0) > 0;
 
     // GUARD AFTER EVERY HOOK CALL ABOVE, NEVER BEFORE - team CAN ONLY BE NULL IF clubAbbr DOESN'T
     // MATCH ANY STANDINGS ROW, WHICH SHOULDN'T HAPPEN IN PRACTICE, BUT AN EARLY RETURN AMONG HOOK
@@ -303,6 +305,9 @@ export function SimResult({ summary, challengeResult, challengeStanding, onOpenC
                     {hasTransactions && (
                         <Tabs.Trigger value="transactions" className={TAB_TRIGGER_CLASS}><FaRightLeft className={TAB_ICON_CLASS} />Transactions</Tabs.Trigger>
                     )}
+                    {hasOffseasonMoves && (
+                        <Tabs.Trigger value="offseason_moves" className={TAB_TRIGGER_CLASS}><FaFileSignature className={TAB_ICON_CLASS} />Offseason Moves</Tabs.Trigger>
+                    )}
 
                 </Tabs.List>
 
@@ -367,7 +372,7 @@ export function SimResult({ summary, challengeResult, challengeStanding, onOpenC
                     </div>
                 </Tabs.Content>
 
-                <Tabs.Content value="my_team" className={`focus:outline-none px-4 pt-3 ${rosterSnapshot ? 'grid gap-4 lg:grid-cols-[minmax(0,420px)_minmax(0,1fr)] items-start' : ''}`}>
+                <Tabs.Content value="my_team" className={`focus:outline-none px-4 pt-3 ${rosterSnapshot ? 'grid gap-4 lg:grid-cols-[minmax(0,450px)_minmax(0,1fr)] items-start' : ''}`}>
                     {rosterSnapshot && (
                         <div className="rounded-card border border-(--divider) bg-(--background-secondary) overflow-hidden">
                             <SimClubRosterView snapshot={rosterSnapshot} players={players} identity={team.identity} />
@@ -440,6 +445,13 @@ export function SimResult({ summary, challengeResult, challengeStanding, onOpenC
                 {hasTransactions && (
                     <Tabs.Content value="transactions" className="focus:outline-none px-4 pt-3">
                         <SimTransactionsTab summary={summary} teamKey={teamKey} />
+                    </Tabs.Content>
+                )}
+
+                {/* Offseason Moves */}
+                {hasOffseasonMoves && (
+                    <Tabs.Content value="offseason_moves" className="focus:outline-none px-4 pt-3">
+                        <SimOffseasonMovesTab summary={summary} teamKey={teamKey} />
                     </Tabs.Content>
                 )}
 
