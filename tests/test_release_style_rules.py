@@ -28,7 +28,7 @@ HITTER = {
     'tags': ['FOIL'],
     'card_snapshot': {
         'team': 'ARI', 'league': 'NL', 'positions_list': ['CF', 'LF/RF'], 'is_pitcher': False, 'hand': 'Both',
-        'year': '2001-2003', 'is_hof': True, 'awards_list': ['AS', 'MVP-1', 'AS'], 'nationality': 'USA',
+        'year': '2001-2003', 'is_hof': True, 'icons_list': ['R', 'S', 'R'], 'awards_list': ['AS', 'MVP-1', 'AS'], 'nationality': 'USA',
         'points': 350.0, 'command': 10.0, 'speed': 18,
     },
 }
@@ -54,6 +54,7 @@ def labels_mirror_pool_grouping() -> None:
         'hand': (['Bats S'], ['LHP']),
         'year': (['2001'], ['Unknown']),
         'hof': (['Hall of Fame'], ['Not in Hall of Fame']),
+        'icons': (['R', 'S'], ['No Icons']),
         'awards': (['AS', 'MVP-1'], ['No Awards']),
         'nationality': (['USA'], ['Unknown']),
         'points': (['300-399 PTS'], ['0-99 PTS']),

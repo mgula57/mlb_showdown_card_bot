@@ -92,6 +92,11 @@ class ReleaseCardDimensions:
         awards = list(dict.fromkeys(self.snapshot.get('awards_list') or []))
         return awards or ['No Awards']
 
+    def _icons(self) -> list[str]:
+        # "R" = rookie season; pre-2003 sets have no icons
+        icons = list(dict.fromkeys(self.snapshot.get('icons_list') or []))
+        return icons or ['No Icons']
+
     def _nationality(self) -> list[str]:
         return [self.snapshot.get('nationality') or 'Unknown']
 
@@ -127,6 +132,7 @@ class ReleaseCardDimensions:
         'awards': _awards,
         'nationality': _nationality,
         'points': _points,
+        'icons': _icons,
         'command': _command,
         'speed': _speed,
         'ip': _ip,
