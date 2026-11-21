@@ -7,7 +7,7 @@ import { useEffect, useState } from "react";
 import { FaXmark } from "react-icons/fa6";
 
 import { fetchSeasonTransactions, type TransactionFeed, type TransactionMove, type TransactionMoveKind } from "../../api/mlbAPI";
-import type { ShowdownBotCard, ShowdownBotCardAPIResponse } from "../../api/showdownBotCard";
+import { useFullCardResponse, type CardSelection } from "../../hooks/useFullCardResponse";
 import { CardDetail } from "../cards/CardDetail";
 import { CarouselRow } from "../shared/CarouselRow";
 import CustomSelect from "../shared/CustomSelect";
@@ -61,7 +61,8 @@ export default function Transactions({ seasonId, showdownSet, isActive }: Transa
     const filterKey = `${kindFilter}:${teamFilter}:${requestKey}`;
     const [page, setPage] = useState({ key: filterKey, count: PAGE_SIZE });
     const visibleCount = page.key === filterKey ? page.count : PAGE_SIZE;
-    const [selectedCard, setSelectedCard] = useState<ShowdownBotCard | null>(null);
+    const [selectedCard, setSelectedCard] = useState<CardSelection | null>(null);
+    const modalCard = useFullCardResponse(selectedCard, "transactions");
 
     useEffect(() => {
         if (!isActive) return;
@@ -232,7 +233,7 @@ export default function Transactions({ seasonId, showdownSet, isActive }: Transa
                                         move={move}
                                         teams={teams}
                                         cardYear={feed!.card_year}
-                                        onCardSelect={setSelectedCard}
+                                        onCardSelect={(card, cardId) => setSelectedCard({ card, cardId })}
                                         hideDate
                                     />
                                 ))}
@@ -269,7 +270,8 @@ export default function Transactions({ seasonId, showdownSet, isActive }: Transa
             <div className={selectedCard ? "" : "hidden pointer-events-none"}>
                 <Modal onClose={() => setSelectedCard(null)} isVisible={!!selectedCard} size="xl">
                     <CardDetail
-                        showdownBotCardData={{ card: selectedCard } as ShowdownBotCardAPIResponse}
+                        showdownBotCardData={modalCard.data}
+                        isLoading={modalCard.isLoading}
                         hideTrendGraphs={true}
                         context="home"
                         parent="home"
