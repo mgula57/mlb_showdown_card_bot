@@ -60,7 +60,7 @@ function MoveTeamChip({ teamId, teams }: { teamId: number | null; teams: TeamLoo
 function MovePlayer({ player, cardYear, onCardSelect, fromNote }: {
     player: TransactionPlayer;
     cardYear: number;
-    onCardSelect?: (card: ShowdownBotCard) => void;
+    onCardSelect?: (card: ShowdownBotCard, cardId?: string | null) => void;
     /** Shown under the player, e.g. "From SEA" in a trade with three or more clubs. */
     fromNote?: string;
 }) {
@@ -71,7 +71,7 @@ function MovePlayer({ player, cardYear, onCardSelect, fromNote }: {
                     <CardItemCompactFromCard
                         card={player.card}
                         className="w-full"
-                        onClick={onCardSelect ? () => onCardSelect(player.card!) : undefined}
+                        onClick={onCardSelect ? () => onCardSelect(player.card!, player.card_id) : undefined}
                     />
                     {/* A prospect's card is built from his minor-league season */}
                     {player.is_minor_league && (
@@ -102,7 +102,7 @@ function TradeSides({ move, teams, cardYear, onCardSelect, compact }: {
     move: TransactionMove;
     teams: TeamLookup;
     cardYear: number;
-    onCardSelect?: (card: ShowdownBotCard) => void;
+    onCardSelect?: (card: ShowdownBotCard, cardId?: string | null) => void;
     compact: boolean;
 }) {
     const sides = move.team_ids.map((teamId) => {
@@ -159,7 +159,7 @@ type TransactionMoveItemProps = {
     teams: { [teamId: string]: TransactionFeedTeam };
     /** The year the players' cards come from, for the "no card" note. */
     cardYear: number;
-    onCardSelect?: (card: ShowdownBotCard) => void;
+    onCardSelect?: (card: ShowdownBotCard, cardId?: string | null) => void;
     /** One card per row and a trade's clubs stacked, for a narrow tile. */
     compact?: boolean;
     /** Leaves off MLB's one-line description of the move (Home's tiles). */

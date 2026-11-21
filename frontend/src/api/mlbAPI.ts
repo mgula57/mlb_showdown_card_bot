@@ -439,6 +439,8 @@ export interface TransactionPlayer {
     /** Big-league card points only. A minor-league card's points stay on the card itself. */
     points?: number | null;
     card?: ShowdownBotCard | null;
+    /** Id of a stored big-league card. `card` is slimmed for the feed, so the detail view fetches the full card by it. */
+    card_id?: string | null;
     /** `card` was built from minor-league stats (no big-league card that year). */
     is_minor_league?: boolean;
 }

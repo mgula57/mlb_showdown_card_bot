@@ -54,7 +54,7 @@ type HomeHotStoveProps = {
     /** The upcoming season the offseason leads into. */
     season: Season;
     showdownSet: string;
-    onCardSelect: (card: ShowdownBotCard) => void;
+    onCardSelect: (card: ShowdownBotCard, cardId?: string | null) => void;
 };
 
 export function HomeHotStove({ season, showdownSet, onCardSelect }: HomeHotStoveProps) {

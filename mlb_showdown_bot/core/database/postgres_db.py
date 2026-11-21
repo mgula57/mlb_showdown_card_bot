@@ -9683,6 +9683,11 @@ class PostgresDB:
         id_fields = [field for field in [showdown.year, bref_or_mlb_id, f'({showdown.player_type_override.value})' if showdown.player_type_override else None] if field is not None]
         return "-".join(id_fields).lower()
 
+    @classmethod
+    def dim_card_id(cls, showdown: ShowdownPlayerCard) -> str:
+        """dim_card.id for a card - what `/cards/card` looks up. Differs from `ShowdownPlayerCard.id`."""
+        return f"{cls._dim_card_player_id(showdown)}-{showdown.set.value}"
+
     def delete_superseded_card_versions(self, showdown_cards: list[ShowdownPlayerCard]) -> None:
         """Remove older-version card_bot rows for the given cards' player/set. dim_card holds one row
         per card id (the upsert overwrites its version), but card_bot keys on version, so a rebuild
