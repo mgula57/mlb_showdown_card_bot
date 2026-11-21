@@ -207,6 +207,7 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
         const params = new URLSearchParams(location.search);
         if (params.get('sim') === '1' && !params.get('season')) {
             setActiveTab('simulate');
+            setSimRerunJobId(params.get('rerun'));
             setIsSimModalOpen(true);
             navigate('/seasons', { replace: true });
         }
@@ -265,6 +266,12 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
     // Season simulation: the setup form opens in a modal here (the standalone /simulate nav entry
     // is hidden for this release), and a running/finished sim still gets its own /simulate/:jobId page.
     const [isSimModalOpen, setIsSimModalOpen] = useState(false);
+    // "Run again" from a finished sim: the job whose setup the form starts from
+    const [simRerunJobId, setSimRerunJobId] = useState<string | null>(null);
+    const closeSimModal = () => {
+        setIsSimModalOpen(false);
+        setSimRerunJobId(null);
+    };
     const [isSimGuideOpen, setIsSimGuideOpen] = useState(false);
 
     // Schedule tab beta callout — dismissed permanently once the user closes it
@@ -284,7 +291,7 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
     const handleSimStart = async (payload: OpenSimPayload) => {
         if (!simToken) throw new Error('Sign in to simulate a season.');
         const { job_id, focus_abbr } = await startOpenSim(payload, simToken);
-        setIsSimModalOpen(false);
+        closeSimModal();
         navigate(`/simulate/${job_id}${focus_abbr ? `?focus=${focus_abbr}` : ''}`);
     };
 
@@ -1492,7 +1499,7 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
             </div>
 
             {isSimModalOpen && (
-                <Modal onClose={() => setIsSimModalOpen(false)} size="md">
+                <Modal onClose={closeSimModal} size="md">
                     {simToken ? (
                         <SeasonSimSetupForm
                             mode="solo"
@@ -1501,6 +1508,7 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
                             onViewExisting={handleOpenSim}
                             initialYear={selectedSeasonYear ?? undefined}
                             starredAbbrs={starredTeamAbbrs}
+                            rerunJobId={simRerunJobId ?? undefined}
                         />
                     ) : (
                         <SignInPrompt
