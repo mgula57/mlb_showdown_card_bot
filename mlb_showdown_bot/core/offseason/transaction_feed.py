@@ -46,6 +46,9 @@ class FeedPlayer(BaseModel):
     to_team_id: Optional[int] = None
     points: Optional[int] = None
     card: Optional[dict] = None
+    # Id of a stored big-league card. `card` is slimmed for the feed, so the detail view fetches
+    # the full card by this id. None for a minor-league card, which is built on the fly.
+    card_id: Optional[str] = None
     is_minor_league: bool = False
 
 
@@ -340,6 +343,7 @@ class TransactionFeedBuilder:
                 continue
             player.points = card.points
             player.card = card.as_json(exclude=cls._CARD_JSON_EXCLUDE)
+            player.card_id = PostgresDB.dim_card_id(card)
             # A free agent's previous club isn't in the signing row - it's the club on his card.
             if move.kind == MoveKind.SIGNING and player.from_team_id is None and card.team:
                 player.from_team_id = team_id_by_card_team.get(card.team.value)

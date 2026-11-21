@@ -37,7 +37,7 @@ import ShowdownBotLogo from './shared/ShowdownBotLogo';
 import { CardItemFromCard, CardItemSkeleton } from './cards/CardItem';
 import CardCommand from './cards/card_elements/CardCommand';
 import { CardChart } from './cards/card_elements/CardChart';
-import type { ShowdownBotCard, ShowdownBotCardAPIResponse } from '../api/showdownBotCard';
+import type { ShowdownBotCard } from '../api/showdownBotCard';
 import { CardDetail } from './cards/CardDetail';
 
 // API
@@ -54,6 +54,7 @@ import { FrameCorners } from './shared/FrameCorners';
 import { SetBadge } from './shared/SetBadge';
 import { CarouselRow } from './shared/CarouselRow';
 import { useCustomizeCard } from './customs/customizeCard';
+import { useFullCardResponse, type CardSelection } from '../hooks/useFullCardResponse';
 // TODO: replace hard-coded IDs with a general two-way player detection strategy
 const TWO_WAY_PLAYER_IDS = new Set([660271]); // Ohtani
 const PITCHING_LEADER_CATEGORIES = new Set(['walksAndHitsPerInningPitched', 'earnedRunAverage', 'strikeouts', 'wins', 'saves', 'inningsPitched', 'strikeoutsPer9Inn', 'strikeoutWalkRatio']);
@@ -237,7 +238,9 @@ function HowToPlayBullet({ side, children }: { side: 'pitcher' | 'batter'; child
 export default function Home() {
 
     // State
-    const [selectedModalCard, setSelectedModalCard] = useState<ShowdownBotCard | null>(null);
+    const [selectedModalCard, setSelectedModalCardSelection] = useState<CardSelection | null>(null);
+    const setSelectedModalCard = (card: ShowdownBotCard | null | undefined, cardId?: string | null) => setSelectedModalCardSelection(card ? { card, cardId } : null);
+    const modalCard = useFullCardResponse(selectedModalCard, 'home');
 
     // Today's games ticker
     const [todaysGames, setTodaysGames] = useState<GameScheduled[]>([]);
@@ -889,7 +892,8 @@ export default function Home() {
             <div className={selectedModalCard ? '' : 'hidden pointer-events-none'}>
                 <Modal onClose={handleModalCardClose} isVisible={!!selectedModalCard}>
                     <CardDetail
-                        showdownBotCardData={{ card: selectedModalCard} as ShowdownBotCardAPIResponse}
+                        showdownBotCardData={modalCard.data}
+                        isLoading={modalCard.isLoading}
                         hideTrendGraphs={true}
                         context="home"
                         parent='home'
