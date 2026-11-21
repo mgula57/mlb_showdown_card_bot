@@ -60,8 +60,8 @@ export default function SeasonSimulator() {
 
     function handleRunAgain() {
         // The standalone /simulate landing is hidden for this release — send the user back to the
-        // MLB Season page's Simulate tab, where they configure a new run and browse past ones.
-        navigate('/seasons?sim=1');
+        // MLB Season page's Simulate tab, where the setup form starts from this run's setup.
+        navigate(`/seasons?sim=1${jobId ? `&rerun=${jobId}` : ''}`);
     }
 
     function handleEnterLobby(state: SimLobbyState) {

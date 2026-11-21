@@ -8,7 +8,7 @@ from ..shared.player_position import PlayerSubType, PlayerType
 from .awards import AwardsBuilder, SeasonAwards
 from .club_roster import MostUsedRosterBuilder, SimClubRoster
 from .models import (
-    DeadlineTrade, ManagerPreference, OutlierEntry, SeasonSimulationResult, SimGameStarter,
+    DeadlineTrade, ManagerPreference, OffseasonMove, OutlierEntry, SeasonSimulationResult, SimGameStarter,
     SimTeamIdentity, StandingsResult, TeamRecord, TransactionType,
 )
 from .reporting import HITTER_CATEGORIES, PITCHER_CATEGORIES
@@ -116,6 +116,22 @@ class SimTransaction(BaseModel):
     detail: str = ""
 
 
+class SimOffseasonMove(BaseModel):
+    """An `OffseasonMove` with the player's sim statline beside his real one from the card's
+    season, in the same categories, so the result screen can show how the move played out."""
+
+    player_id: str
+    player_name: str
+    position: str = ""
+    player_type: str = ""
+    from_team: Optional[str] = None
+    to_team: str
+    is_sim_signing: bool = False
+    card_source: Optional[str] = None
+    sim: Optional[SimStatLine] = None   # NONE IF HE NEVER APPEARED (E.G. STUCK IN THE RESERVES)
+    real: Optional[SimStatLine] = None  # NONE WHEN HIS CARD CARRIES NO REAL COUNTING STATS
+
+
 class SimTeamSeason(BaseModel):
     """How the user's team finished."""
 
@@ -201,6 +217,11 @@ class SeasonSimSummary(BaseModel):
     # PLAYERS RELOCATED BY THE IN-SIM TRADE DEADLINE (`config.enable_trade_deadline`), CHRONOLOGICAL.
     # EMPTY FOR A RUN THAT DIDN'T USE IT OR WHERE NO REAL MID-SEASON TRADE SURVIVED THE FILTERS.
     deadline_trades: list[DeadlineTrade] = []
+
+    # PRE-OPENING DAY SIMS ONLY: PLAYERS ON A NEW CLUB (OFFSEASON TRADES/SIGNINGS, PLUS THE RUN'S
+    # FREE AGENT PLACEMENTS) WITH THEIR SIM vs REAL STATLINES. EMPTY OTHERWISE, AND ON SUMMARIES
+    # PERSISTED BEFORE THIS FIELD EXISTED.
+    offseason_moves: list[SimOffseasonMove] = []
 
     # 40-MAN ROSTER MOVES (IL / ACTIVATION / CALLUP), CHRONOLOGICAL. EMPTY UNLESS THE RUN USED
     # `config.enable_injuries`. The OPTION ("DOWN") rows are dropped - they only ever say a
@@ -301,9 +322,39 @@ class SeasonSummaryBuilder:
             seeded_records=result.seeded_records,
             real_stats_as_of=result.real_stats_as_of,
             deadline_trades=sorted(result.deadline_trades, key=lambda t: (t.date, t.to_team)),
+            offseason_moves=self._build_offseason_moves(),
             transactions=self._build_transactions(),
             injury_summary=result.injury_summary_by_team(),
         )
+
+    def _build_offseason_moves(self) -> list[SimOffseasonMove]:
+        """Every offseason mover with his sim and real statlines, league-wide even when the summary
+        follows one club (`team_abbr`): it's a few dozen rows, and the tab's own "This club" /
+        "All clubs" toggle does the scoping."""
+        stats_by_id = {real_card_id(stats.id): stats for stats in self.result.player_stats}
+        moves: list[SimOffseasonMove] = []
+        for move in self.result.offseason_moves:
+            try:
+                player_type = PlayerType(move.player_type)
+            except ValueError:
+                continue
+            sim_stats = stats_by_id.get(move.player_id)
+            real_line = None
+            if move.real_totals:
+                real_stats = Stats(id=move.player_id, name=move.player_name, player_type=player_type, position=move.position, team=move.from_team)
+                real_stats.merge_totals(move.real_totals)
+                # NO LEAGUE CONTEXT FOR THE CARD'S SEASON HERE, SO OPS+/wRC+ COME OUT 0 AND THE
+                # SCREEN SHOWS ONLY CONTEXT-FREE STATS
+                real_line = SimStatLine.build(stats=real_stats, categories=self._categories(player_type), league_stats=None, woba_weights={})
+            moves.append(SimOffseasonMove(
+                player_id=move.player_id, player_name=move.player_name, position=move.position,
+                player_type=move.player_type, from_team=move.from_team, to_team=move.to_team,
+                is_sim_signing=move.is_sim_signing,
+                card_source=self.result.config.card_sources.get(move.player_id, CardSource.BOT.value),
+                sim=self._line(sim_stats, player_type) if sim_stats else None,
+                real=real_line,
+            ))
+        return moves
 
     def _build_transactions(self) -> list[SimTransaction]:
         """Trimmed IL/activation/callup rows (`result.transactions` is already date-sorted).

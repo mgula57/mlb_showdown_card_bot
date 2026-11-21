@@ -476,14 +476,14 @@ class StatsGroup:
 
 # BREF-STYLE KEYS WHOSE LOWERCASED SPELLING DOESN'T MATCH THE `StatCategory` VALUE IT MAPS TO
 # (E.G. RAW `W` VS. `StatCategory.WINS` = "wins") - WITHOUT THIS, THE PLAIN LOWERCASE FILTER IN
-# `_real_stats_to_totals` SILENTLY DROPS THEM AND A MERGED PITCHER'S W/L COMES OUT SIM-ONLY.
+# `real_stats_to_totals` SILENTLY DROPS THEM AND A MERGED PITCHER'S W/L COMES OUT SIM-ONLY.
 _BREF_KEY_ALIASES: dict[str, str] = {
     'w': StatCategory.WINS.value,
     'l': StatCategory.LOSSES.value,
 }
 
 
-def _real_stats_to_totals(raw_stats: dict, player_type: PlayerType) -> dict[str, float]:
+def real_stats_to_totals(raw_stats: dict, player_type: PlayerType) -> dict[str, float]:
     """Archive-style raw stats (uppercase bref keys, e.g. `PlayerArchive.stats`) -> a
     `Stats.totals`-shaped counting-stat dict, ready for `Stats.merge_totals`.
 
@@ -575,7 +575,7 @@ class PlayerStatsGroup(StatsGroup):
         for player in self.players:
             is_included = player.player_type == type and player.id in players_in_sim
             if is_included:
-                total_stats.merge_totals(_real_stats_to_totals(player.stats, type))
+                total_stats.merge_totals(real_stats_to_totals(player.stats, type))
         return total_stats
 
     def merge_real_season_stats(self, raw_stats_by_bref_id: dict[tuple[str, str], dict]) -> int:
@@ -604,7 +604,7 @@ class PlayerStatsGroup(StatsGroup):
             raw = raw_stats_by_bref_id.get((bref_id, stats_obj.player_type.value.upper()))
             if not raw:
                 continue
-            stats_obj.merge_totals(_real_stats_to_totals(raw, stats_obj.player_type))
+            stats_obj.merge_totals(real_stats_to_totals(raw, stats_obj.player_type))
             merged += 1
         return merged
 

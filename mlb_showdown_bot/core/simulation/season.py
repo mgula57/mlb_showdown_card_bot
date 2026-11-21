@@ -11,14 +11,14 @@ from ..mlb_stats_api import MLBStatsAPI
 from ..offseason import UnsignedFreeAgents, UpcomingSeasonRosters
 from ..offseason.upcoming_rosters import RosterEntry
 from ..shared.player_position import PlayerType
-from .models import DeadlineTrade, PostseasonFormat, SeasonSimulationConfig, SeasonSimulationResult
+from .models import DeadlineTrade, OffseasonMove, PostseasonFormat, SeasonSimulationConfig, SeasonSimulationResult
 from .postseason import Postseason
 from .real_postseason import RealPostseasonBracket
 from .roster import RESERVE_MIN_IP_PITCHER, RESERVE_MIN_PA_POSITION
 from .roster_gaps import RosterGapFiller
 from .schedule import Schedule, normalized_team_abbr
 from .standings import Standings
-from .stats import PlayerStatsGroup, load_real_league_avgs, load_woba_weights
+from .stats import PlayerStatsGroup, load_real_league_avgs, load_woba_weights, real_card_id, real_stats_to_totals
 from .takeover import TakeoverOptions
 from .team import SimTeam
 from .trade_deadline import TradeDeadline
@@ -286,6 +286,9 @@ class Season:
         # (AND NOT A TOURNAMENT). `deadline_trades` HOLDS THE MOVES IT ACTUALLY APPLIED.
         self._trade_deadline: Optional[TradeDeadline] = None
         self.deadline_trades: list[DeadlineTrade] = []
+        # BEFORE OPENING DAY: CARDED PLAYERS ON A DIFFERENT CLUB THAN THEIR CARD'S - SET IN
+        # `_build_season_teams`; EMPTY OTHERWISE.
+        self.offseason_moves: list[OffseasonMove] = []
         # BEFORE OPENING DAY: EACH CLUB'S LIVE 40-MAN, KEYED BY SCHEDULE ABBREVIATION. IT DECIDES
         # WHO PLAYS WHERE IN PLACE OF `card.team` (LAST SEASON'S CLUB), AND ITS UNCARDED PLAYERS
         # BACK `RosterGapFiller`. SET IN `simulate()`; EMPTY OTHERWISE.
@@ -529,6 +532,26 @@ class Season:
         placements.update(signings)
         return {mlb_id: abbr for mlb_id, abbr in placements.items() if mlb_id not in signed}
 
+    @staticmethod
+    def _offseason_moves(team: SimTeam, carded_mlb_ids: set[int], free_agent_mlb_ids: set[int]) -> list[OffseasonMove]:
+        """Carded players on `team` whose card (last season) has them on another club. A
+        replacement-level card (an uncarded 40-man player) never counts - it has no real club."""
+        moves: list[OffseasonMove] = []
+        for player in team.all_players:
+            card = player.card
+            from_team = card.team.value if card.team else None
+            if not card.mlb_id or card.mlb_id not in carded_mlb_ids or not from_team or from_team == team.name:
+                continue
+            player_type = player.player_type
+            moves.append(OffseasonMove(
+                player_id=real_card_id(player.id), player_name=player.name,
+                position=player.primary_position.value, player_type=player_type.value if player_type else "",
+                from_team=from_team, to_team=team.name,
+                is_sim_signing=card.mlb_id in free_agent_mlb_ids,
+                real_totals=real_stats_to_totals(player.stats, player_type) if player_type else {},
+            ))
+        return moves
+
     def _build_season_teams(self, cards: list[ShowdownPlayerCard], card_ids: dict[str, str], status_callback: Optional[Callable[[str], None]] = None) -> dict[str, SimTeam]:
         config = self.config
 
@@ -543,8 +566,11 @@ class Season:
         initial_team_by_card_id = self._trade_deadline.plan.initial_team_by_card_id if self._trade_deadline is not None else {}
 
         upcoming_team_by_mlb_id = {entry.mlb_id: abbr for abbr, entries in self._upcoming_rosters.items() for entry in entries}
+        free_agent_mlb_ids: set[int] = set()
         if upcoming_team_by_mlb_id:
-            upcoming_team_by_mlb_id.update(self._free_agent_placements(signed=set(upcoming_team_by_mlb_id), status=status))
+            placements = self._free_agent_placements(signed=set(upcoming_team_by_mlb_id), status=status)
+            free_agent_mlb_ids = set(placements)
+            upcoming_team_by_mlb_id.update(placements)
         cards_by_team: dict[str, list[ShowdownPlayerCard]] = {}
         for card in cards:
             if upcoming_team_by_mlb_id:
@@ -562,8 +588,8 @@ class Season:
 
         # BEFORE OPENING DAY, CLOSE EACH CLUB'S HOLES (A POSITION NOBODY PLAYS, A SHORT ROTATION)
         # WITH ADJACENT POSITIONS, THEN REPLACEMENT-LEVEL CARDS FOR ITS UNCARDED 40-MAN PLAYERS.
+        carded_mlb_ids = {card.mlb_id for card in cards if card.mlb_id}
         if self._upcoming_rosters:
-            carded_mlb_ids = {card.mlb_id for card in cards if card.mlb_id}
             card_year = UpcomingSeasonRosters.card_year(config.year)
             for abbr, entries in self._upcoming_rosters.items():
                 filler = RosterGapFiller(card_year=card_year, set=config.set, uncarded=[e for e in entries if e.mlb_id not in carded_mlb_ids], min_pa=config.min_pa)
@@ -616,6 +642,7 @@ class Season:
             if self._upcoming_rosters:
                 for player in team.all_players:
                     player.team_override = team_name
+                self.offseason_moves.extend(self._offseason_moves(team, carded_mlb_ids=carded_mlb_ids, free_agent_mlb_ids=free_agent_mlb_ids))
             seed(team)
             teams[team_name] = team
             roster_notes.extend(f"{team_name}: {warning}" for warning in team.roster.warnings)
@@ -733,6 +760,8 @@ class Season:
             postseason=self.postseason.as_result() if self.postseason else None,
             transactions=transactions,
             deadline_trades=self.deadline_trades,
+            # A TAKEOVER CLUB PLAYS THE USER'S OWN ROSTER, NOT THE MOVERS ON ITS REAL 40-MAN
+            offseason_moves=[move for move in self.offseason_moves if move.to_team not in config.all_takeovers],
             seeded_records=self.seeded_records,
             real_stats_as_of=self.real_stats_as_of,
         )
