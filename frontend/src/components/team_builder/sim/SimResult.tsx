@@ -372,7 +372,7 @@ export function SimResult({ summary, challengeResult, challengeStanding, onOpenC
                     </div>
                 </Tabs.Content>
 
-                <Tabs.Content value="my_team" className={`focus:outline-none px-4 pt-3 ${rosterSnapshot ? 'grid gap-4 lg:grid-cols-[minmax(0,450px)_minmax(0,1fr)] items-start' : ''}`}>
+                <Tabs.Content value="my_team" className={`focus:outline-none px-4 pt-3 ${rosterSnapshot ? 'grid gap-4 lg:grid-cols-[minmax(0,460px)_minmax(0,1fr)] items-start' : ''}`}>
                     {rosterSnapshot && (
                         <div className="rounded-card border border-(--divider) bg-(--background-secondary) overflow-hidden">
                             <SimClubRosterView snapshot={rosterSnapshot} players={players} identity={team.identity} />
