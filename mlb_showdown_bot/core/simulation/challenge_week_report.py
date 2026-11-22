@@ -31,8 +31,11 @@ _CATEGORY_ORDER = list(_CATEGORY_META)
 
 _FIELDING_GROUP_LABELS = {'if': 'IF', 'of': 'OF', 'ca': 'C'}
 _TEAM_DEFENSE_PATTERN = re.compile(r'^min_team_defense_(if|of)$')
-_SCOPE_LABELS = {'hitters': 'Hitters', 'pitchers': 'Pitchers', 'catchers': 'Catchers'}
-_SCOPED_FILTER_PATTERN = re.compile(r'^(min|max)_(.+)_(hitters|pitchers|catchers)$')
+_SCOPE_LABELS = {'hitters': 'Hitters', 'pitchers': 'Pitchers', 'catchers': 'Catchers', None: 'All cards'}
+# `min_`/`max_` card filters, optionally scoped (e.g. `max_points` or `min_speed_hitters`). Year
+# bounds and team-defense rules have their own labels, so `_restrictions` skips those bases.
+_SCOPED_FILTER_PATTERN = re.compile(r'^(min|max)_(.+?)(?:_(hitters|pitchers|catchers))?$')
+_UNSCOPED_LABEL_SKIP = {'year', 'team_defense_if', 'team_defense_of'}
 
 # CARD ART IS EMBEDDED IN THE PAGE AT 2x ITS 220px DISPLAY WIDTH - SHARP ON A SCREENSHOT
 # WITHOUT CARRYING THREE FULL 1500x2100 RENDERS AS BASE64.
@@ -112,9 +115,13 @@ class ChallengeSpotlight(BaseModel):
             if not match or value is None:
                 continue
             bound, base, scope = match.groups()
+            if base in _UNSCOPED_LABEL_SKIP:
+                continue
             amount = f"{value}+" if bound == 'min' else f"≤{value}"
             if base == 'speed':
                 stat = 'SPD'
+            elif base == 'points':
+                stat = 'PTS'
             elif base == 'fielding' or base.startswith('fielding_'):
                 group = _FIELDING_GROUP_LABELS.get(base.removeprefix('fielding_'))
                 stat = f"{group} fielding" if group else 'fielding'
@@ -232,26 +239,49 @@ class ChallengeWeek:
         takeovers: dict[int, TakeoverOptions] = {}
         return [ChallengeSpotlight.from_instance(r, takeovers.setdefault(r['year'], TakeoverOptions(year=r['year']))) for r in rows]
 
+    def _eligible_card_rows(self, challenge: ChallengeSpotlight, **extra_filters) -> list[dict]:
+        """Cards in this run's set that pass `challenge`'s per-card player filters in its season,
+        best points first (roster-level rules like required players / team defense don't apply)."""
+        filters = {k: v for k, v in challenge.player_filters.items() if k not in ROSTER_RULE_KEYS and k != ERA_LOCK_YEARS_KEY}
+        min_year, max_year = challenge.year_range
+        filters.update(min_year=min_year, max_year=max_year, showdown_set=self.showdown_set, sort_by='points', sort_direction='desc', **extra_filters)
+        return self.db.fetch_card_list(filters=filters) or []
+
     def _candidate_ids(self, challenge: ChallengeSpotlight) -> list[str]:
         """Best-first card ids for one challenge: its required players, then the top-points cards
         that pass its player filters in its season. Small-sample cards are skipped - a cameo
         season can price like a star (e.g. 1965 Satchel Paige) but isn't who you'd build around."""
         required = challenge.player_filters.get(REQUIRED_PLAYERS_KEY) or []
         ids = [f"{challenge.year}-{p['bref_id']}-{self.showdown_set}" for p in required]
-        filters = {k: v for k, v in challenge.player_filters.items() if k not in ROSTER_RULE_KEYS and k != ERA_LOCK_YEARS_KEY}
-        min_year, max_year = challenge.year_range
-        filters.update(min_year=min_year, max_year=max_year, showdown_set=self.showdown_set, sort_by='points', sort_direction='desc', limit=25)
-        ids += [r['card_id'] for r in (self.db.fetch_card_list(filters=filters) or []) if not r.get('is_small_sample_size')]
+        ids += [r['card_id'] for r in self._eligible_card_rows(challenge, limit=25) if not r.get('is_small_sample_size')]
         return ids
 
+    def _tag_card_ids(self, challenges: list[ChallengeSpotlight]) -> list[tuple[str, Optional[ChallengeSpotlight]]]:
+        """Tag each hand-picked card with a challenge it can actually be drafted in, spreading the
+        cards across challenges (a week of same-season challenges would otherwise tag every card
+        with the first one). A card that fits no challenge's filters falls back to the first
+        challenge whose season it's in, so it still renders."""
+        fits = {
+            challenge.slug: {r['card_id'] for r in self._eligible_card_rows(challenge, card_id=self.card_ids, limit=len(self.card_ids))}
+            for challenge in challenges
+        }
+        used: set[str] = set()
+        tagged: list[tuple[str, Optional[ChallengeSpotlight]]] = []
+        for card_id in self.card_ids:
+            eligible = [c for c in challenges if card_id in fits[c.slug]]
+            year = int(card_id.split('-')[0]) if card_id.split('-')[0].isdigit() else None
+            in_season = [c for c in challenges if year is not None and c.year_range[0] <= year <= c.year_range[1]]
+            challenge = next((c for c in eligible if c.slug not in used), None) or next(iter(eligible or in_season), None)
+            if challenge:
+                used.add(challenge.slug)
+            tagged.append((card_id, challenge))
+        return tagged
+
     def pick_card_ids(self, challenges: list[ChallengeSpotlight]) -> list[tuple[str, Optional[ChallengeSpotlight]]]:
-        """`card_ids` when given (each tagged with the first challenge whose season it fits),
-        otherwise one auto-pick per challenge, round-robin in category order, unique players."""
+        """`card_ids` when given (each tagged via `_tag_card_ids`), otherwise one auto-pick per
+        challenge, round-robin in category order, unique players."""
         if self.card_ids:
-            def fits(card_id: str) -> Optional[ChallengeSpotlight]:
-                year = int(card_id.split('-')[0]) if card_id.split('-')[0].isdigit() else None
-                return next((c for c in challenges if year is not None and c.year_range[0] <= year <= c.year_range[1]), None)
-            return [(card_id, fits(card_id)) for card_id in self.card_ids]
+            return self._tag_card_ids(challenges)
 
         queues = [(challenge, self._candidate_ids(challenge)) for challenge in challenges]
         picks: list[tuple[str, Optional[ChallengeSpotlight]]] = []
