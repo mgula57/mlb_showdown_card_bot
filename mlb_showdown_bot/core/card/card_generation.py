@@ -107,6 +107,42 @@ def find_mlb_id_for_mlb_api_career(stats_period: StatsPeriod, name: str = None, 
         print(f"Failed to check MLB API seasons for career: {e}")
         return None
 
+def fetch_completed_mlb_api_season_from_archive(stats_period: StatsPeriod, **kwargs) -> PlayerArchive | None:
+    """For a completed MLB API season (MLB_API_FIRST_SEASON+), return the player's archived season row stored by the roster snapshot.
+    Only full regular seasons qualify; in-progress seasons, date ranges, postseason, splits, and team overrides stay on the live MLB API.
+
+    Archive rows are keyed by MLB ID ("2026-660271"), with a "(pitcher)" suffix for the pitching side of two-way players.
+    """
+    is_archivable = stats_period.is_mlb \
+                    and stats_period.type == StatsPeriodType.REGULAR_SEASON \
+                    and stats_period.year_int is not None \
+                    and stats_period.year_int >= MLB_API_FIRST_SEASON \
+                    and not stats_period.is_during_current_season \
+                    and not stats_period.is_date_range \
+                    and stats_period.team_override is None \
+                    and not kwargs.get('ignore_archive', False)
+    if not is_archivable:
+        return None
+
+    try:
+        # STRIP OVERRIDES (EX: "ohtansh01 (Pitching)") SO BREF IDS RESOLVE THROUGH THE ID MAP
+        name = str(kwargs.get('name') or '').split('(')[0].strip()
+        name_original = str(kwargs.get('name_original') or '').split('(')[0].strip()
+        mlb_id = resolve_mlb_id(build_mlb_api(kwargs), name=name, name_original=name_original)
+        if mlb_id is None:
+            return None
+
+        with PostgresDB(is_archive=True) as db:
+            player_archive, _ = db.fetch_player_stats_from_archive(
+                year=str(stats_period.year_int),
+                bref_id=str(mlb_id),
+                type_override=PlayerType.PITCHER if stats_period.is_pitcher_override else None, # HITTER ROWS HAVE NO SUFFIX
+            )
+        return player_archive
+    except Exception as e:
+        print(f"Failed to fetch archived MLB API season: {e}")
+        return None
+
 def generate_card(image_libraries: list[ImageLibrary] = None, client: Optional[ClientContext] = None, generation_source: Optional[str] = None, **kwargs) -> dict[str, Any]:
     """
     Responsible for processing Showdown Bot Player Cards across API, CLI, and Web App.
@@ -277,7 +313,18 @@ def generate_card(image_libraries: list[ImageLibrary] = None, client: Optional[C
         wbc_lookup_mlb_id: int | None = None # SET BY THE DATASOURCE THAT FOUND THE PLAYER
         wbc_lookup_bref_id: str | None = None
 
+        # COMPLETED MLB API SEASONS ARE ARCHIVED BY THE ROSTER SNAPSHOT, SO SKIP THE LIVE PULL
+        archived_mlb_api_season = fetch_completed_mlb_api_season_from_archive(stats_period=stats_period, **kwargs) \
+                                    if expected_source == Datasource.MLB_API and career_mlb_id is None else None
+
         match expected_source:
+            case Datasource.MLB_API if archived_mlb_api_season:
+                start_time = datetime.now()
+                wbc_lookup_mlb_id = archived_mlb_api_season.mlb_id
+                stats = NormalizedPlayerStats(**archived_mlb_api_season.stats).as_dict()
+                stats_period.source = 'Archive'
+                scraper_load_time = (datetime.now() - start_time).total_seconds()
+
             case Datasource.MLB_API:
                 start_time = datetime.now()
 
