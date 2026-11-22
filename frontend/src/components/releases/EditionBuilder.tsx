@@ -540,8 +540,10 @@ export function EditionBuilder({ releaseId, releaseName, isWip, edition, readOnl
     // Summary mounts lazily on first open, then stays mounted so its filters/WOTC comparison survive tab switches.
     const [summaryMounted, setSummaryMounted] = useState(false);
     // Images mount lazily on first open, then stay mounted so a running render keeps polling
-    const [imagesMounted, setImagesMounted] = useState(false);
-    const [poolTab, setPoolTab] = useState<PoolTab>('cards');
+    // Browsing opens on the rendered images when there are some: that's the finished look of the edition
+    const opensOnImages = readOnly && !!edition.has_images;
+    const [imagesMounted, setImagesMounted] = useState(opensOnImages);
+    const [poolTab, setPoolTab] = useState<PoolTab>(opensOnImages ? 'images' : 'cards');
     const isDesktop = useMediaQuery('(min-width: 768px)');
     // The Build tab has nothing to show on desktop (the panel sits beside the pool) or when browsing
     const activePoolTab: PoolTab = (poolTab === 'build' && (isDesktop || readOnly)) || (poolTab === 'cutoff' && readOnly) ? 'cards' : poolTab;
@@ -1291,38 +1293,47 @@ export function EditionBuilder({ releaseId, releaseName, isWip, edition, readOnl
 
     // Shared by the desktop pool tab strip and the phone strip (which adds Build in front). Only the strip
     // on screen anchors the Images tip: the phone strip below md, otherwise the desktop one (browsing has only that one)
-    const renderPoolTabTriggers = (isPhoneStrip: boolean) => (
-        <>
-            <Tabs.Trigger value="cards" className={TAB_TRIGGER_CLASS}>
+    // Images leads the strip when browsing opens on it
+    const renderPoolTabTriggers = (isPhoneStrip: boolean) => {
+        const cardsTrigger = (
+            <Tabs.Trigger key="cards" value="cards" className={TAB_TRIGGER_CLASS}>
                 {activePreview ? <FaWandMagicSparkles className="text-[10px] text-(--preview-accent)" /> : <FaListCheck className="text-[10px]" />}
                 {readOnly ? 'List' : activePreview ? 'Preview' : 'Selected'}
                 <Plate variant={activePreview ? 'custom' : 'ink'} size="sm" className={activePreview ? 'bg-(--preview-accent)/12 text-(--preview-accent)' : ''}>{displayCards.length}</Plate>
             </Tabs.Trigger>
+        );
+        const imagesTrigger = (
             <Tabs.Trigger
+                key="images"
                 ref={isPhoneStrip === (!isDesktop && !readOnly) ? setImagesTab : undefined}
                 value="images"
                 className={TAB_TRIGGER_CLASS}
             >
                 <FaImage className="text-[10px]" /> Images
             </Tabs.Trigger>
-            <Tabs.Trigger
-                ref={isPhoneStrip === (!isDesktop && !readOnly) ? setSummaryTab : undefined}
-                value="summary"
-                className={TAB_TRIGGER_CLASS}
-            >
-                <FaChartColumn className="text-[10px]" /> Summary
-            </Tabs.Trigger>
-            {!readOnly && (
+        );
+        return (
+            <>
+                {opensOnImages ? [imagesTrigger, cardsTrigger] : [cardsTrigger, imagesTrigger]}
                 <Tabs.Trigger
-                    ref={isPhoneStrip === (!isDesktop && !readOnly) ? setCutoffTab : undefined}
-                    value="cutoff"
+                    ref={isPhoneStrip === (!isDesktop && !readOnly) ? setSummaryTab : undefined}
+                    value="summary"
                     className={TAB_TRIGGER_CLASS}
                 >
-                    <FaScissors className="text-[10px]" /> Cutoff
+                    <FaChartColumn className="text-[10px]" /> Summary
                 </Tabs.Trigger>
-            )}
-        </>
-    );
+                {!readOnly && (
+                    <Tabs.Trigger
+                        ref={isPhoneStrip === (!isDesktop && !readOnly) ? setCutoffTab : undefined}
+                        value="cutoff"
+                        className={TAB_TRIGGER_CLASS}
+                    >
+                        <FaScissors className="text-[10px]" /> Cutoff
+                    </Tabs.Trigger>
+                )}
+            </>
+        );
+    };
 
     return (
         <div className="flex flex-col flex-1 min-h-0">
