@@ -120,7 +120,7 @@ export default function Transactions({ seasonId, showdownSet, isActive }: Transa
             <div className="space-y-1">
                 <Heading level="section" as="h2">Transactions</Heading>
                 <p className="text-xs text-(--text-secondary)">
-                    Trades and free agency since the {priorYear} World Series. Players show their {feed?.card_year ?? priorYear} cards in your set.
+                    Trades and free agency from the {seasonId} offseason. Players show their {feed?.card_year ?? priorYear} cards in your set.
                 </p>
             </div>
 
@@ -209,7 +209,7 @@ export default function Transactions({ seasonId, showdownSet, isActive }: Transa
                                     <span className={`font-display-upright text-xl leading-none tabular-nums ${stat.className}`}>{stat.value}</span>
                                 </div>
                             ))}
-                            <span className="text-xs text-(--text-tertiary) sm:ml-auto">Card points gained and lost since the {priorYear} World Series.</span>
+                            <span className="text-xs text-(--text-tertiary) sm:ml-auto">Card points gained and lost this offseason.</span>
                         </div>
                     )}
                 </div>
@@ -222,7 +222,7 @@ export default function Transactions({ seasonId, showdownSet, isActive }: Transa
                 </div>
             ) : feed && !feed.window_start ? (
                 <EmptyState size="panel" title="Hot stove opens soon.">
-                    Moves show up here once the {priorYear} World Series is over.
+                    Moves show up here once the {seasonId} offseason begins.
                 </EmptyState>
             ) : moves.length === 0 && search.trim() ? (
                 <EmptyState size="panel" title="No matching moves.">

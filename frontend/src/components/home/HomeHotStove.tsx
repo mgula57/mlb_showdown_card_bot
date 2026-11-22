@@ -121,7 +121,7 @@ export function HomeHotStove({ season, showdownSet, onCardSelect }: HomeHotStove
         <HomeBand
             title="Hot Stove"
             icon={<FaFire className="text-(--showdown-red) shrink-0" />}
-            meta={order === 'latest' ? `Latest moves since the ${priorYear} World Series` : `Biggest moves since the ${priorYear} World Series`}
+            meta={order === 'latest' ? `Latest moves of the ${season.season_id} offseason` : `Biggest moves of the ${season.season_id} offseason`}
             link={{ label: 'All moves', to: `/seasons?season=${season.season_id}&tab=transactions` }}
         >
             {/* Control strip, matching the Today's Games strip: how the moves are ordered on the left
