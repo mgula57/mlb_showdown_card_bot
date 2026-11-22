@@ -672,6 +672,24 @@ def build_logging_tables(
     db.build_logging_tables()
     print("✅ Logging tables built.")
 
+@app.command("rollup_admin_metrics")
+def rollup_admin_metrics(
+    env: str = typer.Option("dev", "--env", "-e", help="Environment to run the command in"),
+    days: int = typer.Option(3, "--days", "-d", help="Recompute this many days, ending yesterday (UTC). Overlapping runs pick up late rows."),
+):
+    """Roll up the admin dashboard's daily counts (internal.metrics_daily_*). Run nightly; pass a large --days once to backfill."""
+    from datetime import datetime, timedelta, timezone
+    from ...core.database.postgres_db import PostgresDB
+    from ...core.database.admin_rollup import AdminRollup
+
+    # Finished days only: the dashboard computes today live, and a partial day here would hide its later rows
+    to_day = datetime.now(timezone.utc).date() - timedelta(days=1)
+    from_day = to_day - timedelta(days=max(days, 1) - 1)
+    print(f"Rolling up admin metrics from {from_day} to {to_day} ({env})...")
+    with PostgresDB(is_archive=env.lower() == "prod") as db:
+        AdminRollup(db).refresh(from_day=from_day, to_day=to_day)
+    print("✅ Admin metrics rolled up.")
+
 @app.command("build_user_settings_table")
 def build_user_settings_table(
     env: str = typer.Option("dev", "--env", "-e", help="Environment to run the command in")

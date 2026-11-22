@@ -112,7 +112,7 @@ export type FailedBuild = {
     request_duration: number | null;
 };
 
-export type FailureDimension = 'set' | 'period' | 'data_source' | 'version' | 'year_bucket' | 'generation_source';
+export type FailureDimension = 'set' | 'period' | 'requested_source' | 'version' | 'year_bucket' | 'generation_source';
 
 /** A build the browser reported as never getting a response. */
 export type ClientBuildError = { created_at: string; message: string | null; generation_source: string | null; user_id: string | null; email: string | null };
@@ -135,9 +135,11 @@ export type AdminFailures = {
 
 export type TrendDimension =
     | 'set' | 'expansion' | 'edition' | 'image_parallel' | 'period' | 'chart_version'
-    | 'stat_normalizer' | 'image_source' | 'era' | 'data_source' | 'league' | 'year_bucket' | 'generation_source';
+    | 'stat_normalizer' | 'image_source' | 'era' | 'data_source' | 'league' | 'year_bucket' | 'generation_source'
+    | 'player_type' | 'points';
 
-export type TrendBucket = { label: string; count: number; users: number };
+/** Successful builds per value. `points` buckets are the lower bound of a 50-point range, in point order. */
+export type TrendBucket = { label: string; count: number };
 
 export type AdminCardTrends = {
     days: number;
@@ -146,7 +148,7 @@ export type AdminCardTrends = {
         bordered: number; own_image: number; variable_speed: number;
     };
     breakdowns: Record<TrendDimension, TrendBucket[]>;
-    top_players: { bref_id: string; name: string; count: number; users: number; shuffles: number }[];
+    top_players: { bref_id: string; name: string; count: number }[];
     daily_by_set: { date: string; set: string | null; count: number }[];
 };
 
@@ -164,6 +166,7 @@ export type AdminUserRow = {
     actions: number;
     builds: number;
     features_used: number;
+    /** UTC day of the account's latest action in the period. */
     last_active_at: string | null;
 };
 

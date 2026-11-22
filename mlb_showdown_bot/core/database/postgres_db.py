@@ -5378,6 +5378,9 @@ class PostgresDB:
         self.create_log_card_image_generation_table()
         self.create_log_card_id_lookup_table()
         self.create_log_event_table()
+        # Admin dashboard rollup tables (filled nightly by `showdown_bot database rollup_admin_metrics`)
+        from .admin_rollup import AdminRollup
+        AdminRollup(self).ensure_tables()
 
 # ------------------------------------------------------------------------
 # USER SETTINGS

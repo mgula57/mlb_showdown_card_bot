@@ -1,0 +1,45 @@
+name: Roll Up Admin Metrics
+
+on:
+  schedule:
+    - cron: "30 6 * * *"   # Daily 06:30 UTC, after the US day has ended
+  workflow_dispatch:         # manual runs, e.g. the first backfill
+    inputs:
+      days:
+        description: "Days to recompute, ending yesterday (UTC). Use 730 once to backfill the dashboard's longest comparison window."
+        required: false
+        default: "3"
+
+concurrency:
+  group: rollup-admin-metrics
+  cancel-in-progress: false
+
+jobs:
+  rollup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+      DATABASE_URL_LOGS: ${{ secrets.DATABASE_URL_LOGS }}
+      DATABASE_URL_ARCHIVE: ${{ secrets.DATABASE_URL_ARCHIVE }}
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+      GOOGLE_CREDENTIALS: ${{ secrets.GOOGLE_CREDENTIALS }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -e .
+
+      # Recomputes the last few finished days (overlapping runs pick up late rows and cover a missed
+      # night). The dashboard computes anything after the last rolled-up day live, so a failed run
+      # only makes it slower, never wrong.
+      - name: Roll up admin metrics
+        run: showdown_bot database rollup_admin_metrics --env prod --days "${{ inputs.days || '3' }}"
