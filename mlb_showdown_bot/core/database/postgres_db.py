@@ -7956,7 +7956,12 @@ class PostgresDB:
             return None
         edition_query = """
             SELECT e.id, e.release_id, e.name, e.attributes, e.slug, e.is_published, e.draft_of, e.published_at,
-                   e.cards_version, e.created_at, e.updated_at
+                   e.cards_version, e.created_at, e.updated_at,
+                   -- Any stored render (current or stale), so browsing can open on the Images tab
+                   EXISTS (
+                       SELECT 1 FROM internal.release_card_images i
+                       WHERE i.edition_id = e.id AND i.storage_path IS NOT NULL
+                   ) AS has_images
             FROM internal.release_editions e
             JOIN internal.releases r ON r.id = e.release_id
             WHERE e.id = %s AND e.retired_at IS NULL AND r.retired_at IS NULL
