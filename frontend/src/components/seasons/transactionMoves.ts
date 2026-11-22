@@ -2,7 +2,7 @@
  * @fileoverview Display helpers for offseason moves, shared by `TransactionMoveItem`, the
  * Transactions tab and Home's Hot Stove band.
  */
-import type { TransactionFeedTeam, TransactionMove, TransactionMoveKind } from "../../api/mlbAPI";
+import type { TransactionFeedTeam, TransactionMove, TransactionMoveKind, TransactionPlayer } from "../../api/mlbAPI";
 import type { TeamIdentity } from "../../domain/team";
 import type { PlateVariant } from "../shared/Plate";
 
@@ -19,6 +19,19 @@ export const KIND_PLATES: Record<TransactionMoveKind, PlateVariant> = {
     free_agent: "outline",
     waiver_claim: "outline",
 };
+
+/** Share of a minor-league card's points that counts toward a move's total. Mirrors `FeedPlayer.MINOR_LEAGUE_POINTS_SHARE`. */
+export const MINOR_LEAGUE_POINTS_SHARE = 0.5;
+
+/** What a player adds to a move's total: big-league card points, or half a minor-league card's. */
+export const movePoints = (player: TransactionPlayer): number =>
+    player.is_minor_league && player.card
+        ? Math.floor((player.card.points ?? 0) * MINOR_LEAGUE_POINTS_SHARE)
+        : (player.points ?? 0);
+
+/** The move has a minor-league card whose points count toward its total. */
+export const hasMinorLeaguePoints = (move: TransactionMove): boolean =>
+    move.players.some((player) => player.is_minor_league && movePoints(player) > 0);
 
 export const moveKindLabel = (move: TransactionMove): string => (move.is_re_signing ? "Re-signed" : KIND_LABELS[move.kind]);
 

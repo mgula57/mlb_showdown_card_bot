@@ -1,7 +1,7 @@
 import logging
 from datetime import date
 from enum import Enum
-from typing import Optional
+from typing import ClassVar, Optional
 
 from pydantic import BaseModel
 
@@ -36,8 +36,9 @@ class FeedPlayer(BaseModel):
     """One player in a move. `card` is the player's card from the season before, in the requested set.
 
     A player with no big-league card that year may get a minor-league one instead
-    (`is_minor_league`). Its points stay off `points`, so a prospect never counts toward a move's
-    total or a club's net change - those are about the cards the sim plays with.
+    (`is_minor_league`). Its points stay off `points`, so a prospect never counts toward a club's
+    net change - that is about the cards the sim plays with. A move's total counts it at half
+    (`move_points`), so a trade built around prospects still reads as more than zero.
     """
 
     mlb_id: int
@@ -50,6 +51,16 @@ class FeedPlayer(BaseModel):
     # the full card by this id. None for a minor-league card, which is built on the fly.
     card_id: Optional[str] = None
     is_minor_league: bool = False
+
+    # SHARE OF A MINOR-LEAGUE CARD'S POINTS THAT COUNTS TOWARD A MOVE'S TOTAL. MIRRORED IN THE FRONTEND'S `movePoints`.
+    MINOR_LEAGUE_POINTS_SHARE: ClassVar[float] = 0.5
+
+    @property
+    def move_points(self) -> int:
+        """What this player adds to a move's total: big-league card points, or half a minor-league card's."""
+        if self.is_minor_league and self.card:
+            return int((self.card.get('points') or 0) * self.MINOR_LEAGUE_POINTS_SHARE)
+        return self.points or 0
 
 
 class FeedMove(BaseModel):
@@ -64,7 +75,7 @@ class FeedMove(BaseModel):
 
     @property
     def total_points(self) -> int:
-        return sum(player.points or 0 for player in self.players)
+        return sum(player.move_points for player in self.players)
 
     @property
     def has_cards(self) -> bool:
