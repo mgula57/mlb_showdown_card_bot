@@ -23,6 +23,7 @@
 
 import React, { createContext, useContext, useEffect, useState, useRef, useCallback, type ReactNode } from 'react';
 import { supabase } from '../../api/supabase';
+import { trackSignIn } from '../../analytics/track';
 import type { User, Session } from '@supabase/supabase-js';
 import { getUserSettings, updateUserSettings, type UserSettingsDB } from '../../api/userSettings';
 
@@ -184,6 +185,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             setUser(prev => { const next = session?.user ?? null; return prev?.id === next?.id ? prev : next; });
             if (session?.user) {
                 checkUserProfile(session.user.id);
+                if (_event === 'SIGNED_IN') trackSignIn(session.user.id, session.user.app_metadata?.provider);
                 if (_event === 'SIGNED_IN' || Date.now() - lastSettingsFetch.current > SETTINGS_REFETCH_MS) {
                     loadUserSettings(session.access_token);
                 }

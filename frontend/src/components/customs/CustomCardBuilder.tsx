@@ -70,6 +70,7 @@ import { FIELD_LABEL_CLASS } from '../shared/fieldStyles';
 import { Tabs, type TabItem } from '../shared/Tabs';
 import { PinstripeBackdrop } from '../shared/PinstripeBackdrop';
 import { smoothScrollBehavior } from '../../hooks/usePrefersReducedMotion';
+import { track } from '../../analytics/track';
 // ----------------------------------
 // MARK: - Form Interface
 // ----------------------------------
@@ -483,6 +484,9 @@ function CustomCardBuilder({ isHidden, embed }: CustomCardBuilderProps) {
     // MARK: Build Processing
     // ---------------------------------
 
+    /** Logged with each build so the Release Builder's embedded builds are told apart from this tab's. */
+    const generationSource = embed ? 'web_release_builder' : 'web_customs_tab';
+
     const submitCard = async (card_payload: any) => {
         // Implement your submit logic here
 
@@ -545,6 +549,7 @@ function CustomCardBuilder({ isHidden, embed }: CustomCardBuilderProps) {
                 // Default parameters/settings
                 set: effectiveShowdownSet,
                 is_running_on_website: true,
+                generation_source: generationSource,
                 image_output_folder_path: "static/output",
                 show_historical_points: true,
                 season_trend_date_aggregation: 'WEEK',
@@ -586,6 +591,8 @@ function CustomCardBuilder({ isHidden, embed }: CustomCardBuilderProps) {
             console.error(err);
             setErrorMessage(String(err));
             setIsProcessingCard(false);
+            // The request never returned a card or a logged error (network failure, server crash, timeout)
+            track('builder_client_error', { message: String(err), generation_source: generationSource });
         }
     };
 

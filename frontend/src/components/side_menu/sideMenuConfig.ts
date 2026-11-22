@@ -4,7 +4,7 @@
  * exports components (fast refresh).
  */
 
-import { FaCalendar, FaHome, FaCompass, FaUserCircle } from "react-icons/fa";
+import { FaCalendar, FaHome, FaCompass, FaUserCircle, FaChartBar } from "react-icons/fa";
 import { FaPeopleGroup, FaLayerGroup } from "react-icons/fa6";
 // import { FaDice } from "react-icons/fa6"; // re-add with the Simulate nav item below
 import CardBuildIcon from "../customs/CardBuildIcon";
@@ -83,8 +83,16 @@ export const accountMenuItem: SideMenuItemType = {
     path: "/account"
 };
 
+/** Admin dashboard, shown in the menu footer to admins only (see `useAuth().isAdmin`). */
+export const adminMenuItem: SideMenuItemType = {
+    text: "Admin",
+    icon: FaChartBar,
+    path: "/admin"
+};
+
 /** Flat list of every navigable item — used for route → active item / page title lookups. */
 export const sideMenuItems: SideMenuItemType[] = [
     ...sideMenuSections.flatMap(section => section.items),
     accountMenuItem,
+    adminMenuItem,
 ];

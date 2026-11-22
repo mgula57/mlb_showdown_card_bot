@@ -42,6 +42,8 @@ from mlb_showdown_bot.api.stats import stats_bp
 from mlb_showdown_bot.api.user_teams import user_teams_bp
 from mlb_showdown_bot.api.admin_teams import admin_teams_bp
 from mlb_showdown_bot.api.admin_challenges import admin_challenges_bp
+from mlb_showdown_bot.api.admin_metrics import admin_metrics_bp
+from mlb_showdown_bot.api.events import events_bp
 from mlb_showdown_bot.api.sim import sim_bp
 from mlb_showdown_bot.api.releases import releases_bp
 from mlb_showdown_bot.api.comments import comments_bp
@@ -60,6 +62,8 @@ app.register_blueprint(stats_bp, url_prefix='/api')
 app.register_blueprint(user_teams_bp, url_prefix='/api')
 app.register_blueprint(admin_teams_bp, url_prefix='/api')
 app.register_blueprint(admin_challenges_bp, url_prefix='/api')
+app.register_blueprint(admin_metrics_bp, url_prefix='/api')
+app.register_blueprint(events_bp, url_prefix='/api')
 app.register_blueprint(sim_bp, url_prefix='/api')
 app.register_blueprint(releases_bp, url_prefix='/api')
 app.register_blueprint(comments_bp, url_prefix='/api')

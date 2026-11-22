@@ -94,6 +94,7 @@ from ..card.variable_speed import VariableSpeedVariant
 from ..card.utils.shared_functions import convert_year_string_to_list
 from ..shared.google_drive import fetch_image_metadata
 from ..card.images import ImageMatchType, AutoImageFile
+from ..utils.client_context import ClientContext, EMPTY_CLIENT_CONTEXT
 from ..mlb_stats_api import Player, Roster, RosterTypeEnum, SportEnum, Standings, Schedule
 
 
@@ -5376,6 +5377,7 @@ class PostgresDB:
         self.create_log_player_search_table()
         self.create_log_card_image_generation_table()
         self.create_log_card_id_lookup_table()
+        self.create_log_event_table()
 
 # ------------------------------------------------------------------------
 # USER SETTINGS
@@ -9062,6 +9064,22 @@ class PostgresDB:
             ALTER TABLE internal.log_custom_card_bot
                 ADD COLUMN IF NOT EXISTS generation_source character varying(64) NOT NULL DEFAULT 'web_customs_tab';
         """
+        # BRIN: rows are appended in time order, so a tiny block-range index makes the admin
+        # dashboard's date-window scans read only recent blocks instead of the whole table
+        created_on_index_sql = """
+            CREATE INDEX IF NOT EXISTS log_custom_card_bot_created_on_brin
+            ON internal.log_custom_card_bot USING brin (created_on);
+        """
+        # Visitor ids (see ClientContext), structured failure detail, and end-to-end build time
+        migrate_analytics_columns_sql = """
+            ALTER TABLE internal.log_custom_card_bot
+                ADD COLUMN IF NOT EXISTS anon_id text,
+                ADD COLUMN IF NOT EXISTS session_id text,
+                ADD COLUMN IF NOT EXISTS error_type character varying(128),
+                ADD COLUMN IF NOT EXISTS error_stage character varying(32),
+                ADD COLUMN IF NOT EXISTS error_detail text,
+                ADD COLUMN IF NOT EXISTS request_duration numeric(10,2);
+        """
         try:
             with self.connection.cursor() as cur:
                 cur.execute(schema_check_sql)
@@ -9070,6 +9088,8 @@ class PostgresDB:
                 cur.execute(user_id_index_sql)
                 cur.execute(migrate_is_hidden_sql)
                 cur.execute(migrate_generation_source_sql)
+                cur.execute(created_on_index_sql)
+                cur.execute(migrate_analytics_columns_sql)
                 self.connection.commit()
         except Exception as error:
             traceback.print_exc()
@@ -9101,12 +9121,23 @@ class PostgresDB:
             CREATE INDEX IF NOT EXISTS log_player_search_user_id_idx
             ON internal.log_player_search (user_id);
         """
+        timestamp_index_sql = """
+            CREATE INDEX IF NOT EXISTS log_player_search_timestamp_brin
+            ON internal.log_player_search USING brin ("timestamp");
+        """
+        migrate_client_ids_sql = """
+            ALTER TABLE internal.log_player_search
+                ADD COLUMN IF NOT EXISTS anon_id text,
+                ADD COLUMN IF NOT EXISTS session_id text;
+        """
 
         try:
             with self.connection.cursor() as cur:
                 cur.execute(create_table_sql)
                 cur.execute(migrate_user_id_sql)
                 cur.execute(user_id_index_sql)
+                cur.execute(timestamp_index_sql)
+                cur.execute(migrate_client_ids_sql)
                 self.connection.commit()
         except Exception as error:
             traceback.print_exc()
@@ -9137,12 +9168,23 @@ class PostgresDB:
             CREATE INDEX IF NOT EXISTS log_card_image_generation_user_id_idx
             ON internal.log_card_image_generation (user_id);
         """
+        timestamp_index_sql = """
+            CREATE INDEX IF NOT EXISTS log_card_image_generation_timestamp_brin
+            ON internal.log_card_image_generation USING brin ("timestamp");
+        """
+        migrate_client_ids_sql = """
+            ALTER TABLE internal.log_card_image_generation
+                ADD COLUMN IF NOT EXISTS anon_id text,
+                ADD COLUMN IF NOT EXISTS session_id text;
+        """
 
         try:
             with self.connection.cursor() as cur:
                 cur.execute(create_table_sql)
                 cur.execute(migrate_user_id_sql)
                 cur.execute(user_id_index_sql)
+                cur.execute(timestamp_index_sql)
+                cur.execute(migrate_client_ids_sql)
                 self.connection.commit()
         except Exception as error:
             traceback.print_exc()
@@ -9174,17 +9216,92 @@ class PostgresDB:
             CREATE INDEX IF NOT EXISTS log_card_id_lookup_user_id_idx
             ON internal.log_card_id_lookup (user_id);
         """
+        timestamp_index_sql = """
+            CREATE INDEX IF NOT EXISTS log_card_id_lookup_timestamp_brin
+            ON internal.log_card_id_lookup USING brin ("timestamp");
+        """
+        migrate_client_ids_sql = """
+            ALTER TABLE internal.log_card_id_lookup
+                ADD COLUMN IF NOT EXISTS anon_id text,
+                ADD COLUMN IF NOT EXISTS session_id text;
+        """
 
         try:
             with self.connection.cursor() as cur:
                 cur.execute(create_table_sql)
                 cur.execute(migrate_user_id_sql)
                 cur.execute(user_id_index_sql)
+                cur.execute(timestamp_index_sql)
+                cur.execute(migrate_client_ids_sql)
                 self.connection.commit()
         except Exception as error:
             traceback.print_exc()
             print(f"Error creating internal.log_card_id_lookup table: {error}")
             self.connection.rollback()
+
+    def create_log_event_table(self) -> None:
+        """Create internal.log_event: one row per product event the frontend reports (page views,
+        session starts, sign-ins, ...). See `mlb_showdown_bot/api/events.py` for the allowed events."""
+
+        if not self.connection:
+            print("No database connection available for creating logging table.")
+            return
+
+        statements = [
+            """
+            CREATE TABLE IF NOT EXISTS internal.log_event (
+                id bigserial PRIMARY KEY,
+                created_at timestamptz NOT NULL DEFAULT now(),
+                event character varying(64) NOT NULL,
+                user_id text,
+                anon_id text,
+                session_id text,
+                route character varying(256),
+                properties jsonb,
+                app_version text
+            );
+            """,
+            "CREATE INDEX IF NOT EXISTS log_event_created_at_brin ON internal.log_event USING brin (created_at);",
+            "CREATE INDEX IF NOT EXISTS log_event_event_created_at_idx ON internal.log_event (event, created_at);",
+            "CREATE INDEX IF NOT EXISTS log_event_user_id_idx ON internal.log_event (user_id) WHERE user_id IS NOT NULL;",
+            "CREATE INDEX IF NOT EXISTS log_event_anon_id_idx ON internal.log_event (anon_id);",
+        ]
+        try:
+            with self.connection.cursor() as cur:
+                for statement in statements:
+                    cur.execute(statement)
+                self.connection.commit()
+        except Exception as error:
+            traceback.print_exc()
+            print(f"Error creating internal.log_event table: {error}")
+            self.connection.rollback()
+
+    def log_events(self, events: List[dict]) -> int:
+        """Insert already-validated events (keys: event, user_id, anon_id, session_id, route,
+        properties). Returns how many were written."""
+
+        if not self.connection or not events:
+            return 0
+
+        sql = """
+            INSERT INTO internal.log_event (event, user_id, anon_id, session_id, route, properties, app_version)
+            VALUES (%s, %s, %s, %s, %s, %s, %s)
+        """
+        rows = [
+            (e['event'], e.get('user_id'), e.get('anon_id'), e.get('session_id'), e.get('route'),
+             json.dumps(e['properties']) if e.get('properties') else None, __version__)
+            for e in events
+        ]
+        try:
+            with self.connection.cursor() as cur:
+                cur.executemany(sql, rows)
+                self.connection.commit()
+            return len(rows)
+        except Exception as error:
+            traceback.print_exc()
+            print(f"Error logging events to DB: {error}")
+            self.connection.rollback()
+            return 0
 
     def _serialize_card_result(self, card: ShowdownPlayerCard) -> dict:
         data = card.as_json(exclude={'realtime_game_logs': True})
@@ -9194,7 +9311,8 @@ class PostgresDB:
         data.get('stats_period', {}).get('stats', {}).pop('postseason_game_logs', None)
         return data
 
-    def log_custom_card_submission(self, card:ShowdownPlayerCard, user_inputs: dict[str: Any], additional_attributes: dict[str: Any]) -> str:
+    def log_custom_card_submission(self, card:ShowdownPlayerCard, user_inputs: dict[str: Any], additional_attributes: dict[str: Any],
+                                   client: Optional[ClientContext] = None, generation_source: Optional[str] = None) -> str:
         """
         Store card submission data in the log_custom_card_bot table.
 
@@ -9202,6 +9320,9 @@ class PostgresDB:
             ShowdownPlayerCard: Card object to log.
             user_inputs: User inputs to log, including any additional attributes.
             additional_attributes: Additional attributes to log, if any.
+            client: Visitor ids from the request headers, if it came from the web app.
+            generation_source: Where the build came from (e.g. 'web_release_builder'). The column's
+                default ('web_customs_tab') applies when omitted.
 
         Returns:
             The new row's id, or None if it wasn't logged.
@@ -9227,7 +9348,8 @@ class PostgresDB:
             
         # BUILD CARD SUBMISSION OBJECT
         columns_not_on_card_object = [
-            'error', 'error_for_user', 'scraper_load_time', 'historical_season_trends', 'in_season_trends'
+            'error', 'error_for_user', 'scraper_load_time', 'historical_season_trends', 'in_season_trends',
+            'error_type', 'error_stage', 'error_detail', 'request_duration',
         ]
         if card:
             # CARD IS POPULATED
@@ -9296,6 +9418,10 @@ class PostgresDB:
         # ADD USER INPUTS AND VERSION
         card_submission['user_inputs'] = user_inputs_converted
         card_submission['version'] = __version__
+        if client:
+            card_submission.update(client.as_columns())
+        if generation_source:
+            card_submission['generation_source'] = generation_source
 
         # INSERT INTO THE DATABASE
         column_list = list(card_submission.keys())
@@ -9315,7 +9441,7 @@ class PostgresDB:
             self.connection.rollback()
             return None
 
-    def log_player_search(self, filters: dict, result_count: int, error: str = None, user_id: str = None) -> None:
+    def log_player_search(self, filters: dict, result_count: int, error: str = None, user_id: str = None, client: Optional[ClientContext] = None) -> None:
         """
         Store player search data in the log_player_search table.
 
@@ -9331,12 +9457,13 @@ class PostgresDB:
             return
 
         sql = """
-            INSERT INTO internal.log_player_search (filters, result_count, error, user_id)
-            VALUES (%s, %s, %s, %s)
+            INSERT INTO internal.log_player_search (filters, result_count, error, user_id, anon_id, session_id)
+            VALUES (%s, %s, %s, %s, %s, %s)
         """
+        client = client or EMPTY_CLIENT_CONTEXT
         try:
             with self.connection.cursor() as cur:
-                cur.execute(sql, (json.dumps(filters), result_count, error, user_id))
+                cur.execute(sql, (json.dumps(filters), result_count, error, user_id, client.anon_id, client.session_id))
                 self.connection.commit()
         except Exception as error:
             traceback.print_exc()
@@ -9344,7 +9471,7 @@ class PostgresDB:
             self.connection.rollback()
             return None
 
-    def log_card_image_generation(self, card_id: str, error: str = None, user_id: str = None) -> None:
+    def log_card_image_generation(self, card_id: str, error: str = None, user_id: str = None, client: Optional[ClientContext] = None) -> None:
         """
         Store card image generation data in the log_card_image_generation table.
 
@@ -9359,12 +9486,13 @@ class PostgresDB:
             return
 
         sql = """
-            INSERT INTO internal.log_card_image_generation (card_id, error, user_id)
-            VALUES (%s, %s, %s)
+            INSERT INTO internal.log_card_image_generation (card_id, error, user_id, anon_id, session_id)
+            VALUES (%s, %s, %s, %s, %s)
         """
+        client = client or EMPTY_CLIENT_CONTEXT
         try:
             with self.connection.cursor() as cur:
-                cur.execute(sql, (card_id, error, user_id))
+                cur.execute(sql, (card_id, error, user_id, client.anon_id, client.session_id))
                 self.connection.commit()
         except Exception as error:
             traceback.print_exc()
@@ -9372,7 +9500,7 @@ class PostgresDB:
             self.connection.rollback()
             return None
 
-    def log_card_id_lookup(self, card_id: str, source: str, error: str = None, user_id: str = None) -> None:
+    def log_card_id_lookup(self, card_id: str, source: str, error: str = None, user_id: str = None, client: Optional[ClientContext] = None) -> None:
         """
         Store card ID lookup data in the log_card_id_lookup table.
 
@@ -9382,9 +9510,9 @@ class PostgresDB:
             error: Error message if any.
             user_id: Verified user ID from JWT, if authenticated.
         """
-        self.log_card_id_lookups(card_ids=[card_id], source=source, error=error, user_id=user_id)
+        self.log_card_id_lookups(card_ids=[card_id], source=source, error=error, user_id=user_id, client=client)
 
-    def log_card_id_lookups(self, card_ids: List[str], source: str, error: str = None, user_id: str = None) -> None:
+    def log_card_id_lookups(self, card_ids: List[str], source: str, error: str = None, user_id: str = None, client: Optional[ClientContext] = None) -> None:
         """Store one log_card_id_lookup row per card ID in a single commit. See `log_card_id_lookup`."""
 
         if not self.connection:
@@ -9394,12 +9522,13 @@ class PostgresDB:
             return
 
         sql = """
-            INSERT INTO internal.log_card_id_lookup (card_id, source, error, user_id)
-            VALUES (%s, %s, %s, %s)
+            INSERT INTO internal.log_card_id_lookup (card_id, source, error, user_id, anon_id, session_id)
+            VALUES (%s, %s, %s, %s, %s, %s)
         """
+        client = client or EMPTY_CLIENT_CONTEXT
         try:
             with self.connection.cursor() as cur:
-                cur.executemany(sql, [(card_id, source, error, user_id) for card_id in card_ids])
+                cur.executemany(sql, [(card_id, source, error, user_id, client.anon_id, client.session_id) for card_id in card_ids])
                 self.connection.commit()
         except Exception as error:
             traceback.print_exc()
