@@ -9,6 +9,7 @@ import { makeZip } from 'client-zip';
 import type { ReleaseCardImage } from '../../api/releases';
 import type { CardDatabaseRecord } from '../../api/card_db/cardDatabase';
 import { cardImagePublicUrl } from '../../api/supabase';
+import { track } from '../../analytics/track';
 
 /** Rough full-size image size, for warning before an in-memory ZIP gets large. */
 const ESTIMATED_BYTES_PER_IMAGE = 1.1 * 1024 * 1024;
@@ -126,6 +127,7 @@ export function useEditionZipDownload() {
      * when the ZIP saved with every image. */
     const start = useCallback(async (entries: ZipEntry[], zipFileName: string): Promise<boolean> => {
         if (entries.length === 0 || abortRef.current) return false;
+        track('release_zip_download', { card_count: entries.length });
 
         const savePicker = (window as SaveFilePickerWindow).showSaveFilePicker;
 

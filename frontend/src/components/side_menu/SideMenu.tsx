@@ -33,7 +33,8 @@ import { NavLink, useLocation } from "react-router-dom";
 import { FaChevronRight } from "react-icons/fa";
 import { FaXmark } from "react-icons/fa6";
 import { SideMenuItem } from "./SideMenuItem";
-import { sideMenuItems, sideMenuSections, accountMenuItem } from "./sideMenuConfig";
+import { sideMenuItems, sideMenuSections, accountMenuItem, adminMenuItem } from "./sideMenuConfig";
+import { useAuth } from "../auth/AuthContext";
 import { type SideMenuItem as SideMenuItemType } from "../../types/SideMenuItem";
 import ShowdownBotLogo from "../shared/ShowdownBotLogo";
 import ThemeToggleButton from "./ThemeToggleButton";
@@ -81,6 +82,7 @@ const SideMenu: React.FC<SideMenuProps> = ({ isOpen, setIsOpen, className, isMob
 
     // Get current route for active menu item detection
     const location = useLocation();
+    const { isAdmin } = useAuth();
 
     /**
      * Determines the currently active menu item based on the current route
@@ -263,6 +265,14 @@ const SideMenu: React.FC<SideMenuProps> = ({ isOpen, setIsOpen, className, isMob
 
                 {/* Footer Section: Account + Theme Toggle, pinned below the sections */}
                 <div className="px-2 pt-2 pb-10 sm:pb-auto space-y-2 border-t border-form-element">
+                    {isAdmin && (
+                        <SideMenuItem
+                            item={adminMenuItem}
+                            isSideMenuOpen={isOpen}
+                            selectedItem={selectedMenuItem}
+                            onClick={handleMenuItemClick}
+                        />
+                    )}
                     <SideMenuItem
                         item={accountMenuItem}
                         isSideMenuOpen={isOpen}

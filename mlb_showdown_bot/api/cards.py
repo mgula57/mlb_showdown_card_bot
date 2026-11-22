@@ -10,12 +10,16 @@ from .image_libraries import UserImageLibraries
 from ..core.card.card_generation import generate_card, generate_cards
 from ..core.card.card_image_builder import CardImageBuilder
 from ..core.utils.ttl_cache import TTLCache
+from ..core.utils.client_context import ClientContext
 
 cards_bp = Blueprint('cards', __name__)
 
 # Bounded so batch card-build results (which can include full generated card
 # payloads) can't accumulate forever on a long-lived dyno process.
 _cards_cache: TTLCache[dict] = TTLCache(ttl_seconds=4 * 60 * 60, max_size=25)
+
+# Screens that can build a custom card, logged as `generation_source`. Anything else falls back to the column default.
+WEB_GENERATION_SOURCES = frozenset({'web_customs_tab', 'web_release_builder'})
 
 
 
@@ -72,7 +76,15 @@ def build_custom_card():
         # Normal card generation
         payload.pop('image_libraries', None) # SERVER-RESOLVED ONLY
         image_libraries = UserImageLibraries.for_card_build(verified_user_id)
-        card_data = generate_card(image_libraries=image_libraries, randomize=is_random, store_in_logs=True, **payload)
+        generation_source = payload.pop('generation_source', None)
+        card_data = generate_card(
+            image_libraries=image_libraries,
+            randomize=is_random,
+            store_in_logs=True,
+            client=ClientContext.from_headers(request.headers),
+            generation_source=generation_source if generation_source in WEB_GENERATION_SOURCES else None,
+            **payload,
+        )
 
         return jsonify(card_data)
         
@@ -108,7 +120,7 @@ def build_image_for_card():
             payload['card'] = card.as_json()
 
             # LOGGING
-            db.log_card_image_generation(card_id=card.id, user_id=optional_user_id())
+            db.log_card_image_generation(card_id=card.id, user_id=optional_user_id(), client=ClientContext.from_headers(request.headers))
 
         return jsonify(payload)
 

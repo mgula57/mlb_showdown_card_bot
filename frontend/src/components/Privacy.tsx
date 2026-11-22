@@ -4,14 +4,14 @@ const Privacy = () => {
     return (
         <div className="max-w-3xl mx-auto px-6 py-12 text-sm leading-relaxed">
             <Heading level="page" className="mb-2">Privacy Policy</Heading>
-            <p className="text-(--text-tertiary) mb-8">Last updated: May 27, 2026</p>
+            <p className="text-(--text-tertiary) mb-8">Last updated: November 21, 2026</p>
 
             <section className="mb-8">
                 <Heading level="section" className="mb-3">Overview</Heading>
                 <p>
                     MLB Showdown Card Bot ("the app") is a fan-made tool for generating MLB Showdown
                     trading card stats. This policy describes what information we collect when you
-                    sign in, how we use it, and how we protect it.
+                    use the app or sign in, how we use it, and how we protect it.
                 </p>
             </section>
 
@@ -55,7 +55,37 @@ const Privacy = () => {
             </section>
 
             <section className="mb-8">
-                <Heading level="section" className="mb-3">3. Data Sharing</Heading>
+                <Heading level="section" className="mb-3">3. Usage Data</Heading>
+                <p className="mb-3">
+                    Whether or not you sign in, the app records how its features are used, so we can
+                    see what's popular and find what's broken:
+                </p>
+                <ul className="list-disc list-inside space-y-1 mb-3">
+                    <li>Pages you open, cards you build or look up, and searches you run</li>
+                    <li>Errors you run into while building a card</li>
+                    <li>
+                        Where your visit came from (the referring site), your rough device type
+                        (phone, tablet or desktop) and your screen width
+                    </li>
+                    <li>
+                        A random ID stored in your browser, so repeat visits count as one visitor,
+                        and a random ID for each browser tab session. If you sign in, this activity
+                        is linked to your account
+                    </li>
+                </ul>
+                <p className="mb-3">
+                    This data stays in our own database. It is not sent to analytics or advertising
+                    services, and it is only used to improve the app.
+                </p>
+                <p>
+                    If your browser sends a Global Privacy Control or Do Not Track signal, the app
+                    does not record page views or the random IDs. You can also clear the IDs at any
+                    time by clearing this site's data in your browser.
+                </p>
+            </section>
+
+            <section className="mb-8">
+                <Heading level="section" className="mb-3">4. Data Sharing</Heading>
                 <p className="mb-3">
                     We do <strong>not</strong> sell, rent, or trade your personal information.
                     Limited sharing occurs only as follows:
@@ -63,18 +93,18 @@ const Privacy = () => {
                 <ul className="list-disc list-inside space-y-1">
                     <li>
                         <strong>Supabase</strong> — our authentication and database provider, which
-                        stores your account credentials and session tokens. Supabase processes this
-                        data solely to provide these services.
+                        stores your account credentials, session tokens and usage data. Supabase
+                        processes this data solely to provide these services.
                     </li>
                 </ul>
                 <p className="mt-3">
-                    No account data is shared with analytics providers, advertisers, or any other
-                    third parties.
+                    No account or usage data is sold or shared with analytics providers,
+                    advertisers, or any other third parties.
                 </p>
             </section>
 
             <section className="mb-8">
-                <Heading level="section" className="mb-3">4. Data Storage & Protection</Heading>
+                <Heading level="section" className="mb-3">5. Data Storage & Protection</Heading>
                 <p className="mb-3">
                     Account data (email, display name) is stored in Supabase's managed PostgreSQL
                     database, which provides:
@@ -94,7 +124,7 @@ const Privacy = () => {
             </section>
 
             <section className="mb-8">
-                <Heading level="section" className="mb-3">5. Data Retention & Deletion</Heading>
+                <Heading level="section" className="mb-3">6. Data Retention & Deletion</Heading>
                 <p className="mb-3">
                     Your account information is retained for as long as your account remains
                     active. If you stop using the app, data is not automatically deleted, but you
@@ -107,8 +137,8 @@ const Privacy = () => {
                     days.
                 </p>
                 <p>
-                    Upon deletion, your email address, display name, and any saved card data
-                    associated with your account will be permanently removed from our systems.
+                    Upon deletion, your email address, display name, any saved card data and the
+                    usage data linked to your account will be permanently removed from our systems.
                 </p>
             </section>
 
