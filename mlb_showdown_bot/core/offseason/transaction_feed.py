@@ -162,9 +162,10 @@ class TransactionFeedBuilder:
 
     # A feed card only has to render a card item and open its detail view: the UI-only diagnostics
     # and per-game logs are ~75% of a full payload, and a feed carries hundreds of cards.
+    _GAME_LOGS_EXCLUDE = {'stats': {'game_logs': True, 'postseason_game_logs': True}}
     _CARD_JSON_EXCLUDE = {
         **{key: True for key in CARD_DATA_DIAGNOSTIC_KEYS},
-        'stats': {'game_logs': True, 'postseason_game_logs': True},
+        **_GAME_LOGS_EXCLUDE,
     }
 
     def __init__(self, mlb_stats_api: MLBStatsAPI, sport_id: int = 1):
@@ -247,7 +248,8 @@ class TransactionFeedBuilder:
         if not mlb_ids:
             return {}
         try:
-            return MinorLeagueCardBuilder(mlb_stats_api=self.api).build_many(mlb_ids=mlb_ids, year=card_year, set=Set(showdown_set))
+            # A PROSPECT'S FULL MINOR-LEAGUE LINE SHOWS AS IT IS; ONLY A THIN SEASON, WHICH RUNS HOT, IS NERFED
+            return MinorLeagueCardBuilder(mlb_stats_api=self.api).build_many(mlb_ids=mlb_ids, year=card_year, set=Set(showdown_set), nerf_small_samples_only=True)
         except Exception:
             # A minor-league card is a nice-to-have on the feed; never fail the feed over one.
             logger.exception("Couldn't build minor-league cards for the transaction feed")
@@ -338,7 +340,9 @@ class TransactionFeedBuilder:
             if card is None:
                 minor_league_card = minor_league_cards.get(player.mlb_id)
                 if minor_league_card is not None:
-                    player.card = minor_league_card.as_json(exclude=cls._CARD_JSON_EXCLUDE)
+                    # KEEPS ITS DIAGNOSTICS: A MINOR-LEAGUE CARD IS BUILT ON THE FLY, SO THE DETAIL VIEW
+                    # CAN'T FETCH IT BY ID LIKE A STORED CARD (`card_id`). A FEED HAS ONLY A DOZEN OR SO.
+                    player.card = minor_league_card.as_json(exclude=cls._GAME_LOGS_EXCLUDE)
                     player.is_minor_league = True
                 continue
             player.points = card.points
