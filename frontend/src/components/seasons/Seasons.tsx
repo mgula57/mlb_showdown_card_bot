@@ -1154,14 +1154,6 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
                                                     <div className="flex-1 flex items-center min-w-0">
                                                         {type === "wbc" ? <FaEarthAmericas className="inline-block mr-2 shrink-0 text-xl text-(--text-tertiary)" /> : <FaCalendarDays className="inline-block mr-2 shrink-0 text-xl text-(--text-tertiary)" />}
                                                         <Heading level="page" as="span" fit>{title}</Heading>
-                                                        {!(hasStaticSeasons && seasonOptions.length <= 1) && (
-                                                            <CustomSelect
-                                                                className="ml-4"
-                                                                value={selectedSeason?.season_id.toString() || "2026"}
-                                                                onChange={(value) => setSelectedSeason(seasons.find(season => season.season_id === value) || null)}
-                                                                options={seasonOptions}
-                                                            />
-                                                        )}
                                                     </div>
                                                     <div className="flex items-center gap-1.5 shrink-0">
                                                         {type === "mlb" && selectedSeason && (
@@ -1177,7 +1169,15 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
                                                     </div>
                                                 </div>
                                             )}
-                                            
+                                            {/* On its own row so the title keeps room next to Simulate */}
+                                            {hasStaticSports && sportOptions.length <= 1 && selectedSport && !(hasStaticSeasons && seasonOptions.length <= 1) && (
+                                                <CustomSelect
+                                                    value={selectedSeason?.season_id.toString() || "2026"}
+                                                    onChange={(value) => setSelectedSeason(seasons.find(season => season.season_id === value) || null)}
+                                                    options={seasonOptions}
+                                                />
+                                            )}
+
                                             {!(hasStaticSports && sportOptions.length <= 1) && (
                                                 <CustomSelect
                                                     value={selectedSport?.id?.toString() || ""}

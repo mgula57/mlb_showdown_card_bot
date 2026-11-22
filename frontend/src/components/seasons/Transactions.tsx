@@ -17,12 +17,13 @@ import { Heading } from "../shared/Heading";
 import { Modal } from "../shared/Modal";
 import { Plate } from "../shared/Plate";
 import { RetryableError } from "../shared/RetryableError";
+import { SearchInput } from "../shared/SearchInput";
 import { TeamChip } from "../shared/TeamChip";
 import { buttonClass } from "../shared/buttonStyles";
 import { choiceClass } from "../shared/choiceStyles";
 import { CAPS_LABEL_CLASS } from "../shared/fieldStyles";
 import { MoveKindIcon, TransactionMoveItem, TransactionMoveItemSkeleton } from "./TransactionMoveItem";
-import { feedTeamIdentity, formatMoveDate, formatMoveDay, groupByDay } from "./transactionMoves";
+import { feedTeamIdentity, formatMoveDate, formatMoveDay, groupByDay, moveMatchesSearch } from "./transactionMoves";
 
 const PAGE_SIZE = 20;
 const ALL_TEAMS = "all";
@@ -57,8 +58,9 @@ export default function Transactions({ seasonId, showdownSet, isActive }: Transa
 
     const [kindFilter, setKindFilter] = useState<KindFilter>("all");
     const [teamFilter, setTeamFilter] = useState<string>(ALL_TEAMS);
+    const [search, setSearch] = useState("");
     // How many moves are shown, for the filters it was set under. A new filter starts on page one.
-    const filterKey = `${kindFilter}:${teamFilter}:${requestKey}`;
+    const filterKey = `${kindFilter}:${teamFilter}:${search}:${requestKey}`;
     const [page, setPage] = useState({ key: filterKey, count: PAGE_SIZE });
     const visibleCount = page.key === filterKey ? page.count : PAGE_SIZE;
     const [selectedCard, setSelectedCard] = useState<CardSelection | null>(null);
@@ -81,18 +83,21 @@ export default function Transactions({ seasonId, showdownSet, isActive }: Transa
     const error = isLoading ? null : result?.error ?? null;
 
     const teamId = teamFilter === ALL_TEAMS ? null : Number(teamFilter);
-    const involvesTeam = (move: TransactionMove) => teamId === null || move.team_ids.includes(teamId);
+    const teams = feed?.teams ?? {};
+    // The team filter and the search both narrow every list (and the kind chips' counts); the kind
+    // filter applies last, so each chip shows how many moves it would leave.
+    const isShown = (move: TransactionMove) =>
+        (teamId === null || move.team_ids.includes(teamId)) && moveMatchesSearch(move, search, teams);
 
-    const teamMoves = (feed?.moves ?? []).filter(involvesTeam);
+    const teamMoves = (feed?.moves ?? []).filter(isShown);
     const moves = kindFilter === "all" ? teamMoves : teamMoves.filter((move) => move.kind === kindFilter);
-    const otherMoves = (feed?.other_moves ?? []).filter(involvesTeam);
+    const otherMoves = (feed?.other_moves ?? []).filter(isShown);
     // Each day's full count under the current filters, so a day cut off by "Show more" still reads true
     const movesPerDay: { [date: string]: number } = {};
     for (const move of moves) movesPerDay[move.date ?? ""] = (movesPerDay[move.date ?? ""] ?? 0) + 1;
     const kindCounts: { [kind: string]: number } = { all: teamMoves.length };
     for (const move of teamMoves) kindCounts[move.kind] = (kindCounts[move.kind] ?? 0) + 1;
 
-    const teams = feed?.teams ?? {};
     const teamOptions = [
         { value: ALL_TEAMS, label: "All teams" },
         ...Object.values(teams)
@@ -119,9 +124,10 @@ export default function Transactions({ seasonId, showdownSet, isActive }: Transa
                 </p>
             </div>
 
-            {/* Filters */}
+            {/* Filters. The chips grow to fill their line, so the search and team picker sit at the
+                right beside them and start at the left once they wrap under. */}
             <div className="flex flex-wrap items-center gap-2">
-                <div className="flex flex-wrap gap-1.5">
+                <div className="grow flex flex-wrap gap-1.5">
                     {KIND_FILTERS.map((filter) => (
                         <button
                             key={filter.id}
@@ -135,14 +141,22 @@ export default function Transactions({ seasonId, showdownSet, isActive }: Transa
                         </button>
                     ))}
                 </div>
-                <CustomSelect
-                    value={teamFilter}
-                    onChange={setTeamFilter}
-                    options={teamOptions}
-                    size="sm"
-                    prefix="Team"
-                    className="w-full sm:w-56 sm:ml-auto"
-                />
+                <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
+                    <SearchInput
+                        value={search}
+                        onChange={setSearch}
+                        placeholder="Search players or teams"
+                        className="w-full sm:w-56"
+                    />
+                    <CustomSelect
+                        value={teamFilter}
+                        onChange={setTeamFilter}
+                        options={teamOptions}
+                        size="sm"
+                        prefix="Team"
+                        className="w-full sm:w-56"
+                    />
+                </div>
             </div>
 
             {/* Net change: every club ranked. Picking one filters to it (the same filter as the Team
@@ -209,6 +223,10 @@ export default function Transactions({ seasonId, showdownSet, isActive }: Transa
             ) : feed && !feed.window_start ? (
                 <EmptyState size="panel" title="Hot stove opens soon.">
                     Moves show up here once the {priorYear} World Series is over.
+                </EmptyState>
+            ) : moves.length === 0 && search.trim() ? (
+                <EmptyState size="panel" title="No matching moves.">
+                    Nothing matches "{search.trim()}"{kindFilter !== "all" || teamId !== null ? " with these filters" : ""}.
                 </EmptyState>
             ) : moves.length === 0 ? (
                 <EmptyState size="panel" title="No moves yet.">
