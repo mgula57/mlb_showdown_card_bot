@@ -71,18 +71,18 @@ class MinorLeagueCardBuilder:
             for player in players:
                 try:
                     card = self.card_from_player(player, year=card_year, set=set, nerf_by_run_value=None if nerf_small_samples_only else self.NERF_BY_RUN_VALUE)
-                    if card is not None and nerf_small_samples_only and not self._has_sample(card, self.SMALL_SAMPLE_PA_HITTER, self.SMALL_SAMPLE_IP_PITCHER):
+                    if card is not None and nerf_small_samples_only and not self.has_sample(card, self.SMALL_SAMPLE_PA_HITTER, self.SMALL_SAMPLE_IP_PITCHER):
                         card = self.card_from_player(player, year=card_year, set=set)
                 except Exception:
                     # No usable stats that year (e.g. zero PA); try the next year back.
                     continue
-                if card is not None and self._has_sample(card, self.MIN_PA_HITTER, self.MIN_IP_PITCHER):
+                if card is not None and self.has_sample(card, self.MIN_PA_HITTER, self.MIN_IP_PITCHER):
                     cards[player.id] = card
             remaining = [mlb_id for mlb_id in remaining if mlb_id not in cards]
         return cards
 
     @staticmethod
-    def _has_sample(card: ShowdownPlayerCard, min_pa: int, min_ip: int) -> bool:
+    def has_sample(card: ShowdownPlayerCard, min_pa: int, min_ip: int) -> bool:
         if card.is_pitcher:
             return float(card.stats.get('IP', 0) or 0) >= min_ip
         return float(card.stats.get('PA', 0) or 0) >= min_pa
