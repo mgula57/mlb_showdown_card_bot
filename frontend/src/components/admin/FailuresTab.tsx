@@ -16,7 +16,7 @@ import { AccountLink } from './AccountLink';
 const BREAKDOWN_TITLES: Record<FailureDimension, string> = {
     set: 'By set',
     period: 'By stats period',
-    data_source: 'By requested source',
+    requested_source: 'By requested source',
     year_bucket: 'By year',
     version: 'By app version',
     generation_source: 'By screen',

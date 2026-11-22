@@ -12,6 +12,7 @@ import { useAdminMetrics } from './useAdminMetrics';
 
 /** Breakdown panels, in display order. `options` reuses the builder's own labels for coded values. */
 const TREND_PANELS: { dimension: TrendDimension; title: string; options?: SelectOption[] }[] = [
+    { dimension: 'player_type', title: 'Hitters and pitchers' },
     { dimension: 'expansion', title: 'Expansion', options: expansionOptions },
     { dimension: 'edition', title: 'Edition', options: editionOptions },
     { dimension: 'image_parallel', title: 'Parallel', options: imageParallelOptions },
@@ -92,8 +93,7 @@ export function CardTrendsTab({ days, refreshKey }: { days: AdminPeriod; refresh
                                 <tr className="border-b border-(--divider)">
                                     <ColumnHeader>Player</ColumnHeader>
                                     <ColumnHeader align="right">Builds</ColumnHeader>
-                                    <ColumnHeader align="right">Accounts</ColumnHeader>
-                                    <ColumnHeader align="right">Shuffled</ColumnHeader>
+                                    <ColumnHeader align="right">Share</ColumnHeader>
                                 </tr>
                             </thead>
                             <tbody>
@@ -101,8 +101,7 @@ export function CardTrendsTab({ days, refreshKey }: { days: AdminPeriod; refresh
                                     <tr key={player.bref_id} className="border-b border-(--divider) last:border-b-0">
                                         <td className="px-2 py-1.5 text-(--text-primary)" title={player.bref_id}>{player.name}</td>
                                         <td className="px-2 py-1.5 text-right font-semibold text-(--text-primary)">{formatCount(player.count)}</td>
-                                        <td className="px-2 py-1.5 text-right text-(--text-secondary)">{formatCount(player.users)}</td>
-                                        <td className="px-2 py-1.5 text-right text-(--text-tertiary)">{player.shuffles ? formatCount(player.shuffles) : '–'}</td>
+                                        <td className="px-2 py-1.5 text-right text-(--text-tertiary)">{share(player.count)}</td>
                                     </tr>
                                 ))}
                             </tbody>
@@ -110,6 +109,14 @@ export function CardTrendsTab({ days, refreshKey }: { days: AdminPeriod; refresh
                     </div>
                 </SectionCard>
             </div>
+
+            <SectionCard title="Points" info="Successful builds by card points, in 50-point ranges.">
+                <BreakdownList rows={data.breakdowns.points.map(bucket => ({
+                    label: `${bucket.label}–${Number(bucket.label) + 49} PT.`,
+                    value: bucket.count,
+                    note: share(bucket.count),
+                }))} />
+            </SectionCard>
 
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                 {TREND_PANELS.map(({ dimension, title, options }) => (
@@ -119,7 +126,6 @@ export function CardTrendsTab({ days, refreshKey }: { days: AdminPeriod; refresh
                                 label: optionLabel(bucket.label, options),
                                 value: bucket.count,
                                 note: share(bucket.count),
-                                title: `${formatCount(bucket.users)} signed-in accounts`,
                             }))}
                         />
                     </SectionCard>
