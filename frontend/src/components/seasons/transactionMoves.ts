@@ -75,3 +75,18 @@ export const groupByDay = (moves: TransactionMove[]): { date: string; moves: Tra
     }
     return days;
 };
+
+/** Lowercase with accents stripped, so "acuna" finds "Acuña". */
+const normalizeSearch = (text: string): string => text.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+
+/** The move names a player or club matching every word of the search, or its description does. An empty search matches all. */
+export const moveMatchesSearch = (move: TransactionMove, search: string, teams: { [teamId: string]: TransactionFeedTeam }): boolean => {
+    const words = normalizeSearch(search).split(/\s+/).filter(Boolean);
+    if (words.length === 0) return true;
+    const haystack = normalizeSearch([
+        ...move.players.map((player) => player.name ?? player.card?.name ?? ""),
+        ...move.team_ids.flatMap((teamId) => [teams[String(teamId)]?.name ?? "", teams[String(teamId)]?.abbreviation ?? ""]),
+        move.description ?? "",
+    ].join(" "));
+    return words.every((word) => haystack.includes(word));
+};
