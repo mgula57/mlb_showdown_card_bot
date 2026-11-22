@@ -58,25 +58,30 @@ const FIELDING_GROUP_LABELS: Record<string, string> = { if: 'IF', of: 'OF', ca: 
 
 const SCOPE_LABELS: Record<string, string> = { hitters: 'Hitters', pitchers: 'Pitchers', catchers: 'Catchers' };
 
-/** Labels for the scoped `min_`/`max_` filters (`min_speed_hitters`, `min_fielding_if_hitters`,
- *  `min_chart_hr_hitters`, `min_chart_so_pitchers`, `max_fielding_ca_catchers`, ...), e.g.
- *  "Hitters 18+ SPD". */
+/** Bases with their own labels (year range, team defense), skipped by `hitterFilterLabels`. */
+const UNSCOPED_LABEL_SKIP = new Set(['year', 'team_defense_if', 'team_defense_of']);
+
+/** Labels for the `min_`/`max_` card filters, scoped (`min_speed_hitters`, `min_fielding_if_hitters`,
+ *  `min_chart_so_pitchers`, `max_fielding_ca_catchers`, ...) or not (`max_points`), e.g.
+ *  "Hitters 18+ SPD" or "All cards ≤350 POINTS". */
 function hitterFilterLabels(pf: Record<string, unknown>): string[] {
     const labels: string[] = [];
     for (const [key, value] of Object.entries(pf)) {
-        const match = /^(min|max)_(.+)_(hitters|pitchers|catchers)$/.exec(key);
+        const match = /^(min|max)_(.+?)(?:_(hitters|pitchers|catchers))?$/.exec(key);
         if (!match || value == null) continue;
         const [, bound, base, scope] = match;
+        if (UNSCOPED_LABEL_SKIP.has(base)) continue;
         const amount = bound === 'min' ? `${value}+` : `≤${value}`;
         let stat: string;
         if (base === 'speed') stat = 'SPD';
+        else if (base === 'points') stat = 'PTS';
         else if (base === 'fielding' || base.startsWith('fielding_')) {
             const group = FIELDING_GROUP_LABELS[base.replace('fielding_', '')];
             stat = group ? `${group} fielding` : 'fielding';
         }
         else if (base.startsWith('chart_')) stat = `${base.replace('chart_', '').toUpperCase()} chart slots`;
         else stat = base.toUpperCase();
-        labels.push(`${SCOPE_LABELS[scope]} ${amount} ${stat}`);
+        labels.push(`${scope ? SCOPE_LABELS[scope] : 'All cards'} ${amount} ${stat}`);
     }
     return labels;
 }
