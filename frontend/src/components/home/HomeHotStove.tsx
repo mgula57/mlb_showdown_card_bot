@@ -144,7 +144,7 @@ export function HomeHotStove({ season, showdownSet, onCardSelect }: HomeHotStove
                     {/* The hint gives way on a phone, so the chips and the button share one line */}
                     <span className="hidden sm:flex items-center gap-1.5 text-[11px] font-medium text-(--text-tertiary)">
                         <FaDice className="text-(--text-secondary) shrink-0" />
-                        Sim {season.season_id} with clubs as they stand today, on {priorYear} cards
+                        Sim {season.season_id} with clubs as they stand today, using {priorYear} cards
                     </span>
                     <Link to={`/seasons?season=${season.season_id}&sim=1`} className={buttonClass('primary', 'sm')}>
                         Simulate {season.season_id}
