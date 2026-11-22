@@ -11,7 +11,7 @@ import { CardItemCompactFromCard, CardItemCompactSkeleton } from "../cards/CardI
 import { Plate } from "../shared/Plate";
 import { TeamChip } from "../shared/TeamChip";
 import { CAPS_LABEL_CLASS } from "../shared/fieldStyles";
-import { KIND_PLATES, feedTeamIdentity, formatMoveDate, moveKindLabel } from "./transactionMoves";
+import { KIND_PLATES, feedTeamIdentity, formatMoveDate, hasMinorLeaguePoints, moveKindLabel, movePoints } from "./transactionMoves";
 
 /** The icon for a kind of move, on its badge and on the Transactions tab's filter chips. */
 export function MoveKindIcon({ kind, reSigned = false, className = "" }: { kind: TransactionMoveKind; reSigned?: boolean; className?: string }) {
@@ -95,7 +95,7 @@ function MovePlayer({ player, cardYear, onCardSelect, fromNote }: {
 
 /**
  * A trade laid out the way trade trackers do: one column per club, headed "{club} receives" with
- * the big-league card points it took in, listing what it got. Two clubs sit side by side; a narrow
+ * the card points it took in (minor-league cards at half), listing what it got. Two clubs sit side by side; a narrow
  * tile, a phone, or a trade with three or more clubs stacks the columns instead.
  */
 function TradeSides({ move, teams, cardYear, onCardSelect, compact }: {
@@ -107,7 +107,7 @@ function TradeSides({ move, teams, cardYear, onCardSelect, compact }: {
 }) {
     const sides = move.team_ids.map((teamId) => {
         const players = biggestFirst(move.players.filter((player) => player.to_team_id === teamId));
-        return { teamId, players, points: players.reduce((sum, player) => sum + (player.points ?? 0), 0) };
+        return { teamId, players, points: players.reduce((sum, player) => sum + movePoints(player), 0) };
     });
     const isMultiClub = sides.length > 2;
     const sideBySide = !compact && !isMultiClub;
@@ -180,7 +180,7 @@ export function TransactionMoveItem({ move, teams, cardYear, onCardSelect, compa
                     </Plate>
                     {!hideDate && <span className="text-[11px] tabular-nums text-(--text-tertiary)">{formatMoveDate(move.date)}</span>}
                 </div>
-                {move.total_points > 0 && <Plate size="sm">{move.total_points} PT.</Plate>}
+                {move.total_points > 0 && <Plate size="sm">{move.total_points} PT.{hasMinorLeaguePoints(move) && "*"}</Plate>}
             </div>
 
             {move.kind === "trade" ? (
@@ -200,6 +200,10 @@ export function TransactionMoveItem({ move, teams, cardYear, onCardSelect, compa
                         </div>
                     </div>
                 ))
+            )}
+
+            {hasMinorLeaguePoints(move) && (
+                <p className="text-[11px] leading-snug text-(--text-tertiary)">* MiLB cards count for half their points in PT. totals.</p>
             )}
 
             {!hideDescription && move.description && (
