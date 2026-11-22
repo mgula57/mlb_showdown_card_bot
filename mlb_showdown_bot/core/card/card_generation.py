@@ -2,6 +2,7 @@ from pprint import pprint
 from typing import Any, Optional
 from prettytable import PrettyTable
 from datetime import date, datetime, timedelta
+import time
 import traceback
 import json
 import ast
@@ -16,6 +17,7 @@ from .stats.stats_period import StatsPeriod, StatsPeriodType, StatsPeriodDateAgg
 from .utils.shared_functions import convert_to_date, convert_year_string_to_list
 from .trends.trends import CareerTrends, InSeasonTrends, TrendDatapoint
 from ..database.postgres_db import PostgresDB, PlayerArchive
+from ..utils.client_context import ClientContext
 
 # STATS
 from .stats.mlb_stats_api import MLBStatsAPI
@@ -105,7 +107,7 @@ def find_mlb_id_for_mlb_api_career(stats_period: StatsPeriod, name: str = None, 
         print(f"Failed to check MLB API seasons for career: {e}")
         return None
 
-def generate_card(image_libraries: list[ImageLibrary] = None, **kwargs) -> dict[str, Any]:
+def generate_card(image_libraries: list[ImageLibrary] = None, client: Optional[ClientContext] = None, generation_source: Optional[str] = None, **kwargs) -> dict[str, Any]:
     """
     Responsible for processing Showdown Bot Player Cards across API, CLI, and Web App.
     
@@ -130,6 +132,10 @@ def generate_card(image_libraries: list[ImageLibrary] = None, **kwargs) -> dict[
     """
 
     # SETUP KNOWN PARAMETERS
+    started_at = time.monotonic()
+    # WHICH STEP IS RUNNING, LOGGED WITH A FAILURE: inputs -> stats -> card (stats, chart, image) -> trends.
+    # A card already in the archive skips straight to `cached_card`.
+    stage = 'inputs'
     stats: dict[str, Any] = kwargs.get('stats', None)
     card: ShowdownPlayerCard = None
     additional_logs: dict[str, Any] = {}
@@ -145,11 +151,18 @@ def generate_card(image_libraries: list[ImageLibrary] = None, **kwargs) -> dict[
         Returns the logged custom card's id, which is how it's referenced later (e.g. added to a release)."""
         if not log_to_db:
             return None
+        log_kwargs = dict(
+            card=card,
+            user_inputs=kwargs,
+            additional_attributes={**additional_attributes, 'request_duration': round(time.monotonic() - started_at, 2)},
+            client=client,
+            generation_source=generation_source,
+        )
         try:
             if caller_db_for_logs is not None:
-                return caller_db_for_logs.log_custom_card_submission(card=card, user_inputs=kwargs, additional_attributes=additional_attributes)
+                return caller_db_for_logs.log_custom_card_submission(**log_kwargs)
             with PostgresDB() as db:
-                return db.log_custom_card_submission(card=card, user_inputs=kwargs, additional_attributes=additional_attributes)
+                return db.log_custom_card_submission(**log_kwargs)
         except Exception as e:
             print(f"Failed to log card submission: {e}")
             return None
@@ -183,6 +196,7 @@ def generate_card(image_libraries: list[ImageLibrary] = None, **kwargs) -> dict[
             raise Exception("Year is a required input.")
         
         # PREPARE STATS
+        stage = 'stats'
         expected_source = Datasource(kwargs.get('datasource', 'BREF'))
         if expected_source == Datasource.MANUAL:
             if not stats:
@@ -237,7 +251,8 @@ def generate_card(image_libraries: list[ImageLibrary] = None, **kwargs) -> dict[
         # CHECK FOR PRE-PROCESSED CARD IN DB
         preprocessed_card = check_for_preprocessed_card(stats_period=stats_period, **kwargs)
         if preprocessed_card:
-            
+            stage = 'cached_card'
+
             # RESET IMAGE SETTINGS TO WHAT USER INPUTTED
             image_source = ImageSource(**kwargs)
             image_source.set_libraries(image_libraries)
@@ -461,6 +476,7 @@ def generate_card(image_libraries: list[ImageLibrary] = None, **kwargs) -> dict[
             )
 
         # PROCESS CARD
+        stage = 'card'
         image_source = ImageSource(**kwargs)
         image_source.set_libraries(image_libraries)
         image = ShowdownImage(source=image_source, **kwargs)
@@ -474,6 +490,7 @@ def generate_card(image_libraries: list[ImageLibrary] = None, **kwargs) -> dict[
         )
 
         # EXTRA OPTIONS
+        stage = 'trends'
         show_historical_points = kwargs.get("show_historical_points", False)
         in_season_trend_aggregation = kwargs.get("season_trend_date_aggregation", None)
 
@@ -575,6 +592,9 @@ def generate_card(image_libraries: list[ImageLibrary] = None, **kwargs) -> dict[
             additional_attributes={
                 'error': error_full,
                 'error_for_user': error_for_user,
+                'error_type': type(e).__name__,
+                'error_stage': stage,
+                'error_detail': traceback.format_exc()[-4000:],
                 'historical_season_trends': None,
                 'in_season_trends': None,
                 'latest_game_box_score': None,

@@ -9,6 +9,7 @@ from mlb_showdown_bot.core.card.showdown_player_card import ShowdownPlayerCard, 
 from mlb_showdown_bot.core.card.images import DEFAULT_RENDER_FILE_FORMAT
 from ..core.database.postgres_db import PostgresDB
 from ..core.utils.ttl_cache import TTLCache
+from ..core.utils.client_context import ClientContext
 from .user_settings import require_auth, optional_user_id
 from flask import g
 
@@ -53,7 +54,7 @@ def fetch_card_list():
 
         with PostgresDB() as db:
             card_data = db.fetch_card_list(filters=payload, user_id=user_id)
-            db.log_player_search(filters=payload, result_count=len(card_data or []), user_id=user_id)
+            db.log_player_search(filters=payload, result_count=len(card_data or []), user_id=user_id, client=ClientContext.from_headers(request.headers))
 
         if not is_uncached_source:
             _card_list_cache.set(cache_key, card_data)
@@ -95,7 +96,7 @@ def fetch_card():
         is_variable_speed = request.args.get('variable_speed', 'false').lower() == 'true'
         with PostgresDB() as db:
             card = db.fetch_single_card(id)
-            db.log_card_id_lookup(card_id=id, source=source, user_id=optional_user_id())
+            db.log_card_id_lookup(card_id=id, source=source, user_id=optional_user_id(), client=ClientContext.from_headers(request.headers))
 
         if card is None:
             return jsonify({'error': 'Card not found'}), 404
@@ -121,7 +122,7 @@ def fetch_cards_by_ids():
 
         with PostgresDB() as db:
             cards = db.fetch_cards_by_ids(card_ids)
-            db.log_card_id_lookups(card_ids=list(cards.keys()), source=source, user_id=optional_user_id())
+            db.log_card_id_lookups(card_ids=list(cards.keys()), source=source, user_id=optional_user_id(), client=ClientContext.from_headers(request.headers))
 
         return jsonify({'cards': {card_id: card.as_json() for card_id, card in cards.items()}})
 

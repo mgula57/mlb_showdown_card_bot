@@ -20,6 +20,7 @@ import { cardKey } from "../domain/players";
 // =============================================================================
 
 /** Base API URL - switches between production and development environments */
+import { clientIdHeaders } from "../analytics/clientIds";
 const API_BASE = import.meta.env.PROD ? "/api" : "http://127.0.0.1:5000/api";
 
 // =============================================================================
@@ -88,7 +89,7 @@ export async function buildCustomCard(payload: Record<string, Primitive>, token?
         const res = await fetch(`${API_BASE}/build_custom_card`, {
             method: "POST",
             // Let browser set Content-Type header for FormData (includes boundary)
-            headers: { ...authHeader },
+            headers: { ...authHeader, ...clientIdHeaders() },
             body: formData,
         });
 
@@ -106,6 +107,7 @@ export async function buildCustomCard(payload: Record<string, Primitive>, token?
             headers: {
                 'Content-Type': 'application/json',
                 ...authHeader,
+                ...clientIdHeaders(),
             },
             body: JSON.stringify(cleanedData),
         });
@@ -151,6 +153,7 @@ export async function generateCardImage(card: ShowdownBotCardAPIResponse, token?
         headers: {
             'Content-Type': 'application/json',
             ...authHeader,
+            ...clientIdHeaders(),
         },
         body: JSON.stringify(card),
     });
@@ -169,6 +172,7 @@ export async function fetchCardById(cardId: string, source: string, variableSpee
         method: "GET",
         headers: {
             'Content-Type': 'application/json',
+            ...clientIdHeaders(),
         },
     });
 
@@ -186,6 +190,7 @@ export async function fetchCardsByIds(cardIds: string[], source: string): Promis
         method: "POST",
         headers: {
             'Content-Type': 'application/json',
+            ...clientIdHeaders(),
         },
         body: JSON.stringify({ ids: cardIds, src: source }),
     });
