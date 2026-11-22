@@ -187,6 +187,9 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
     const [standings, setStandings] = useState<{ [leagueAbbreviation: string]: Standings[] }>({});
 
     const [activeTab, setActiveTab] = useState<string>(() => getStoredValue(STORAGE_KEYS.activeTab) ?? "schedule");
+    // A link (`?tab=` / `?sim=1`) picked the tab for the season it's about to select, so that
+    // season's offseason default (Transactions) mustn't override it.
+    const linkedTabRef = useRef(false);
 
     // A game gets its own distinct, shareable URL — /seasons/game/<gamePk> — parsed straight from the path
     // rather than kept in separate state, so the URL is always the single source of truth (e.g. pasted links work).
@@ -206,6 +209,7 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
     useEffect(() => {
         const params = new URLSearchParams(location.search);
         if (params.get('sim') === '1' && !params.get('season')) {
+            if (!selectedSeason) linkedTabRef.current = true;
             setActiveTab('simulate');
             setSimRerunJobId(params.get('rerun'));
             setIsSimModalOpen(true);
@@ -223,10 +227,11 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
         const seasonParam = params.get('season');
         if (!seasonParam || seasons.length === 0) return;
         const match = seasons.find((season) => season.season_id.toString() === seasonParam);
+        const tabParam = params.get('tab');
         if (match && match.season_id !== selectedSeason?.season_id) {
             setSelectedSeason(match);
+            if (tabParam || params.get('sim') === '1') linkedTabRef.current = true;
         }
-        const tabParam = params.get('tab');
         if (params.get('sim') === '1') {
             setActiveTab('simulate');
             setIsSimModalOpen(true);
@@ -811,6 +816,18 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
     useEffect(() => {
         setStoredValue(STORAGE_KEYS.leagueGroup, selectedLeagueGroup);
     }, [STORAGE_KEYS.leagueGroup, selectedLeagueGroup]);
+
+    // An offseason opens on its moves: Transactions is the default whenever an upcoming season is
+    // selected (on load or on switching), even over a remembered Standings tab.
+    useEffect(() => {
+        if (!selectedSeason) return;
+        if (linkedTabRef.current) {
+            linkedTabRef.current = false;
+            return;
+        }
+        if (isSelectedSeasonUpcoming) setActiveTab("transactions");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [selectedSeason?.season_id]);
 
     useEffect(() => {
         if (!tabs.some((tab) => tab.id === activeTab)) {
