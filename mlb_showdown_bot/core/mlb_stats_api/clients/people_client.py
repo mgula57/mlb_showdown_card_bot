@@ -15,6 +15,7 @@ import json
 _PLAYER_FIELDS = [
     # People root and identity
     'people', 'id', 'fullName', 'batSide', 'description', 'pitchHand',
+    'birthCountry',
     'primaryPosition', 'code', 'abbreviation', 'type',
     'rookieSeasons',
     # Cross-reference IDs (for Fangraphs ID lookup)
@@ -308,6 +309,12 @@ class PeopleClient(BaseMLBClient):
                 sleep(0.15)
         
         return Players(people=all_players)
+
+    def get_birth_country(self, player_id: int) -> Optional[str]:
+        """Player's birth country as the MLB API spells it (ex: 'USA', 'Dominican Republic'). One small request, no hydrations."""
+        data = self._make_request('people', {'personIds': str(player_id), 'fields': 'people,id,birthCountry'})
+        people = data.get('people', []) if data else []
+        return people[0].get('birthCountry') if people else None
 
     # -----------------------
     # FREE AGENTS
