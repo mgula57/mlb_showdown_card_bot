@@ -295,6 +295,14 @@ class SeasonSimulationConfig(BaseModel):
     # ALONGSIDE `enable_trade_deadline`; ONLY THE SELL SIDE IS GATED.
     trade_deadline_respects_standings: bool = False
 
+    # OFFSEASON FREE AGENTS. ONLY APPLY BEFORE OPENING DAY, WHEN CLUBS ARE BUILT FROM LIVE 40-MANS
+    # (SEE `UpcomingSeasonRosters`) AND AN UNSIGNED FREE AGENT IS ON NO CLUB. `return_free_agents`
+    # PUTS EACH ONE BACK ON THE CLUB HE LEFT; `free_agent_signings` (MLB ID -> SCHEDULE
+    # ABBREVIATION) SENDS SPECIFIC ONES TO CHOSEN CLUBS, AND WINS OVER A RETURN. A PLAYER WHO HAS
+    # SIGNED IS NEVER MOVED. NO-OP FOR ANY OTHER SEASON.
+    return_free_agents: bool = False
+    free_agent_signings: dict[int, str] = {}
+
     # STANDINGS PTS DISPLAY. A BUILDER/TOURNAMENT TEAM'S BENCH SLOTS COST LESS THAN THEIR CARD'S
     # FULL POINTS AT DRAFT TIME (SEE `Team.bench_pts_multiplier`), SO THE RAW SUM OF EVERY ACTIVE
     # PLAYER'S POINTS OVERSTATES WHAT THE TEAM ACTUALLY SPENT. DEFAULT ON - IT IS A NO-OP FOR
@@ -726,6 +734,24 @@ class DeadlineTrade(BaseModel):
     to_team_record: str = ""
 
 
+class OffseasonMove(BaseModel):
+    """A player who starts a pre-Opening Day sim on a different club than the one on his card
+    (last season's): a real offseason trade or signing, or a free agent this run placed
+    (`config.free_agent_signings` / `return_free_agents`). JSON-serializable for the summary.
+    """
+
+    player_id: str                 # BARE card_id (REAL-POOL STAT-ENGINE ID)
+    player_name: str
+    position: str = ""             # PRIMARY POSITION STRING
+    player_type: str = ""          # PlayerType.value
+    from_team: Optional[str] = None  # CLUB ON HIS CARD. NONE WHEN THE CARD HAS NO CLUB
+    to_team: str                   # SCHEDULE KEY HE PLAYS FOR THIS RUN
+    is_sim_signing: bool = False   # PLACED BY THIS RUN'S FREE AGENT OPTIONS, NOT A REAL MOVE
+    # HIS CARD-YEAR REAL COUNTING STATS, `Stats.totals`-SHAPED (SEE `real_stats_to_totals`), SO THE
+    # SUMMARY CAN RENDER A REAL STATLINE IN THE SAME CATEGORIES AS HIS SIM ONE.
+    real_totals: dict[str, float] = {}
+
+
 class OutlierEntry(BaseModel):
     id: str
     name: str
@@ -755,6 +781,9 @@ class SeasonSimulationResult(BaseModel):
 
     schedule_length: int
     original_schedule_length: int
+    # PER-CLUB GAME COUNTS (schedule_length IS LEAGUE-WIDE GAMES, e.g. 2430). 0 = UNKNOWN.
+    games_per_team: int = 0
+    original_games_per_team: int = 0
     stats_min_pa: int
     stats_min_ip: int      # QUALIFYING IP FOR STARTERS
     stats_min_ip_rp: int   # QUALIFYING IP FOR RELIEVERS/CLOSERS - LOWER, SINCE THEY THROW FAR FEWER INNINGS
@@ -772,6 +801,10 @@ class SeasonSimulationResult(BaseModel):
     # PLAYERS RELOCATED BY THE IN-SIM TRADE DEADLINE. EMPTY UNLESS `config.enable_trade_deadline`
     # AND AT LEAST ONE REAL MID-SEASON TRADE SURVIVED THE STINT FLOOR / STANDINGS GATE.
     deadline_trades: list[DeadlineTrade] = []
+
+    # PLAYERS ON A NEW CLUB BEFORE OPENING DAY (OFFSEASON TRADES/SIGNINGS AND THIS RUN'S FREE AGENT
+    # PLACEMENTS). EMPTY FOR ANY SEASON THAT ISN'T A PRE-OPENING DAY SIM. TAKEOVER CLUBS EXCLUDED.
+    offseason_moves: list[OffseasonMove] = []
 
     # SCHEDULE ABBREVIATION -> (WINS, LOSSES) EACH CLUB STARTED THIS RUN WITH. EMPTY (EVERY CLUB
     # STARTED 0-0) UNLESS `config.resume_from_real_season` - SEE `Season._build_season_teams`.

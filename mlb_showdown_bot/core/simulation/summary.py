@@ -6,8 +6,9 @@ from pydantic import BaseModel
 from ..card.team_builder.team import CardSource
 from ..shared.player_position import PlayerSubType, PlayerType
 from .awards import AwardsBuilder, SeasonAwards
+from .club_roster import MostUsedRosterBuilder, SimClubRoster
 from .models import (
-    DeadlineTrade, ManagerPreference, OutlierEntry, SeasonSimulationResult, SimGameStarter,
+    DeadlineTrade, ManagerPreference, OffseasonMove, OutlierEntry, SeasonSimulationResult, SimGameStarter,
     SimTeamIdentity, StandingsResult, TeamRecord, TransactionType,
 )
 from .reporting import HITTER_CATEGORIES, PITCHER_CATEGORIES
@@ -115,6 +116,22 @@ class SimTransaction(BaseModel):
     detail: str = ""
 
 
+class SimOffseasonMove(BaseModel):
+    """An `OffseasonMove` with the player's sim statline beside his real one from the card's
+    season, in the same categories, so the result screen can show how the move played out."""
+
+    player_id: str
+    player_name: str
+    position: str = ""
+    player_type: str = ""
+    from_team: Optional[str] = None
+    to_team: str
+    is_sim_signing: bool = False
+    card_source: Optional[str] = None
+    sim: Optional[SimStatLine] = None   # NONE IF HE NEVER APPEARED (E.G. STUCK IN THE RESERVES)
+    real: Optional[SimStatLine] = None  # NONE WHEN HIS CARD CARRIES NO REAL COUNTING STATS
+
+
 class SimTeamSeason(BaseModel):
     """How the user's team finished."""
 
@@ -186,6 +203,12 @@ class SeasonSimSummary(BaseModel):
     # CLUB PICKER. EMPTY FOR A PLAIN SIM.
     takeover_abbrs: list[str] = []
 
+    # SCHEDULE KEY -> A DEPTH CHART FOR THE MY TEAM TAB'S FIELD VIEW (SEE `club_roster.py`): EVERY
+    # TAKEOVER CLUB'S DRAFTED ROSTER AS IT RAN, PLUS - WHEN THE SUMMARY FOLLOWS A REAL CLUB - THAT
+    # CLUB'S MOST-USED ROSTER. EMPTY ON SUMMARIES PERSISTED BEFORE THIS FIELD EXISTED (THE CLIENT
+    # THEN SKIPS THE FIELD VIEW).
+    club_rosters: dict[str, SimClubRoster] = {}
+
     # SCHEDULE KEY -> THE CUSTOM MANAGER TENDENCIES THAT CLUB PLAYED WITH THIS RUN. ONLY NON-NEUTRAL
     # PROFILES ARE RECORDED (EMPTY FOR A PLAIN SIM), SO THE RESULT/LEADERBOARD SCREENS CAN SHOW
     # WHAT STRATEGY A RUN USED.
@@ -194,6 +217,11 @@ class SeasonSimSummary(BaseModel):
     # PLAYERS RELOCATED BY THE IN-SIM TRADE DEADLINE (`config.enable_trade_deadline`), CHRONOLOGICAL.
     # EMPTY FOR A RUN THAT DIDN'T USE IT OR WHERE NO REAL MID-SEASON TRADE SURVIVED THE FILTERS.
     deadline_trades: list[DeadlineTrade] = []
+
+    # PRE-OPENING DAY SIMS ONLY: PLAYERS ON A NEW CLUB (OFFSEASON TRADES/SIGNINGS, PLUS THE RUN'S
+    # FREE AGENT PLACEMENTS) WITH THEIR SIM vs REAL STATLINES. EMPTY OTHERWISE, AND ON SUMMARIES
+    # PERSISTED BEFORE THIS FIELD EXISTED.
+    offseason_moves: list[SimOffseasonMove] = []
 
     # 40-MAN ROSTER MOVES (IL / ACTIVATION / CALLUP), CHRONOLOGICAL. EMPTY UNLESS THE RUN USED
     # `config.enable_injuries`. The OPTION ("DOWN") rows are dropped - they only ever say a
@@ -286,6 +314,7 @@ class SeasonSummaryBuilder:
             outliers=self._outliers(),
             awards=AwardsBuilder(result=result).build(),
             takeover_abbrs=list(self.roster_player_ids.keys()),
+            club_rosters=self._build_club_rosters(),
             manager_preferences={
                 abbr: pref for abbr, pref in result.config.all_manager_preferences.items()
                 if not pref.is_neutral
@@ -293,9 +322,39 @@ class SeasonSummaryBuilder:
             seeded_records=result.seeded_records,
             real_stats_as_of=result.real_stats_as_of,
             deadline_trades=sorted(result.deadline_trades, key=lambda t: (t.date, t.to_team)),
+            offseason_moves=self._build_offseason_moves(),
             transactions=self._build_transactions(),
             injury_summary=result.injury_summary_by_team(),
         )
+
+    def _build_offseason_moves(self) -> list[SimOffseasonMove]:
+        """Every offseason mover with his sim and real statlines, league-wide even when the summary
+        follows one club (`team_abbr`): it's a few dozen rows, and the tab's own "This club" /
+        "All clubs" toggle does the scoping."""
+        stats_by_id = {real_card_id(stats.id): stats for stats in self.result.player_stats}
+        moves: list[SimOffseasonMove] = []
+        for move in self.result.offseason_moves:
+            try:
+                player_type = PlayerType(move.player_type)
+            except ValueError:
+                continue
+            sim_stats = stats_by_id.get(move.player_id)
+            real_line = None
+            if move.real_totals:
+                real_stats = Stats(id=move.player_id, name=move.player_name, player_type=player_type, position=move.position, team=move.from_team)
+                real_stats.merge_totals(move.real_totals)
+                # NO LEAGUE CONTEXT FOR THE CARD'S SEASON HERE, SO OPS+/wRC+ COME OUT 0 AND THE
+                # SCREEN SHOWS ONLY CONTEXT-FREE STATS
+                real_line = SimStatLine.build(stats=real_stats, categories=self._categories(player_type), league_stats=None, woba_weights={})
+            moves.append(SimOffseasonMove(
+                player_id=move.player_id, player_name=move.player_name, position=move.position,
+                player_type=move.player_type, from_team=move.from_team, to_team=move.to_team,
+                is_sim_signing=move.is_sim_signing,
+                card_source=self.result.config.card_sources.get(move.player_id, CardSource.BOT.value),
+                sim=self._line(sim_stats, player_type) if sim_stats else None,
+                real=real_line,
+            ))
+        return moves
 
     def _build_transactions(self) -> list[SimTransaction]:
         """Trimmed IL/activation/callup rows (`result.transactions` is already date-sorted).
@@ -466,21 +525,12 @@ class SeasonSummaryBuilder:
         Otherwise, unchanged: only the focus team's own players, `team` left as reported.
         """
         is_open_sim = self.team_abbr is None
-        if is_open_sim:
-            selected = [stats for stats in self.result.player_stats if stats.player_type is not None]
-            card_id_to_abbr = {
-                card_id: abbr
-                for abbr, card_ids in self.roster_player_ids.items()
-                for card_id in card_ids
-            }
-        else:
-            roster_ids = self.roster_player_ids.get(self.team_abbr)
-            on_team = (
-                (lambda stats: stats.id in roster_ids) if roster_ids is not None
-                else (lambda stats: stats.team == self.team_abbr)
-            )
-            selected = [stats for stats in self.result.player_stats if stats.player_type is not None and on_team(stats)]
-            card_id_to_abbr = {}
+        selected = self._selected_stats()
+        card_id_to_abbr = {
+            card_id: abbr
+            for abbr, card_ids in self.roster_player_ids.items()
+            for card_id in card_ids
+        } if is_open_sim else {}
 
         lines: list[SimStatLine] = []
         for stats in selected:
@@ -490,6 +540,34 @@ class SeasonSummaryBuilder:
                 line = line.model_copy(update={'team': resolved_abbr})
             lines.append(line)
         return sorted(lines, key=lambda line: (line.player_type or '', -line.points))
+
+    def _selected_stats(self) -> list[Stats]:
+        """The statlines `players` covers: every player in an open sim, else the focus club's own."""
+        if self.team_abbr is None:
+            return [stats for stats in self.result.player_stats if stats.player_type is not None]
+        roster_ids = self.roster_player_ids.get(self.team_abbr)
+        on_team = (
+            (lambda stats: stats.id in roster_ids) if roster_ids is not None
+            else (lambda stats: stats.team == self.team_abbr)
+        )
+        return [stats for stats in self.result.player_stats if stats.player_type is not None and on_team(stats)]
+
+    def _build_club_rosters(self) -> dict[str, SimClubRoster]:
+        """Takeover clubs' drafted rosters (only the focus one outside an open sim), plus a
+        most-used roster for a followed real club. An open sim's other real clubs get none - one
+        per club would roughly double the stored summary."""
+        rosters = {
+            abbr: SimClubRoster.from_team(team)
+            for abbr, team in self.result.config.all_takeovers.items()
+            if self.team_abbr is None or abbr == self.team_abbr
+        }
+        if self.team_abbr is not None and self.team_abbr not in rosters:
+            card_sources = self.result.config.card_sources
+            rosters[self.team_abbr] = MostUsedRosterBuilder(
+                stats=self._selected_stats(),
+                card_source_for=lambda card_id: card_sources.get(card_id, CardSource.BOT.value),
+            ).build()
+        return rosters
 
     def _leaderboard(self, player_sub_type: PlayerSubType) -> list[SimStatLine]:
         player_type = player_sub_type.parent_type

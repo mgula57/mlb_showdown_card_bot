@@ -1,4 +1,5 @@
 import type { ManagerPreference } from './manager';
+import type { Lineup, PitcherAssignment, RosterSlotRef } from './userTeams';
 
 const API_BASE = import.meta.env.PROD ? "/api" : "http://127.0.0.1:5000/api";
 
@@ -16,6 +17,22 @@ export type SimTeamIdentity = {
 };
 
 /** A real club available to take over, with the record it actually posted. */
+/** An unsigned free agent an offseason sim can place, with his card from the season before. */
+export type SimFreeAgent = {
+    mlb_id: number;
+    name: string;
+    points: number | null;
+    /** Card positions (e.g. `['2B', 'DH']`, `['P']`). */
+    positions: string[];
+    is_pitcher: boolean;
+    pa: number | null;
+    ip: number | null;
+    /** Under the sim's active-roster thresholds, so he only plays as depth. Listed after the regulars. */
+    is_small_sample: boolean;
+    /** Era-correct abbreviation of the club he left, or null if unknown. */
+    original_team: string | null;
+};
+
 export type TakeoverClub = {
     abbreviation: string;
     name: string;
@@ -204,6 +221,21 @@ export type SimTeamSeason = {
     longest_losing_streak: number;
 };
 
+/** Mirrors `SimClubRoster` (`club_roster.py`) — a club's depth chart for the My Team field view:
+ *  a takeover club's drafted roster as it ran, or a followed real club's most-used players.
+ *  Card ids only; `rotation` holds starters only (the bullpen is read off `roster`). */
+export type SimClubRoster = {
+    source: 'drafted' | 'most_used';
+    roster: RosterSlotRef[];
+    lineup: Lineup | null;
+    rotation: PitcherAssignment[];
+    bench_pts_multiplier: number;
+    bullpen_order_custom: boolean;
+    min_bench: number;
+    min_bullpen: number;
+    num_starters: number;
+};
+
 export type SeasonSimSummary = {
     year: number;
     set: string;
@@ -240,6 +272,10 @@ export type SeasonSimSummary = {
     /** Schedule keys of every club replaced by a builder team this run. Absent for summaries
      *  persisted before open sims existed. */
     takeover_abbrs?: string[];
+    /** Schedule key -> depth chart for the My Team field view: every takeover club's drafted
+     *  roster, plus a followed real club's most-used one. Absent on summaries persisted before
+     *  roster snapshots existed. */
+    club_rosters?: Record<string, SimClubRoster>;
     /** Schedule key -> the non-neutral manager profile that club played with this run. Absent
      *  for a plain sim and for summaries persisted before manager preference existed. */
     manager_preferences?: Record<string, ManagerPreference>;
@@ -251,11 +287,32 @@ export type SeasonSimSummary = {
     /** Players relocated by the in-sim trade deadline. Absent for summaries persisted before the
      *  feature existed, empty for a run that didn't use it. */
     deadline_trades?: DeadlineTrade[];
+    /** Pre-Opening Day sims only: players on a new club (offseason trades/signings, plus the run's
+     *  free agent placements) with their sim statline beside last season's real one. Absent for
+     *  summaries persisted before the field existed. */
+    offseason_moves?: SimOffseasonMove[];
     /** 40-man roster moves (IL / activation / callup) — every club's for an open sim, just the
      *  focus club's for a takeover/challenge run. Absent unless injuries were enabled. */
     transactions?: SimTransaction[];
     /** Schedule key -> { stints, games_missed, callups } roll-up for every club. */
     injury_summary?: Record<string, { stints: number; games_missed: number; callups: number }>;
+};
+
+/** A player who started a pre-Opening Day sim on a new club. `real` is the card's real season. */
+export type SimOffseasonMove = {
+    player_id: string;
+    player_name: string;
+    position: string;
+    player_type: string;
+    /** Club on his card (last season). */
+    from_team: string | null;
+    to_team: string;
+    /** Placed by this run's free agent options rather than a real move. */
+    is_sim_signing: boolean;
+    card_source?: string | null;
+    /** Null if he never appeared in the sim. */
+    sim: SimStatLine | null;
+    real: SimStatLine | null;
 };
 
 /** One player moved by the in-sim trade deadline (`enable_trade_deadline`). */
@@ -313,6 +370,64 @@ export type SimJob = {
     finished_at: string | null;
 };
 
+/** An open sim's setup, read back from its job's stored `config` so "Run again" can start the
+ *  setup form where the last run left off. Every field is optional: older jobs lack some keys
+ *  (e.g. a takeover's `team_id`), and the form keeps its own default for anything missing. */
+export type OpenSimRerunPreset = {
+    year?: number;
+    set?: string;
+    focusAbbr?: string;
+    takeover?: { teamId?: string; teamName?: string; replaces?: string; manager?: ManagerPreference };
+    enableInjuries?: boolean;
+    simulatePostseason?: boolean;
+    postseasonFormat?: string;
+    resume?: boolean;
+    mergeRealStats?: boolean;
+    resumeFromRealPostseason?: boolean;
+    tradeDeadlineEnabled?: boolean;
+    tradeDeadlineRespectsStandings?: boolean;
+    regressSmallSampleStats?: boolean;
+    enablePlatoonEffect?: boolean;
+    returnFreeAgents?: boolean;
+    freeAgentSignings?: { mlb_id: number; team: string }[];
+};
+
+const configBool = (value: unknown): boolean | undefined => (typeof value === 'boolean' ? value : undefined);
+const configString = (value: unknown): string | undefined => (typeof value === 'string' && value ? value : undefined);
+
+/** Reads `job.config` (the open-sim echo written by `/sim/open_season`) into a rerun preset. */
+export function rerunPresetFromJob(job: SimJob): OpenSimRerunPreset | null {
+    const config = job.config;
+    if (!config) return null;
+    const takeover = Array.isArray(config.takeovers) ? config.takeovers[0] as Record<string, unknown> | undefined : undefined;
+    const signings = Array.isArray(config.free_agent_signings) ? config.free_agent_signings as Record<string, unknown>[] : [];
+    return {
+        year: typeof config.year === 'number' ? config.year : undefined,
+        set: configString(config.set),
+        focusAbbr: configString(config.focus_abbr),
+        takeover: takeover ? {
+            teamId: configString(takeover.team_id),
+            teamName: configString(takeover.team_name),
+            replaces: configString(takeover.replaces),
+            manager: takeover.manager && typeof takeover.manager === 'object' ? takeover.manager as ManagerPreference : undefined,
+        } : undefined,
+        enableInjuries: configBool(config.enable_injuries),
+        simulatePostseason: configBool(config.simulate_postseason),
+        postseasonFormat: configString(config.postseason_format),
+        resume: !!config.resume_as_of_date,
+        mergeRealStats: configBool(config.merge_real_stats),
+        resumeFromRealPostseason: configBool(config.resume_from_real_postseason),
+        tradeDeadlineEnabled: configBool(config.enable_trade_deadline),
+        tradeDeadlineRespectsStandings: configBool(config.trade_deadline_respects_standings),
+        regressSmallSampleStats: configBool(config.regress_small_sample_stats),
+        enablePlatoonEffect: typeof config.platoon_roll_adjustment === 'number' ? config.platoon_roll_adjustment > 0 : undefined,
+        returnFreeAgents: configBool(config.return_free_agents),
+        freeAgentSignings: signings
+            .filter(signing => typeof signing.mlb_id === 'number' && typeof signing.team === 'string')
+            .map(signing => ({ mlb_id: signing.mlb_id as number, team: signing.team as string })),
+    };
+}
+
 /**
  * A played season's list-view fields — shared by the leaderboard and personal history.
  * Branding is snapshotted from when the season was played, since the team can change afterward.
@@ -351,6 +466,10 @@ export type SimSeasonListItem = {
     /** Username of whoever ran this season. Null for a run by a since-deleted account, or one
      *  persisted before this was joined in. */
     creator_username?: string | null;
+    /** The creator's uploaded avatar, and the default primary color behind their initials when
+     *  they haven't set one - both for `UserAvatar`. */
+    creator_avatar_url?: string | null;
+    creator_primary_color?: string | null;
 };
 
 /** A leaderboard row: one team's best run at a season, ranked against every other team's best. */
@@ -475,6 +594,11 @@ export type OpenSimPayload = {
     /** Same-handed matchups (RHP-RHB, LHP-LHB) nudge the pitch/swing rolls toward the pitcher;
      *  opposite-handed matchups (including every switch hitter) nudge them toward the hitter. */
     enable_platoon_effect?: boolean;
+    /** Before Opening Day only: every unsigned free agent goes back to the club he left. */
+    return_free_agents?: boolean;
+    /** Before Opening Day only: unsigned free agents sent to chosen clubs (era-correct
+     *  abbreviations). Wins over `return_free_agents` for that player. */
+    free_agent_signings?: { mlb_id: number; team: string }[];
 };
 
 export type ChallengeGoalType = 'made_playoffs' | 'win_division' | 'win_pennant' | 'win_world_series' | 'min_wins' | 'beat_team_record';
@@ -559,7 +683,15 @@ async function parseError(res: Response, fallback: string): Promise<never> {
 
 // Season and club lists are stable for a given year, so they are cached for the browser
 // session the same way `_splitsCache` works in mlbAPI.
-const _seasonsCache: { value: number[] | null } = { value: null };
+export type SimSeasonList = {
+    /** Every simulatable season, newest first. */
+    seasons: number[];
+    /** Seasons whose regular season isn't over yet (an upcoming or in-progress year), so there's
+     *  no real postseason to resume from. */
+    unfinished: number[];
+};
+
+const _seasonsCache: { value: SimSeasonList | null } = { value: null };
 const _clubsCache = new Map<number, { teams: TakeoverClub[]; default: string | null }>();
 const _guideCache: { value: string | null } = { value: null };
 
@@ -575,13 +707,17 @@ export async function fetchSimGuide(): Promise<string> {
     return _guideCache.value!;
 }
 
-export async function fetchSimSeasons(): Promise<number[]> {
+export async function fetchSimSeasonList(): Promise<SimSeasonList> {
     if (_seasonsCache.value) return _seasonsCache.value;
     const res = await fetch(`${API_BASE}/sim/seasons`);
     if (!res.ok) await parseError(res, 'Failed to load seasons');
     const data = await res.json();
-    _seasonsCache.value = data.seasons ?? [];
-    return _seasonsCache.value!;
+    _seasonsCache.value = { seasons: data.seasons ?? [], unfinished: data.unfinished ?? [] };
+    return _seasonsCache.value;
+}
+
+export async function fetchSimSeasons(): Promise<number[]> {
+    return (await fetchSimSeasonList()).seasons;
 }
 
 export async function fetchSimSeasonTeams(year: number): Promise<{ teams: TakeoverClub[]; default: string | null }> {
@@ -592,6 +728,22 @@ export async function fetchSimSeasonTeams(year: number): Promise<{ teams: Takeov
     const data = await res.json();
     const value = { teams: data.teams ?? [], default: data.default ?? null };
     _clubsCache.set(year, value);
+    return value;
+}
+
+const _freeAgentsCache = new Map<string, SimFreeAgent[]>();
+
+/** Unsigned free agents with a card in `set`, regulars first then by points. Empty for any season
+ *  that has reached Opening Day, so an empty list also means "no free agent options here". */
+export async function fetchSimFreeAgents(year: number, set: string): Promise<SimFreeAgent[]> {
+    const key = `${year}-${set}`;
+    const cached = _freeAgentsCache.get(key);
+    if (cached) return cached;
+    const res = await fetch(`${API_BASE}/sim/seasons/${year}/free_agents?set=${encodeURIComponent(set)}`);
+    if (!res.ok) await parseError(res, 'Failed to load free agents');
+    const data = await res.json();
+    const value: SimFreeAgent[] = data.free_agents ?? [];
+    _freeAgentsCache.set(key, value);
     return value;
 }
 

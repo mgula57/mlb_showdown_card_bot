@@ -3,7 +3,7 @@ import * as Tabs from '@radix-ui/react-tabs';
 import {
     FaTrophy, FaArrowRotateLeft, FaChartLine, FaCalendarDays, FaBaseballBatBall, FaBaseball,
     FaTableList, FaRankingStar, FaSitemap, FaCheck, FaXmark, FaRightLeft, FaFire, FaSnowflake,
-    FaChevronRight, FaDiceD20,
+    FaChevronRight, FaDiceD20, FaFileSignature,
 } from 'react-icons/fa6';
 import type { ChallengeStanding, SeasonSimSummary } from '../../../api/sim';
 import Standings from '../../seasons/Standings';
@@ -12,11 +12,13 @@ import { SimAwardsList } from './SimAwardsList';
 import { SimBracket } from './SimBracket';
 import { SimSummaryTab } from './SimSummaryTab';
 import { SimTransactionsTab } from './SimTransactionsTab';
+import { SimOffseasonMovesTab } from './SimOffseasonMovesTab';
 import { SimStatsTable } from './SimStatsTable';
 import { HITTER_COLUMNS, PITCHER_COLUMNS, buildHitterTeamKpis, buildPitcherTeamKpis, buildLeagueStatsKpis } from './simStatColumns';
 import { SimRealLifeComparison } from './SimRealLifeComparison';
 import { SimRecordComparison } from './SimRecordComparison';
 import { SimOutliers } from './SimOutliers';
+import { SimClubRosterView } from './SimClubRosterView';
 import { SectionCard } from './SectionCard';
 import { KpiTile } from './KpiTile';
 import { useStandingsEntries, useIdentity, hashId, label } from './simStandings';
@@ -99,6 +101,9 @@ export function SimResult({ summary, challengeResult, challengeStanding, onOpenC
     const leagueStatsKpis = useMemo(() => buildLeagueStatsKpis(summary.league_totals), [summary.league_totals]);
     const standingsEntries = useStandingsEntries(summary);
     const postseasonExit = useMemo(() => describePostseasonExit(summary, teamKey), [summary, teamKey]);
+    // A TAKEOVER CLUB'S DRAFTED ROSTER OR A FOLLOWED CLUB'S MOST-USED ONE - ABSENT FOR AN OPEN SIM'S
+    // OTHER CLUBS AND ON SUMMARIES SAVED BEFORE ROSTER SNAPSHOTS EXISTED.
+    const rosterSnapshot = summary.club_rosters?.[teamKey];
 
     const gamesByMonth = useMemo(() => {
         type MonthGroup = { key: string; label: string; games: typeof games; wins: number; losses: number; temp: 'hot' | 'cold' | null };
@@ -158,6 +163,7 @@ export function SimResult({ summary, challengeResult, challengeStanding, onOpenC
     }, [summary.awards]);
 
     const hasTransactions = (summary.deadline_trades?.length ?? 0) > 0 || (summary.transactions?.length ?? 0) > 0;
+    const hasOffseasonMoves = (summary.offseason_moves?.length ?? 0) > 0;
 
     // GUARD AFTER EVERY HOOK CALL ABOVE, NEVER BEFORE - team CAN ONLY BE NULL IF clubAbbr DOESN'T
     // MATCH ANY STANDINGS ROW, WHICH SHOULDN'T HAPPEN IN PRACTICE, BUT AN EARLY RETURN AMONG HOOK
@@ -308,6 +314,9 @@ export function SimResult({ summary, challengeResult, challengeStanding, onOpenC
                     {hasTransactions && (
                         <Tabs.Trigger value="transactions" className={TAB_TRIGGER_CLASS}><FaRightLeft className={TAB_ICON_CLASS} />Transactions</Tabs.Trigger>
                     )}
+                    {hasOffseasonMoves && (
+                        <Tabs.Trigger value="offseason_moves" className={TAB_TRIGGER_CLASS}><FaFileSignature className={TAB_ICON_CLASS} />Offseason Moves</Tabs.Trigger>
+                    )}
 
                 </Tabs.List>
 
@@ -372,25 +381,32 @@ export function SimResult({ summary, challengeResult, challengeStanding, onOpenC
                     </div>
                 </Tabs.Content>
 
-                <Tabs.Content value="my_team" className="focus:outline-none px-4 pt-3 flex flex-col gap-4">
-                    <div className="flex flex-col gap-2">
-                        <p className="flex items-center gap-1.5 text-[12px] font-bold text-(--text-primary)"><FaBaseballBatBall className={TAB_ICON_CLASS} />Batting</p>
-                        {hitterKpis.length > 0 && (
-                            <div className="grid grid-cols-3 sm:grid-cols-6 gap-2 mb-3">
-                                {hitterKpis.map(kpi => <KpiTile key={kpi.label} label={kpi.label} value={kpi.value} comparison={kpi.comparison} />)}
-                            </div>
-                        )}
-                        <SimStatsTable rows={hitters} columns={HITTER_COLUMNS} emptyLabel="No hitters on this roster." cardsEnabled identities={summary.identities} />
-                    </div>
+                <Tabs.Content value="my_team" className={`focus:outline-none px-4 pt-3 ${rosterSnapshot ? 'grid gap-4 lg:grid-cols-[minmax(0,460px)_minmax(0,1fr)] items-start' : ''}`}>
+                    {rosterSnapshot && (
+                        <div className="rounded-card border border-(--divider) bg-(--background-secondary) overflow-hidden">
+                            <SimClubRosterView snapshot={rosterSnapshot} players={players} identity={team.identity} />
+                        </div>
+                    )}
+                    <div className="flex flex-col gap-4 min-w-0">
+                        <div className="flex flex-col gap-2">
+                            <p className="flex items-center gap-1.5 text-[12px] font-bold text-(--text-primary)"><FaBaseballBatBall className={TAB_ICON_CLASS} />Batting</p>
+                            {hitterKpis.length > 0 && (
+                                <div className="grid grid-cols-3 sm:grid-cols-6 gap-2 mb-3">
+                                    {hitterKpis.map(kpi => <KpiTile key={kpi.label} label={kpi.label} value={kpi.value} comparison={kpi.comparison} />)}
+                                </div>
+                            )}
+                            <SimStatsTable rows={hitters} columns={HITTER_COLUMNS} emptyLabel="No hitters on this roster." cardsEnabled identities={summary.identities} showRealTrend />
+                        </div>
 
-                    <div className="flex flex-col gap-2">
-                        <p className="flex items-center gap-1.5 text-[12px] font-bold text-(--text-primary)"><FaBaseball className={TAB_ICON_CLASS} />Pitching</p>
-                        {pitcherKpis.length > 0 && (
-                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-3">
-                                {pitcherKpis.map(kpi => <KpiTile key={kpi.label} label={kpi.label} value={kpi.value} comparison={kpi.comparison} />)}
-                            </div>
-                        )}
-                        <SimStatsTable rows={pitchers} columns={PITCHER_COLUMNS} emptyLabel="No pitchers on this roster." cardsEnabled identities={summary.identities} />
+                        <div className="flex flex-col gap-2">
+                            <p className="flex items-center gap-1.5 text-[12px] font-bold text-(--text-primary)"><FaBaseball className={TAB_ICON_CLASS} />Pitching</p>
+                            {pitcherKpis.length > 0 && (
+                                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-3">
+                                    {pitcherKpis.map(kpi => <KpiTile key={kpi.label} label={kpi.label} value={kpi.value} comparison={kpi.comparison} />)}
+                                </div>
+                            )}
+                            <SimStatsTable rows={pitchers} columns={PITCHER_COLUMNS} emptyLabel="No pitchers on this roster." cardsEnabled identities={summary.identities} showRealTrend />
+                        </div>
                     </div>
                 </Tabs.Content>
 
@@ -438,6 +454,13 @@ export function SimResult({ summary, challengeResult, challengeStanding, onOpenC
                 {hasTransactions && (
                     <Tabs.Content value="transactions" className="focus:outline-none px-4 pt-3">
                         <SimTransactionsTab summary={summary} teamKey={teamKey} />
+                    </Tabs.Content>
+                )}
+
+                {/* Offseason Moves */}
+                {hasOffseasonMoves && (
+                    <Tabs.Content value="offseason_moves" className="focus:outline-none px-4 pt-3">
+                        <SimOffseasonMovesTab summary={summary} teamKey={teamKey} />
                     </Tabs.Content>
                 )}
 

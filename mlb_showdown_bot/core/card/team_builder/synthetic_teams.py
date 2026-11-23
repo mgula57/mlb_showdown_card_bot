@@ -11,6 +11,7 @@ from datetime import datetime, timedelta
 from typing import Optional
 
 from ...database.postgres_db import PostgresDB
+from ...mlb_stats_api import MLBStatsAPI
 from ..sets import Set as ShowdownSet
 from .era_roster_drafter import EraRosterDrafter
 from .roster_era import LEAGUE_WIDE_ABBR, LEAGUE_WIDE_NAME, LEAGUE_WIDE_TEAM_ID, RosterEraRegistry
@@ -48,14 +49,36 @@ class SyntheticTeams:
 
     @classmethod
     def historical(cls, season: int, team_id: int, sport_id: int = 1, showdown_set: str = ShowdownSet._2000.value,
-                   team_abbr: Optional[str] = None, team_name: Optional[str] = None) -> dict:
-        """A historical MLB club's roster for one season, as an API team dict."""
+                   team_abbr: Optional[str] = None, team_name: Optional[str] = None,
+                   mlb_stats_api: Optional[MLBStatsAPI] = None) -> dict:
+        """A historical MLB club's roster for one season, as an API team dict.
+
+        Before Opening Day it's the club's live 40-man with last season's cards instead.
+        """
         set_value = cls.parse_set(showdown_set).value
+        synthetic_team_id = f"mlb-{sport_id}-{team_id}-{season}-{set_value}"
+
+        # Before Opening Day: not cached here - the rosters are (for 30 minutes), and composing
+        # one team from them is cheap. Imported late: offseason imports team_builder.
+        from ...offseason import UpcomingSeasonRosters
+        upcoming = UpcomingSeasonRosters(mlb_stats_api=mlb_stats_api or MLBStatsAPI(), sport_id=sport_id)
+        if sport_id == 1 and upcoming.applies_to(season):
+            with PostgresDB() as db:
+                cards = upcoming.card_pools(season=season, showdown_set=set_value, db=db, team_ids=[team_id]).get(team_id, [])
+            builder = RosterToTeamConverter(
+                cards=cards,
+                team_id=synthetic_team_id,
+                name=team_name or team_abbr or f"Team {team_id}",
+                abbreviation=team_abbr or str(team_id),
+                season=season,
+                allow_adjacent_positions=True,
+            )
+            return builder.build_api_dict(rostered_points_only=True)
+
         key = f"{season}:{team_id}:{sport_id}:{set_value}"
         if (cached := cls._cached(key)) is not None:
             return cached
 
-        synthetic_team_id = f"mlb-{sport_id}-{team_id}-{season}-{set_value}"
         with PostgresDB() as db:
             stored_cards, stored_slots = db.fetch_historical_team_card_pool(
                 season=season, showdown_set=set_value, team_id=team_id, sport_id=sport_id,

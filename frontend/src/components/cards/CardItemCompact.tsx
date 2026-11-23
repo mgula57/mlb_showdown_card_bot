@@ -3,7 +3,7 @@ import type { CardDatabaseRecord } from "../../api/card_db/cardDatabase";
 import CardCommand from "./card_elements/CardCommand";
 import { cardSecondaryStyle, getContrastTextColor } from "../../functions/colors";
 import { formatYear } from "../../functions/formatters";
-import { FaHatWizard, FaWandMagicSparkles } from "react-icons/fa6";
+import { FaCaretDown, FaCaretUp, FaHatWizard, FaMinus, FaWandMagicSparkles } from "react-icons/fa6";
 import { SetBadge } from '../shared/SetBadge';
 import { defenseAtPosition } from "../shared/DefenseUtils";
 import CardIcon from "./card_elements/CardIcon";
@@ -109,14 +109,35 @@ type CardItemCompactProps = {
     backgroundSettings?: string;
     /** Highlights the card as the winner of a sim plate appearance's advantage roll. */
     hasAdvantage?: boolean;
-    /** A stat shown in place of the command badge, always visible — e.g. the runner's tested speed on a sim steal. */
+    /** A stat shown in place of the command badge (or, with `placement: 'corner'`, in the set
+     *  icon's bottom-left slot under it), always visible — e.g. the runner's tested speed on a sim steal. */
     statBadge?: CardItemStatBadge;
 };
 
 export type CardItemStatBadge = {
     label: string;
     value: string | number;
+    /** 'command' (default) replaces the command badge; 'corner' replaces the set icon in the
+     *  bottom-left corner (label stacked over value + trend) and keeps the command badge. */
+    placement?: 'command' | 'corner';
+    /** Colored caret against a reference value (e.g. the player's real-life stat) — green when the
+     *  direction is good for the stat, red when bad. Structurally a `computeDiff` result. */
+    trend?: { direction: 'up' | 'down' | 'flat'; isGood: boolean };
+    /** Hover text, e.g. the reference value the trend compares against. */
+    title?: string;
 };
+
+/** The colored up/down/flat caret for a stat badge's `trend` - also used beside names in the sim stat tables. */
+export function StatBadgeTrend({ trend }: { trend: NonNullable<CardItemStatBadge['trend']> }) {
+    const color = trend.direction === 'flat' ? 'text-(--text-tertiary)' : trend.isGood ? 'text-(--green)' : 'text-(--red)';
+    return (
+        <span className={`flex items-center ${color}`}>
+            {trend.direction === 'up' && <FaCaretUp className="text-[10px]" />}
+            {trend.direction === 'down' && <FaCaretDown className="text-[10px]" />}
+            {trend.direction === 'flat' && <FaMinus className="text-[7px]" />}
+        </span>
+    );
+}
 
 // =============================================================================
 // COMPONENT
@@ -193,6 +214,8 @@ export const CardItemCompact = ({
         : `border border-(--divider)${isClickable ? ' hover:border-(--rule-strong)' : ''}`;
 
     const isRedacted = card?.isEmpty || false;
+    const commandStatBadge = statBadge && statBadge.placement !== 'corner' ? statBadge : undefined;
+    const cornerStatBadge = statBadge?.placement === 'corner' ? statBadge : undefined;
 
     const hasPtsMultiplier = !!ptsMultiplier && ptsMultiplier !== 1 && card?.points != null;
     const effectivePoints = hasPtsMultiplier ? Math.round(card!.points * ptsMultiplier!) : card?.points;
@@ -237,10 +260,13 @@ export const CardItemCompact = ({
         >
             {hasAdvantage && <AdvantageBadge />}
             {/* A stat badge takes the command's slot — e.g. the runner's tested speed on a sim steal. */}
-            {statBadge ? (
-                <div className="self-center shrink-0 flex flex-col items-center gap-0.5 rounded-plate bg-(--background-primary)/60 px-1.5 py-1">
-                    <span className="text-[7px] font-bold uppercase leading-none tracking-wider text-(--tertiary)">{statBadge.label}</span>
-                    <span className="font-display-upright text-[13px] leading-none tabular-nums text-(--text-primary)">{statBadge.value}</span>
+            {commandStatBadge ? (
+                <div title={commandStatBadge.title} className="self-center shrink-0 flex flex-col items-center gap-0.5 rounded-plate bg-(--background-primary)/60 px-1.5 py-1">
+                    <span className="text-[7px] font-bold uppercase leading-none tracking-wider text-(--tertiary)">{commandStatBadge.label}</span>
+                    <span className="flex items-center font-display-upright text-[13px] leading-none tabular-nums text-(--text-primary)">
+                        {commandStatBadge.value}
+                        {commandStatBadge.trend && <StatBadgeTrend trend={commandStatBadge.trend} />}
+                    </span>
                 </div>
             ) : !hideCommand && (
                 <CardCommand
@@ -344,7 +370,18 @@ export const CardItemCompact = ({
             </div>
 
             {/* Absolute positioned elements */}
-            {!hideDetails && !isRedacted && !hideCommand && !statBadge && (
+            {cornerStatBadge && !isRedacted ? (
+                <div
+                    title={cornerStatBadge.title ?? cornerStatBadge.label}
+                    className="absolute bottom-0.5 left-0.5 flex flex-col items-start gap-px rounded-plate bg-(--background-primary)/60 px-0.5 py-px leading-none"
+                >
+                    <span className="text-[7px] font-bold uppercase tracking-wider text-(--text-tertiary)">{cornerStatBadge.label}</span>
+                    <span className="flex items-center">
+                        <span className="font-display-upright text-[10px] tabular-nums text-(--text-primary)">{cornerStatBadge.value}</span>
+                        {cornerStatBadge.trend && <StatBadgeTrend trend={cornerStatBadge.trend} />}
+                    </span>
+                </div>
+            ) : !hideDetails && !isRedacted && !hideCommand && !commandStatBadge && (
                 <div className="hidden @[95px]:block absolute bottom-0 left-0.5 rounded-plate">
                     <SetBadge set={card?.set || ''} abbreviated size="sm" />
                 </div>
@@ -491,9 +528,10 @@ type CardItemCompactFromCardDatabaseRecordProps = {
     hideDetails?: boolean;
     ptsMultiplier?: number;
     backgroundSettings?: string;
+    statBadge?: CardItemStatBadge;
 };
 
-export const CardItemCompactFromCardDatabaseRecord = ({ card, className, isSelected, isLoading, onClick, actionButton, fieldPosition, hideDetails, detailStat1Category, ptsMultiplier, backgroundSettings }: CardItemCompactFromCardDatabaseRecordProps) => {
+export const CardItemCompactFromCardDatabaseRecord = ({ card, className, isSelected, isLoading, onClick, actionButton, fieldPosition, hideDetails, detailStat1Category, ptsMultiplier, backgroundSettings, statBadge }: CardItemCompactFromCardDatabaseRecordProps) => {
     const primaryColor = (['NYM', 'SDP', 'JPN'].includes(card?.wbc_team || card?.team || 'N/A')
         ? card?.color_secondary
         : card?.color_primary) || 'rgb(0, 0, 0)';
@@ -538,6 +576,7 @@ export const CardItemCompactFromCardDatabaseRecord = ({ card, className, isSelec
             detailStat1Category={detailStat1Category}
             ptsMultiplier={ptsMultiplier}
             backgroundSettings={backgroundSettings}
+            statBadge={statBadge}
         />
     );
 };

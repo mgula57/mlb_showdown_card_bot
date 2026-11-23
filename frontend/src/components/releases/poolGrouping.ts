@@ -3,7 +3,7 @@ import { IMAGE_MATCH_TYPE_OPTIONS } from '../../api/card_db/cardDatabase';
 import { CardSource } from '../../types/cardSource';
 import { FRANCHISE_CODE, HAND_ORDER, PARENT_POSITION_ORDER, POSITION_ORDER, handLabel, parentPositionGroup } from './cardGroups';
 
-export type PoolGroupBy = 'none' | 'team' | 'league' | 'position' | 'type' | 'hand' | 'year' | 'hof' | 'awards' | 'nationality'
+export type PoolGroupBy = 'none' | 'team' | 'league' | 'position' | 'type' | 'hand' | 'year' | 'hof' | 'awards' | 'icons' | 'nationality'
     | 'points' | 'command' | 'speed' | 'ip' | 'chart_version' | 'image_match' | 'tag';
 export type PoolSortBy = 'set_number' | 'points' | 'name' | 'team' | 'position' | 'year' | 'command' | 'speed' | 'ip'
     | 'volume' | 'g' | 'war' | 'pa' | 'avg' | 'obp' | 'slg' | 'ops' | 'ops_plus' | 'h' | 'hr' | 'sb' | 'bb'
@@ -28,6 +28,7 @@ export const POOL_GROUP_OPTIONS: { label: string; value: PoolGroupBy; group?: st
     { label: 'Command', value: 'command', group: 'Card' },
     { label: 'Speed', value: 'speed', group: 'Card' },
     { label: 'IP', value: 'ip', group: 'Card' },
+    { label: 'Icons', value: 'icons', group: 'Card' },
     { label: 'Chart Version', value: 'chart_version', group: 'Card' },
     { label: 'Image Match', value: 'image_match', group: 'Edition' },
     { label: 'Tag', value: 'tag', group: 'Edition' },
@@ -312,10 +313,17 @@ const UNTAGGED_LABEL = 'Untagged';
 const NO_AWARDS_LABEL = 'No Awards';
 const HOF_LABEL = 'Hall of Fame';
 const NOT_HOF_LABEL = 'Not in Hall of Fame';
+const NO_ICONS_LABEL = 'No Icons';
 
 /** Alphabetical, with the "has none" bucket (Untagged, No Awards) last. */
 function alphabeticalWithLast(lastLabel: string) {
     return (a: string, b: string) => Number(a === lastLabel) - Number(b === lastLabel) || a.localeCompare(b);
+}
+
+/** Each distinct icon once ("R" = rookie season); "No Icons" for none, including pre-2003 sets, which have no icons. */
+function iconLabels(card: ReleaseCard): string | string[] {
+    const icons = [...new Set(card.card_snapshot.icons_list ?? [])];
+    return icons.length > 0 ? icons : NO_ICONS_LABEL;
 }
 
 /** Each distinct award once ("AS" can repeat in the list); "No Awards" for none. */
@@ -348,6 +356,8 @@ const GROUPERS: Record<Exclude<PoolGroupBy, 'none'>, GroupKeyer> = {
     command: { keyFn: commandGroupLabel, compareKeys: compareCommandGroupKeys },
     speed: sideStatGrouper(SIDE_STATS.speed),
     ip: sideStatGrouper(SIDE_STATS.ip),
+    // A card with several icons appears in each icon's group
+    icons: { keyFn: iconLabels, compareKeys: alphabeticalWithLast(NO_ICONS_LABEL) },
     chart_version: { keyFn: chartVersionLabel, compareKeys: compareChartVersionKeys },
     image_match: { keyFn: imageMatchLabel, compareKeys: (a, b) => IMAGE_MATCH_LABELS.indexOf(a) - IMAGE_MATCH_LABELS.indexOf(b) },
     // A card with several tags appears in each tag's group

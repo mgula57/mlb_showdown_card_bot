@@ -476,14 +476,14 @@ class StatsGroup:
 
 # BREF-STYLE KEYS WHOSE LOWERCASED SPELLING DOESN'T MATCH THE `StatCategory` VALUE IT MAPS TO
 # (E.G. RAW `W` VS. `StatCategory.WINS` = "wins") - WITHOUT THIS, THE PLAIN LOWERCASE FILTER IN
-# `_real_stats_to_totals` SILENTLY DROPS THEM AND A MERGED PITCHER'S W/L COMES OUT SIM-ONLY.
+# `real_stats_to_totals` SILENTLY DROPS THEM AND A MERGED PITCHER'S W/L COMES OUT SIM-ONLY.
 _BREF_KEY_ALIASES: dict[str, str] = {
     'w': StatCategory.WINS.value,
     'l': StatCategory.LOSSES.value,
 }
 
 
-def _real_stats_to_totals(raw_stats: dict, player_type: PlayerType) -> dict[str, float]:
+def real_stats_to_totals(raw_stats: dict, player_type: PlayerType) -> dict[str, float]:
     """Archive-style raw stats (uppercase bref keys, e.g. `PlayerArchive.stats`) -> a
     `Stats.totals`-shaped counting-stat dict, ready for `Stats.merge_totals`.
 
@@ -533,11 +533,37 @@ class PlayerStatsGroup(StatsGroup):
                 id=p.id, name=p.name, player_type=p.player_type, player_sub_type=p.player_sub_type, position=p.primary_position.value,
                 team=p.team, points=p.points, speed=p.speed, command=p.chart.command,
                 real_ops=p.real_ops,
-                is_rookie=p.card.stats_for_card.get('is_rookie', False),
+                is_rookie=self.rookie_in_sim_year(card=p.card, sim_year=year),
                 defense=p.card.positions_and_defense.get(p.primary_position, 0),
             )
             for p in self.players
         }
+
+    # MLB ROOKIE LIMITS - A PLAYER WHO STAYED UNDER THESE IS STILL A ROOKIE THE NEXT SEASON.
+    # (THE 45-DAY ACTIVE ROSTER LIMIT ISN'T ON THE CARD, SO IT'S IGNORED.)
+    _ROOKIE_MAX_AB = 130
+    _ROOKIE_MAX_IP = 50
+
+    @classmethod
+    def rookie_in_sim_year(cls, card, sim_year: int) -> bool:
+        """Rookie status for the season being simulated, not the card's own season.
+
+        A pre-Opening Day sim plays on last season's cards (see `UpcomingSeasonRosters.card_year`),
+        whose `is_rookie` describes LAST season - a full-time 2026 rookie is not a 2027 rookie.
+        Carry the flag forward only for a card-year rookie who stayed under the rookie limits.
+        """
+        stats = card.stats_for_card
+        if not stats.get('is_rookie', False):
+            return False
+        try:
+            card_year = int(card.year)
+        except (TypeError, ValueError):
+            return False  # MULTI-YEAR / CAREER CARDS ARE NEVER ROOKIES
+        if card_year == int(sim_year):
+            return True
+        if card_year == int(sim_year) - 1:
+            return stats.get('AB', 0) <= cls._ROOKIE_MAX_AB and stats.get('IP', 0) <= cls._ROOKIE_MAX_IP
+        return False
 
     def player_for_id(self, id: str):
         players_w_id = [p for p in self.players if p.id == id]
@@ -549,7 +575,7 @@ class PlayerStatsGroup(StatsGroup):
         for player in self.players:
             is_included = player.player_type == type and player.id in players_in_sim
             if is_included:
-                total_stats.merge_totals(_real_stats_to_totals(player.stats, type))
+                total_stats.merge_totals(real_stats_to_totals(player.stats, type))
         return total_stats
 
     def merge_real_season_stats(self, raw_stats_by_bref_id: dict[tuple[str, str], dict]) -> int:
@@ -578,7 +604,7 @@ class PlayerStatsGroup(StatsGroup):
             raw = raw_stats_by_bref_id.get((bref_id, stats_obj.player_type.value.upper()))
             if not raw:
                 continue
-            stats_obj.merge_totals(_real_stats_to_totals(raw, stats_obj.player_type))
+            stats_obj.merge_totals(real_stats_to_totals(raw, stats_obj.player_type))
             merged += 1
         return merged
 
@@ -630,12 +656,18 @@ _REAL_STATS_DIR = os.path.join(os.path.dirname(__file__), 'real_stats')
 
 @lru_cache(maxsize=None)
 def load_woba_weights(year: int) -> dict[str, float]:
-    """Fangraphs wOBA weights for a season, keyed by lowercased column name."""
+    """Fangraphs wOBA weights for a season, keyed by lowercased column name.
+
+    A season with no row yet (e.g. a 2027 offseason sim before 2027 weights exist) falls back to
+    the most recent earlier season. Returning nothing would zero every wOBA, which flattens wRC+
+    to exactly 100 for every hitter and leaves the MVP race to games played / defense / steals.
+    """
     with open(os.path.join(_REAL_STATS_DIR, 'league_wOBA_weights.csv'), encoding='utf-8-sig') as f:
-        for row in csv.DictReader(f):
-            if int(row['Season']) == int(year):
-                return {k.lower(): (float(v) if v not in (None, '') else 0) for k, v in row.items()}
-    return {}
+        rows = [row for row in csv.DictReader(f) if int(row['Season']) <= int(year)]
+    if not rows:
+        return {}
+    row = max(rows, key=lambda r: int(r['Season']))
+    return {k.lower(): (float(v) if v not in (None, '') else 0) for k, v in row.items()}
 
 @lru_cache(maxsize=None)
 def load_real_league_avgs(year: int, type: PlayerType) -> Stats:

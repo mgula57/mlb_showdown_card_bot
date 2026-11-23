@@ -9,6 +9,7 @@
 import { useNavigate } from 'react-router-dom';
 import type { ShowdownBotCard } from '../../api/showdownBotCard';
 import type { CustomCardFormState } from './CustomCardBuilder';
+import { track } from '../../analytics/track';
 
 /** Location state passed to `/customs` to prefill the builder from an existing card */
 export type CustomizeCardRouteState = {
@@ -59,6 +60,7 @@ export const useCustomizeCard = () => {
     const navigate = useNavigate();
     return (card: ShowdownBotCard) => {
         const state: CustomizeCardRouteState = { customizeCard: card };
+        track('open_in_builder', { set: card.set, is_wotc: !!card.is_wotc });
         navigate('/customs', { state });
     };
 };

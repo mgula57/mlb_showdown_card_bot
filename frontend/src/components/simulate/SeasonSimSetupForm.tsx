@@ -3,17 +3,19 @@ import { FaSpinner, FaPlay, FaUserGroup } from 'react-icons/fa6';
 import FormDropdown from '../customs/FormDropdown';
 import ManagerStyleFields from './ManagerStyleFields';
 import SimSettingToggle from './SimSettingToggle';
+import FreeAgentSigningsFields, { type FreeAgentSigning } from './FreeAgentSigningsFields';
 import { NEUTRAL_MANAGER, managerPayload, type ManagerPreference } from '../../api/manager';
 import { useSiteSettings } from '../shared/SiteSettingsContext';
 import { SET_SELECT_OPTIONS } from '../shared/SetBadge';
 import { BetaBadge } from '../shared/BetaBadge';
 import { fetchUserTeams, type TeamSummary } from '../../api/userTeams';
 import {
-    fetchSimSeasons, fetchSimSeasonTeams, SimAlreadyRunningError,
-    type TakeoverClub, type OpenSimPayload, type CreateSimLobbyPayload,
+    fetchSimSeasonList, fetchSimSeasonTeams, fetchSimFreeAgents, fetchSimJob, rerunPresetFromJob, SimAlreadyRunningError,
+    type SimFreeAgent, type TakeoverClub, type OpenSimPayload, type CreateSimLobbyPayload, type OpenSimRerunPreset,
 } from '../../api/sim';
 
 import { Heading } from '../shared/Heading';
+import { Eyebrow } from '../shared/Eyebrow';
 import { buttonClass } from '../shared/buttonStyles';
 import { PageSubtitle } from '../shared/PageSubtitle';
 /** Exact text of the backend's global-capacity 429 (`sim.py`'s `_sim_slots` semaphore) — every
@@ -90,6 +92,9 @@ type Props =
           /** Franchise abbreviations the user has starred — sorted to the top of the Follow /
            *  Replaces club pickers. */
           starredAbbrs?: string[];
+          /** "Run again": a finished sim whose setup (season, settings, takeover, free agent
+           *  signings) the form starts from instead of its defaults. */
+          rerunJobId?: string;
       }
     | {
           mode: 'lobby';
@@ -113,6 +118,7 @@ export function SeasonSimSetupForm(props: Props) {
     const { userShowdownSet } = useSiteSettings();
 
     const [seasons, setSeasons] = useState<number[]>([]);
+    const [unfinishedSeasons, setUnfinishedSeasons] = useState<number[]>([]);
     const [year, setYear] = useState<number | null>(null);
     const [set, setSet] = useState(() => loadPersistedSimSettings().set || userShowdownSet || '2000');
     const [clubsFor, setClubsFor] = useState<{ year: number; teams: TakeoverClub[] } | null>(null);
@@ -135,6 +141,12 @@ export function SeasonSimSetupForm(props: Props) {
     const [regressSmallSampleStats, setRegressSmallSampleStats] = useState(() => loadPersistedSimSettings().regressSmallSampleStats ?? false);
     const [enablePlatoonEffect, setEnablePlatoonEffect] = useState(() => loadPersistedSimSettings().enablePlatoonEffect ?? false);
 
+    // OFFSEASON FREE AGENTS (SOLO ONLY). Per-run like the takeover: who's unsigned changes daily.
+    const [freeAgentsFor, setFreeAgentsFor] = useState<{ year: number; set: string; list: SimFreeAgent[] } | null>(null);
+    const [returnFreeAgents, setReturnFreeAgents] = useState(false);
+    const [signFreeAgentsEnabled, setSignFreeAgentsEnabled] = useState(false);
+    const [freeAgentSignings, setFreeAgentSignings] = useState<FreeAgentSigning[]>([]);
+
     // Remember these as a standing preference for next time — season/club/takeover selections stay
     // per-run since they're tied to context that won't carry over (a different season's clubs, a
     // manager profile scoped to "never saved to the team").
@@ -154,16 +166,49 @@ export function SeasonSimSetupForm(props: Props) {
     const [busy, setBusy] = useState(false);
     const [runningJob, setRunningJob] = useState<{ jobId: string; teamId: string | null } | null>(null);
 
+    // "Run again" preset. Settings apply as soon as it loads; the clubs and free agent signings
+    // wait for the season's club / free agent effects below, which would otherwise reset them to
+    // their defaults. Each part is consumed once, so changing seasons afterward behaves normally.
+    const rerunJobId = props.mode === 'solo' ? props.rerunJobId : undefined;
+    const presetRef = useRef<{ preset: OpenSimRerunPreset; clubsPending: boolean; freeAgentsPending: boolean } | null>(null);
+
+    function applyPresetSettings(preset: OpenSimRerunPreset) {
+        if (preset.set) setSet(preset.set);
+        if (preset.enableInjuries !== undefined) setEnableInjuries(preset.enableInjuries);
+        if (preset.simulatePostseason !== undefined) setSimulatePostseason(preset.simulatePostseason);
+        if (preset.postseasonFormat) setPostseasonFormat(preset.postseasonFormat);
+        setResumeEnabled(!!preset.resume);
+        setMergeRealStats(!!preset.mergeRealStats);
+        setResumePostseasonEnabled(!!preset.resumeFromRealPostseason);
+        if (preset.tradeDeadlineEnabled !== undefined) setTradeDeadlineEnabled(preset.tradeDeadlineEnabled);
+        if (preset.tradeDeadlineRespectsStandings !== undefined) setTradeDeadlineRespectsStandings(preset.tradeDeadlineRespectsStandings);
+        if (preset.regressSmallSampleStats !== undefined) setRegressSmallSampleStats(preset.regressSmallSampleStats);
+        if (preset.enablePlatoonEffect !== undefined) setEnablePlatoonEffect(preset.enablePlatoonEffect);
+        setTakeoverEnabled(!!preset.takeover);
+        setTakeoverTeamId(preset.takeover?.teamId ?? '');
+        setManager(preset.takeover?.manager ?? NEUTRAL_MANAGER);
+    }
+
     useEffect(() => {
-        fetchSimSeasons()
-            .then(list => {
+        // A preset that fails to load just leaves the form on its defaults
+        const presetRequest = rerunJobId && token
+            ? fetchSimJob(rerunJobId, token).then(rerunPresetFromJob).catch(() => null)
+            : Promise.resolve(null);
+        Promise.all([fetchSimSeasonList(), presetRequest])
+            .then(([{ seasons: list, unfinished }, preset]) => {
                 setSeasons(list);
+                setUnfinishedSeasons(unfinished);
+                const presetYear = preset?.year !== undefined && list.includes(preset.year) ? preset.year : undefined;
+                if (preset && presetYear !== undefined && !presetRef.current) {
+                    presetRef.current = { preset, clubsPending: true, freeAgentsPending: true };
+                    applyPresetSettings(preset);
+                }
                 setYear(
-                    initialYear !== undefined && list.includes(initialYear)
-                        ? initialYear
+                    presetYear
+                        ?? (initialYear !== undefined && list.includes(initialYear) ? initialYear : undefined)
                         // Default to the most recent completed season rather than the current
                         // one, which may only be partway played.
-                        : list[1] ?? list[0] ?? null,
+                        ?? list[1] ?? list[0] ?? null,
                 );
             })
             .catch(err => setError(errorMessage(err)));
@@ -184,10 +229,14 @@ export function SeasonSimSetupForm(props: Props) {
                 setClubsFor({ year, teams });
                 // "Follow" defaults to the user's starred club if one played this season, else the
                 // best record. "Replaces" stays on the worst club — that's the club worth taking over.
+                // A rerun keeps the last run's clubs instead.
+                const pending = presetRef.current?.clubsPending && presetRef.current.preset.year === year ? presetRef.current.preset : null;
+                if (pending && presetRef.current) presetRef.current.clubsPending = false;
+                const isClub = (abbr?: string) => !!abbr && teams.some(club => club.abbreviation === abbr);
                 const byRecord = [...teams].sort((a, b) => b.wins - a.wins);
                 const starredPick = byRecord.find(club => starredAbbrsRef.current.includes(club.abbreviation));
-                setFocusAbbr(starredPick?.abbreviation ?? byRecord[0]?.abbreviation ?? '');
-                setTakeoverReplaces(worst ?? teams[0]?.abbreviation ?? '');
+                setFocusAbbr(isClub(pending?.focusAbbr) ? pending!.focusAbbr! : starredPick?.abbreviation ?? byRecord[0]?.abbreviation ?? '');
+                setTakeoverReplaces(isClub(pending?.takeover?.replaces) ? pending!.takeover!.replaces! : worst ?? teams[0]?.abbreviation ?? '');
             })
             .catch(err => { if (!stale) setError(errorMessage(err)); });
         return () => { stale = true; };
@@ -200,9 +249,45 @@ export function SeasonSimSetupForm(props: Props) {
         if (year !== 2026) setResumeEnabled(false);
     }, [year]);
 
+    // Resuming from the real postseason needs a finished regular season to seed from.
+    const canResumePostseason = year !== null && !unfinishedSeasons.includes(year);
+    useEffect(() => {
+        if (!canResumePostseason) setResumePostseasonEnabled(false);
+    }, [canResumePostseason]);
+
+    // Only a season before Opening Day has unsigned free agents to place - the endpoint returns an
+    // empty list for every other one, which hides the options below. Placements are tied to the
+    // season, so a new one starts clean.
+    useEffect(() => {
+        const pending = presetRef.current?.freeAgentsPending && presetRef.current.preset.year === year ? presetRef.current.preset : null;
+        if (pending && presetRef.current) presetRef.current.freeAgentsPending = false;
+        const signings = pending?.freeAgentSignings ?? [];
+        setReturnFreeAgents(!!pending?.returnFreeAgents);
+        setSignFreeAgentsEnabled(signings.length > 0);
+        setFreeAgentSignings(signings);
+    }, [year]);
+
+    useEffect(() => {
+        if (year === null || isLobby) return;
+        let stale = false;
+        fetchSimFreeAgents(year, set)
+            .then(list => { if (!stale) setFreeAgentsFor({ year, set, list }); })
+            // Free agent options are an extra - a failed lookup just leaves them hidden.
+            .catch(() => { if (!stale) setFreeAgentsFor({ year, set, list: [] }); });
+        return () => { stale = true; };
+    }, [year, set, isLobby]);
+
     useEffect(() => {
         if (!takeoverEnabled || !token || userTeams !== null) return;
-        fetchUserTeams(token).then(teams => setUserTeams(teams.filter(t => !t.is_archived))).catch(err => setError(errorMessage(err)));
+        fetchUserTeams(token)
+            .then(teams => {
+                const active = teams.filter(t => !t.is_archived);
+                setUserTeams(active);
+                // A rerun from before takeovers stored their team id: match the team by name
+                const presetTeamName = presetRef.current?.preset.takeover?.teamName;
+                if (presetTeamName) setTakeoverTeamId(prev => prev || (active.find(t => t.name === presetTeamName)?.team_id ?? ''));
+            })
+            .catch(err => setError(errorMessage(err)));
     }, [takeoverEnabled, token, userTeams]);
 
     const clubs = !isLobby && clubsFor?.year === year ? clubsFor.teams : [];
@@ -219,10 +304,26 @@ export function SeasonSimSetupForm(props: Props) {
         return b.wins - a.wins;
     });
 
+    // While another set's list loads, keep showing the same season's last one so the options don't
+    // flicker away.
+    const freeAgents = freeAgentsFor?.year === year ? freeAgentsFor.list : [];
+    const showFreeAgentOptions = !isLobby && freeAgents.length > 0;
+    // A signing whose player has no card in the chosen set can't play, so it's left out.
+    const freeAgentIds = new Set(freeAgents.map(freeAgent => freeAgent.mlb_id));
+    const activeSignings = showFreeAgentOptions && signFreeAgentsEnabled
+        ? freeAgentSignings.filter(signing => freeAgentIds.has(signing.mlb_id))
+        : [];
+    // A taken-over club plays the user's own roster, so nobody can sign there.
+    const signingClubs = takeoverEnabled ? sortedClubs.filter(club => club.abbreviation !== takeoverReplaces) : sortedClubs;
+
     async function handleSubmit() {
         if (year === null) return;
         if (!isLobby && takeoverEnabled && !takeoverTeamId) {
             setError('Pick a team to take over with, or turn off the takeover option.');
+            return;
+        }
+        if (takeoverEnabled && activeSignings.some(signing => signing.team === takeoverReplaces)) {
+            setError(`A free agent is signing with ${takeoverReplaces}, the club you're taking over. Move or remove that signing first.`);
             return;
         }
         setStarting(true);
@@ -256,6 +357,8 @@ export function SeasonSimSetupForm(props: Props) {
                     takeovers: takeoverEnabled
                         ? [{ team_id: takeoverTeamId, replaces: takeoverReplaces || undefined, manager: managerPayload(manager) }]
                         : undefined,
+                    return_free_agents: (showFreeAgentOptions && returnFreeAgents) || undefined,
+                    free_agent_signings: activeSignings.length > 0 ? activeSignings : undefined,
                 });
             }
         } catch (err: unknown) {
@@ -305,6 +408,42 @@ export function SeasonSimSetupForm(props: Props) {
                     onChange={setSet}
                 />
             </div>
+
+            {/* Offseason-only moves, set apart from the engine settings since they only exist before
+                Opening Day and change who plays where, not how the games are played. */}
+            {showFreeAgentOptions && year !== null && (
+                <section className="flex flex-col gap-3 rounded-card border border-(--divider) p-3">
+                    <div className="flex flex-col gap-1">
+                        <Eyebrow>{year} Offseason</Eyebrow>
+                        <Heading level="panel" as="h2">Hot Stove</Heading>
+                        <p className="text-[11px] text-(--text-tertiary)">
+                            Clubs play on their current 40-man rosters. Decide where the unsigned free agents land.
+                        </p>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <SimSettingToggle
+                            label="Return free agents"
+                            description={`Every unsigned free agent goes back to the club he played for in ${year - 1}. Players who have already signed stay with their new club.`}
+                            isEnabled={returnFreeAgents}
+                            onToggle={() => setReturnFreeAgents(v => !v)}
+                        />
+                        <SimSettingToggle
+                            label="Sign free agents"
+                            description="Send unsigned free agents to the clubs you choose. A player signed here skips “Return free agents”."
+                            isEnabled={signFreeAgentsEnabled}
+                            onToggle={() => setSignFreeAgentsEnabled(v => !v)}
+                            className={signFreeAgentsEnabled ? 'sm:col-span-2' : ''}
+                        >
+                            <FreeAgentSigningsFields
+                                freeAgents={freeAgents}
+                                clubs={signingClubs}
+                                value={freeAgentSignings}
+                                onChange={setFreeAgentSignings}
+                            />
+                        </SimSettingToggle>
+                    </div>
+                </section>
+            )}
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <SimSettingToggle
@@ -396,7 +535,7 @@ export function SeasonSimSetupForm(props: Props) {
                     </SimSettingToggle>
                 )}
 
-                {!isLobby && (
+                {!isLobby && canResumePostseason && (
                     <SimSettingToggle
                         label="Resume from the real postseason"
                         description="Skips the regular season entirely — every club starts from its real final record, skipping straight to the postseason and simming from there. Every player's real season stats are merged in automatically, so MVP/Cy Young/Rookie of the Year/Silver Sluggers still have a full season to be judged on."

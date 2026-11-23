@@ -9,6 +9,7 @@ import { FieldView, FIELD_POSITIONS } from '../FieldView';
 import { buildSimStatHighlights, SIM_STATS_TOOLTIP } from './simStatColumns';
 import { roundLabel } from './roundLabel';
 import { useCardLinks } from './useCardLinks';
+import { withSimTeamColors } from './simCardColors';
 import { CAPS_LABEL_CLASS } from '../../shared/fieldStyles';
 import { Eyebrow } from '../../shared/Eyebrow';
 
@@ -51,17 +52,8 @@ export function SimAwardsList({ awards, identities }: Props) {
 
     /** A winner's card, recolored to their sim team's identity (see `SimStatsTable`) — a
      * takeover/tournament team's winners should show that team's colors, not their card's own. */
-    const coloredRecord = (player: SimStatLine): CardDatabaseRecord | undefined => {
-        const record = recordFor(player) ?? undefined;
-        const teamIdentity = record && identities?.[player.team ?? ''];
-        if (!record || !teamIdentity) return record;
-        return {
-            ...record,
-            team: player.team ?? record.team,
-            color_primary: teamIdentity.primary_color ?? record.color_primary,
-            color_secondary: teamIdentity.secondary_color ?? record.color_secondary,
-        };
-    };
+    const coloredRecord = (player: SimStatLine): CardDatabaseRecord | undefined =>
+        withSimTeamColors(recordFor(player), identities?.[player.team ?? ''], player.team) ?? undefined;
 
     const renderCard = (player: SimStatLine) => {
         const record = coloredRecord(player);

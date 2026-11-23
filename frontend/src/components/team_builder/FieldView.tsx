@@ -1,8 +1,8 @@
 import { Fragment, useEffect, useRef, useState } from 'react';
-import type { Lineup, LineupSlot, TeamRosterSlot, PitcherAssignment } from '../../api/userTeams';
+import type { Lineup, LineupSlot, TeamRosterSlot, PitcherAssignment, RosterSlotRef } from '../../api/userTeams';
 import { ROTATION_ROLES } from '../../api/userTeams';
 import type { CardDatabaseRecord } from '../../api/card_db/cardDatabase';
-import { CardItemCompactFromCardDatabaseRecord } from '../cards/CardItemCompact';
+import { CardItemCompactFromCardDatabaseRecord, type CardItemStatBadge } from '../cards/CardItemCompact';
 import { FaPlus, FaPencil, FaArrowsUpDownLeftRight } from 'react-icons/fa6';
 import { defenseAtPosition, OF_POSITIONS, IF_POSITIONS } from '../shared/DefenseUtils';
 import { orderedBullpen } from '../../domain/roster';
@@ -47,8 +47,8 @@ const FIELD_PADDING_BOTTOM = 'calc(1.5% + 12px)';
 
 export const FIELD_POSITIONS = ['CF', 'LF', 'RF', 'SS', '2B', '3B', '1B', 'C', 'DH'] as const;
 
-export type FieldViewRosterData = {
-    roster: TeamRosterSlot[];
+export type FieldViewRosterData<Slot extends RosterSlotRef = TeamRosterSlot> = {
+    roster: Slot[];
     rotation: PitcherAssignment[];
     benchPtsMultiplier: number;
     /** Discount for a two-way player's pitching card (`teamTwoWayPtsMultiplier`); unset = none. */
@@ -62,12 +62,13 @@ export type FieldViewRosterData = {
     draftSlots?: { bench: number; bullpen: number };
 };
 
-type FieldViewProps = {
+/** Generic over the roster slot shape so a read-only snapshot (`RosterSlotRef`) renders too. */
+type FieldViewProps<Slot extends RosterSlotRef = TeamRosterSlot> = {
     lineup: Lineup;
     cardMap: Record<string, CardDatabaseRecord | null>;
     onSlotClick: (position: string, currentSlot: LineupSlot | null) => void;
     /** Bench is free-form: `current` is the row being replaced, or null to add a new one. */
-    onBenchClick?: (current: TeamRosterSlot | null) => void;
+    onBenchClick?: (current: Slot | null) => void;
     /** Bullpen is free-form: `current` is the arm being replaced, or null to add a new one. */
     onBullpenClick?: (current: PitcherAssignment | null) => void;
     onRoleClick?: (role: string, current: PitcherAssignment | null) => void;
@@ -79,7 +80,7 @@ type FieldViewProps = {
     /** Rotation role ('SP2') being filled, or 'RP' / 'BE' to highlight the next open bullpen /
      *  bench row (those rows are interchangeable, so only the first open one lights up). */
     activeRole?: string | null;
-    rosterData?: FieldViewRosterData;
+    rosterData?: FieldViewRosterData<Slot>;
     hoveredCardId?: string | null;
     onCardHover?: (cardId: string | null) => void;
     /** True while cardMap entries are still being fetched — shows loading placeholders for filled-but-unresolved slots */
@@ -104,6 +105,8 @@ type FieldViewProps = {
     /** Passed to `CardDetail`'s `tooltip` when the opened slot has a `simStatsMap` entry - see
      * `CardDetail`'s prop of the same name. */
     simStatsTooltip?: string;
+    /** card_id -> a stat shown in place of each card's command badge (e.g. a sim season's OPS / ERA). */
+    statBadgeMap?: Record<string, CardItemStatBadge>;
     /** card_id -> display name/id, surfaced on the "card not found" overlay for a filled-but-unresolved
      *  position slot (e.g. an award recipient whose card_bot card couldn't be located). */
     notFoundLabels?: Record<string, { name?: string; playerId?: number | string }>;
@@ -132,12 +135,12 @@ function sumGroupDefense(positions: readonly string[], slotByPosition: Record<st
     return total;
 }
 
-export function FieldView({
+export function FieldView<Slot extends RosterSlotRef = TeamRosterSlot>({
     lineup, cardMap, onSlotClick, onBenchClick, onBullpenClick, onRoleClick, readOnly = false, emptySlotsOnly = false, activePosition, activeRole,
     rosterData, hoveredCardId, onCardHover, isLoadingCards, pendingPositions,
     positions = FIELD_POSITIONS, headerLabel = 'Starting Lineup', showDefenseSummary = true, showTotalPoints = false, detailStat1Category = 'defense',
-    simStatsMap, simStatsTooltip, notFoundLabels, scrollTarget, layout = 'stacked', move,
-}: FieldViewProps) {
+    simStatsMap, simStatsTooltip, statBadgeMap, notFoundLabels, scrollTarget, layout = 'stacked', move,
+}: FieldViewProps<Slot>) {
     const isSide = layout === 'side';
     const rootRef = useRef<HTMLDivElement>(null);
     useEffect(() => {
@@ -367,6 +370,7 @@ export function FieldView({
                                     className={`${isPeerHovered ? 'scale-[1.05]' : 'hover:scale-[1.05]'} active:scale-[0.975] transition-transform`}
                                     fieldPosition={pos}
                                     detailStat1Category={detailStat1Category}
+                                    statBadge={statBadgeMap?.[card.card_id]}
                                     onClick={move?.movingCardId
                                         ? moveState.onClick ?? (() => {})
                                         : () => openDetail(card, emptySlotsOnly ? undefined : () => onSlotClick(pos, slot))}
@@ -433,6 +437,7 @@ export function FieldView({
                                             card={card}
                                             className={`${isPeerHovered ? 'scale-[1.025]' : 'hover:scale-[1.025]'} active:scale-[0.975] transition-transform`}
                                             ptsMultiplier={(ptsMultiplier ?? 1) * twoWayMultiplier(card.card_id)}
+                                            statBadge={statBadgeMap?.[card.card_id]}
                                             isSelected={moveState.isMoving}
                                             onClick={move?.movingCardId
                                                 ? moveState.onClick ?? (() => {})

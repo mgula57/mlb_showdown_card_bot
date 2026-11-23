@@ -8185,6 +8185,36 @@ class ShowdownPlayerCard(BaseModel):
     ])
 
     @classmethod
+    def replacement_level(cls, name: str, year: int, set: Set, player_type: PlayerType, position: Optional[Position] = None,
+                          mlb_id: Optional[int] = None, **card_fields) -> 'ShowdownPlayerCard':
+        """A replacement-level card for a real player who has no card for `year`, built from the
+        season's replacement-level baseline at his position. `card_fields` pass through to the card
+        (e.g. a WBC team and image edition)."""
+        from ..data.replacement_season_averages import (
+            build_replacement_level_stats_for_card, get_replacement_hitting_avgs, get_replacement_pitching_avgs,
+        )
+        if isinstance(player_type, str):
+            player_type = PlayerType(player_type)
+        baseline = get_replacement_pitching_avgs(year=year) if player_type == PlayerType.PITCHER else get_replacement_hitting_avgs(year=year)
+        stats = build_replacement_level_stats_for_card(
+            year=year, player_type=player_type, positions=[position] if position else None, original_stats=dict(baseline),
+        )
+        stats['name'] = name
+        stats['team'] = 'MLB'
+        card = cls(
+            name=name,
+            year=str(year),
+            set=set,
+            mlb_id=mlb_id,
+            era="DYNAMIC",
+            stats_period=StatsPeriod(year=str(year), type=StatsPeriodType.REPLACEMENT),
+            stats=stats,
+            **card_fields,
+        )
+        card.warnings.append(f"This player does not have a {year} Showdown card. A replacement level card has been generated based on their position.")
+        return card
+
+    @classmethod
     def rebuilt_from_card_data(cls, card_data: dict) -> 'ShowdownPlayerCard':
         """Re-run a stored card payload through the current card algorithm.
 

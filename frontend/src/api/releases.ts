@@ -151,6 +151,8 @@ export type ReleaseEdition = {
     cards: ReleaseCard[];
     /** Goes up with every card save; a save sends the one it was based on (`expected_cards_version`). */
     cards_version: number;
+    /** The edition has at least one rendered card image. Only on a full edition fetch. */
+    has_images?: boolean;
     created_at: string;
     updated_at: string;
 };

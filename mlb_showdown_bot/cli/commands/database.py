@@ -20,6 +20,7 @@ from ...core.card.command_out_selections import CommandOutSelections
 from ...core.card.showdown_player_card import Edition, SpecialEdition, StatsPeriod, WBCTeam, Position, ShowdownPlayerCard, PlayerType, StatsPeriodType, Hand, StatHighlightsType
 from ...core.data.replacement_season_averages import get_replacement_hitting_avgs, get_replacement_pitching_avgs, build_replacement_level_stats_for_card
 from ...core.card.stats.normalized_player_stats import NormalizedPlayerStats, PlayerStatsNormalizer
+from ...core.card.minor_league_cards import MinorLeagueCardBuilder
 
 app = typer.Typer()
 
@@ -509,25 +510,18 @@ def store_wbc_data(
             mlb_stats_player = _mlb_api.people.get_player(record.mlb_id, stats_period=stats_period, include_stats=True, league_list=LeagueListEnum.MILB_FULL)
             if mlb_stats_player and mlb_stats_player.stats:
                 print(f"Found minor league stats for WBC player {record.name} (BREF ID: {record.bref_id}), which may help fill in gaps for card data.")
-                normalized_player_stats = PlayerStatsNormalizer.from_mlb_api(player=mlb_stats_player, stats_period=stats_period)
-                stats = normalized_player_stats.as_dict()
-                record.card_data = ShowdownPlayerCard(
-                    name=record.name_safe_for_matching.title(), # Use the name from the WBC roster
-                    year=str(year),
+                record.card_data = MinorLeagueCardBuilder.card_from_player(
+                    mlb_stats_player,
+                    year=year,
                     set=record.showdown_set,
-                    mlb_id=record.mlb_id,
+                    name=record.name_safe_for_matching.title(), # Use the name from the WBC roster
                     wbc_team=record.wbc_team,
                     wbc_year=record.wbc_season,
-                    league="MILB",
                     image={
                         "edition": Edition.WBC if record.wbc_team else Edition.NONE,
                         "special_edition": SpecialEdition.WBC,
                         "stat_highlights_type": StatHighlightsType.ALL
                     },
-                    era="DYNAMIC",
-                    stats_period=stats_period,
-                    stats=stats,
-                    nerf_by_run_value=25
                 )
                 record.stat_source = "MILB"
                 roster_progress_rows[record_index]["processed"] = "✅"
@@ -677,6 +671,24 @@ def build_logging_tables(
     db = PostgresDB(is_archive=is_production)
     db.build_logging_tables()
     print("✅ Logging tables built.")
+
+@app.command("rollup_admin_metrics")
+def rollup_admin_metrics(
+    env: str = typer.Option("dev", "--env", "-e", help="Environment to run the command in"),
+    days: int = typer.Option(3, "--days", "-d", help="Recompute this many days, ending yesterday (UTC). Overlapping runs pick up late rows."),
+):
+    """Roll up the admin dashboard's daily counts (internal.metrics_daily_*). Run nightly; pass a large --days once to backfill."""
+    from datetime import datetime, timedelta, timezone
+    from ...core.database.postgres_db import PostgresDB
+    from ...core.database.admin_rollup import AdminRollup
+
+    # Finished days only: the dashboard computes today live, and a partial day here would hide its later rows
+    to_day = datetime.now(timezone.utc).date() - timedelta(days=1)
+    from_day = to_day - timedelta(days=max(days, 1) - 1)
+    print(f"Rolling up admin metrics from {from_day} to {to_day} ({env})...")
+    with PostgresDB(is_archive=env.lower() == "prod") as db:
+        AdminRollup(db).refresh(from_day=from_day, to_day=to_day)
+    print("✅ Admin metrics rolled up.")
 
 @app.command("build_user_settings_table")
 def build_user_settings_table(

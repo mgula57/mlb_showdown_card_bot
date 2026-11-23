@@ -3,6 +3,7 @@
  * Handles fetching card data
  */
 
+import { clientIdHeaders } from '../../analytics/clientIds';
 import { type ShowdownBotCard } from '../showdownBotCard';
 import { type ShowdownBotCardCompact } from '../showdownBotCard';
 import { type CardSource } from '../../types/cardSource';
@@ -236,6 +237,7 @@ export async function fetchCardData(source: CardSource, payload: Record<string, 
         headers: {
             'Content-Type': 'application/json',
             ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+            ...clientIdHeaders(),
         },
         body: JSON.stringify({ source, ...payload }),
         signal,

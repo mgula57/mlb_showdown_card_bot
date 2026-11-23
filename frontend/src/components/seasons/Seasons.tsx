@@ -25,11 +25,13 @@ import SidebarPanel, { type SidebarSection } from "../shared/SidebarPanel";
 import ReactCountryFlag from "react-country-flag";
 import { countryCodeForTeam } from "../../functions/flags";
 import StandingsTab from "./Standings";
+import Transactions from "./Transactions";
+import { defaultSeason, isSeasonOver, isSeasonUpcoming } from "../../functions/seasons";
 
 import {
     FaRankingStar, FaClipboardList, FaEarthAmericas, FaCalendarDays,
     FaChevronDown, FaChevronRight, FaChevronLeft,
-    FaStar, FaRegStar, FaTrophy, FaXmark, FaMedal, FaDice, FaCircleQuestion
+    FaStar, FaRegStar, FaTrophy, FaXmark, FaMedal, FaDice, FaCircleQuestion, FaRightLeft
 } from "react-icons/fa6";
 
 // import ShowdownCardSearch from "../cards/ShowdownCardSearch";
@@ -76,15 +78,6 @@ const formatDateForApi = (date: Date): string => {
     const month = `${date.getMonth() + 1}`.padStart(2, '0');
     const day = `${date.getDate()}`.padStart(2, '0');
     return `${year}-${month}-${day}`;
-};
-
-/** A season is over once its end date has passed — schedule browsing only applies to ongoing seasons. */
-const isSeasonOver = (season: Season | null): boolean => {
-    if (!season?.season_end_date) {
-        return false;
-    }
-    const endDate = new Date(`${season.season_end_date}T23:59:59`);
-    return !Number.isNaN(endDate.getTime()) && endDate < new Date();
 };
 
 const isSameCalendarDay = (a: Date, b: Date): boolean => {
@@ -194,6 +187,9 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
     const [standings, setStandings] = useState<{ [leagueAbbreviation: string]: Standings[] }>({});
 
     const [activeTab, setActiveTab] = useState<string>(() => getStoredValue(STORAGE_KEYS.activeTab) ?? "schedule");
+    // A link (`?tab=` / `?sim=1`) picked the tab for the season it's about to select, so that
+    // season's offseason default (Transactions) mustn't override it.
+    const linkedTabRef = useRef(false);
 
     // A game gets its own distinct, shareable URL — /seasons/game/<gamePk> — parsed straight from the path
     // rather than kept in separate state, so the URL is always the single source of truth (e.g. pasted links work).
@@ -209,9 +205,13 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
 
     // `?sim=1` (e.g. "Run again" from a finished sim) opens the Simulate tab with the setup form
     // up, then clears the param.
+    // With `?season=` too, the season effect below opens it once that season is selected.
     useEffect(() => {
-        if (new URLSearchParams(location.search).get('sim') === '1') {
+        const params = new URLSearchParams(location.search);
+        if (params.get('sim') === '1' && !params.get('season')) {
+            if (!selectedSeason) linkedTabRef.current = true;
             setActiveTab('simulate');
+            setSimRerunJobId(params.get('rerun'));
             setIsSimModalOpen(true);
             navigate('/seasons', { replace: true });
         }
@@ -220,16 +220,27 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
 
     // A game opened from another view (e.g. Home's "Today's Games") can pin the season it
     // belongs to via `?season=<id>`, so a previously selected season doesn't leak stale
-    // cards into the game view. Apply it, then strip the param (keeping the game path).
+    // cards into the game view. Home's Hot Stove band also adds `tab=<id>`, or `sim=1` to open
+    // the sim setup on that season. Apply them, then strip the params (keeping the game path).
     useEffect(() => {
         const params = new URLSearchParams(location.search);
         const seasonParam = params.get('season');
         if (!seasonParam || seasons.length === 0) return;
         const match = seasons.find((season) => season.season_id.toString() === seasonParam);
+        const tabParam = params.get('tab');
         if (match && match.season_id !== selectedSeason?.season_id) {
             setSelectedSeason(match);
+            if (tabParam || params.get('sim') === '1') linkedTabRef.current = true;
+        }
+        if (params.get('sim') === '1') {
+            setActiveTab('simulate');
+            setIsSimModalOpen(true);
+        } else if (tabParam) {
+            setActiveTab(tabParam);
         }
         params.delete('season');
+        params.delete('tab');
+        params.delete('sim');
         navigate({ pathname: location.pathname, search: params.toString() }, { replace: true });
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [location.search, seasons]);
@@ -263,6 +274,12 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
     // Season simulation: the setup form opens in a modal here (the standalone /simulate nav entry
     // is hidden for this release), and a running/finished sim still gets its own /simulate/:jobId page.
     const [isSimModalOpen, setIsSimModalOpen] = useState(false);
+    // "Run again" from a finished sim: the job whose setup the form starts from
+    const [simRerunJobId, setSimRerunJobId] = useState<string | null>(null);
+    const closeSimModal = () => {
+        setIsSimModalOpen(false);
+        setSimRerunJobId(null);
+    };
     const [isSimGuideOpen, setIsSimGuideOpen] = useState(false);
 
     // Schedule tab beta callout — dismissed permanently once the user closes it
@@ -282,7 +299,7 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
     const handleSimStart = async (payload: OpenSimPayload) => {
         if (!simToken) throw new Error('Sign in to simulate a season.');
         const { job_id, focus_abbr } = await startOpenSim(payload, simToken);
-        setIsSimModalOpen(false);
+        closeSimModal();
         navigate(`/simulate/${job_id}${focus_abbr ? `?focus=${focus_abbr}` : ''}`);
     };
 
@@ -333,7 +350,7 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
         .filter(season => season.season_id != null)
         .map(season => ({
             value: season.season_id.toString(),
-            label: season.season_id.toString()
+            label: isSeasonUpcoming(season) ? `${season.season_id} (Upcoming)` : season.season_id.toString(),
         }));
     
     const sportOptions: SelectOption[] = sports
@@ -382,6 +399,9 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
 
     // Schedule browsing only applies while the selected season is ongoing
     const isSelectedSeasonOver = isSeasonOver(selectedSeason);
+    // Before Opening Day: no games, stats or awards yet. The page becomes the offseason - moves,
+    // standings projected from current 40-man rosters on last season's cards, and sims of the year ahead.
+    const isSelectedSeasonUpcoming = type === "mlb" && isSeasonUpcoming(selectedSeason);
 
     // Awards aren't announced until after the season ends — hide the tab for the
     // current year until Nov 1, when award coverage becomes meaningful.
@@ -390,7 +410,12 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
     const hideAwardWinners = selectedSeasonYear === nowForAwards.getFullYear()
         && nowForAwards < new Date(nowForAwards.getFullYear(), 10, 1);
 
-    const tabs = useMemo(() => [
+    const tabs = useMemo(() => isSelectedSeasonUpcoming ? [
+        { id: "transactions", label: "Transactions", icon: <FaRightLeft /> },
+        { id: "standings", label: "Standings", icon: <FaRankingStar /> },
+        { id: "simulate", label: "Simulations", icon: <FaDice /> },
+        { id: "teams", label: "Teams", icon: <FaClipboardList /> },
+    ] : [
         ...(isSelectedSeasonOver ? [] : [{ id: "schedule", label: "Schedule", icon: <FaCalendarDays /> }]),
         { id: "standings", label: "Standings", icon: <FaRankingStar /> },
         { id: "leaders", label: "Leaders", icon: <FaTrophy /> },
@@ -398,7 +423,7 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
         ...(type === "mlb" ? [{ id: "simulate", label: "Simulations", icon: <FaDice /> }] : []),
         { id: "teams", label: "Teams", icon: <FaClipboardList /> },
         // { id: "players", label: "Players", icon: <FaUserGroup /> },
-    ], [isSelectedSeasonOver, hideAwardWinners, type]);
+    ], [isSelectedSeasonOver, isSelectedSeasonUpcoming, hideAwardWinners, type]);
 
     // ************************
     // Loading Methods
@@ -420,7 +445,7 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
                     if (previousSeason && normalizedSeasons.some((season) => season.season_id === previousSeason.season_id)) {
                         return previousSeason;
                     }
-                    return seasonFromStorage ?? normalizedSeasons[0];
+                    return seasonFromStorage ?? defaultSeason(normalizedSeasons) ?? null;
                 });
             }
             return;
@@ -448,7 +473,7 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
                     if (previousSeason && normalizedSeasons.some((season) => season.season_id === previousSeason.season_id)) {
                         return previousSeason;
                     }
-                    return seasonFromStorage ?? normalizedSeasons[0];
+                    return seasonFromStorage ?? defaultSeason(normalizedSeasons) ?? null;
                 });
             }
         } catch (error) {
@@ -613,7 +638,7 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
             // 4. Parallel: standings + gamesSchedule (schedule only applies to ongoing seasons)
             setIsLoadingStandings(true);
             setIsLoadingSchedule(true);
-            const schedulePromise = isSeasonOver(selectedSeason)
+            const schedulePromise = isSeasonOver(selectedSeason) || isSeasonUpcoming(selectedSeason)
                 ? Promise.resolve().then(() => { setGamesSchedule(null); setIsLoadingSchedule(false); })
                 : fetchSchedule(resolvedSport.id, selectedSeason, selectedDate, leaguesToQuery, userShowdownSet)
                     .then(data => {
@@ -702,7 +727,7 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
     };
 
     const loadGamesSchedule = async () => {
-        if (!selectedSeason || leagues.length === 0 || isSeasonOver(selectedSeason)) {
+        if (!selectedSeason || leagues.length === 0 || isSeasonOver(selectedSeason) || isSeasonUpcoming(selectedSeason)) {
             setGamesSchedule(null);
             return;
         }
@@ -795,11 +820,23 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
         setStoredValue(STORAGE_KEYS.leagueGroup, selectedLeagueGroup);
     }, [STORAGE_KEYS.leagueGroup, selectedLeagueGroup]);
 
+    // An offseason opens on its moves: Transactions is the default whenever an upcoming season is
+    // selected (on load or on switching), even over a remembered Standings tab.
+    useEffect(() => {
+        if (!selectedSeason) return;
+        if (linkedTabRef.current) {
+            linkedTabRef.current = false;
+            return;
+        }
+        if (isSelectedSeasonUpcoming) setActiveTab("transactions");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [selectedSeason?.season_id]);
+
     useEffect(() => {
         if (!tabs.some((tab) => tab.id === activeTab)) {
-            setActiveTab("standings");
+            setActiveTab(isSelectedSeasonUpcoming ? "transactions" : "standings");
         }
-    }, [tabs, activeTab]);
+    }, [tabs, activeTab, isSelectedSeasonUpcoming]);
 
     useEffect(() => {
         if (activeTab === "teams") {
@@ -936,7 +973,7 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
                                     >
                                         <span className="text-(--text-secondary)">{tab.icon}</span>
                                         {tab.label}
-                                        {(tab.id === "awards" || tab.id === "simulate" || tab.id === "schedule") && <NewBadge />}
+                                        {(tab.id === "awards" || tab.id === "simulate" || tab.id === "schedule" || tab.id === "transactions") && <NewBadge />}
                                     </Tabs.Trigger>
 
                                     {isTeamsTab && (
@@ -1121,14 +1158,6 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
                                                     <div className="flex-1 flex items-center min-w-0">
                                                         {type === "wbc" ? <FaEarthAmericas className="inline-block mr-2 shrink-0 text-xl text-(--text-tertiary)" /> : <FaCalendarDays className="inline-block mr-2 shrink-0 text-xl text-(--text-tertiary)" />}
                                                         <Heading level="page" as="span" fit>{title}</Heading>
-                                                        {!(hasStaticSeasons && seasonOptions.length <= 1) && (
-                                                            <CustomSelect
-                                                                className="ml-4"
-                                                                value={selectedSeason?.season_id.toString() || "2026"}
-                                                                onChange={(value) => setSelectedSeason(seasons.find(season => season.season_id === value) || null)}
-                                                                options={seasonOptions}
-                                                            />
-                                                        )}
                                                     </div>
                                                     <div className="flex items-center gap-1.5 shrink-0">
                                                         {type === "mlb" && selectedSeason && (
@@ -1144,7 +1173,15 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
                                                     </div>
                                                 </div>
                                             )}
-                                            
+                                            {/* On its own row so the title keeps room next to Simulate */}
+                                            {hasStaticSports && sportOptions.length <= 1 && selectedSport && !(hasStaticSeasons && seasonOptions.length <= 1) && (
+                                                <CustomSelect
+                                                    value={selectedSeason?.season_id.toString() || "2026"}
+                                                    onChange={(value) => setSelectedSeason(seasons.find(season => season.season_id === value) || null)}
+                                                    options={seasonOptions}
+                                                />
+                                            )}
+
                                             {!(hasStaticSports && sportOptions.length <= 1) && (
                                                 <CustomSelect
                                                     value={selectedSport?.id?.toString() || ""}
@@ -1187,7 +1224,14 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
                                     >
                                         <div className="px-3 lg:px-0 space-y-2 pb-24 lg:pt-6 lg:pr-6">
                                             <div className="space-y-2 flex justify-between items-top">
-                                                <Heading level="section" as="h2">Standings</Heading>
+                                                <div className="space-y-1">
+                                                    <Heading level="section" as="h2">{isSelectedSeasonUpcoming ? "Projected standings" : "Standings"}</Heading>
+                                                    {isSelectedSeasonUpcoming && (
+                                                        <p className="text-xs text-(--text-secondary)">
+                                                            Ranked by each club's 26-man card points, from today's 40-man rosters using {Number(selectedSeason.season_id) - 1} cards.
+                                                        </p>
+                                                    )}
+                                                </div>
                                                 <p className="px-1 text-xs text-(--text-secondary)">
                                                     Select a team to view its Showdown roster below.
                                                 </p>
@@ -1333,6 +1377,20 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
                                             </div>
                                     </Tabs.Content>
 
+                                    {/* Transactions Tab - Upcoming seasons only */}
+                                    <Tabs.Content
+                                        value="transactions"
+                                        className="focus:outline-none data-[state=inactive]:hidden"
+                                    >
+                                        {isSelectedSeasonUpcoming && (
+                                            <Transactions
+                                                seasonId={selectedSeason.season_id}
+                                                showdownSet={userShowdownSet}
+                                                isActive={activeTab === "transactions"}
+                                            />
+                                        )}
+                                    </Tabs.Content>
+
                                     {/* Teams Tab */}
                                     <Tabs.Content
                                         value="teams"
@@ -1359,7 +1417,9 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
                                                 <div>
                                                     <Heading level="section" as="h2">Simulations</Heading>
                                                     <p className="text-xs text-(--text-secondary) mt-1">
-                                                        Play out any MLB season, then jump back to your past runs here.
+                                                        {isSelectedSeasonUpcoming
+                                                            ? `Play out ${selectedSeason.season_id} with clubs as they stand today and ${Number(selectedSeason.season_id) - 1} cards, then jump back to your past runs here.`
+                                                            : "Play out any MLB season, then jump back to your past runs here."}
                                                     </p>
                                                 </div>
                                                 <div className="flex items-center gap-2 shrink-0">
@@ -1387,7 +1447,7 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
                                                 </div>
                                             </div>
                                             {simToken ? (
-                                                <RecentSims className='px-0.5' token={simToken} onOpen={handleOpenSim} seasonYear={selectedSeasonYear ?? undefined} />
+                                                <RecentSims className='px-0.5' layout='grid' token={simToken} onOpen={handleOpenSim} seasonYear={selectedSeasonYear ?? undefined} />
                                             ) : (
                                                 <SignInPrompt
                                                     className="py-12"
@@ -1460,7 +1520,7 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
             </div>
 
             {isSimModalOpen && (
-                <Modal onClose={() => setIsSimModalOpen(false)} size="md">
+                <Modal onClose={closeSimModal} size="md">
                     {simToken ? (
                         <SeasonSimSetupForm
                             mode="solo"
@@ -1469,6 +1529,7 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
                             onViewExisting={handleOpenSim}
                             initialYear={selectedSeasonYear ?? undefined}
                             starredAbbrs={starredTeamAbbrs}
+                            rerunJobId={simRerunJobId ?? undefined}
                         />
                     ) : (
                         <SignInPrompt

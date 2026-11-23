@@ -19,6 +19,9 @@ export type TeamRosterSlot = {
     pick_source: PickSource;
 };
 
+/** The fields that place a roster slot - all a read-only view (e.g. a sim's roster snapshot) needs. */
+export type RosterSlotRef = Pick<TeamRosterSlot, 'card_id' | 'card_source' | 'roster_position'>;
+
 export type LineupSlot = {
     card_id: string;
     card_source: CardSource;

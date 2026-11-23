@@ -92,10 +92,10 @@ from ..card.stats.normalized_player_stats import Datasource
 from ..card.stats.award_voting import AwardVotingResult
 from ..card.command_out_selections import StoredCardSelectionRecord
 from ..card.variable_speed import VariableSpeedVariant
-from ..data.replacement_season_averages import get_replacement_hitting_avgs, get_replacement_pitching_avgs, build_replacement_level_stats_for_card
 from ..card.utils.shared_functions import convert_year_string_to_list
 from ..shared.google_drive import fetch_image_metadata
 from ..card.images import ImageMatchType, AutoImageFile
+from ..utils.client_context import ClientContext, EMPTY_CLIENT_CONTEXT
 from ..mlb_stats_api import Player, Roster, RosterTypeEnum, SportEnum, Standings, Schedule
 
 
@@ -2116,12 +2116,6 @@ class PostgresDB:
                 print("No showdown card data found for MLB API roster.")
                 return roster
 
-            # LOAD REPLACEMENT LEVEL STATS IN CASE THERE IS NOT A CARD FOR THE PLAYER 
-            replacement_stat_baselines = {
-                'HITTER': get_replacement_hitting_avgs(year=year),
-                'PITCHER': get_replacement_pitching_avgs(year=year)
-            }
-
             # ADD CARD DATA TO ROSTER
             for roster_slot in roster.roster:
                 player_id = roster_slot.person.id
@@ -2138,29 +2132,21 @@ class PostgresDB:
 
                 # If no card, fill in with replacement player data based on limited info from the roster slot
                 if card is None:
-                    player_type = "PITCHER" if roster_slot.is_pitcher else "HITTER"
                     try: showdown_position = Position(roster_slot.position.abbreviation.upper())
                     except: showdown_position = None
-                    replacement_stat_baseline = replacement_stat_baselines.get(player_type, {}).copy()
-                    replacement_stats = build_replacement_level_stats_for_card(year=year, player_type=player_type, positions=[showdown_position], original_stats=replacement_stat_baseline)
-                    replacement_stats['name'] = roster_slot.person.full_name
-                    replacement_stats['team'] = 'MLB'
-                    
-                    card = ShowdownPlayerCard(
+                    card = ShowdownPlayerCard.replacement_level(
                         name=roster_slot.person.full_name,
-                        year=str(year),
+                        year=year,
                         set=showdown_set,
+                        player_type="PITCHER" if roster_slot.is_pitcher else "HITTER",
+                        position=showdown_position,
                         wbc_team=wbc_team,
                         wbc_year=wbc_year,
                         image={
                             "edition": Edition.WBC if wbc_team else Edition.NONE,
                             "special_edition": SpecialEdition.WBC,
                         },
-                        era="DYNAMIC",
-                        stats_period=StatsPeriod(year=str(year), type=StatsPeriodType.REPLACEMENT),
-                        stats=replacement_stats,
                     )
-                    card.warnings.append(f"This player does not have a {year} Showdown card. A replacement level card has been generated based on their position.")
 
                 # POST PROCESSING APPLIED TO ALL CARDS (BOTH REAL AND REPLACEMENT)
                 if sport_id == SportEnum.INTERNATIONAL:
@@ -2176,6 +2162,14 @@ class PostgresDB:
             print("Error fetching cards for MLB API roster:", e)
             traceback.print_exc()
             return roster
+
+    @staticmethod
+    def apply_points_to_standing(standing: Standings, points_by_team_id: dict[int, int]) -> None:
+        """Set each club's `showdown_points`, ordering by points while no games have been played."""
+        for record in standing.team_records:
+            record.showdown_points = points_by_team_id.get(record.team.id, 0)
+        if all(record.league_record.wins == 0 and record.league_record.losses == 0 for record in standing.team_records):
+            standing.team_records.sort(key=lambda r: r.showdown_points, reverse=True)
 
     def add_points_to_mlb_api_standings(self, standings: List[Standings], showdown_set: str) -> List[Standings]:
         """Fetch aggregated points data per team from the proper table.
@@ -2279,13 +2273,7 @@ class PostgresDB:
                         filter_values=(showdown_set, standing.league.season, sport_id),
                     )
 
-                points_by_team_id = {row['team_id']: row['total_points'] for row in results}
-                for record in standing.team_records:
-                    record.showdown_points = points_by_team_id.get(record.team.id, 0)
-
-                # If there have not been games played yet, sort by points
-                if all(record.league_record.wins == 0 and record.league_record.losses == 0 for record in standing.team_records):
-                    standing.team_records.sort(key=lambda r: r.showdown_points, reverse=True)
+                self.apply_points_to_standing(standing, {row['team_id']: row['total_points'] for row in results})
 
             return standings
         
@@ -2516,6 +2504,22 @@ class PostgresDB:
             )
             return [dict(r) for r in cur.fetchall()]
 
+    def fetch_card_bot_records_for_mlb_ids(self, mlb_ids: list[int], card_year: int, showdown_set: str) -> list[ExploreDataRecord]:
+        """card_bot records for a list of players in one card year and set.
+
+        A two-way player comes back twice (hitter and pitcher), and a player with no card that
+        year is simply absent.
+        """
+        if self.connection is None or not mlb_ids:
+            return []
+        query = sql.SQL("""
+            SELECT cards.*, 'BOT' AS source
+            FROM card_bot AS cards
+            WHERE cards.mlb_id IN %s AND cards.year = %s AND cards.showdown_set = %s
+        """)
+        rows = self.execute_query(query=query, filter_values=(tuple(mlb_ids), card_year, showdown_set))
+        return [ExploreDataRecord(**row) for row in rows] if rows else []
+
     def fetch_asg_card_pool(self, season: int, showdown_set: str, league: str, sport_id: int = 1) -> tuple[list[ExploreDataRecord], list[dict]]:
         """Fetch the ASG team's participant cards plus their stored starter/position metadata.
 
@@ -2531,14 +2535,7 @@ class PostgresDB:
         mlb_ids = [r['mlb_id'] for r in meta_rows if r.get('mlb_id') is not None]
         if not mlb_ids:
             return [], meta_rows
-        card_year = self._season_card_year(season)
-        query = sql.SQL("""
-            SELECT cards.*, 'BOT' AS source
-            FROM card_bot AS cards
-            WHERE cards.mlb_id IN %s AND cards.year = %s AND cards.showdown_set = %s
-        """)
-        rows = self.execute_query(query=query, filter_values=(tuple(mlb_ids), card_year, showdown_set))
-        cards = [ExploreDataRecord(**row) for row in rows] if rows else []
+        cards = self.fetch_card_bot_records_for_mlb_ids(mlb_ids=mlb_ids, card_year=self._season_card_year(season), showdown_set=showdown_set)
         return cards, meta_rows
 
     # ------------------------------------------------------------------------
@@ -2919,14 +2916,7 @@ class PostgresDB:
         mlb_ids = [r['mlb_id'] for r in meta_rows if r.get('mlb_id') is not None]
         if not mlb_ids:
             return [], meta_rows
-        card_year = self._season_card_year(season)
-        query = sql.SQL("""
-            SELECT cards.*, 'BOT' AS source
-            FROM card_bot AS cards
-            WHERE cards.mlb_id IN %s AND cards.year = %s AND cards.showdown_set = %s
-        """)
-        rows = self.execute_query(query=query, filter_values=(tuple(mlb_ids), card_year, showdown_set))
-        cards = [ExploreDataRecord(**row) for row in rows] if rows else []
+        cards = self.fetch_card_bot_records_for_mlb_ids(mlb_ids=mlb_ids, card_year=self._season_card_year(season), showdown_set=showdown_set)
         return cards, meta_rows
 
     def fetch_historical_roster_audit_rows(self, showdown_set: str, start_season: int, end_season: int,
@@ -5423,6 +5413,10 @@ class PostgresDB:
         self.create_log_player_search_table()
         self.create_log_card_image_generation_table()
         self.create_log_card_id_lookup_table()
+        self.create_log_event_table()
+        # Admin dashboard rollup tables (filled nightly by `showdown_bot database rollup_admin_metrics`)
+        from .admin_rollup import AdminRollup
+        AdminRollup(self).ensure_tables()
 
 # ------------------------------------------------------------------------
 # USER SETTINGS
@@ -8015,7 +8009,12 @@ class PostgresDB:
             return None
         edition_query = """
             SELECT e.id, e.release_id, e.name, e.attributes, e.slug, e.is_published, e.draft_of, e.published_at,
-                   e.cards_version, e.created_at, e.updated_at
+                   e.cards_version, e.created_at, e.updated_at,
+                   -- Any stored render (current or stale), so browsing can open on the Images tab
+                   EXISTS (
+                       SELECT 1 FROM internal.release_card_images i
+                       WHERE i.edition_id = e.id AND i.storage_path IS NOT NULL
+                   ) AS has_images
             FROM internal.release_editions e
             JOIN internal.releases r ON r.id = e.release_id
             WHERE e.id = %s AND e.retired_at IS NULL AND r.retired_at IS NULL
@@ -9116,6 +9115,22 @@ class PostgresDB:
             ALTER TABLE internal.log_custom_card_bot
                 ADD COLUMN IF NOT EXISTS generation_source character varying(64) NOT NULL DEFAULT 'web_customs_tab';
         """
+        # BRIN: rows are appended in time order, so a tiny block-range index makes the admin
+        # dashboard's date-window scans read only recent blocks instead of the whole table
+        created_on_index_sql = """
+            CREATE INDEX IF NOT EXISTS log_custom_card_bot_created_on_brin
+            ON internal.log_custom_card_bot USING brin (created_on);
+        """
+        # Visitor ids (see ClientContext), structured failure detail, and end-to-end build time
+        migrate_analytics_columns_sql = """
+            ALTER TABLE internal.log_custom_card_bot
+                ADD COLUMN IF NOT EXISTS anon_id text,
+                ADD COLUMN IF NOT EXISTS session_id text,
+                ADD COLUMN IF NOT EXISTS error_type character varying(128),
+                ADD COLUMN IF NOT EXISTS error_stage character varying(32),
+                ADD COLUMN IF NOT EXISTS error_detail text,
+                ADD COLUMN IF NOT EXISTS request_duration numeric(10,2);
+        """
         try:
             with self.connection.cursor() as cur:
                 cur.execute(schema_check_sql)
@@ -9124,6 +9139,8 @@ class PostgresDB:
                 cur.execute(user_id_index_sql)
                 cur.execute(migrate_is_hidden_sql)
                 cur.execute(migrate_generation_source_sql)
+                cur.execute(created_on_index_sql)
+                cur.execute(migrate_analytics_columns_sql)
                 self.connection.commit()
         except Exception as error:
             traceback.print_exc()
@@ -9155,12 +9172,23 @@ class PostgresDB:
             CREATE INDEX IF NOT EXISTS log_player_search_user_id_idx
             ON internal.log_player_search (user_id);
         """
+        timestamp_index_sql = """
+            CREATE INDEX IF NOT EXISTS log_player_search_timestamp_brin
+            ON internal.log_player_search USING brin ("timestamp");
+        """
+        migrate_client_ids_sql = """
+            ALTER TABLE internal.log_player_search
+                ADD COLUMN IF NOT EXISTS anon_id text,
+                ADD COLUMN IF NOT EXISTS session_id text;
+        """
 
         try:
             with self.connection.cursor() as cur:
                 cur.execute(create_table_sql)
                 cur.execute(migrate_user_id_sql)
                 cur.execute(user_id_index_sql)
+                cur.execute(timestamp_index_sql)
+                cur.execute(migrate_client_ids_sql)
                 self.connection.commit()
         except Exception as error:
             traceback.print_exc()
@@ -9191,12 +9219,23 @@ class PostgresDB:
             CREATE INDEX IF NOT EXISTS log_card_image_generation_user_id_idx
             ON internal.log_card_image_generation (user_id);
         """
+        timestamp_index_sql = """
+            CREATE INDEX IF NOT EXISTS log_card_image_generation_timestamp_brin
+            ON internal.log_card_image_generation USING brin ("timestamp");
+        """
+        migrate_client_ids_sql = """
+            ALTER TABLE internal.log_card_image_generation
+                ADD COLUMN IF NOT EXISTS anon_id text,
+                ADD COLUMN IF NOT EXISTS session_id text;
+        """
 
         try:
             with self.connection.cursor() as cur:
                 cur.execute(create_table_sql)
                 cur.execute(migrate_user_id_sql)
                 cur.execute(user_id_index_sql)
+                cur.execute(timestamp_index_sql)
+                cur.execute(migrate_client_ids_sql)
                 self.connection.commit()
         except Exception as error:
             traceback.print_exc()
@@ -9228,17 +9267,92 @@ class PostgresDB:
             CREATE INDEX IF NOT EXISTS log_card_id_lookup_user_id_idx
             ON internal.log_card_id_lookup (user_id);
         """
+        timestamp_index_sql = """
+            CREATE INDEX IF NOT EXISTS log_card_id_lookup_timestamp_brin
+            ON internal.log_card_id_lookup USING brin ("timestamp");
+        """
+        migrate_client_ids_sql = """
+            ALTER TABLE internal.log_card_id_lookup
+                ADD COLUMN IF NOT EXISTS anon_id text,
+                ADD COLUMN IF NOT EXISTS session_id text;
+        """
 
         try:
             with self.connection.cursor() as cur:
                 cur.execute(create_table_sql)
                 cur.execute(migrate_user_id_sql)
                 cur.execute(user_id_index_sql)
+                cur.execute(timestamp_index_sql)
+                cur.execute(migrate_client_ids_sql)
                 self.connection.commit()
         except Exception as error:
             traceback.print_exc()
             print(f"Error creating internal.log_card_id_lookup table: {error}")
             self.connection.rollback()
+
+    def create_log_event_table(self) -> None:
+        """Create internal.log_event: one row per product event the frontend reports (page views,
+        session starts, sign-ins, ...). See `mlb_showdown_bot/api/events.py` for the allowed events."""
+
+        if not self.connection:
+            print("No database connection available for creating logging table.")
+            return
+
+        statements = [
+            """
+            CREATE TABLE IF NOT EXISTS internal.log_event (
+                id bigserial PRIMARY KEY,
+                created_at timestamptz NOT NULL DEFAULT now(),
+                event character varying(64) NOT NULL,
+                user_id text,
+                anon_id text,
+                session_id text,
+                route character varying(256),
+                properties jsonb,
+                app_version text
+            );
+            """,
+            "CREATE INDEX IF NOT EXISTS log_event_created_at_brin ON internal.log_event USING brin (created_at);",
+            "CREATE INDEX IF NOT EXISTS log_event_event_created_at_idx ON internal.log_event (event, created_at);",
+            "CREATE INDEX IF NOT EXISTS log_event_user_id_idx ON internal.log_event (user_id) WHERE user_id IS NOT NULL;",
+            "CREATE INDEX IF NOT EXISTS log_event_anon_id_idx ON internal.log_event (anon_id);",
+        ]
+        try:
+            with self.connection.cursor() as cur:
+                for statement in statements:
+                    cur.execute(statement)
+                self.connection.commit()
+        except Exception as error:
+            traceback.print_exc()
+            print(f"Error creating internal.log_event table: {error}")
+            self.connection.rollback()
+
+    def log_events(self, events: List[dict]) -> int:
+        """Insert already-validated events (keys: event, user_id, anon_id, session_id, route,
+        properties). Returns how many were written."""
+
+        if not self.connection or not events:
+            return 0
+
+        sql = """
+            INSERT INTO internal.log_event (event, user_id, anon_id, session_id, route, properties, app_version)
+            VALUES (%s, %s, %s, %s, %s, %s, %s)
+        """
+        rows = [
+            (e['event'], e.get('user_id'), e.get('anon_id'), e.get('session_id'), e.get('route'),
+             json.dumps(e['properties']) if e.get('properties') else None, __version__)
+            for e in events
+        ]
+        try:
+            with self.connection.cursor() as cur:
+                cur.executemany(sql, rows)
+                self.connection.commit()
+            return len(rows)
+        except Exception as error:
+            traceback.print_exc()
+            print(f"Error logging events to DB: {error}")
+            self.connection.rollback()
+            return 0
 
     def _serialize_card_result(self, card: ShowdownPlayerCard) -> dict:
         data = card.as_json(exclude={'realtime_game_logs': True})
@@ -9248,7 +9362,8 @@ class PostgresDB:
         data.get('stats_period', {}).get('stats', {}).pop('postseason_game_logs', None)
         return data
 
-    def log_custom_card_submission(self, card:ShowdownPlayerCard, user_inputs: dict[str: Any], additional_attributes: dict[str: Any]) -> str:
+    def log_custom_card_submission(self, card:ShowdownPlayerCard, user_inputs: dict[str: Any], additional_attributes: dict[str: Any],
+                                   client: Optional[ClientContext] = None, generation_source: Optional[str] = None) -> str:
         """
         Store card submission data in the log_custom_card_bot table.
 
@@ -9256,6 +9371,9 @@ class PostgresDB:
             ShowdownPlayerCard: Card object to log.
             user_inputs: User inputs to log, including any additional attributes.
             additional_attributes: Additional attributes to log, if any.
+            client: Visitor ids from the request headers, if it came from the web app.
+            generation_source: Where the build came from (e.g. 'web_release_builder'). The column's
+                default ('web_customs_tab') applies when omitted.
 
         Returns:
             The new row's id, or None if it wasn't logged.
@@ -9281,7 +9399,8 @@ class PostgresDB:
             
         # BUILD CARD SUBMISSION OBJECT
         columns_not_on_card_object = [
-            'error', 'error_for_user', 'scraper_load_time', 'historical_season_trends', 'in_season_trends'
+            'error', 'error_for_user', 'scraper_load_time', 'historical_season_trends', 'in_season_trends',
+            'error_type', 'error_stage', 'error_detail', 'request_duration',
         ]
         if card:
             # CARD IS POPULATED
@@ -9350,6 +9469,10 @@ class PostgresDB:
         # ADD USER INPUTS AND VERSION
         card_submission['user_inputs'] = user_inputs_converted
         card_submission['version'] = __version__
+        if client:
+            card_submission.update(client.as_columns())
+        if generation_source:
+            card_submission['generation_source'] = generation_source
 
         # INSERT INTO THE DATABASE
         column_list = list(card_submission.keys())
@@ -9369,7 +9492,7 @@ class PostgresDB:
             self.connection.rollback()
             return None
 
-    def log_player_search(self, filters: dict, result_count: int, error: str = None, user_id: str = None) -> None:
+    def log_player_search(self, filters: dict, result_count: int, error: str = None, user_id: str = None, client: Optional[ClientContext] = None) -> None:
         """
         Store player search data in the log_player_search table.
 
@@ -9385,12 +9508,13 @@ class PostgresDB:
             return
 
         sql = """
-            INSERT INTO internal.log_player_search (filters, result_count, error, user_id)
-            VALUES (%s, %s, %s, %s)
+            INSERT INTO internal.log_player_search (filters, result_count, error, user_id, anon_id, session_id)
+            VALUES (%s, %s, %s, %s, %s, %s)
         """
+        client = client or EMPTY_CLIENT_CONTEXT
         try:
             with self.connection.cursor() as cur:
-                cur.execute(sql, (json.dumps(filters), result_count, error, user_id))
+                cur.execute(sql, (json.dumps(filters), result_count, error, user_id, client.anon_id, client.session_id))
                 self.connection.commit()
         except Exception as error:
             traceback.print_exc()
@@ -9398,7 +9522,7 @@ class PostgresDB:
             self.connection.rollback()
             return None
 
-    def log_card_image_generation(self, card_id: str, error: str = None, user_id: str = None) -> None:
+    def log_card_image_generation(self, card_id: str, error: str = None, user_id: str = None, client: Optional[ClientContext] = None) -> None:
         """
         Store card image generation data in the log_card_image_generation table.
 
@@ -9413,12 +9537,13 @@ class PostgresDB:
             return
 
         sql = """
-            INSERT INTO internal.log_card_image_generation (card_id, error, user_id)
-            VALUES (%s, %s, %s)
+            INSERT INTO internal.log_card_image_generation (card_id, error, user_id, anon_id, session_id)
+            VALUES (%s, %s, %s, %s, %s)
         """
+        client = client or EMPTY_CLIENT_CONTEXT
         try:
             with self.connection.cursor() as cur:
-                cur.execute(sql, (card_id, error, user_id))
+                cur.execute(sql, (card_id, error, user_id, client.anon_id, client.session_id))
                 self.connection.commit()
         except Exception as error:
             traceback.print_exc()
@@ -9426,7 +9551,7 @@ class PostgresDB:
             self.connection.rollback()
             return None
 
-    def log_card_id_lookup(self, card_id: str, source: str, error: str = None, user_id: str = None) -> None:
+    def log_card_id_lookup(self, card_id: str, source: str, error: str = None, user_id: str = None, client: Optional[ClientContext] = None) -> None:
         """
         Store card ID lookup data in the log_card_id_lookup table.
 
@@ -9436,9 +9561,9 @@ class PostgresDB:
             error: Error message if any.
             user_id: Verified user ID from JWT, if authenticated.
         """
-        self.log_card_id_lookups(card_ids=[card_id], source=source, error=error, user_id=user_id)
+        self.log_card_id_lookups(card_ids=[card_id], source=source, error=error, user_id=user_id, client=client)
 
-    def log_card_id_lookups(self, card_ids: List[str], source: str, error: str = None, user_id: str = None) -> None:
+    def log_card_id_lookups(self, card_ids: List[str], source: str, error: str = None, user_id: str = None, client: Optional[ClientContext] = None) -> None:
         """Store one log_card_id_lookup row per card ID in a single commit. See `log_card_id_lookup`."""
 
         if not self.connection:
@@ -9448,12 +9573,13 @@ class PostgresDB:
             return
 
         sql = """
-            INSERT INTO internal.log_card_id_lookup (card_id, source, error, user_id)
-            VALUES (%s, %s, %s, %s)
+            INSERT INTO internal.log_card_id_lookup (card_id, source, error, user_id, anon_id, session_id)
+            VALUES (%s, %s, %s, %s, %s, %s)
         """
+        client = client or EMPTY_CLIENT_CONTEXT
         try:
             with self.connection.cursor() as cur:
-                cur.executemany(sql, [(card_id, source, error, user_id) for card_id in card_ids])
+                cur.executemany(sql, [(card_id, source, error, user_id, client.anon_id, client.session_id) for card_id in card_ids])
                 self.connection.commit()
         except Exception as error:
             traceback.print_exc()
@@ -9741,6 +9867,11 @@ class PostgresDB:
         bref_or_mlb_id = str(showdown.mlb_id) if showdown.mlb_id else showdown.bref_id
         id_fields = [field for field in [showdown.year, bref_or_mlb_id, f'({showdown.player_type_override.value})' if showdown.player_type_override else None] if field is not None]
         return "-".join(id_fields).lower()
+
+    @classmethod
+    def dim_card_id(cls, showdown: ShowdownPlayerCard) -> str:
+        """dim_card.id for a card - what `/cards/card` looks up. Differs from `ShowdownPlayerCard.id`."""
+        return f"{cls._dim_card_player_id(showdown)}-{showdown.set.value}"
 
     def delete_superseded_card_versions(self, showdown_cards: list[ShowdownPlayerCard]) -> None:
         """Remove older-version card_bot rows for the given cards' player/set. dim_card holds one row
@@ -12527,7 +12658,9 @@ class PostgresDB:
                     job_id, user_id, team_id,
                     team.get('name') or identity.get('name'),
                     team.get('abbreviation') or identity.get('abbreviation'),
-                    team.get('primary_color'), team.get('secondary_color'),
+                    # An open sim has no takeover team, so fall back to the club's real colors
+                    team.get('primary_color') or identity.get('primary_color'),
+                    team.get('secondary_color') or identity.get('secondary_color'),
                     summary.get('year'), summary.get('set'), team_season.get('replaced_abbr'),
                     team_season.get('wins', 0), team_season.get('losses', 0),
                     team_season.get('win_pct', 0), team_season.get('points', 0),
@@ -12586,10 +12719,13 @@ class PostgresDB:
                        ct.title AS challenge_title, ct.slug AS challenge_slug, ct.description AS challenge_description,
                        ci.starts_at AS challenge_starts_at, ci.expires_at AS challenge_expires_at,
                        p.username AS creator_username,
+                       us.avatar_url AS creator_avatar_url,
+                       us.default_primary_color AS creator_primary_color,
                        (l.user_id IS NOT DISTINCT FROM %(user_id)s) AS is_own
                   FROM internal.sim_season l
                   JOIN internal.user_teams t ON t.team_id = l.team_id
                   LEFT JOIN public.profiles p ON p.id::text = l.user_id
+                  LEFT JOIN internal.user_settings us ON us.user_id = l.user_id
                   LEFT JOIN internal.challenge_instance ci ON ci.instance_id = l.challenge_instance_id
                   LEFT JOIN internal.challenge_template ct ON ct.template_id = ci.template_id
                  WHERE (t.is_public = TRUE OR l.user_id IS NOT DISTINCT FROM %(user_id)s)
@@ -12619,7 +12755,8 @@ class PostgresDB:
                    made_playoffs, is_champion, longest_win_streak, seed, created_at,
                    roster_points, challenge_instance_id, challenge_result,
                    challenge_title, challenge_slug, challenge_description,
-                   challenge_starts_at, challenge_expires_at, creator_username, is_own, rank, attempts
+                   challenge_starts_at, challenge_expires_at, creator_username,
+                   creator_avatar_url, creator_primary_color, is_own, rank, attempts
               FROM ranked
              WHERE rank <= %(limit)s
              ORDER BY year DESC, (challenge_instance_id IS NOT NULL) ASC, challenge_title ASC,
@@ -12641,12 +12778,17 @@ class PostgresDB:
         s.wins, s.losses, s.win_pct, s.points, s.division, s.division_rank,
         s.made_playoffs, s.is_champion, s.longest_win_streak, s.seed, s.created_at,
         s.challenge_instance_id, s.challenge_result, s.won_pennant, s.roster_points,
-        p.username AS creator_username
+        p.username AS creator_username,
+        us.avatar_url AS creator_avatar_url,
+        us.default_primary_color AS creator_primary_color
     """
 
     # Pairs with `_SIM_SEASON_LIST_COLUMNS` - every query selecting those columns must also carry
-    # this join so `creator_username` resolves (profiles are keyed by the auth user id as text).
-    _SIM_SEASON_LIST_JOINS = "LEFT JOIN public.profiles p ON p.id::text = s.user_id"
+    # these joins so the creator's username/avatar resolve (both keyed by the auth user id as text).
+    _SIM_SEASON_LIST_JOINS = """
+        LEFT JOIN public.profiles p ON p.id::text = s.user_id
+        LEFT JOIN internal.user_settings us ON us.user_id = s.user_id
+    """
 
     @staticmethod
     def _stringify_sim_season_ids(rows: list[dict]) -> list[dict]:

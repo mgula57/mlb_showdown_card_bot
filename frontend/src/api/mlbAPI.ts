@@ -158,6 +158,43 @@ export const fetchSeasonAwards = async (seasonId: string): Promise<SeasonAwards>
     return data.awards as SeasonAwards;
 };
 
+// Transactions cache (browser memory, lives for the page session). The backend refreshes every
+// 30 minutes, so a session reusing one response loses nothing.
+const _transactionsCache = new Map<string, TransactionFeed>();
+
+export type TransactionFeedOptions = {
+    showdownSet?: string;
+    teamId?: number;
+    /** YYYY-MM-DD: only moves on or after this date. Team net changes still cover the whole window. */
+    since?: string;
+    sort?: 'date' | 'points';
+    limit?: number;
+};
+
+/** Trades and free-agent moves in the offseason leading into `seasonId`, each player with his card
+ *  from the year before. `window_start` is null until the prior World Series is over. */
+export const fetchSeasonTransactions = async (seasonId: string, options: TransactionFeedOptions = {}, signal?: AbortSignal): Promise<TransactionFeed> => {
+    const params = new URLSearchParams();
+    if (options.showdownSet) params.set('showdown_set', options.showdownSet);
+    if (options.teamId !== undefined) params.set('team_id', String(options.teamId));
+    if (options.since) params.set('since', options.since);
+    if (options.sort) params.set('sort', options.sort);
+    if (options.limit !== undefined) params.set('limit', String(options.limit));
+    const url = `${API_BASE}/seasons/${seasonId}/transactions?${params}`;
+
+    const cached = _transactionsCache.get(url);
+    if (cached) return cached;
+
+    const response = await fetch(url, { signal });
+    if (!response.ok) {
+        throw new Error(`Failed to fetch transactions for season ${seasonId}: ${response.statusText}`);
+    }
+    const data = await response.json();
+    const feed = data.feed as TransactionFeed;
+    _transactionsCache.set(url, feed);
+    return feed;
+};
+
 export const fetchShowdownTeam = async (season: Season, teamId: number, sportId: number, teamAbbr: string, teamName?: string, showdownSet?: string): Promise<TeamBuilderTeam> => {
     const params = new URLSearchParams({ sport_id: String(sportId), team_abbr: teamAbbr });
     if (teamName) params.set('team_name', teamName);
@@ -390,6 +427,66 @@ export interface Sport {
     link?: string;
     sort_order?: number;
     active_status?: boolean;
+}
+
+export type TransactionMoveKind = 'trade' | 'signing' | 'free_agent' | 'waiver_claim';
+
+export interface TransactionPlayer {
+    mlb_id: number;
+    name?: string | null;
+    from_team_id?: number | null;
+    to_team_id?: number | null;
+    /** Big-league card points only. A minor-league card's points stay on the card itself. */
+    points?: number | null;
+    card?: ShowdownBotCard | null;
+    /** Id of a stored big-league card. `card` is slimmed for the feed, so the detail view fetches the full card by it. Null when `card` was built on the fly (minor-league, or a cameo regressed toward replacement level). */
+    card_id?: string | null;
+    /** `card` was built from minor-league stats (no big-league card that year). */
+    is_minor_league?: boolean;
+}
+
+export interface TransactionMove {
+    id: string;
+    kind: TransactionMoveKind;
+    date?: string | null;
+    description?: string | null;
+    team_ids: number[];
+    players: TransactionPlayer[];
+    /** A signing back with the club on the player's card. */
+    is_re_signing: boolean;
+    total_points: number;
+}
+
+/** Card points a club gained and lost over the window, by where each player started and ended. */
+export interface TransactionTeamChange {
+    team_id: number;
+    points_in: number;
+    points_out: number;
+    players_in: number;
+    players_out: number;
+    net: number;
+}
+
+export interface TransactionFeedTeam {
+    id: number;
+    name?: string | null;
+    abbreviation?: string | null;
+    primary_color?: string | null;
+    secondary_color?: string | null;
+}
+
+export interface TransactionFeed {
+    season: number;
+    card_year: number;
+    showdown_set: string;
+    window_start: string | null;
+    window_end: string | null;
+    /** Moves with at least one carded player, newest first (or biggest first with `sort: 'points'`). */
+    moves: TransactionMove[];
+    /** Major-league moves where nobody has a card. */
+    other_moves: TransactionMove[];
+    team_changes: TransactionTeamChange[];
+    teams: { [teamId: string]: TransactionFeedTeam };
 }
 
 export interface Season {

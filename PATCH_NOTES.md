@@ -2,6 +2,43 @@
 
 What's new in each Showdown Bot release, newest first.
 
+## 4.5.1 Release — 2027 Offseason
+_Released 2026-11-22 · [GitHub release](https://github.com/mgula57/mlb_showdown_card_bot/releases/tag/v4.5.1)_
+
+This release focuses on following the 2027 offseason, simulating next season before it starts, and upgrades to season simulation results.
+
+### 2027 Offseason
+Follow every trade and signing this winter, with each player's MLB Showdown card attached.
+- Added a `Transactions` tab to `Seasons`, listing every trade, signing, free agent move, and waiver claim of the 2027 offseason
+- Filter moves by team or type, or search by player or team name
+- Each move shows the cards involved and their total points; prospects count for half their points, marked with `*`
+- Added `Hot Stove` to the home page, showing the `Biggest` or `Latest` offseason moves
+- Upcoming seasons are marked `(Upcoming)` in the season picker and open on `Transactions`
+- `Projected standings` rank each club by the points of its current roster
+- Open any card from a move to see its full chart and stats
+
+### Season Simulations
+- Simulate the 2027 season before Opening Day using 2026 cards on each club's current roster
+- Clubs missing a position or enough pitchers get replacement-level fill-ins so every team can take the field
+- `Return free agents` sends unsigned free agents back to their 2026 club
+- `Sign free agents` lets you choose where unsigned free agents land
+- A new `Offseason Moves` tab shows how traded and signed players performed for their new clubs
+- See your team's season on the field view, with each player's sim OPS or ERA on their card
+- `Run again` now starts from the same settings, takeover club, and free agent signings as the last run
+- Past sims show how each season ended at a glance: `Champions`, `Pennant`, playoff seed, or whether you cleared the goal
+
+### Release Builder
+- Editions with rendered images now open on the `Images` tab
+- Conditional style rules and filters can now match a card's icons, such as `R` for rookie seasons
+
+### Bug Fixes
+- Rookie of the Year eligibility now follows the season being simulated, not the card's season
+- Relief pitchers win the sim Cy Young less often
+- Challenge rules that apply to every card now show their label correctly
+- Updated the `Privacy` page to explain what usage data the app records
+
+---
+
 ## 4.5 Release — Release Builder
 _Released 2026-11-12 · [GitHub release](https://github.com/mgula57/mlb_showdown_card_bot/releases/tag/v4.5)_
 

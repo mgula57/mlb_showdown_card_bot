@@ -28,7 +28,7 @@ export function RecentSims({ token, onOpen, seasonYear, layout, className }: Pro
     const [showAllSeasons, setShowAllSeasons] = useState(false);
     const [visibleCount, setVisibleCount] = useState(RECENT_LIMIT);
     const isGridLayout = layout === 'grid';
-    const layoutClass = isGridLayout ? 'grid grid-cols-2 gap-2' : 'flex flex-col gap-2';
+    const layoutClass = isGridLayout ? 'grid grid-cols-1 lg:grid-cols-2 gap-2' : 'flex flex-col gap-2';
 
     useEffect(() => {
         if (!token) return;
@@ -92,7 +92,7 @@ export function RecentSims({ token, onOpen, seasonYear, layout, className }: Pro
 
     return (
         <div className={`${layoutClass} ${className ?? ''}`}>
-            {seasonToggle && <div className="flex justify-end pb-0.5">{seasonToggle}</div>}
+            {seasonToggle && <div className="col-span-full flex justify-end pb-0.5">{seasonToggle}</div>}
             {visibleSeasons.slice(0, visibleCount).map(entry => (
                 <SimSeasonRow
                     key={entry.entry_id}
@@ -106,7 +106,7 @@ export function RecentSims({ token, onOpen, seasonYear, layout, className }: Pro
                 <button
                     type="button"
                     onClick={() => setVisibleCount(prev => prev + RECENT_LIMIT)}
-                    className="text-[12px] font-semibold text-(--text-secondary) hover:text-(--text-primary) py-2 cursor-pointer"
+                    className="col-span-full text-[12px] font-semibold text-(--text-secondary) hover:text-(--text-primary) py-2 cursor-pointer"
                 >
                     Show more ({remaining} more)
                 </button>
