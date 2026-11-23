@@ -3,6 +3,7 @@ import os
 import re
 import socket
 import requests
+from dataclasses import dataclass
 from enum import Enum
 from io import BytesIO
 from urllib.parse import urljoin, urlparse
@@ -91,6 +92,11 @@ class Expansion(str, Enum):
     @property
     def has_image(self) -> bool:
         return self.value not in ['BS', 'PM']
+
+    @property
+    def image_tag(self) -> Optional[str]:
+        """Auto image file name tag (ex: "(EXP_TD)") that breaks ties toward photos made for this expansion. None for Base Set."""
+        return None if self == Expansion.BS else f"(EXP_{self.value})"
 
 # ---------------------------------------
 # MARK: PLAYER IMAGE COMPONENT
@@ -375,6 +381,14 @@ class ImageParallel(str, Enum):
         return cls.NONE
 
     @property
+    def image_tag(self) -> Optional[str]:
+        """Auto image file name tag (ex: "(PAR_RF)") that breaks ties toward photos made for this parallel.
+        Black & White uses "BW" since "&" is awkward in file names. None when there's no parallel."""
+        if self == ImageParallel.NONE:
+            return None
+        return f"(PAR_{'BW' if self == ImageParallel.BLACK_AND_WHITE else self.value})"
+
+    @property
     def has_special_components(self) -> bool:
         return self.name not in ['NONE', 'BLACK_AND_WHITE']
 
@@ -562,6 +576,19 @@ class ImageLibrary(BaseModel):
     def is_recognized_file_name(cls, file_name: str) -> bool:
         """True if the file follows the {BG|CUT}-{YEAR}-{NAME}-({PLAYER ID})... naming the matcher needs."""
         return bool(cls.FILE_NAME_PATTERN.match(file_name or ''))
+
+
+@dataclass(frozen=True, order=True)
+class ImageMatchScore:
+    """How well an auto image file name fits a card. Compared field by field, so `tie_break`
+    (matching parallel/expansion/stats period tags) only decides between images whose `base`
+    (year, team, edition, etc.) is equal. Sums component by component."""
+
+    base: float = 0.0
+    tie_break: int = 0
+
+    def __add__(self, other: 'ImageMatchScore') -> 'ImageMatchScore':
+        return ImageMatchScore(base=self.base + other.base, tie_break=self.tie_break + other.tie_break)
 
 
 class ImageMatchType(str, Enum):

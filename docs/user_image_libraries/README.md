@@ -247,6 +247,21 @@ Add any of these in parentheses after the team to target certain cards:
 
 For example: `BG-2023-Ohtani-(ohtansh01)-(LAA)-(PITCHER).png`
 
+#### Parallel, expansion, and stats period tags
+
+These give a card its own photo when you already have one for the same player, year, and team. They only break ties, so a tagged photo never beats one with a closer year or the right team. Cards without a tag still prefer your untagged photo, since the shorter file name wins a tie. You can stack as many as you like.
+
+| Tag | Use it for |
+|-----|-----------|
+| `(PAR_RF)`, `(PAR_SPH)`, `(PAR_BW)`, `(PAR_GF)`, ... | A parallel: `PAR_` plus its code. Rainbow Foil `RF`, Sapphire `SPH`, Black & White `BW`, Radial `RAD`, Comic Book Hero `CB`, Gold Rush `GOLDRUSH`, Gold `GOLD`, Gold Frame `GF`, White Smoke `WS`, Flames `FLAMES`, Team Color Blast `TCB`, Breakout `BREAKOUT`, Booster `BOOSTER`, Moonlight `MOONLIGHT`, Galaxy `GALAXY` |
+| `(EXP_TD)`, `(EXP_PR)`, `(EXP_ASG)`, `(EXP_PM)` | An expansion: Trading Deadline, Pennant Run, All-Star Game, Promo |
+| `(SP_DATES)` | Date range cards, including 1st and 2nd half cards |
+| `(SP_FIRST_HALF)` / `(SP_SECOND_HALF)` | 1st or 2nd half cards |
+| `(SP_SPLIT)` | Split cards |
+| `(SP_POST)` | Postseason cards. Unlike `(POST)`, regular-season cards don't rank it lower. |
+
+For example: `CUT-2001-Bonds-(bondsba01)-(SFG)-(PAR_RF)-(EXP_TD).png` is used for a 2001 Giants Bonds that's a Rainbow Foil, Trading Deadline, or both, while `CUT-2001-Bonds-(bondsba01)-(SFG).png` stays on his other 2001 cards.
+
 <details>
 <summary>How the best image is picked when a player has several</summary>
 
@@ -258,7 +273,7 @@ Each file name of the needed type gets a score:
 - **`(DARK)` and `(HITTER)`/`(PITCHER)`:** add points when they match the card.
 - **`(POST)` or a WBC tag** on a card that isn't postseason or WBC: points taken away.
 
-The highest score wins. On a tie, the **shorter file name** wins.
+The highest score wins. On a tie, the photo with more matching **parallel, expansion, and stats period tags** wins, then the **shorter file name**.
 
 </details>
 

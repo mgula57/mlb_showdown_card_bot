@@ -239,6 +239,13 @@ export const DriveLibrarySetupModal: React.FC<DriveLibrarySetupModalProps> = ({ 
                                         <li><Code>(HITTER)</Code> or <Code>(PITCHER)</Code> two-way players (ex: Ohtani)</li>
                                     </ul>
                                 </li>
+                                <li><b>Variant tags</b> (optional): give a card its own photo when you already have one for the same player, year, and team. They only break ties, and you can add several:
+                                    <ul className="mt-1 space-y-0.5 pl-3">
+                                        <li><Code>(PAR_RF)</Code> parallels: <Code>PAR_</Code> plus the code (ex: <Code>SPH</Code>, <Code>BW</Code>, <Code>GF</Code>)</li>
+                                        <li><Code>(EXP_TD)</Code> expansions: <Code>TD</Code>, <Code>PR</Code>, <Code>ASG</Code>, <Code>PM</Code></li>
+                                        <li><Code>(SP_DATES)</Code> stats periods: <Code>DATES</Code>, <Code>FIRST_HALF</Code>, <Code>SECOND_HALF</Code>, <Code>SPLIT</Code>, <Code>POST</Code></li>
+                                    </ul>
+                                </li>
                             </ul>
                         </div>
 
