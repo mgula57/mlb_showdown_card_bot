@@ -9,6 +9,7 @@ from ..card.minor_league_cards import MinorLeagueCardBuilder
 from ..card.sets import Set
 from ..card.showdown_player_card import ShowdownPlayerCard
 from ..card.stats.normalized_player_stats import Datasource
+from ..data.stat_normalizer import StatNormalizerType
 from ..database.postgres_db import PostgresDB, CARD_DATA_DIAGNOSTIC_KEYS
 from ..mlb_stats_api import MLBStatsAPI, Transaction, TransactionTypeEnum
 from ..mlb_stats_api.models.teams.team import TeamWithColors
@@ -48,7 +49,8 @@ class FeedPlayer(BaseModel):
     points: Optional[int] = None
     card: Optional[dict] = None
     # Id of a stored big-league card. `card` is slimmed for the feed, so the detail view fetches
-    # the full card by this id. None for a minor-league card, which is built on the fly.
+    # the full card by this id. None for a card built on the fly: a minor-league card, or a
+    # big-league cameo regressed toward replacement level (see `TransactionFeedBuilder._regressed_if_cameo`).
     card_id: Optional[str] = None
     is_minor_league: bool = False
 
@@ -170,6 +172,11 @@ class TransactionFeedBuilder:
     # Moves that only make the feed when the player has a card. Elected free agency and waiver
     # claims are dominated by fringe 40-man players; a trade or major-league signing is news either way.
     _CARD_REQUIRED_KINDS = {MoveKind.FREE_AGENT, MoveKind.WAIVER_CLAIM}
+    # A big-league cameo this thin (a callup's 1 IP) prices on noise and can swing a club's net
+    # change by hundreds of points, so its card is rebuilt with stats regressed toward replacement
+    # level. Same floor under which a minor-league season is too thin to build a card from.
+    _CAMEO_PA_HITTER = MinorLeagueCardBuilder.MIN_PA_HITTER
+    _CAMEO_IP_PITCHER = MinorLeagueCardBuilder.MIN_IP_PITCHER
 
     # A feed card only has to render a card item and open its detail view: the UI-only diagnostics
     # and per-game logs are ~75% of a full payload, and a feed carries hundreds of cards.
@@ -243,10 +250,22 @@ class TransactionFeedBuilder:
                 source=Datasource.MLB_API,
             )
         return {
-            int(player_id.split('-', 1)[1]): card
+            int(player_id.split('-', 1)[1]): self._regressed_if_cameo(card)
             for player_id, card in by_player_id.items()
             if card is not None
         }
+
+    @classmethod
+    def _regressed_if_cameo(cls, card: ShowdownPlayerCard) -> ShowdownPlayerCard:
+        """The card rebuilt toward replacement level when its season is a cameo, else as stored.
+        The rebuilt card carries `stat_normalizer`, which is how `_attach_cards` tells it apart."""
+        if MinorLeagueCardBuilder.has_sample(card, min_pa=cls._CAMEO_PA_HITTER, min_ip=cls._CAMEO_IP_PITCHER):
+            return card
+        try:
+            return card.rebuilt(stat_normalizer=StatNormalizerType.REPLACEMENT_LEVEL)
+        except Exception:
+            logger.exception(f"Couldn't regress {card.name}'s cameo card for the transaction feed")
+            return card
 
     def _fetch_minor_league_cards(self, moves: list[FeedMove], cards: dict[int, ShowdownPlayerCard], card_year: int, showdown_set: str) -> dict[int, ShowdownPlayerCard]:
         """Minor-league cards for the uncarded players in trades and signings - the prospects and
@@ -357,8 +376,13 @@ class TransactionFeedBuilder:
                     player.is_minor_league = True
                 continue
             player.points = card.points
-            player.card = card.as_json(exclude=cls._CARD_JSON_EXCLUDE)
-            player.card_id = PostgresDB.dim_card_id(card)
+            if card.stat_normalizer:
+                # REGRESSED CAMEO (`_regressed_if_cameo`): THE STORED CARD BEHIND `card_id` STILL HAS THE
+                # RAW POINTS, SO THE DETAIL VIEW SHOWS THIS ONE, DIAGNOSTICS AND ALL, LIKE A MINOR-LEAGUE CARD.
+                player.card = card.as_json(exclude=cls._GAME_LOGS_EXCLUDE)
+            else:
+                player.card = card.as_json(exclude=cls._CARD_JSON_EXCLUDE)
+                player.card_id = PostgresDB.dim_card_id(card)
             # A free agent's previous club isn't in the signing row - it's the club on his card.
             if move.kind == MoveKind.SIGNING and player.from_team_id is None and card.team:
                 player.from_team_id = team_id_by_card_team.get(card.team.value)
