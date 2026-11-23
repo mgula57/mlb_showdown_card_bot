@@ -22,6 +22,7 @@ from ..utils.client_context import ClientContext
 # STATS
 from .stats.mlb_stats_api import MLBStatsAPI
 from ..mlb_stats_api import MLBStatsAPI as MLBStatsAPI_V2
+from ..shared.nationality import Nationality
 from ..fangraphs.client import FangraphsAPIClient, FieldingStats
 from ..statcast.client import StatcastAPIClient
 from .stats.normalized_player_stats import PlayerStatsNormalizer, NormalizedPlayerStats, Datasource, PositionStats
@@ -84,6 +85,15 @@ def resolve_mlb_id(mlb_api, name: str = None, name_original: str = None) -> int 
         mlb_id = search_results[0].id if search_results else None
 
     return mlb_id
+
+def fetch_mlb_api_nationality(mlb_id: int, **kwargs) -> str | None:
+    """Two-letter Nationality code for an MLB ID from its MLB API birth country, or None if unsupported/unavailable."""
+    try:
+        nationality = Nationality.from_country_name(build_mlb_api(kwargs).people.get_birth_country(player_id=mlb_id))
+        return nationality.value if nationality.is_populated else None
+    except Exception as e:
+        print(f"Failed to fetch MLB API nationality: {e}")
+        return None
 
 def find_mlb_id_for_mlb_api_career(stats_period: StatsPeriod, name: str = None, name_original: str = None, **kwargs) -> int | None:
     """For a full career request, return the player's MLB ID if their career reaches MLB API seasons (MLB_API_FIRST_SEASON+). Otherwise None.
@@ -322,6 +332,9 @@ def generate_card(image_libraries: list[ImageLibrary] = None, client: Optional[C
                 start_time = datetime.now()
                 wbc_lookup_mlb_id = archived_mlb_api_season.mlb_id
                 stats = NormalizedPlayerStats(**archived_mlb_api_season.stats).as_dict()
+                # ROWS SNAPSHOTTED BEFORE NATIONALITY WAS MAPPED FROM THE MLB API HAVE NONE, SO LOOK IT UP
+                if not stats.get('nationality') and archived_mlb_api_season.mlb_id:
+                    stats['nationality'] = fetch_mlb_api_nationality(archived_mlb_api_season.mlb_id, **kwargs)
                 stats_period.source = 'Archive'
                 scraper_load_time = (datetime.now() - start_time).total_seconds()
 

@@ -9,6 +9,7 @@ from ...mlb_stats_api.models.person import Position, Player as MLBStatsApi_Playe
 from ...fangraphs.models import FieldingStats, LeaderboardStats
 from ...shared.player_position import PlayerType
 from ...shared.hand import Hand
+from ...shared.nationality import Nationality
 from ...shared.team import Team as ShowdownTeam
 from ..utils.shared_functions import fill_empty_stat_categories, convert_number_to_ordinal, total_innings_pitched, total_ip_for_calculations
 from ...card.stats.stats_period import StatsPeriod, StatsPeriodType, StatsPeriodYearType, StatsPeriodLeague, TeamSelection
@@ -385,6 +386,12 @@ class PlayerStatsNormalizer:
     """Normalizes player stats from various sources into NormalizedPlayerStats"""
     
     @staticmethod
+    def _extract_nationality(player: MLBStatsApi_Player) -> Optional[str]:
+        """Two-letter Nationality code from the player's MLB API birthCountry, or None when unsupported/missing"""
+        nationality = Nationality.from_country_name(player.birth_country)
+        return nationality.value if nationality.is_populated else None
+
+    @staticmethod
     def from_mlb_api(player: MLBStatsApi_Player, stats_period: StatsPeriod) -> NormalizedPlayerStats:
         """Normalizes stats from MLB Stats API Player model for a given season"""
         # Implementation would extract and map fields from Player to NormalizedPlayerStats
@@ -410,6 +417,7 @@ class PlayerStatsNormalizer:
             'player_type_override': player_type_override,
             'hand': Hand(player.bat_side.description).value,
             'hand_throw': Hand(player.pitch_hand.description).value,
+            'nationality': PlayerStatsNormalizer._extract_nationality(player),
             
             # Standard stats
             **PlayerStatsNormalizer._extract_standard_stats(player, stats_period),
