@@ -238,6 +238,16 @@ class StatsPeriod(BaseModel):
 
     # SPLIT
     split: Optional[str] = None
+
+    @property
+    def player_image_tags(self) -> list[str]:
+        """Auto image file name tags (ex: "(SP_FIRST_HALF)") that break ties toward photos made for this period.
+        A season half is also a date range, so it matches both "(SP_DATES)" and its half's tag."""
+        match self.type:
+            case StatsPeriodType.DATE_RANGE: return ['(SP_DATES)'] + ([f'(SP_{self.season_half.value})'] if self.season_half else [])
+            case StatsPeriodType.POSTSEASON: return ['(SP_POST)']
+            case StatsPeriodType.SPLIT: return ['(SP_SPLIT)']
+            case _: return []
     situation_code: Optional[str] = None
     postseason_round_year: Optional[int] = None  # Year the player had the most games in the isolated postseason round. Set from game logs
 
