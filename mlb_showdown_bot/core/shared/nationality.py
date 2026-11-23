@@ -34,6 +34,21 @@ class Nationality(Enum):
     def _missing_(cls, value):
         return cls.NONE
 
+    @classmethod
+    def from_country_name(cls, country: str | None) -> 'Nationality':
+        """Map a country as the MLB Stats API spells it (birthCountry: 'USA', 'Dominican Republic', 'VEN') to a Nationality.
+        Unsupported or missing countries return Nationality.NONE."""
+        if not country:
+            return cls.NONE
+        key = country.strip()
+        if key.upper() in _COUNTRY_NAME_TO_CODE:
+            return cls(_COUNTRY_NAME_TO_CODE[key.upper()])
+        # Fall back to 3-letter (WBC style) codes, then 2-letter ISO codes
+        wbc_team = WBCTeam(key.upper())
+        if wbc_team != WBCTeam.NONE:
+            return wbc_team.nationality
+        return cls(key.upper())
+
     @property
     def is_unknown(self) -> bool:
         return self.value == 'NONE'
@@ -201,6 +216,36 @@ class Nationality(Enum):
         return 1.25
     
             
+# MLB Stats API birthCountry spellings (upper-cased) -> Nationality code
+_COUNTRY_NAME_TO_CODE: dict[str, str] = {
+    'USA': 'US', 'UNITED STATES': 'US',
+    'DOMINICAN REPUBLIC': 'DO',
+    'VENEZUELA': 'VE',
+    'CUBA': 'CU',
+    'CANADA': 'CA',
+    'MEXICO': 'MX',
+    'PUERTO RICO': 'PR',
+    'PANAMA': 'PA',
+    'JAPAN': 'JP',
+    'UNITED KINGDOM': 'GB', 'ENGLAND': 'GB', 'SCOTLAND': 'GB', 'WALES': 'GB', 'GREAT BRITAIN': 'GB',
+    'GERMANY': 'DE',
+    'AUSTRALIA': 'AU',
+    'COLOMBIA': 'CO',
+    'REPUBLIC OF KOREA': 'KR', 'SOUTH KOREA': 'KR', 'KOREA': 'KR',
+    'CURACAO': 'CW', 'CURAÇAO': 'CW',
+    'TAIWAN': 'TW', 'CHINESE TAIPEI': 'TW',
+    'NICARAGUA': 'NI',
+    'NETHERLANDS': 'NL',
+    'ITALY': 'IT',
+    'CHINA': 'CN',
+    'CZECH REPUBLIC': 'CZ', 'CZECHIA': 'CZ',
+    'ISRAEL': 'IS',
+    'BRAZIL': 'BR',
+    'SPAIN': 'ES',
+    'SOUTH AFRICA': 'ZA',
+}
+
+
 class WBCTeam(Enum):
     AUS = "AUS"
     BRA = "BRA"

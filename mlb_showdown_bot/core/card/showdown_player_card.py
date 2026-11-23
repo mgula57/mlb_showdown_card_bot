@@ -45,7 +45,7 @@ from .stats.datasource import Datasource
 
 from .sets import Set, Era, SpeedMetric, PlayerType, PlayerSubType, Position, PlayerImageComponent, TemplateImageComponent, ValueRange, Chart, ImageParallel
 from .chart import ChartCategory, Stat, ChartAccuracyBreakdown
-from .images import ImageLibrary, ImageSource, ImageSourceType, SpecialEdition, Edition, Expansion, ShowdownImage, StatHighlightsType, StatHighlightsCategory
+from .images import ImageLibrary, ImageMatchScore, ImageSource, ImageSourceType, SpecialEdition, Edition, Expansion, ShowdownImage, StatHighlightsType, StatHighlightsCategory
 from .points import Points, PointsMetric, PointsBreakdown
 from .variable_speed import VariableSpeedVariant
 from .command_out_selections import CommandOutSelection, CommandOutSelections
@@ -6066,7 +6066,7 @@ class ShowdownPlayerCard(BaseModel):
 
         return image
 
-    def _query_local_drive_for_auto_images(self, folder_path:str, components_dict:dict[PlayerImageComponent, str], bref_id:str, mlb_id:Optional[int] = None, year:int = None) -> tuple[dict[PlayerImageComponent, str], Optional[float]]:
+    def _query_local_drive_for_auto_images(self, folder_path:str, components_dict:dict[PlayerImageComponent, str], bref_id:str, mlb_id:Optional[int] = None, year:int = None) -> tuple[dict[PlayerImageComponent, str], Optional[ImageMatchScore]]:
         """Attempts to query local drive for a player image, if it does not exist use siloutte background.
 
         Args:
@@ -6113,7 +6113,7 @@ class ShowdownPlayerCard(BaseModel):
             Drive client with access to the matched library's files.
         """
         local_folder_path = os.getenv('AUTO_IMAGE_PATH')
-        best: Optional[tuple[float, ImageLibrary, dict[PlayerImageComponent, str], dict[str, str], type[GoogleDriveClient]]] = None
+        best: Optional[tuple[ImageMatchScore, ImageLibrary, dict[PlayerImageComponent, str], dict[str, str], type[GoogleDriveClient]]] = None
         for library in self.image.source.libraries or [ImageLibrary.showdown_bot()]:
             file_versions: dict[str, str] = {}
             if library.is_showdown_bot:
@@ -6137,7 +6137,7 @@ class ShowdownPlayerCard(BaseModel):
         self.image.source.library_name = library.name
         return (matches, file_versions, drive_client)
 
-    def _query_google_drive_for_auto_player_image_urls(self, folder_id:str, components_dict:dict[PlayerImageComponent, str], bref_id:str, mlb_id:Optional[int] = None, year:int = None, drive_client:type[GoogleDriveClient] = GoogleDriveClient) -> tuple[dict[PlayerImageComponent, str], dict[str, str], Optional[float]]:
+    def _query_google_drive_for_auto_player_image_urls(self, folder_id:str, components_dict:dict[PlayerImageComponent, str], bref_id:str, mlb_id:Optional[int] = None, year:int = None, drive_client:type[GoogleDriveClient] = GoogleDriveClient) -> tuple[dict[PlayerImageComponent, str], dict[str, str], Optional[ImageMatchScore]]:
         """Attempts to query google drive for a player image, if 
         it does not exist use siloutte background.
 
@@ -6197,7 +6197,7 @@ class ShowdownPlayerCard(BaseModel):
         
         return (file_matches_metadata_dict, file_versions, match_score)
     
-    def _img_file_matches_dict(self, files_metadata:list[dict], components_dict:dict[PlayerImageComponent, str], bref_id:str, year:int) -> tuple[dict[PlayerImageComponent, str], Optional[float]]:
+    def _img_file_matches_dict(self, files_metadata:list[dict], components_dict:dict[PlayerImageComponent, str], bref_id:str, year:int) -> tuple[dict[PlayerImageComponent, str], Optional[ImageMatchScore]]:
         """ Iterate through gdrive files and find matches to the player and other settings defined by user.
          
         Args:
@@ -6247,11 +6247,11 @@ class ShowdownPlayerCard(BaseModel):
 
         # ORDER EACH COMPONENT'S FILE LIST BY HOW WELL IT MATCHES PARAMETERS
         component_img_url_dict: dict[PlayerImageComponent, str] = {}
-        component_photo_files: dict[PlayerImageComponent, dict[str, tuple[str, float]]] = {}
-        file_scores: dict[str, float] = {}
+        component_photo_files: dict[PlayerImageComponent, dict[str, tuple[str, ImageMatchScore]]] = {}
+        file_scores: dict[str, ImageMatchScore] = {}
         for component, img_file_list in component_player_file_matches_dict.items():
             img_file_list = sorted(img_file_list, key = lambda i: len(i['name']), reverse=False)
-            match_scores: dict[str, float] = {}
+            match_scores: dict[str, ImageMatchScore] = {}
             component_photo_files[component] = {}
             for img_metadata in img_file_list:
                 img_id: str = img_metadata.get('id', None)
@@ -6274,15 +6274,16 @@ class ShowdownPlayerCard(BaseModel):
         # KEEP COMPONENTS ON THE SAME PHOTO. PICKED SEPARATELY, TIED SCORES (EX: 1999 AND 2001 FOR A 1999-2000 CARD) CAN MIX A BACKGROUND AND CUT FROM DIFFERENT PHOTOS
         shared_photo_keys = set.intersection(*(set(photo_files.keys()) for photo_files in component_photo_files.values()))
         if len(component_photo_files) > 1 and shared_photo_keys:
-            best_photo_key = max(sorted(shared_photo_keys), key=lambda key: sum(photo_files[key][1] for photo_files in component_photo_files.values()))
+            # SHORTEST NAME FIRST SO TIES GO TO THE SHORTER FILE NAME, LIKE EACH COMPONENT'S OWN PICK (EX: UNTAGGED OVER "(PAR_RF)" ON A BASE CARD)
+            best_photo_key = max(sorted(shared_photo_keys, key=lambda key: (len(key), key)), key=lambda key: sum((photo_files[key][1] for photo_files in component_photo_files.values()), ImageMatchScore()))
             component_img_url_dict = {component: photo_files[best_photo_key][0] for component, photo_files in component_photo_files.items()}
 
         # UPDATE EXISTING DICT
         components_dict.update(component_img_url_dict)
 
-        return (components_dict, sum(file_scores[file_id] for file_id in component_img_url_dict.values()))
+        return (components_dict, sum((file_scores[file_id] for file_id in component_img_url_dict.values()), ImageMatchScore()))
 
-    def _image_name_match_score(self, img_name:str, year:int) -> float:
+    def _image_name_match_score(self, img_name:str, year:int) -> ImageMatchScore:
         """Calculate the match score for a given image name.
 
         Args:
@@ -6290,7 +6291,7 @@ class ShowdownPlayerCard(BaseModel):
           year: Year of card.
 
         Returns:
-          Float representing the match score for image name.
+          Match score for the image name. Parallel/expansion/stats period tags only break ties.
         """
 
         # CASE-INSENSITIVE, USER LIBRARY FILES CAN HAVE LOWERCASE TAGS (EX: "(cle)")
@@ -6336,9 +6337,16 @@ class ShowdownPlayerCard(BaseModel):
         if '(WBC_' in img_name_upper and self.image.special_edition != SpecialEdition.WBC:
             match_score -= 2
 
-        
+        # TIE BREAK TAGS ONLY DECIDE BETWEEN IMAGES THAT ARE OTHERWISE EQUAL (EX: SAME YEAR AND TEAM)
+        tie_break = sum(tag in img_name_upper for tag in self._img_tie_break_tags())
 
-        return match_score
+        return ImageMatchScore(base=match_score, tie_break=tie_break)
+
+    def _img_tie_break_tags(self) -> list[str]:
+        """Auto image file name tags for the card's parallel (ex: "(PAR_RF)"), expansion (ex: "(EXP_TD)"),
+        and stats period (ex: "(SP_DATES)"). Each match adds a tie break point, never outranking year/team/etc."""
+        tags = [self.image.parallel.image_tag, self.image.expansion.image_tag] + self.stats_period.player_image_tags
+        return [tag for tag in tags if tag]
 
     def _img_match_keyword_list(self) -> list[str]:
         """ Generate list of keywords to match again google drive image
