@@ -27,7 +27,7 @@ from ...shared.player_position import PlayerType
 from ...database.postgres_db import PostgresDB
 from .accolade import Accolade
 from .stats_period import StatsPeriod, StatsPeriodType
-from ..utils.shared_functions import convert_to_numeric, fill_empty_stat_categories
+from ..utils.shared_functions import convert_to_numeric, fill_empty_stat_categories, weighted_ip_per_start
 
 class BaseballReferenceScraper(BaseModel):
 
@@ -1751,6 +1751,7 @@ class BaseballReferenceScraper(BaseModel):
         # FLATTEN MULTI YEAR STATS
         yearPd = pd.DataFrame.from_dict(yearly_stats_dict, orient='index')
         wa_games = lambda x: round(np.average(x, weights=yearPd.loc[x.index, "G"]))
+        wa_starts = lambda x: weighted_ip_per_start(list(zip(x, yearPd.loc[x.index, "GS"]))) or 0.0
         column_aggs = {
             '1B': 'sum',
             '2B': 'sum',
@@ -1790,7 +1791,7 @@ class BaseballReferenceScraper(BaseModel):
             'award_summary': ','.join,
             'bWAR': 'sum',
             'onbase_plus_slugging_plus': wa_games,
-            'IP/GS': 'mean',
+            'IP/GS': wa_starts if 'GS' in yearPd.columns else 'mean',
         }
         columns_to_remove = list(set(column_aggs.keys()) - set(yearPd.columns))
         if max(years) < 2015:

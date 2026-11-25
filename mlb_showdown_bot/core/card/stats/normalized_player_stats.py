@@ -11,7 +11,7 @@ from ...shared.player_position import PlayerType
 from ...shared.hand import Hand
 from ...shared.nationality import Nationality
 from ...shared.team import Team as ShowdownTeam
-from ..utils.shared_functions import fill_empty_stat_categories, convert_number_to_ordinal, total_innings_pitched, total_ip_for_calculations
+from ..utils.shared_functions import fill_empty_stat_categories, convert_number_to_ordinal, total_innings_pitched, total_ip_for_calculations, weighted_ip_per_start
 from ...card.stats.stats_period import StatsPeriod, StatsPeriodType, StatsPeriodYearType, StatsPeriodLeague, TeamSelection
 from .datasource import Datasource
 from .award_voting import AwardVotingResult
@@ -1526,7 +1526,11 @@ class PlayerStatsNormalizer:
         ip_values = [stats.IP for stats in stats_list if stats.IP > 0]
         if ip_values:
             combined_data['IP'] = total_innings_pitched(ip_values)
-        
+
+        # IP/GS IS A PER-START RATE, SO WEIGHT EACH SEASON BY ITS STARTS (OTHERWISE THE MOST RECENT YEAR'S VALUE CARRIES OVER)
+        if 'IP/GS' in combined_data:
+            combined_data['IP/GS'] = weighted_ip_per_start([(s.IP_GS, s.GS) for s in stats_list])
+
         # Aggregate averaging stats (mean)
         for stat in averaging_stats:
             alias = field_attr_to_alias.get(stat, stat)
