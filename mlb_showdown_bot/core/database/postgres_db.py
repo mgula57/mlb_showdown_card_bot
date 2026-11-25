@@ -4950,6 +4950,7 @@ class PostgresDB:
             ("releases",                  self.build_releases_table),
             ("league tables",             self.build_league_tables),
             ("comments",                  self.build_comments_table),
+            ("notifications",             self.build_notifications_table),
             ("historical team tables",   self.build_historical_team_tables),
             ("era team tables",           self.build_era_team_tables),
             ("card_bot indexes",          self.build_card_bot_indexes),
@@ -9021,6 +9022,148 @@ class PostgresDB:
                  WHERE id = %s AND deleted_at IS NULL
             """, (deleted_by, comment_id))
             return cur.rowcount > 0
+
+    def get_comment_reply_target(self, comment_id: str) -> str | None:
+        """Whose comment a reply answered: the reply it was aimed at, else its thread's top-level comment."""
+        if not self.connection:
+            return None
+        with self.connection.cursor() as cur:
+            cur.execute("""
+                SELECT COALESCE(c.reply_to_user_id, p.user_id)
+                  FROM internal.comments c
+                  JOIN internal.comments p ON p.id = c.parent_id
+                 WHERE c.id = %s
+            """, (comment_id,))
+            row = cur.fetchone()
+            return row[0] if row else None
+
+# ------------------------------------------------------------------------
+# NOTIFICATIONS
+# ------------------------------------------------------------------------
+
+    def build_notifications_table(self) -> None:
+        """In-app notifications: one row per recipient per event, kept until deleted (no retention yet).
+        `kind` is a `NotificationKind` (core/notifications); new kinds need no DDL. A notification about a
+        comment goes when the comment is hard-deleted, and hides while it's soft-deleted or its subject is
+        gone (see `_NOTIFICATION_FROM`)."""
+        if not self.connection:
+            return
+        with self.connection.cursor() as cur:
+            cur.execute("CREATE SCHEMA IF NOT EXISTS internal;")
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS internal.notifications (
+                    id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                    user_id      TEXT NOT NULL,
+                    kind         TEXT NOT NULL,
+                    actor_id     TEXT,
+                    subject_type TEXT NOT NULL,
+                    subject_id   UUID NOT NULL,
+                    comment_id   UUID REFERENCES internal.comments(id) ON DELETE CASCADE,
+                    created_at   TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+                    read_at      TIMESTAMP WITH TIME ZONE
+                );
+            """)
+            # A user's notifications, newest first
+            cur.execute("""
+                CREATE INDEX IF NOT EXISTS idx_notifications_user_created_at
+                    ON internal.notifications (user_id, created_at DESC, id DESC);
+            """)
+            # The bell's unread count
+            cur.execute("""
+                CREATE INDEX IF NOT EXISTS idx_notifications_user_unread
+                    ON internal.notifications (user_id) WHERE read_at IS NULL;
+            """)
+            # The comment cascade above
+            cur.execute("""
+                CREATE INDEX IF NOT EXISTS idx_notifications_comment_id
+                    ON internal.notifications (comment_id) WHERE comment_id IS NOT NULL;
+            """)
+
+    # A recipient's notifications that still point at something: the subject exists (and a release isn't
+    # retired), and the comment, if any, isn't deleted. The list and the unread count both read from these
+    _NOTIFICATION_FROM = """
+          FROM internal.notifications n
+          LEFT JOIN internal.releases r ON n.subject_type = 'release' AND r.id = n.subject_id AND r.retired_at IS NULL
+          LEFT JOIN internal.user_teams t ON n.subject_type = 'team' AND t.team_id = n.subject_id
+          LEFT JOIN internal.comments c ON c.id = n.comment_id
+    """
+    _NOTIFICATION_WHERE = """
+         WHERE n.user_id = %(user_id)s
+           AND (r.id IS NOT NULL OR t.team_id IS NOT NULL)
+           AND (n.comment_id IS NULL OR c.deleted_at IS NULL)
+    """
+    NOTIFICATION_EXCERPT_LENGTH = 140
+
+    def create_notifications(self, rows: list[dict]) -> None:
+        """Insert notifications. Each row has user_id, kind, actor_id, subject_type, subject_id and,
+        optionally, comment_id."""
+        if not self.connection or not rows:
+            return
+        with self.connection.cursor() as cur:
+            execute_values(cur, """
+                INSERT INTO internal.notifications (user_id, kind, actor_id, subject_type, subject_id, comment_id)
+                VALUES %s
+            """, [
+                (row['user_id'], row['kind'], row.get('actor_id'), row['subject_type'], row['subject_id'], row.get('comment_id'))
+                for row in rows
+            ])
+
+    def get_notifications(self, user_id: str, limit: int = 20, before: tuple[str, str] | None = None) -> dict:
+        """A page of a user's notifications, newest first, with who did it, what it's about and, for a
+        comment, the start of it. `before` is the (created_at, id) of the last one on the previous page.
+        Returns `notifications` and `next_cursor`."""
+        if not self.connection:
+            return {'notifications': [], 'next_cursor': None}
+        cursor_clause = "AND (n.created_at, n.id) < (%(before_at)s::timestamptz, %(before_id)s::uuid)" if before else ""
+        with self.connection.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute(f"""
+                SELECT n.id, n.kind, n.subject_type, n.subject_id, n.comment_id, n.created_at, n.read_at,
+                       n.actor_id, p.username AS actor_username, us.avatar_url AS actor_avatar_url,
+                       us.default_primary_color AS actor_primary_color,
+                       COALESCE(r.name, t.name) AS subject_name,
+                       LEFT(c.body, %(excerpt)s) AS comment_excerpt
+                  {self._NOTIFICATION_FROM}
+                  LEFT JOIN public.profiles p ON p.id::text = n.actor_id
+                  LEFT JOIN internal.user_settings us ON us.user_id = n.actor_id
+                  {self._NOTIFICATION_WHERE}
+                  {cursor_clause}
+                 ORDER BY n.created_at DESC, n.id DESC
+                 LIMIT %(limit)s
+            """, {
+                'user_id': user_id, 'limit': limit + 1, 'excerpt': self.NOTIFICATION_EXCERPT_LENGTH,
+                'before_at': before[0] if before else None, 'before_id': before[1] if before else None,
+            })
+            rows = [dict(r) for r in cur.fetchall()]
+        has_more = len(rows) > limit
+        rows = rows[:limit]
+        for row in rows:
+            for key in ('id', 'subject_id', 'comment_id'):
+                if row.get(key):
+                    row[key] = str(row[key])
+            for key in ('created_at', 'read_at'):
+                if row.get(key):
+                    row[key] = row[key].isoformat()
+        last = rows[-1] if has_more and rows else None
+        return {'notifications': rows, 'next_cursor': f"{last['created_at']}|{last['id']}" if last else None}
+
+    def count_unread_notifications(self, user_id: str) -> int:
+        if not self.connection:
+            return 0
+        with self.connection.cursor() as cur:
+            cur.execute(f"SELECT COUNT(*) {self._NOTIFICATION_FROM} {self._NOTIFICATION_WHERE} AND n.read_at IS NULL",
+                        {'user_id': user_id})
+            return cur.fetchone()[0]
+
+    def mark_notifications_read(self, user_id: str, notification_ids: list[str] | None = None) -> None:
+        """Mark a user's notifications read: the given ids, or all of them when `notification_ids` is None."""
+        if not self.connection:
+            return
+        id_clause = "AND id = ANY(%(ids)s::uuid[])" if notification_ids is not None else ""
+        with self.connection.cursor() as cur:
+            cur.execute(f"""
+                UPDATE internal.notifications SET read_at = NOW()
+                 WHERE user_id = %(user_id)s AND read_at IS NULL {id_clause}
+            """, {'user_id': user_id, 'ids': notification_ids})
 
 # -----------------------------------------------------------------------
 # LOGGING TABLES

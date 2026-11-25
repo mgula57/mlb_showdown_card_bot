@@ -148,6 +148,20 @@ Per-user preferences. One row per Supabase user UUID.
 | `starred_teams` | jsonb array of starred team IDs |
 | `avatar_url` | Profile image URL |
 
+#### `internal.notifications`
+
+In-app notifications (the header bell): one row per recipient per event, written by `core/notifications.Notifier` from the routes whose actions they report. Kept indefinitely for now. Rows about a soft-deleted comment, a deleted team or a retired release are hidden when read (`_NOTIFICATION_FROM` / `_NOTIFICATION_WHERE`). Build with `showdown_bot database build_notifications_table` (or `build_app_schema`).
+
+| Column | Notes |
+|--------|-------|
+| `id` PK | uuid |
+| `user_id` | Recipient (Supabase auth UUID) |
+| `kind` | `NotificationKind`: `comment_reply`, `subject_comment`, `release_remix` |
+| `actor_id` | Who did it |
+| `subject_type` / `subject_id` | The release or team it's about |
+| `comment_id` | The comment, for comment kinds. FK to `internal.comments`, cascades on delete |
+| `created_at` / `read_at` | `read_at` is null while unread |
+
 #### `internal.log_custom_card_bot`
 
 Audit log of every card generation request submitted through the web UI. One row per submission, including both successful cards and errors. Powers the user gallery.

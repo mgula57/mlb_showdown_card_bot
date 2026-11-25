@@ -8,6 +8,7 @@ from typing import ClassVar
 from flask import Blueprint, g, jsonify, request
 
 from ..core.database.postgres_db import PostgresDB
+from ..core.notifications import Notifier
 from .releases import _visible_published_release
 from .user_settings import require_auth, optional_user_id
 from .utils.profanity_filter import ProfanityFilter
@@ -225,6 +226,8 @@ def create_comment(subject_type: str, subject_id: str):
             if not _post_limiter.allow(g.user_id):
                 return jsonify({'error': "You're commenting fast. Wait a minute and try again."}), 429
             comment = db.create_comment(subject_type, subject_id, g.user_id, body, parent_id)
+            if comment is not None:
+                Notifier(db).comment_posted(comment, subject.owner_id)
         if comment is None:
             return jsonify({'error': 'That comment is no longer there.'}), 404
         return jsonify(comment), 201

@@ -48,6 +48,7 @@ import { sideMenuItems } from "./side_menu/sideMenuConfig";
 import { fetchFeatureStatuses, type FeatureStatus } from "../api/status/feature_status";
 import { FaExclamationCircle } from 'react-icons/fa';
 import { AccountIcon } from "./auth/AccountIcon";
+import { NotificationBell } from "./notifications/NotificationBell";
 import { LoginModal } from "./auth/LoginModal";
 import { UsernamePrompt } from "./auth/UsernamePrompt";
 import { useAuth } from "./auth/AuthContext";
@@ -341,7 +342,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
                     </div>
 
                     
-                    {/* Right Section: Showdown Set Selector and Account Icon */}
+                    {/* Right Section: Showdown Set Selector, Notifications and Account Icon */}
                     <div className="flex items-center space-x-2 shrink-0 ml-4">
                         <CustomSelect
                             // design-ok: set-badge picker, not a form field
@@ -352,6 +353,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
                             showDropdownArrow={true}
                         />
 
+                        <NotificationBell />
                         <AccountIcon size={8} onLoginClick={() => setShowLoginModal(true)} />
 
                     </div>

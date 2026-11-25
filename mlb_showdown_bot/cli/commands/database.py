@@ -836,6 +836,19 @@ def build_comments_table(
     db.close_connection()
     typer.echo("Done. internal.comments table is ready.")
 
+@app.command("build_notifications_table")
+def build_notifications_table(
+    env: str = typer.Option("dev", "--env", "-e", help="Environment to run the command in"),
+):
+    """Build the in-app notifications table (needs the comments table)"""
+    from ...core.database.postgres_db import PostgresDB
+
+    print("Building notifications table...")
+    db = PostgresDB(is_archive=env.lower() == "prod")
+    db.build_notifications_table()
+    db.close_connection()
+    typer.echo("Done. internal.notifications table is ready.")
+
 @app.command("build_season_status_table")
 def build_season_status_table(
     env: str = typer.Option("dev", "--env", "-e", help="Environment to run the command in"),

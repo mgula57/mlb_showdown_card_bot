@@ -5,6 +5,7 @@ import type { Team, TeamUpdatePayload, TeamRosterSlot, AutofillStrategy, Autofil
 import { fetchTeam, autofillTeam, isTeamDrafting, isTeamSetupValid, uploadTeamLogo, deleteTeamLogo, adminDeleteTeam, validateTeamLogoFile, recordTeamView, ROTATION_ROLES, DEFAULT_LINEUP_NAME } from '../../api/userTeams';
 import { useAuth } from '../auth/AuthContext';
 import { CommentsPanel } from '../shared/comments/CommentsPanel';
+import { useOpenRequestedComments } from '../shared/comments/openRequest';
 import { PublishToFeaturedModal } from './PublishToFeaturedModal';
 import { AutofillPanel } from './AutofillPanel';
 import { GuidedDraftPanel, GUIDED_DOCK_HEIGHT_CLASS } from './GuidedDraftPanel';
@@ -749,6 +750,8 @@ export function TeamDetail({ team, onSave, onBack, onReload, token, readOnly = f
     // Comments go on saved teams reachable from Browse, the owner's own included. Synthetic MLB rosters
     // have no saved id to hang them on (the server's `TeamCommentSubject` is the source of truth)
     const hasComments = !!team.team_id && !embedded && ((team.source === 'user' && team.is_public) || isOfficialTeam);
+    // A notification about a comment here opens them on arrival
+    useOpenRequestedComments({ type: 'team', id: team.team_id }, hasComments, () => setShowComments(true));
     /** What kind of team this is, above the name (like a release's Official / Community line). */
     const headerEyebrow = teamMode === 'drafting' ? 'Drafting'
         : isOfficialTeam ? 'Featured team'

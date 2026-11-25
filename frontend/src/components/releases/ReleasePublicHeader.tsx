@@ -14,6 +14,7 @@ import { ReleaseVisibilityPlate } from './ReleaseVisibilityPlate';
 import { describeEditionChange } from './releaseUpdates';
 import { UserAvatar } from '../shared/UserAvatar';
 import { CommentsPanel } from '../shared/comments/CommentsPanel';
+import { useOpenRequestedComments } from '../shared/comments/openRequest';
 import { useAuth } from '../auth/AuthContext';
 
 type ReleasePublicHeaderProps = {
@@ -55,6 +56,8 @@ export function ReleasePublicHeader({ release, cardCount, editionCount, isOwner,
     // Everyone sees comments (signing in to post), the owner included, while they're on. A private
     // release has no one else to talk to
     const hasComments = release.visibility !== 'private' && release.allow_comments;
+    // A notification about a comment here opens them on arrival
+    useOpenRequestedComments({ type: 'release', id: release.id }, hasComments && isOnRelease, () => setShowComments(true));
     const forkParent = release.fork_parent;
     const versionDate = release.version_published_at ?? release.published_at;
     const previewImages = release.preview_images ?? [];

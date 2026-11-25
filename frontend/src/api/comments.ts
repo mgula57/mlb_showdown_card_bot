@@ -1,4 +1,4 @@
-const API_BASE = import.meta.env.PROD ? "/api" : "http://127.0.0.1:5000/api";
+import { authHeaders, request, withCursor } from "./http";
 
 // =============================================================================
 // MARK: - TYPES
@@ -52,23 +52,6 @@ export type CommentPage = {
 // =============================================================================
 // MARK: - REQUESTS
 // =============================================================================
-
-async function request<T>(path: string, init: RequestInit, failure: string): Promise<T> {
-    const res = await fetch(`${API_BASE}${path}`, init);
-    if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err.error || `${failure} (${res.status})`);
-    }
-    return res.json();
-}
-
-function authHeaders(token?: string): Record<string, string> {
-    return token ? { Authorization: `Bearer ${token}` } : {};
-}
-
-function withCursor(path: string, cursor?: string | null): string {
-    return cursor ? `${path}?cursor=${encodeURIComponent(cursor)}` : path;
-}
 
 /** A page of a subject's comments, newest first. The token lets the owner read theirs while it's private. */
 export function fetchComments(subject: CommentSubject, token?: string, cursor?: string | null): Promise<CommentPage> {

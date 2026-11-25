@@ -8,6 +8,7 @@ from config import Config
 from ..core.card.images import ImageLibrary
 from ..core.card.utils.shared_functions import convert_year_string_to_list
 from ..core.database.postgres_db import PostgresDB, StaleEditionError
+from ..core.notifications import Notifier
 from ..core.set_builder.foil_selection import FoilSetType, FoilSuggester
 from ..core.set_builder.image_match_classifier import ImageMatchCard, ImageMatchClassifier
 from ..core.set_builder.release_card_rebuilder import ReleaseCardRebuilder, ReleaseCardRebuildError
@@ -347,6 +348,7 @@ def remix_release(release_id: str):
             if remix_id is None:
                 # The owner turned remixes off or unpublished it since the check above
                 return jsonify({'error': "This release can't be remixed right now"}), 409
+            Notifier(db).release_remixed(source, g.user_id)
             release = db.get_release(remix_id, g.user_id)
         return jsonify(release), 201
     except Exception as exc:
