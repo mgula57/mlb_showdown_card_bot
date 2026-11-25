@@ -10,6 +10,10 @@ import type { PendingRunnerThrow } from "../../games/SimRunnerRolls";
 export const LIVE_SIDES: LiveSide[] = ["away", "home"];
 export const otherSide = (side: LiveSide): LiveSide => (side === "away" ? "home" : "away");
 
+/** Who runs a seat, as the board names it: "CPU" for the sim's seat, else the player's username. */
+export const controllerLabel = (seat: LiveSeat): string =>
+    seat.controller === "sim" ? "CPU" : seat.username || "Player";
+
 /** The club batting and the club in the field in the half-inning being played. */
 export function sidesInPlay(state: LiveGameState): { batting: LiveSide; fielding: LiveSide } | null {
     if (!state.situation) return null;

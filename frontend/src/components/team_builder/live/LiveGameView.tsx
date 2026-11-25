@@ -33,7 +33,7 @@ import { FIELD_LABEL_CLASS } from "../../shared/fieldStyles";
 import FormEnabler from "../../customs/FormEnabler";
 import { Heading } from "../../shared/Heading";
 import { InlineError } from "../../shared/InlineError";
-import { actingSide, defaultPickerMode, liveTurnLabel, isMyTurn, LIVE_SIDES, liveEdgeOf, pendingThrowOf, teamName, type SubPickerMode } from "./liveGameState";
+import { actingSide, controllerLabel, defaultPickerMode, liveTurnLabel, isMyTurn, LIVE_SIDES, liveEdgeOf, pendingThrowOf, teamName, type SubPickerMode } from "./liveGameState";
 import LiveCardImagesProvider from "./LiveCardImages";
 import LiveSubPanel from "./LiveSubPanel";
 import LiveActionButton, { LiveTurnStatus, ManagerButton } from "./LiveTurnControls";
@@ -121,6 +121,11 @@ function LiveBoard({ game, token, cardMap, isLoadingCards, isSubmitting, moveErr
     const pending = state.pending;
     const myTurn = isMyTurn(game);
     const barColor = (side && game.seats[side].identity?.primary_color) || NEUTRAL_TEAM_COLOR;
+    // Named on the matchup cards' team frames: the sim's seat is the CPU.
+    const teamControllers = {
+        away: controllerLabel(game.seats.away),
+        home: controllerLabel(game.seats.home),
+    };
     const barButton = `rounded-control px-2 py-1 h-7 ${bannerTokens(barColor).btnClass}`;
 
     // Dev only: `?strategy=1` puts the strategy-card prototype on the board (`LiveStrategyPrototype`).
@@ -233,6 +238,7 @@ function LiveBoard({ game, token, cardMap, isLoadingCards, isSubmitting, moveErr
                                     // catching up, so `isReplaying` can't tell); scrubbing back after the final out
                                     // tosses older plays' dice as a sim does
                                     isHandThrown={!state.is_final || playbackState.cursor >= timeline.liveIndex - 1}
+                                    teamControllers={teamControllers}
                                 >
                                     {side && mine && (
                                         <LiveSubPanel

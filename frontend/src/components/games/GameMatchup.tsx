@@ -8,9 +8,13 @@
  *
  * While a roll plays out, a copy of its die sits where it's read (`RollMirrors`): the pitch over
  * both cards as the sum against On-Base, the swing on the winner's chart.
+ *
+ * A live game frames each card in the color of the club it's playing for in this game (not the
+ * card's own team), with who's running that club on the frame's top edge (`MatchupTeamFrame`).
  */
 import { useContext, type ReactNode } from "react";
 
+import { getContrastTextColor } from "../../functions/colors";
 import { useIsWiderThan } from "../../hooks/useIsWiderThan";
 import type { GameView } from "../../domain/game";
 import type { ShowdownBotCardAPIResponse } from "../../api/showdownBotCard";
@@ -132,6 +136,47 @@ function PointsTrend({ card }: { card?: ShowdownBotCardAPIResponse }) {
     );
 }
 
+/** The club a matchup card plays for in this game, and who's running it. */
+export type MatchupTeamFrame = {
+    /** The club's primary color: the frame's top-left end and its plate. */
+    color: string;
+    /** The club's secondary color, the frame's bottom-right end. */
+    secondaryColor: string;
+    /** Who plays the club: a username, or "CPU" for the sim. */
+    controller: string;
+    teamName: string;
+};
+
+/** The frame itself: a 2px ring just outside the card (and its advantage ring), running from the
+ *  club's primary color at the top left to its secondary at the bottom right, so the two meet along
+ *  the top-right and bottom-left corners. A static layer beside the card, never a mask over it. */
+function TeamFrameRing({ frame }: { frame: MatchupTeamFrame }) {
+    return (
+        <span
+            aria-hidden
+            className="team-frame-ring pointer-events-none absolute -inset-[3px] z-10"
+            style={{ backgroundImage: `linear-gradient(135deg, ${frame.color}, ${frame.secondaryColor})` }}
+        />
+    );
+}
+
+/** The frame's plate, sitting on its top edge: who's running the club, then the club. */
+function TeamFramePlate({ frame }: { frame: MatchupTeamFrame }) {
+    return (
+        <Plate
+            variant="custom"
+            size="sm"
+            textSize="text-[9px]"
+            className="pointer-events-none absolute -top-2.5 left-2.5 z-20 max-w-[calc(100%-1.25rem)] truncate"
+            style={{ backgroundColor: frame.color, color: getContrastTextColor(frame.color) }}
+            title={`${frame.controller} · ${frame.teamName}`}
+        >
+            <span className="font-bold">{frame.controller}</span>
+            <span className="truncate opacity-80">{frame.teamName}</span>
+        </Plate>
+    );
+}
+
 type MatchupSideProps = {
     side: MatchupSideData;
     isLoadingCards?: boolean;
@@ -152,9 +197,11 @@ type MatchupSideProps = {
     rollFocus?: MatchupRollFocus;
     /** A roll playing out on this card. */
     rollDice?: MatchupRollDice;
+    /** Frames the card in its club's color, named on the frame. Left out, the card is unframed. */
+    teamFrame?: MatchupTeamFrame;
 };
 
-export function MatchupSide({ side, isLoadingCards, onCardSelect, hideTrend, hasAdvantage, isAdvantageSettled, chartHighlight, accessory, rollFocus, rollDice }: MatchupSideProps) {
+export function MatchupSide({ side, isLoadingCards, onCardSelect, hideTrend, hasAdvantage, isAdvantageSettled, chartHighlight, accessory, rollFocus, rollDice, teamFrame }: MatchupSideProps) {
     const { label, player, cardKey, response, summary, advantagePct } = side;
     // A host showing card images answers for each card; anything else (or a failed render) is a CardItem.
     const imageFor = useContext(MatchupCardImagesContext);
@@ -169,7 +216,8 @@ export function MatchupSide({ side, isLoadingCards, onCardSelect, hideTrend, has
     if (!player) return null;
 
     return (
-        <div className="w-full min-w-0 space-y-1">
+        // A frame's plate rides up over the gap above the card, so it gets more room
+        <div className={`w-full min-w-0 ${teamFrame ? "space-y-3" : "space-y-1"}`}>
             <div className={`${BOARD_PANEL_CLASS} flex items-center justify-between gap-1.5 px-2 py-0.5`}>
                 <div className="flex min-w-0 items-center gap-2">
                     <span className={`${CAPS_LABEL_CLASS} text-(--text-primary)`}>{label}</span>
@@ -186,8 +234,11 @@ export function MatchupSide({ side, isLoadingCards, onCardSelect, hideTrend, has
             {accessory}
 
             {/* The side that lost the advantage fades back for the swing, so the eye goes to the
-                chart being rolled on */}
+                chart being rolled on. The team frame stays at full strength around it, outside the
+                advantage ring, laid outside the card so it takes no room from it. */}
             <div className="@container relative">
+                {teamFrame && <TeamFrameRing frame={teamFrame} />}
+                {teamFrame && <TeamFramePlate frame={teamFrame} />}
                 {rollDice?.pitch && (
                     <div className="pointer-events-none absolute inset-x-0 bottom-1.5 z-20 flex justify-center">
                         <PitchCompare {...rollDice.pitch} />
@@ -241,9 +292,11 @@ type GameMatchupProps = {
     rollFocus?: Partial<Record<AdvantageSide, MatchupRollFocus>>;
     /** Each side's `MatchupSide` `rollDice`. */
     rollDice?: Partial<Record<AdvantageSide, MatchupRollDice>>;
+    /** Each card's club in this game (see `MatchupSide`'s `teamFrame`). */
+    teamFrames?: Partial<Record<AdvantageSide, MatchupTeamFrame>>;
 };
 
-export default function GameMatchup({ game, cardMap, isLoadingCards, onCardSelect, hideStatlines = false, advantage, isAdvantageSettled, swingResult, accessories, rollFocus, rollDice }: GameMatchupProps) {
+export default function GameMatchup({ game, cardMap, isLoadingCards, onCardSelect, hideStatlines = false, advantage, isAdvantageSettled, swingResult, accessories, rollFocus, rollDice, teamFrames }: GameMatchupProps) {
     const [rowRef, isFullRow] = useIsWiderThan<HTMLDivElement>(FULL_ROW_MIN_WIDTH);
     const isShowingImages = useContext(MatchupCardImagesContext) != null;
     const matchup = resolveMatchup(game, cardMap, hideStatlines);
@@ -260,8 +313,8 @@ export default function GameMatchup({ game, cardMap, isLoadingCards, onCardSelec
 
     return (
         <div ref={rowRef} className="mx-2 space-y-1.5">
-            <div className={`grid gap-2 ${isSideBySide ? "grid-cols-2" : "grid-cols-1"}`}>
-                <MatchupSide {...shared} side={matchup.pitcher} hasAdvantage={advantage === "pitcher"} chartHighlight={advantage === "pitcher" ? swingResult : undefined} accessory={accessories?.pitcher} rollFocus={rollFocus?.pitcher} rollDice={sideDice("pitcher")} />
+            <div className={`grid ${teamFrames ? "gap-3" : "gap-2"} ${isSideBySide ? "grid-cols-2" : "grid-cols-1"}`}>
+                <MatchupSide {...shared} side={matchup.pitcher} hasAdvantage={advantage === "pitcher"} chartHighlight={advantage === "pitcher" ? swingResult : undefined} accessory={accessories?.pitcher} rollFocus={rollFocus?.pitcher} rollDice={sideDice("pitcher")} teamFrame={teamFrames?.pitcher} />
                 {sharedPitch && (
                     // A zero-height row on the seam (its negative margin takes back the extra grid
                     // gap), sized as a container so the face-off sizes off the cards' width
@@ -271,7 +324,7 @@ export default function GameMatchup({ game, cardMap, isLoadingCards, onCardSelec
                         </div>
                     </div>
                 )}
-                <MatchupSide {...shared} side={matchup.hitter} hasAdvantage={advantage === "hitter"} chartHighlight={advantage === "hitter" ? swingResult : undefined} accessory={accessories?.hitter} rollFocus={rollFocus?.hitter} rollDice={sideDice("hitter")} />
+                <MatchupSide {...shared} side={matchup.hitter} hasAdvantage={advantage === "hitter"} chartHighlight={advantage === "hitter" ? swingResult : undefined} accessory={accessories?.hitter} rollFocus={rollFocus?.hitter} rollDice={sideDice("hitter")} teamFrame={teamFrames?.hitter} />
             </div>
 
             <UpNext game={game} cardMap={cardMap} isLoadingCards={isLoadingCards} onCardSelect={onCardSelect} />

@@ -6,10 +6,10 @@
  */
 import { useContext, useMemo, useRef, useState, type Key, type ReactNode } from "react";
 import { FaRing } from "react-icons/fa";
-import { FaStar } from "react-icons/fa6";
+import { FaArrowRightArrowLeft, FaStar } from "react-icons/fa6";
 
 import type { ShowdownBotCardAPIResponse } from "../../api/showdownBotCard";
-import { bannerTokens } from "../../functions/colors";
+import { bannerTokens, NEUTRAL_TEAM_COLOR, NEUTRAL_TEAM_COLOR_SECONDARY } from "../../functions/colors";
 import type { GameView } from "../../domain/game";
 import { advantageSideOf, type AdvantageSide, type PlayEntry } from "../../domain/play";
 import type { RunnerRoll } from "../../domain/timeline";
@@ -35,7 +35,7 @@ import { GameScoreTrack, LastPlayLine } from "./GameBoardPanels";
 import GameField, { type RollPrompt } from "./GameField";
 import GameLinescore from "./GameLinescore";
 import { handTossInputs, type BoardDie } from "./boardDie";
-import GameMatchup, { MatchupSide, type MatchupRollDice, type MatchupRollFocus } from "./GameMatchup";
+import GameMatchup, { MatchupSide, type MatchupRollDice, type MatchupRollFocus, type MatchupTeamFrame } from "./GameMatchup";
 import { cardKeyOf, MatchupCardImagesContext } from "./matchupCardImages";
 import MatchupCenterPanel from "./MatchupCenterPanel";
 import { plateAppearanceSteps, runnerRollKey } from "./plateAppearanceSteps";
@@ -130,6 +130,9 @@ type GameStageProps = {
     heldPitch?: { roll: number; advantage?: AdvantageSide };
     /** Shown on the board when no one is up yet, e.g. the probable pitchers. */
     preGamePanel?: ReactNode;
+    /** Who plays each club (a username, or "CPU"). Given, the matchup cards are framed in the color
+     *  of the club they play for in this game, with this and the club's name on the frame. */
+    teamControllers?: Record<'away' | 'home', string>;
     className?: string;
     /** Host-owned modals. */
     children?: ReactNode;
@@ -138,10 +141,10 @@ type GameStageProps = {
 export default function GameStage({
     stage, game: gameView, plays, playbackState, playbackControls, isReplaying, playbackBar, detailedState,
     cardMap, isLoadingCards, isSim, gameKey, title, titleAccessory, modeBarColor, onBack,
-    topBarStatus, topBarActions, boxScorePanels, infoPanel, boardAction, boardTurn, boardTools, teamAnnouncements, strategy, rollPrompt, isHandThrown, heldPitch, preGamePanel, className, children,
+    topBarStatus, topBarActions, boxScorePanels, infoPanel, boardAction, boardTurn, boardTools, teamAnnouncements, strategy, rollPrompt, isHandThrown, heldPitch, preGamePanel, teamControllers, className, children,
 }: GameStageProps) {
     const {
-        selectedCard, setSelectedCard, isFieldExpanded, setIsFieldExpanded, railTab, setRailTab, isPhoneFieldShown, setIsPhoneFieldShown,
+        selectedCard, setSelectedCard, isFieldExpanded, setIsFieldExpanded, railTab, setRailTab, railSide, swapRailSide, isPhoneFieldShown, setIsPhoneFieldShown,
         simPlayStarted, setSimPlayStarted, isRecapDismissed, setIsRecapDismissed,
     } = stage;
     const [boardRef, isWideBoard] = useIsWiderThan<HTMLDivElement>(WIDE_BOARD_MIN_WIDTH);
@@ -149,11 +152,11 @@ export default function GameStage({
        which is what puts the defense totals and the full field of fielders on the board. */
     const game = useMemo(() => withLineupDefense(gameView), [gameView]);
 
-    // From `md` up the plays/box score rail sits beside the board and can be dragged wider by its
-    // left edge. Until then it keeps its CSS width. Below `md` it's a page of its own (see `PhoneTab`).
+    // From `md` up the plays/box score rail sits beside the board, on whichever side the user picked,
+    // and can be dragged wider by its inner edge. Until then it keeps its CSS width. Below `md` it's a page of its own (see `PhoneTab`).
     const panesRef = useRef<HTMLDivElement>(null);
     const isSideRail = useMediaQuery(SIDE_RAIL_QUERY);
-    const railResize = useResizablePanel({ storageKey: 'gameRailWidthPct:v1', containerRef: panesRef, defaultSize: null, minSize: RAIL_MIN_WIDTH, maxSize: railMaxWidth });
+    const railResize = useResizablePanel({ storageKey: 'gameRailWidthPct:v1', edge: railSide === 'left' ? 'start' : 'end', containerRef: panesRef, defaultSize: null, minSize: RAIL_MIN_WIDTH, maxSize: railMaxWidth });
     const showsBoard = isSideRail || isPhoneFieldShown;
     const showsRail = isSideRail || !isPhoneFieldShown;
 
@@ -383,6 +386,18 @@ export default function GameStage({
     const selectedCardImage = selectedCardKey ? cardImageFor?.(selectedCardKey) : undefined;
     /* Who's up for each club, for the box score tables to mark (see `LineupUpContext`). */
     const lineup = useMemo(() => lineupUp(game, plays), [game, plays]);
+    /* Each card framed in the club it's playing for here: the home club fields in the top half. */
+    const teamFrameOf = (teamSide: 'away' | 'home'): MatchupTeamFrame | undefined => teamControllers && {
+        color: matchupGame[teamSide].team.primaryColor ?? NEUTRAL_TEAM_COLOR,
+        secondaryColor: matchupGame[teamSide].team.secondaryColor ?? matchupGame[teamSide].team.primaryColor ?? NEUTRAL_TEAM_COLOR_SECONDARY,
+        controller: teamControllers[teamSide],
+        teamName: matchupGame[teamSide].team.name,
+    };
+    const isTopHalf = matchupGame.situation?.isTop ?? true;
+    const teamFrames: Record<AdvantageSide, MatchupTeamFrame | undefined> = {
+        pitcher: teamFrameOf(isTopHalf ? 'home' : 'away'),
+        hitter: teamFrameOf(isTopHalf ? 'away' : 'home'),
+    };
     const cornerCard = (side: "pitcher" | "hitter") => matchup && (
         <MatchupSide
             side={matchup[side]}
@@ -395,6 +410,7 @@ export default function GameStage({
             accessory={strategy?.played?.[side]}
             rollFocus={rollFocus[side]}
             rollDice={rollDice[side]}
+            teamFrame={teamFrames[side]}
         />
     );
 
@@ -429,7 +445,7 @@ export default function GameStage({
             {/* From `md` up the board and the rail sit side by side, so the situation never leaves
                 the screen. Whether the board itself is wide is measured rather than breakpointed,
                 since the sidebar takes a varying share of the width. */}
-            <div ref={panesRef} className="flex min-h-0 flex-1 flex-col short:flex-none short:h-[calc(100dvh-var(--app-nav-offset,2.5rem))] md:flex-row">
+            <div ref={panesRef} className={`flex min-h-0 flex-1 flex-col short:flex-none short:h-[calc(100dvh-var(--app-nav-offset,2.5rem))] ${railSide === 'left' ? 'md:flex-row-reverse' : 'md:flex-row'}`}>
                 <div ref={boardRef} className={`relative min-h-0 flex-1 overflow-y-auto scrollbar-hide md:min-w-0 ${showsBoard ? '' : 'hidden'}`}>
                     <GameBoard
                         isWide={isWideBoard}
@@ -478,6 +494,7 @@ export default function GameStage({
                                         accessories={strategy?.played}
                                         rollFocus={rollFocus}
                                         rollDice={rollDice}
+                                        teamFrames={teamControllers && teamFrames}
                                     />
                                 )}
                             </>
@@ -486,14 +503,23 @@ export default function GameStage({
                 </div>
 
                 <div
-                    className={`relative min-h-0 min-w-0 flex-1 flex-col bg-(--background-primary) md:w-80 md:flex-none md:border-l md:border-(--divider) xl:w-90 ${showsRail ? 'flex' : 'hidden'}`}
+                    className={`relative min-h-0 min-w-0 flex-1 flex-col bg-(--background-primary) md:w-80 md:flex-none ${railSide === 'left' ? 'md:border-r' : 'md:border-l'} md:border-(--divider) xl:w-90 ${showsRail ? 'flex' : 'hidden'}`}
                     style={isSideRail && railResize.size !== null ? { width: railResize.size } : undefined}
                 >
                     {isSideRail && (
                         <>
                             <ResizeHandle {...railResize.handleProps} label="Resize plays and box score" />
-                            <div className="shrink-0">
-                                <TabButtons tabs={railTabs} value={activeRailTab} onChange={setRailTab} className="px-2" fullWidth />
+                            <div className="flex shrink-0">
+                                <TabButtons tabs={railTabs} value={activeRailTab} onChange={setRailTab} className="min-w-0 flex-1 px-2" fullWidth />
+                                <button
+                                    type="button"
+                                    onClick={swapRailSide}
+                                    title={`Move to the ${railSide === 'right' ? 'left' : 'right'} of the field`}
+                                    aria-label={`Move plays and box score to the ${railSide === 'right' ? 'left' : 'right'} of the field`}
+                                    className={`shrink-0 border-b border-(--divider) px-3 ${buttonVariantClass('ghost')}`}
+                                >
+                                    <FaArrowRightArrowLeft className="size-3.5" />
+                                </button>
                             </div>
                         </>
                     )}

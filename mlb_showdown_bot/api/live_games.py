@@ -211,6 +211,8 @@ class LiveGameSession:
             'controller': row.get(f'{side.value}_controller'),
             'identity': (row['setup'].get(side.value) or {}).get('identity'),
             'is_mine': side in self.sides_for(user_id),
+            # WHO PLAYS THE SEAT, FOR THE BOARD TO NAME; NONE FOR THE SIM'S SEAT OR ONE NOBODY HAS TAKEN.
+            'username': row.get(f'{side.value}_username') if row.get(f'{side.value}_controller') == 'human' else None,
             # A PERSON'S SEAT NOBODY HAS TAKEN YET.
             'is_open': side == self.open_side(),
         }

@@ -111,6 +111,9 @@ function fieldStyle(isExpanded: boolean, bottomZone: string, cardsTop: string, m
         '--field-width': `min(${maxWidth ? `${maxWidth}, ` : ''}100cqw - ${SIDE_GUTTER}, ${heightLimit})`,
         '--field-corner-lift': `max(0px, ${cardsTop} + ${CORNER_GAP} - ${bottom})`,
         '--field-corner-reach': `max(0px, (100cqw - var(--field-width)) / 2 - ${CARDS_INSET})`,
+        // The field's height (its deep outfield, the box inside `GameField`'s `px-1`, and the
+        // catcher's padding when expanded) past the stage's top is under the track.
+        '--field-top-cover': `max(0px, var(--field-width) * ${FIELD_ART_HEADROOM / FIELD_ASPECT} + (var(--field-width) - 0.5rem) / ${FIELD_ASPECT}${isExpanded ? ' + 3rem' : ''} + ${bottom} - 100cqh)`,
         width: 'var(--field-width)',
         bottom: `calc(${bottom})`,
     } as CSSProperties;
@@ -130,7 +133,10 @@ export const NARROW_FIELD_ZOOM = 1.18;
 function narrowFieldStyle(isExpanded: boolean, trackClearance: number): CSSProperties {
     return {
         marginTop: isExpanded ? 0 : `calc(-1 * min(${trackClearance}px, ${FIELD_ART_HEADROOM_PADDING} * ${NARROW_FIELD_ZOOM}))`,
-    };
+        // At most the track's clearance is under the track (less when the outfield is shorter
+        // than that, which only keeps the OF etching a little lower than it needs to be).
+        '--field-top-cover': `${isExpanded ? 0 : trackClearance}px`,
+    } as CSSProperties;
 }
 
 type GameBoardProps = {

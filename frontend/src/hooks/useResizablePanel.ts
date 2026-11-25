@@ -1,18 +1,22 @@
 /**
- * @fileoverview A panel at the end of a container (a sidebar on the right, a sheet at the bottom)
- * that the user resizes by dragging its leading edge with a mouse, pen or finger, or with the arrow
+ * @fileoverview A panel at one end of a container (a sidebar on the right or left, a sheet at the
+ * bottom) that the user resizes by dragging its inner edge with a mouse, pen or finger, or with the arrow
  * keys. The size is kept as a fraction of the container so it scales with the window, and it's
  * remembered on this device once a drag ends. Pair with `ResizeHandle`.
  */
 import { useCallback, useEffect, useRef, useState, type KeyboardEvent, type PointerEvent as ReactPointerEvent, type RefObject } from "react";
 
 export type ResizeAxis = "x" | "y";
+/** Which end of the container the panel sits at: "end" (right / bottom) or "start" (left / top). */
+export type ResizeEdge = "start" | "end";
 
 type Options = {
     /** localStorage key for the remembered size. */
     storageKey: string;
     /** "x" resizes a panel on the right by its width, "y" one at the bottom by its height. */
     axis?: ResizeAxis;
+    /** The end of the container the panel sits at, so its inner edge is the one dragged. */
+    edge?: ResizeEdge;
     /** The element the panel shares space with, measured for the fraction and the limits. */
     containerRef: RefObject<HTMLElement | null>;
     /** Size in px until the user resizes. Null leaves the panel to its own CSS. */
@@ -43,7 +47,7 @@ const saveFraction = (key: string, fraction: number | null) => {
     }
 };
 
-export function useResizablePanel({ storageKey, axis = "x", containerRef, defaultSize, minSize, maxSize }: Options) {
+export function useResizablePanel({ storageKey, axis = "x", edge = "end", containerRef, defaultSize, minSize, maxSize }: Options) {
     const [fraction, setFraction] = useState<number | null>(() => loadFraction(storageKey));
     const [containerSize, setContainerSize] = useState(() =>
         typeof window === "undefined" ? 0 : axis === "x" ? window.innerWidth : window.innerHeight);
@@ -87,9 +91,11 @@ export function useResizablePanel({ storageKey, axis = "x", containerRef, defaul
         latest.current = startSize / container;
         setIsResizing(true);
 
-        // The panel trails the handle, so dragging toward the start of the axis grows it.
+        // At the end the panel trails the handle, so dragging toward the start of the axis grows it;
+        // at the start it leads the handle, so dragging toward the end does.
         const onMove = (ev: PointerEvent) => {
-            const delta = start - (axis === "x" ? ev.clientX : ev.clientY);
+            const moved = (axis === "x" ? ev.clientX : ev.clientY) - start;
+            const delta = edge === "end" ? -moved : moved;
             latest.current = clamp(startSize + delta, container) / container;
             setFraction(latest.current);
         };
@@ -110,8 +116,8 @@ export function useResizablePanel({ storageKey, axis = "x", containerRef, defaul
     };
 
     const onKeyDown = (e: KeyboardEvent<HTMLElement>) => {
-        const grow = axis === "x" ? "ArrowLeft" : "ArrowUp";
-        const shrink = axis === "x" ? "ArrowRight" : "ArrowDown";
+        const [toStart, toEnd] = axis === "x" ? ["ArrowLeft", "ArrowRight"] : ["ArrowUp", "ArrowDown"];
+        const [grow, shrink] = edge === "end" ? [toStart, toEnd] : [toEnd, toStart];
         if (e.key !== grow && e.key !== shrink) return;
         e.preventDefault();
         const container = measureContainer();
@@ -132,6 +138,7 @@ export function useResizablePanel({ storageKey, axis = "x", containerRef, defaul
         /** Spread onto `ResizeHandle`. */
         handleProps: {
             axis,
+            edge,
             onPointerDown,
             onKeyDown,
             onDoubleClick: reset,

@@ -14571,12 +14571,18 @@ class PostgresDB:
             return str(cur.fetchone()[0])
 
     def fetch_live_game(self, live_game_id: str | None = None, invite_code: str | None = None, include_setup: bool = True) -> dict | None:
-        """One live game, by id or by invite code."""
+        """One live game, by id or by invite code, with each seated player's username
+        (`away_username`, `home_username`)."""
         if not self.connection or not (live_game_id or invite_code):
             return None
         where = "live_game_id = %s::uuid" if live_game_id else "invite_code = %s"
         rows = self.execute_query(
-            f"SELECT {self._LIVE_GAME_COLUMNS}{', setup, result' if include_setup else ''} FROM internal.live_game WHERE {where}",
+            f"""
+            SELECT {self._LIVE_GAME_COLUMNS}{', setup, result' if include_setup else ''},
+                   (SELECT p.username FROM public.profiles p WHERE p.id::text = g.away_user_id::text) AS away_username,
+                   (SELECT p.username FROM public.profiles p WHERE p.id::text = g.home_user_id::text) AS home_username
+              FROM internal.live_game g WHERE {where}
+            """,
             (live_game_id or invite_code,),
         )
         return self._stringify_live_game(rows[0]) if rows else None

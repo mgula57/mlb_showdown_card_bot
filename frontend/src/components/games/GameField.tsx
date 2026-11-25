@@ -7,12 +7,12 @@
  * can't fill (defense alignment, runner identity) degrade to markers rather than disappearing.
  */
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { FaCaretUp, FaDownLeftAndUpRightToCenter, FaPlay, FaUpRightAndDownLeftFromCenter } from "react-icons/fa6";
+import { FaCaretUp, FaPlay } from "react-icons/fa6";
 
 import type { DefenseAlignment, GameView, PlayerRef } from "../../domain/game";
 import { resolveCardKey } from "../../domain/players";
 import { ordinal } from "../../functions/formatters";
-import { basePathBetween, runnerKey, type FrameTransition, type RunnerSpot } from "../../domain/timeline";
+import { basePathBetween, runnerKey, type FrameTransition, type RunnerRoll, type RunnerSpot } from "../../domain/timeline";
 import type { PlayEntry } from "../../domain/play";
 import type { ShowdownBotCardAPIResponse } from "../../api/showdownBotCard";
 import { defenseAtPosition, IF_POSITIONS, OF_POSITIONS } from "../shared/DefenseUtils";
@@ -75,7 +75,7 @@ type GameFieldProps = {
      *  the field (its art, players and docked dice), never the corner controls or the scoreboard. */
     isDimmed?: boolean;
     /** The most recent completed play — its text description sits in the field's bottom-right
-     *  corner, opposite the defense summary. Undefined before the first play of the game. */
+     *  corner. Undefined before the first play of the game. */
     lastPlay?: PlayEntry;
     /** Sim only — which side won the advantage on the play being resolved; that side's card is
      *  highlighted. Undefined outside the reveal beats, and for real games. */
@@ -524,44 +524,51 @@ function DieDock({ children }: { children: ReactNode }) {
     return <div className="absolute right-full top-1/2 -z-10 -translate-y-1/2 pr-1">{children}</div>;
 }
 
-/** The third-base line, home to third, in the field box's own proportions: the angle it climbs at
- *  (measured on screen, so the box's aspect counts) and a spot in the foul ground beside it,
- *  between the plate and the third-base coach's box and far enough off the line to stay clear of
- *  the chalk. */
-const THIRD_BASE_LINE = (() => {
-    const [homeX, homeY] = HOME;
-    const [thirdX, thirdY] = BASES.third;
-    // In units of the box's width, so x and y measure alike.
-    const dx = (homeX - thirdX) / 100;
-    const dy = (homeY - thirdY) / 100 / FIELD_ASPECT;
-    const angle = Math.atan2(dy, dx);
-    const length = Math.hypot(dx, dy);
-    // Past the middle of the line, clear of the hitter at the plate and short of the coach's box
-    // by third, then off it toward foul ground (down and to the left of it).
-    const along = 0.56;
-    const offset = 0.065;
-    const centerX = (homeX - (homeX - thirdX) * along) / 100 - Math.sin(angle) * offset;
-    const centerY = ((homeY - (homeY - thirdY) * along) / 100 / FIELD_ASPECT + Math.cos(angle) * offset) * FIELD_ASPECT;
-    return { degrees: (angle * 180) / Math.PI, length, center: [centerX * 100, centerY * 100] as const };
-})();
+type DefenseZone = "OF" | "IF" | "CA";
 
-const ETCH_STYLE: React.CSSProperties = {
-    ...atPercent(THIRD_BASE_LINE.center),
-    transform: `translate(-50%, -50%) rotate(${THIRD_BASE_LINE.degrees}deg)`,
-    maxWidth: `${THIRD_BASE_LINE.length * 100}%`,
+/** Which defense total a throw on the bases tests (see `SimRunnerRolls`). */
+const ZONE_BY_RUNNER_ROLL: Record<RunnerRoll["kind"], DefenseZone> = { steal: "CA", advance: "OF", double_play: "IF" };
+
+/** Where each defense total is etched (`at`, box %, the label's center), on the ground it covers,
+ *  and how far it's tipped back onto that ground (`tilt`, degrees). The stands look down steeply at
+ *  the plate and shallowly at the outfield, so the farther a label is, the more it lies back.
+ *  - OF: out on the outfield grass, as deep as `OF_DEEPEST_Y` when the score track leaves it in
+ *    view. Collapsed, the deep outfield tucks under the track (`GameBoard`'s `OUTFIELD_TUCK`, all of
+ *    it on a narrow board; `--field-top-cover` says how much), so it's never higher than `at`, the
+ *    grass just past the infield dirt, which always shows.
+ *  - IF: the infield dirt behind second.
+ *  - CA: the foul grass behind the plate on the third-base side, clear of the hitter's card, which
+ *    covers the plate's dirt circle. */
+const ZONE_SPOTS: Record<DefenseZone, { at: readonly [number, number]; tilt: number }> = {
+    OF: { at: [49.9, 5.5], tilt: 60 },
+    IF: { at: [49.9, 13], tilt: 54 },
+    CA: { at: [32.5, 92], tilt: 36 },
 };
 
-/** The fielding side's OF / IF / CA defense totals, etched into the left-field foul ground along
- *  the third-base line, so they read as part of the field rather than a panel on it. With
- *  `onToggleExpanded` the whole etching is the button that brings out every fielder, ending in an
- *  etched expand / collapse mark so it reads as something to press. Null when there's no rating
- *  to show. */
+/** The deepest the OF etching goes: well out on the grass, short of the center fielder's tag. */
+const OF_DEEPEST_Y = -8;
+
+/** The OF etching's `top`: as deep as the score track leaves in view (with room for the label),
+ *  between `OF_DEEPEST_Y` and its spot just past the dirt. A `top` % is of the box's height, which
+ *  is what `FIELD_ART_HEADROOM` (the outfield above the box) is a share of. */
+const OF_TOP = `clamp(${OF_DEEPEST_Y}%, var(--field-top-cover, 0px) - ${FIELD_ART_HEADROOM * 100}% + 1.25em, ${ZONE_SPOTS.OF.at[1]}%)`;
+
+/** Lays a label back onto the ground by `tilt` degrees, tipped away from the viewer, so it's
+ *  shorter than it's wide and its top edge sits a touch farther off. */
+const groundTilt = (tilt: number) => `perspective(32em) rotateX(${tilt}deg)`;
+
+/** The fielding side's OF / IF / CA defense totals, each etched into the part of the field it
+ *  covers (`ZONE_SPOTS`) and tipped back onto the ground, so they read as part of the field rather
+ *  than a panel on it. While a throw on the bases tests one of them (`litZone`), that one darkens
+ *  and the others fade. With `onToggleExpanded` each etching is a button that brings out every
+ *  fielder. Null when there's no rating to show. */
 function DefenseSummary({
-    defense, cardMap, expanded, onToggleExpanded,
+    defense, cardMap, expanded, litZone, onToggleExpanded,
 }: {
     defense: DefenseAlignment;
     cardMap: CardMap;
     expanded: boolean;
+    litZone?: DefenseZone | null;
     onToggleExpanded?: () => void;
 }) {
     const ratingFor = (slot: keyof DefenseAlignment): number | null => {
@@ -577,47 +584,51 @@ function DefenseSummary({
         return ratings.length ? ratings.reduce((total, rating) => total + rating, 0) : null;
     };
 
-    const rows: [string, number | null][] = [
-        ["OF", sumFor(OF_POSITIONS)],
-        ["IF", sumFor(IF_POSITIONS)],
-        ["CA", ratingFor("catcher")],
-    ];
+    const totals: Record<DefenseZone, number | null> = {
+        OF: sumFor(OF_POSITIONS),
+        IF: sumFor(IF_POSITIONS),
+        CA: ratingFor("catcher"),
+    };
 
-    if (rows.every(([, value]) => value == null)) return null;
+    if (Object.values(totals).every((value) => value == null)) return null;
 
-    const content = (
-        <>
-            {rows.map(([label, value]) => (
-                <span key={label}>{label} {value == null ? "–" : `${value >= 0 ? "+" : ""}${value}`}</span>
-            ))}
-        </>
-    );
-    const etch = "field-etched flex items-center gap-[0.7em] whitespace-nowrap font-display-upright text-[clamp(11px,2.4cqw,18px)] uppercase leading-none";
+    const action = expanded ? "Show battery only" : "Show all fielders";
+    const etch = "field-etched whitespace-nowrap font-display-upright text-[clamp(13px,3cqw,24px)] uppercase leading-none";
 
     return (
-        <div className="absolute" style={ETCH_STYLE}>
-            {onToggleExpanded ? (
-                <button
-                    type="button"
-                    onClick={onToggleExpanded}
-                    aria-label={`${rows.map(([label, value]) => `${label} ${value ?? "none"}`).join(", ")}. ${expanded ? "Show battery only" : "Show all fielders"}`}
-                    title={expanded ? "Show battery only" : "Show all fielders"}
-                    className={`${etch} cursor-pointer px-1 py-0.5`}
-                >
-                    {content}
-                    {expanded
-                        ? <FaDownLeftAndUpRightToCenter aria-hidden className="field-etched-icon text-[0.8em]" />
-                        : <FaUpRightAndDownLeftFromCenter aria-hidden className="field-etched-icon text-[0.8em]" />}
-                </button>
-            ) : (
-                <div className={etch}>{content}</div>
-            )}
-        </div>
+        <>
+            {(Object.keys(ZONE_SPOTS) as DefenseZone[]).map((zone) => {
+                const value = totals[zone];
+                const label = `${zone} ${value == null ? "–" : `${value >= 0 ? "+" : ""}${value}`}`;
+                const state = litZone === zone ? "field-etched-lit" : litZone ? "field-etched-dim" : "";
+                return (
+                    <div
+                        key={zone}
+                        className="absolute transition-[top] duration-300 ease-out"
+                        style={{ ...atPercent(ZONE_SPOTS[zone].at), ...(zone === "OF" && { top: OF_TOP }), transform: `translate(-50%, -50%) ${groundTilt(ZONE_SPOTS[zone].tilt)}` }}
+                    >
+                        {onToggleExpanded ? (
+                            <button
+                                type="button"
+                                onClick={onToggleExpanded}
+                                aria-label={`${zone} ${value ?? "none"}. ${action}`}
+                                title={action}
+                                className={`${etch} ${state} cursor-pointer px-1 py-0.5`}
+                            >
+                                {label}
+                            </button>
+                        ) : (
+                            <div className={`${etch} ${state}`}>{label}</div>
+                        )}
+                    </div>
+                );
+            })}
+        </>
     );
 }
 
 /** Plain-text recap of the most recent completed play, tucked into the field's bottom-right
- * corner opposite the defense summary. Its wrapper spans from the field's horizontal center
+ * corner. Its wrapper spans from the field's horizontal center
  * (roughly where the batter stands) to the right edge, so the box widens with its parent
  * instead of being pinned to a fixed fraction. Clamped to three lines so a wordy description
  * never pushes into the field art. */
@@ -658,6 +669,9 @@ export default function GameField({ game, cardMap, onCardSelect, expanded = fals
     // throw started on the tap carries on while the play loads, and only the die that was waited on
     // is thrown (the pitch die just holds its face through the swing).
     const handInputs = handTossInputs(rollPrompt, pendingPlay);
+    // The defense total a throw on the bases is testing, waiting on its die or playing out.
+    const runnerRollKind = prompt?.throw?.kind ?? transition?.runnerRolls?.[0]?.kind;
+    const litZone = runnerRollKind ? ZONE_BY_RUNNER_ROLL[runnerRollKind] : null;
     const pitchDie = isHandThrown
         ? (
             <HandDieAt label="Pitch" input={handInputs.pitch} toss={handTosses?.pitch} onRoll={prompt?.kind === "pitch" ? prompt.onRoll : undefined} />
@@ -715,6 +729,7 @@ export default function GameField({ game, cardMap, onCardSelect, expanded = fals
                             defense={defense}
                             cardMap={cardMap}
                             expanded={expanded}
+                            litZone={litZone}
                             onToggleExpanded={onToggleExpanded}
                         />
                     )}

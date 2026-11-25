@@ -9,11 +9,35 @@ import { useCallback, useState } from "react";
 import type { ShowdownBotCardAPIResponse } from "../../api/showdownBotCard";
 
 export type RailTab = 'playbyplay' | 'boxscore' | 'info';
+/** Which side of the board the rail sits on from `md` up. Remembered on this device. */
+export type RailSide = 'left' | 'right';
+
+const RAIL_SIDE_KEY = 'gameRailSide:v1';
+
+const loadRailSide = (): RailSide => {
+    try {
+        return localStorage.getItem(RAIL_SIDE_KEY) === 'left' ? 'left' : 'right';
+    } catch {
+        return 'right';
+    }
+};
 
 export function useGameStage() {
     const [selectedCard, setSelectedCard] = useState<ShowdownBotCardAPIResponse | null>(null);
     const [isFieldExpanded, setIsFieldExpanded] = useState(false);
     const [railTab, setRailTab] = useState<RailTab>('playbyplay');
+    const [railSide, setRailSide] = useState<RailSide>(loadRailSide);
+    const swapRailSide = useCallback(() => {
+        setRailSide((side) => {
+            const next = side === 'right' ? 'left' : 'right';
+            try {
+                localStorage.setItem(RAIL_SIDE_KEY, next);
+            } catch {
+                // Storage unavailable: the side just isn't remembered.
+            }
+            return next;
+        });
+    }, []);
     // A phone has no room for the rail beside the field, so its tabs swap the whole page between
     // the field and one of the rail's panels. Opens on the field.
     const [isPhoneFieldShown, setIsPhoneFieldShown] = useState(true);
@@ -35,6 +59,7 @@ export function useGameStage() {
         selectedCard, setSelectedCard,
         isFieldExpanded, setIsFieldExpanded,
         railTab, setRailTab,
+        railSide, swapRailSide,
         isPhoneFieldShown, setIsPhoneFieldShown,
         simPlayStarted, setSimPlayStarted,
         isRecapDismissed, setIsRecapDismissed,

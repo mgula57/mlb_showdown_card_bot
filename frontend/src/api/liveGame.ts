@@ -108,6 +108,8 @@ export type LiveSeat = {
     /** The club in the seat; null while an invitee is still to bring their own. */
     identity: SimTeamIdentityJson | null;
     is_mine: boolean;
+    /** Who plays the seat. Null for the sim's seat or one nobody has taken yet. */
+    username?: string | null;
     /** A person's seat nobody has taken yet. */
     is_open: boolean;
 };

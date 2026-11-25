@@ -471,6 +471,15 @@
     inherits: true;
 }
 
+/* How much of a game field's top the score track covers, from the top of the field's deep outfield
+   (set by `GameBoard`, read by `GameField` to set its OF etching as deep as stays in view).
+   Registered for the same reason as `--field-corner-lift`. Unset, nothing covers the field. */
+@property --field-top-cover {
+    syntax: '<length>';
+    initial-value: 0px;
+    inherits: true;
+}
+
 /* Card processing ring — a comet of light that orbits the card's border while its image/data
    loads. The conic gradient's start angle is a registered custom property so it can animate
    smoothly; the mask punches out the content box, leaving only a `--ring-width` border. Colors
@@ -672,6 +681,17 @@
     0%, 40% { opacity: 0;   transform: scale(0.4); }
     50%     { opacity: 0.9; transform: scale(0.7); }
     100%    { opacity: 0;   transform: scale(1.35); }
+}
+
+/* A live matchup card's team frame (`TeamFrameRing` in GameMatchup): the element carries the
+   club's gradient as its background, and the mask cuts out all but a 2px ring. It's a static layer
+   beside the card, never a mask over the moving card itself (that flickers). */
+.team-frame-ring {
+    padding: 2px;
+    border-radius: calc(var(--radius-trading-card) + 3px);
+    -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor;
+    mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
 }
 
 /* Card highlight for the side that won the advantage on a sim plate appearance (see
@@ -1010,19 +1030,23 @@ html, body, #root {
 }
 .strategy-tray-in { animation: strategy-tray-in 220ms ease-out both; }
 
-/* Lettering pressed into the field (`GameField`'s defense totals along the third-base line): dark,
-   semi-clear ink so the grass shows through it, with a faint lit lower edge, the way a groove in
-   turf catches the light. A button brings its ink up on hover. */
+/* Lettering pressed into the field (`GameField`'s defense totals, tipped back onto the ground each
+   one covers): dark, semi-clear ink so the grass shows through it, with a faint lit lower edge, the
+   way a groove in turf catches the light. A button brings its ink up on hover. While a throw tests
+   one total, it's pressed deeper (`-lit`) and the rest fade (`-dim`). */
 .field-etched {
     color: color-mix(in oklab, var(--field-ink) 58%, transparent);
     text-shadow: 0 1px 0 rgb(255 255 255 / 0.22);
-    transition: color 150ms ease-out;
+    transition: color 150ms ease-out, opacity 250ms ease-out, text-shadow 250ms ease-out;
 }
 button.field-etched:hover,
-button.field-etched:focus-visible {
+button.field-etched:focus-visible,
+.field-etched-lit {
     color: color-mix(in oklab, var(--field-ink) 85%, transparent);
 }
-/* An icon in the etching: text-shadow skips SVG, so the lit edge comes from a drop shadow. */
-.field-etched-icon {
-    filter: drop-shadow(0 1px 0 rgb(255 255 255 / 0.22));
+.field-etched-lit {
+    text-shadow: 0 1px 0 rgb(255 255 255 / 0.22), 0 0 6px rgb(255 255 255 / 0.45);
+}
+.field-etched-dim {
+    opacity: 0.35;
 }
