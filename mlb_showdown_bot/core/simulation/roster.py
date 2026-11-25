@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING, Optional, Union
 from pydantic import BaseModel
 
 from ..card.showdown_player_card import ShowdownPlayerCard
+from ..card.stats.stats_period import StatsPeriodType
 from ..data.helpers_and_weights import REPLACEMENT_RUN_GAP_PA_BASIS
 from ..data.stat_normalizer import StatNormalizerType
 from ..shared.player_position import PlayerSubType, PositionSlot, PositionSlotParent
@@ -65,6 +66,22 @@ RESERVE_MIN_IP_PITCHER = 10
 # ROTATION MEMBER FOR THE WHOLE SEASON OFF ONLY A HANDFUL OF REAL TURNS.
 PREFERRED_MIN_GS_SP = 8
 
+# ----------------------------------------------------------------------------------------------
+# PRE-OPENING DAY (A SEASON SIMMED ON LAST YEAR'S CARDS). LAST SEASON'S PLAYING TIME SAYS LITTLE
+# ABOUT NEXT SEASON'S - AN ACE WHO MADE 20 STARTS AROUND AN IL STINT ISN'T A 20-START PITCHER IN
+# A NEW YEAR, AND A HITTER WHO CHANGED CLUBS ISN'T STUCK IN HIS OLD ROLE. SO REAL G/GS/PA STOP
+# DRIVING INJURY RISK AND LINEUP SHARE, AND SMALL SAMPLES ARE REGRESSED TOWARD LEAGUE AVERAGE.
+# ----------------------------------------------------------------------------------------------
+
+# A CARD UNDER THIS MANY GAMES (OF A 162-GAME SEASON) IS A SMALL SAMPLE. STARTERS AND RELIEVERS
+# USE THE SAME SHARE OF A FULL SEASON'S STARTS / APPEARANCES (~12 GS, ~24 G).
+PRESEASON_SMALL_SAMPLE_GAMES = 60
+# EXPECTED SHARE OF TEAM GAMES SPENT ON THE IL, BY ROLE - A TYPICAL SEASON'S RISK IN PLACE OF ONE
+# CALIBRATED FROM THE PLAYER'S OWN MISSED GAMES LAST YEAR.
+_PRESEASON_IL_SHARE_POSITION = 0.07
+_PRESEASON_IL_SHARE_SP = 0.10
+_PRESEASON_IL_SHARE_RP = 0.08
+
 
 class InjuryProfile(BaseModel):
     """Per-player injury hazard, calibrated so a player's expected simulated missed games match
@@ -105,6 +122,15 @@ class InjuryProfile(BaseModel):
             hazard_per_game=hazard_per_game, p_short=p_short, p_medium=p_medium, p_long=p_long,
             games_per_day=games_per_day,
         )
+
+    @classmethod
+    def typical(cls, player_id: str, sub_type: PlayerSubType, games_per_team: int, games_per_day: float, severity: float) -> 'InjuryProfile':
+        """A role's typical risk, ignoring the player's own real games. Used before Opening Day."""
+        match sub_type:
+            case PlayerSubType.STARTING_PITCHER: il_share = _PRESEASON_IL_SHARE_SP
+            case PlayerSubType.RELIEF_PITCHER: il_share = _PRESEASON_IL_SHARE_RP
+            case _: il_share = _PRESEASON_IL_SHARE_POSITION
+        return cls._build(player_id, il_share * games_per_team, games_per_team, games_per_day, severity)
 
     @classmethod
     def for_position_player(cls, player: SimPlayer, games_per_team: int, real_games_per_team: int, games_per_day: float, severity: float) -> 'InjuryProfile':
@@ -195,8 +221,10 @@ class Roster:
     ACTIVE_ROTATION = 5
     ACTIVE_BULLPEN = 8
 
-    def __init__(self, team_name: str, selection: RosterSelection, enable_injuries: bool = False) -> None:
+    def __init__(self, team_name: str, selection: RosterSelection, enable_injuries: bool = False, is_preseason: bool = False) -> None:
         self.team_name = team_name
+        # BEFORE OPENING DAY: INJURY PROFILES USE EACH ROLE'S TYPICAL RISK, NOT LAST SEASON'S GAMES.
+        self.is_preseason = is_preseason
         self.position_reserves = selection.position_reserves
         self.sp_reserves = selection.sp_reserves
         self.rp_reserves = selection.rp_reserves
@@ -233,8 +261,35 @@ class Roster:
             return card
         return card.rebuilt(stat_normalizer=StatNormalizerType.REPLACEMENT_LEVEL)
 
+    @staticmethod
+    def _is_preseason_small_sample(card: ShowdownPlayerCard, games_per_season: int) -> bool:
+        """Under `PRESEASON_SMALL_SAMPLE_GAMES` (scaled to a full season's starts for a starter,
+        appearances for a reliever). Replacement-level and WOTC cards are never small samples."""
+        if card.is_wotc or card.stats_period.type == StatsPeriodType.REPLACEMENT:
+            return False
+        share = PRESEASON_SMALL_SAMPLE_GAMES / 162.0
+        match card.player_sub_type:
+            case PlayerSubType.STARTING_PITCHER:
+                return card.stats.get('GS', 0) < share * games_per_season / Roster.ACTIVE_ROTATION
+            case PlayerSubType.RELIEF_PITCHER:
+                return card.stats.get('G', 0) < share * games_per_season * _RP_REFERENCE_APPEARANCE_RATE
+            case _:
+                return card.stats.get('G', 0) < share * games_per_season
+
     @classmethod
-    def select(cls, cards: list[ShowdownPlayerCard], card_ids: dict[str, str] = {}, min_pa: int = 100, min_ip_sp: int = 50, min_ip_rp: int = 30, active_size: int = 26, full_size: int = 40, games_per_season: int = 162, regress_small_sample_stats: bool = False) -> RosterSelection:
+    def _normalized_if_preseason_small_sample(cls, card: ShowdownPlayerCard, games_per_season: int) -> ShowdownPlayerCard:
+        """Rebuild a small-sample card with its rate stats regressed toward league average (the
+        less real PA, the stronger the pull - see `shrink_stats_toward_baseline`). A card that
+        fails to rebuild is kept as-is rather than failing the sim."""
+        if not cls._is_preseason_small_sample(card, games_per_season):
+            return card
+        try:
+            return card.rebuilt(stat_normalizer=StatNormalizerType.LEAGUE_AVERAGE)
+        except Exception:
+            return card
+
+    @classmethod
+    def select(cls, cards: list[ShowdownPlayerCard], card_ids: dict[str, str] = {}, min_pa: int = 100, min_ip_sp: int = 50, min_ip_rp: int = 30, active_size: int = 26, full_size: int = 40, games_per_season: int = 162, regress_small_sample_stats: bool = False, is_preseason: bool = False, normalize_preseason_small_samples: bool = True) -> RosterSelection:
         """Pure roster selection: no mutation, no rng. Called by `SimTeam.from_player_pool`.
 
         `games_per_season` is the *real* per-team season length (e.g. 162, or shorter for a
@@ -252,10 +307,17 @@ class Roster:
         `_regressed_to_replacement_if_small_sample`) *before* tiering/points-sorting below, so a
         small-sample points spike no longer wins a rotation/bullpen slot or an active-roster spot
         over a proven regular. Real PA/GS/IP (what tiering gates on) are unaffected either way.
+
+        `is_preseason`: a season simmed on last year's cards, before Opening Day. Every player is
+        flagged to ignore his real games for lineup share (see `SimPlayer.ignore_real_playing_time`)
+        and, when `normalize_preseason_small_samples`, small samples are regressed toward league
+        average instead (see `_normalized_if_preseason_small_sample`).
         """
 
         warnings: list[str] = []
-        if regress_small_sample_stats:
+        if is_preseason and normalize_preseason_small_samples:
+            cards = [cls._normalized_if_preseason_small_sample(c, games_per_season) for c in cards]
+        elif regress_small_sample_stats:
             cards = [cls._regressed_to_replacement_if_small_sample(c) for c in cards]
         scale = min(1.0, games_per_season / 162.0) if games_per_season > 0 else 1.0
         min_g_position = max(1, round(RESERVE_MIN_G_POSITION * scale))
@@ -382,6 +444,10 @@ class Roster:
             else:
                 rp_reserves.append(player)
 
+        if is_preseason:
+            for player in active_position + rotation + bullpen + position_reserves + sp_reserves + rp_reserves:
+                player.ignore_real_playing_time = True
+
         total_roster = active_count + len(position_reserves) + len(sp_reserves) + len(rp_reserves)
         if total_roster < full_size:
             warnings.append(f"{full_size - total_roster} man(s) short of a {full_size}-man roster (pool exhausted after sample-size floors)")
@@ -409,34 +475,39 @@ class Roster:
         }
         self.profiles = {}
         for p in team.position_players + self.position_reserves:
-            self.profiles[p.id] = InjuryProfile.for_position_player(p, games_per_team, real_games_per_team, games_per_day, severity)
+            self.profiles[p.id] = self._profile_for(p, PlayerSubType.POSITION_PLAYER)
         for p in team.rotation.players + self.sp_reserves:
-            self.profiles[p.id] = InjuryProfile.for_starter(p, games_per_team, real_games_per_team, games_per_day, severity, rotation_size)
+            self.profiles[p.id] = self._profile_for(p, PlayerSubType.STARTING_PITCHER)
         for p in team.bullpen.players + self.rp_reserves:
-            self.profiles[p.id] = InjuryProfile.for_reliever(p, games_per_team, real_games_per_team, games_per_day, severity)
+            self.profiles[p.id] = self._profile_for(p, PlayerSubType.RELIEF_PITCHER)
+
+    def _profile_for(self, player: Union[SimPlayer, SimPitcher], role: PlayerSubType) -> InjuryProfile:
+        """Hazard profile for `player` in `role`, on the inputs `build_profiles` captured."""
+        ctx = self._profile_ctx
+        if self.is_preseason:
+            return InjuryProfile.typical(player.id, role, ctx['games_per_team'], ctx['games_per_day'], ctx['severity'])
+        match role:
+            case PlayerSubType.STARTING_PITCHER:
+                return InjuryProfile.for_starter(
+                    player, ctx['games_per_team'], ctx['real_games_per_team'], ctx['games_per_day'],
+                    ctx['severity'], ctx['rotation_size'],
+                )
+            case PlayerSubType.RELIEF_PITCHER:
+                return InjuryProfile.for_reliever(
+                    player, ctx['games_per_team'], ctx['real_games_per_team'], ctx['games_per_day'], ctx['severity'],
+                )
+            case _:
+                return InjuryProfile.for_position_player(
+                    player, ctx['games_per_team'], ctx['real_games_per_team'], ctx['games_per_day'], ctx['severity'],
+                )
 
     def register_profile_for(self, player: Union[SimPlayer, SimPitcher]) -> None:
         """Add a hazard profile for a player who joined this roster after `build_profiles` ran
         (a trade-deadline acquisition or the reserve promoted to backfill the player he was traded
         for). No-op until `build_profiles` has captured the schedule inputs. Pure - no rng."""
-        ctx = self._profile_ctx
-        if not ctx:
+        if not self._profile_ctx:
             return
-        sub_type = player.player_sub_type
-        if sub_type == PlayerSubType.STARTING_PITCHER:
-            profile = InjuryProfile.for_starter(
-                player, ctx['games_per_team'], ctx['real_games_per_team'], ctx['games_per_day'],
-                ctx['severity'], ctx['rotation_size'],
-            )
-        elif sub_type == PlayerSubType.RELIEF_PITCHER:
-            profile = InjuryProfile.for_reliever(
-                player, ctx['games_per_team'], ctx['real_games_per_team'], ctx['games_per_day'], ctx['severity'],
-            )
-        else:
-            profile = InjuryProfile.for_position_player(
-                player, ctx['games_per_team'], ctx['real_games_per_team'], ctx['games_per_day'], ctx['severity'],
-            )
-        self.profiles[player.id] = profile
+        self.profiles[player.id] = self._profile_for(player, player.player_sub_type)
 
     def pop_reserve(self, player_id: str) -> Optional[Union[SimPlayer, SimPitcher]]:
         """Detach a reserve by id for a trade-deadline move, or `None` if he isn't in the pool."""
