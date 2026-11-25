@@ -267,7 +267,9 @@ export function EditionImages({ releaseId, releaseName, isWip, edition, readOnly
                     )}
                 </div>
 
-                <ImageMatchBar counts={imageMatchCounts} total={edition.cards.length} />
+                {/* Matches depend on the viewer's own image libraries, so viewers of a published release
+                    would see the owner's (possibly unavailable to them) numbers: shown in edit mode only */}
+                {!readOnly && <ImageMatchBar counts={imageMatchCounts} total={edition.cards.length} />}
 
                 {job && <RenderJobStatus job={job} />}
                 <ReleaseTip id="render" show={!!data && !jobActive && needsRenderCount > 0} anchor={renderButton} placement="bottom-end" />

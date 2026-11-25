@@ -29,6 +29,9 @@ class SimPlayer(BaseModel):
     # ROSTER IS DRAFTED FROM ANY ERA, SO WITHOUT THIS EVERY STATLINE WOULD REPORT THE CLUB THE
     # PLAYER REALLY PLAYED FOR RATHER THAN THE TEAM THEY PLAYED FOR HERE.
     team_override: Optional[str] = None
+    # BEFORE OPENING DAY (A SEASON SIMMED ON LAST YEAR'S CARDS), LAST SEASON'S GAMES PLAYED DON'T
+    # DECIDE HOW OFTEN HE STARTS - SEE `games_weight`. SET BY `Roster.select`.
+    ignore_real_playing_time: bool = False
     results_list: list[Result] = Field(default_factory=list) # PRECOMPUTED ROLL (1-N) -> RESULT LOOKUP
 
     def model_post_init(self, __context) -> None:
@@ -117,6 +120,11 @@ class SimPlayer(BaseModel):
         return self.results_list[index]
 
     @property
+    def _points_percentile(self) -> float:
+        """Points on a 0-1 scale, clamped to 100-500 PTS (rest and projected-games scale)."""
+        return min(max(self.points, 100), 500) / 500
+
+    @property
     def expected_games_between_rest(self) -> int:
         """ Expected number of games between rest days.
 
@@ -127,18 +135,24 @@ class SimPlayer(BaseModel):
         rest_multiplier = min([pos.rest_multiplier for pos in self.positions_list])
         max_rest = 15
         min_rest = 2
-        max_pts = 500
-        min_pts = 0
-        pts_for_calc = min(max(self.points, 100), 500)
 
-        # PCT RANK
-        pts_percentile = (pts_for_calc - min_pts) / (max_pts - min_pts)
-        rest_games = ( (max_rest - min_rest) * pts_percentile ) + min_pts
+        rest_games = (max_rest - min_rest) * self._points_percentile
         rest_games_adjusted_for_ca = max(int(rest_multiplier * rest_games), 1)
         return rest_games_adjusted_for_ca
 
+    @property
+    def games_weight(self) -> float:
+        """How strongly the lineup favors starting him: real games played (floored at 70), or before
+        Opening Day a points-based projection on the same 70-155 game scale, so a player coming
+        off an injury-shortened season isn't treated as a part-timer."""
+        min_games = 70
+        if self.ignore_real_playing_time:
+            max_games = 155
+            return min_games + (max_games - min_games) * (self._points_percentile - 0.2) / 0.8
+        return max(self.stats.get("G", min_games), min_games)
+
     def player_rest_rating(self, games_since_rest: int, add_pts_multiplier: bool = True) -> float:
-        return (1.0 - (float(games_since_rest) / float(self.expected_games_between_rest))) * (max(self.stats.get("G", 70), 70) if add_pts_multiplier else 1.0)
+        return (1.0 - (float(games_since_rest) / float(self.expected_games_between_rest))) * (self.games_weight if add_pts_multiplier else 1.0)
 
     def convert_to_runner(self, base: int, pitcher_id: str) -> Runner:
         """ Converts player to runner object """

@@ -129,6 +129,7 @@ class SimTeam:
         min_pa: int = 100, min_ip_sp: int = 50, min_ip_rp: int = 30,
         active_roster_size: int = 26, full_roster_size: int = 40, enable_injuries: bool = False,
         games_per_season: int = 162, regress_small_sample_stats: bool = False,
+        is_preseason: bool = False, normalize_preseason_small_samples: bool = True,
     ) -> 'SimTeam':
         """Auto-build a roster from a pool of cards (a real season's team).
 
@@ -145,6 +146,7 @@ class SimTeam:
             cards=cards, card_ids=card_ids, min_pa=min_pa, min_ip_sp=min_ip_sp, min_ip_rp=min_ip_rp,
             active_size=active_roster_size, full_size=full_roster_size, games_per_season=games_per_season,
             regress_small_sample_stats=regress_small_sample_stats,
+            is_preseason=is_preseason, normalize_preseason_small_samples=normalize_preseason_small_samples,
         )
 
         team = cls(
@@ -155,7 +157,7 @@ class SimTeam:
             bullpen=Bullpen(players=selection.bullpen),
             league=league,
         )
-        team.roster = Roster(team_name=name, selection=selection, enable_injuries=enable_injuries)
+        team.roster = Roster(team_name=name, selection=selection, enable_injuries=enable_injuries, is_preseason=is_preseason)
 
         # TEAM BRANDING - YEAR-AWARE SO A HISTORICAL SIM SHOWS THE ERA-APPROPRIATE COLORS, NOT
         # TODAY'S. `Team._missing_` FALLS BACK TO `Team.MLB` FOR AN UNRECOGNIZED ABBREVIATION
