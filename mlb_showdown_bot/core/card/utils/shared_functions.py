@@ -47,6 +47,23 @@ def total_innings_pitched(ip_list: list[float]) -> float:
     
     return math.floor(total_real_decimal) + new_total_decimal_part
 
+def weighted_ip_per_start(seasons: list[tuple[float | None, int | None]]) -> float | None:
+    """
+    Combine per-season IP/GS into one multi-season IP/GS, weighted by games started.
+    Seasons without starts or without an IP/GS value are skipped.
+
+    Args:
+        seasons: (IP/GS, GS) per season (e.g. [(6.8, 15), (5.2, 4)])
+
+    Returns:
+        GS-weighted IP/GS (e.g. 6.4632), or None if no season has both.
+    """
+    valid = [(float(ip_gs), gs) for ip_gs, gs in seasons if ip_gs and gs and gs > 0]
+    total_gs = sum(gs for _, gs in valid)
+    if total_gs == 0:
+        return None
+    return round(sum(ip_gs * gs for ip_gs, gs in valid) / total_gs, 4)
+
 def aggregate_stats(category:str, stats:list, aggregation_method: str) -> Any:
     """
     Aggregate from a list of stats
