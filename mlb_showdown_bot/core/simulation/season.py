@@ -636,6 +636,9 @@ class Season:
                 enable_injuries=config.enable_injuries,
                 games_per_season=real_games_per_team,
                 regress_small_sample_stats=config.regress_small_sample_stats,
+                # BEFORE OPENING DAY LAST SEASON'S PLAYING TIME DOESN'T CARRY OVER - SEE `Roster.select`.
+                is_preseason=bool(self._upcoming_rosters),
+                normalize_preseason_small_samples=config.normalize_preseason_small_samples,
             )
             # BEFORE OPENING DAY A PLAYER'S CLUB IS HIS 40-MAN (OR A FREE AGENT SIGNING), NOT THE
             # CLUB ON LAST SEASON'S CARD, SO EVERY STATLINE HAS TO REPORT THE CLUB HE PLAYS FOR HERE.
