@@ -696,10 +696,9 @@ class ShowdownBotSet(BaseModel):
 
             # Apply minimum thresholds based on player type
             if player_type == 'POSITION_PLAYER':
-                min_pa_adjustment_ca = 0.80 if 'C' in player.primary_positions else 1.0
                 # Rows without PA fall back to games at a part-timer's pace
                 pa = player.pa if player.pa is not None else player.g * 3.5
-                if pa >= (self.min_pa_hitters * min_pa_adjustment_ca):
+                if pa >= self.min_pa_hitters:
                     qualified_players.append(player)
             elif player_type == 'STARTING_PITCHER':
                 if player.real_ip and player.real_ip >= self.min_ip_starters:
