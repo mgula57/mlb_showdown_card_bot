@@ -3020,11 +3020,28 @@ class ShowdownPlayerCard(BaseModel):
             _hr   = float(self.projected.get('HR') or 0)
             _h    = _h1b + _h2b + _h3b + _hr
             _outs = _so + _pu + _gb + _fb
+
+            # The chart's walks include HBP (see `_clean_stats`), which WHIP leaves out, so take the
+            # pitcher's real HBP rate back out of the projected walks for WHIP.
+            _real_pa  = float(self.stats_for_card.get('PA') or 0)
+            _hbp_rate = float(self.stats_for_card.get('HBP') or 0) / _real_pa if _real_pa > 0 else 0.0
+
+            # Innings count every out, not just the one ending each plate appearance (double plays,
+            # caught stealing, pickoffs, outs on the bases): ~5% more outs per PA-ending out. Use the
+            # pitcher's real ratio, falling back to that average when IP isn't known.
+            _outs_per_pa_out = 1.05
+            _real_ip = self.stats_for_card.get('IP', None)
+            _real_pa_outs = _real_pa - float(self.stats_for_card.get('H') or 0) - float(self.stats_for_card.get('BB') or 0)
+            if _real_ip not in (None, '') and _real_pa_outs > 0:
+                _real_outs = total_ip_for_calculations(float(_real_ip)) * 3
+                if _real_outs > 0:
+                    _outs_per_pa_out = min(max(_real_outs / _real_pa_outs, 1.0), 1.15)
+
             if _outs > 0 and _pa > 0:
-                _bf_per_9    = 27.0 * _pa / _outs
+                _bf_per_9    = 27.0 * _pa / (_outs * _outs_per_pa_out)
                 _runs_per_pa = (_bb * 0.30 + _h1b * 0.46 + _h2b * 0.76 + _h3b * 1.04 + _hr * 1.42 - _outs * 0.09) / _pa
                 projected_by_alias['ERA']  = round(max(0.0, _runs_per_pa * _bf_per_9), 2)
-                projected_by_alias['WHIP'] = round((_h + _bb) / _pa * _bf_per_9 / 9, 2)
+                projected_by_alias['WHIP'] = round((_h + max(_bb - _hbp_rate * _pa, 0.0)) / _pa * _bf_per_9 / 9, 2)
                 projected_by_alias['K/9']  = round(_so / _pa * _bf_per_9, 2)
 
             for alias, stat_key in [('ERA', 'earned_run_avg'), ('WHIP', 'whip'), ('K/9', 'strikeouts_per_nine')]:
@@ -3062,6 +3079,10 @@ class ShowdownPlayerCard(BaseModel):
 
         # GAMES/IP
         final_player_data.append(RealVsProjectedStat(stat='G', real=self.stats_for_card.get('G', 0)))
+        games_started_raw = self.stats_for_card.get('GS', None)
+        games_started = int(float(games_started_raw)) if games_started_raw not in (None, '') else 0
+        if self.is_pitcher and games_started > 0:
+            final_player_data.append(RealVsProjectedStat(stat='GS', real=games_started))
         ip_real = self.stats_for_card.get('IP', None)
         if ip_real:
             final_player_data.append(RealVsProjectedStat(stat='IP', real=self.stats_for_card.get('IP', 0)))

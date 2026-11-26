@@ -52,6 +52,7 @@ import { CardComps } from './card_detail/CardComps';
 import { CardStyleEditor, type CardStyleEditorConfig } from './card_detail/CardStyleEditor';
 import { isCardStyleDifferent, CARD_STYLE_KEYS, type CardStyleSettings } from '../customs/cardStyle';
 import ImageSourceBadge from './card_detail/ImageSourceBadge';
+import CopyCardInfoMenu from './card_detail/CopyCardInfoMenu';
 import ReleaseSourceBadge, { type CardReleaseSource } from './card_detail/ReleaseSourceBadge';
 import CardBuildIcon from '../customs/CardBuildIcon';
 import PinnedFooterPortal from '../shared/PinnedFooterPortal';
@@ -667,6 +668,16 @@ export const CardDetail = memo(function CardDetail({ showdownBotCardData: showdo
                 </div>
             ) : (
                 card?.set && <SetBadge set={card.set} />
+            )}
+
+            {card && (
+                <CopyCardInfoMenu
+                    name={card.name}
+                    brefId={card.bref_id}
+                    mlbId={card.mlb_id}
+                    // Not the stand-in image shown while a restyle renders
+                    imageUrl={isGeneratingImage ? null : imagePathFor(card)}
+                />
             )}
         </div>
     );
