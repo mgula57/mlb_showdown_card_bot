@@ -36,7 +36,7 @@ import { useState, useRef, useEffect, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { FaChevronDown, FaCheck, FaTimes } from 'react-icons/fa';
 
-import { FIELD_FRAME_CLASS, FIELD_LABEL_CLASS, checkBoxClass } from './fieldStyles';
+import { FIELD_CHANGED_CLASS, FIELD_FRAME_CLASS, FIELD_LABEL_CLASS, checkBoxClass } from './fieldStyles';
 import { Plate } from './Plate';
 type MultiSelectOption = { value: string; label: string; icon?: ReactNode; iconCompact?: ReactNode };
 
@@ -68,6 +68,8 @@ interface MultiSelectProps {
     className?: string;
     /** Whether the field is disabled */
     disabled?: boolean;
+    /** Tints the field to mark a non-default selection (`FIELD_CHANGED_CLASS`) */
+    isChanged?: boolean;
 }
 
 /**
@@ -85,7 +87,7 @@ interface MultiSelectProps {
  * @param props - Component props
  * @returns A multi-selection dropdown with tags and advanced UX
  */
-const MultiSelect = ({ label, labelDescription, options, selections, onChange, placeholder = "Select…", className, disabled = false }: MultiSelectProps) => {
+const MultiSelect = ({ label, labelDescription, options, selections, onChange, placeholder = "Select…", className, disabled = false, isChanged = false }: MultiSelectProps) => {
 
     // State management for dropdown behavior and positioning
     /** Controls dropdown visibility */
@@ -249,6 +251,7 @@ const MultiSelect = ({ label, labelDescription, options, selections, onChange, p
                     className={`
                         w-full flex items-center justify-between px-3 py-1.5 min-h-10 text-sm text-left
                         ${FIELD_FRAME_CLASS}
+                        ${isChanged ? FIELD_CHANGED_CLASS : ''}
                         ${isOpen ? 'border-(--showdown-blue)' : ''}
                         ${disabled ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'}
                     `}

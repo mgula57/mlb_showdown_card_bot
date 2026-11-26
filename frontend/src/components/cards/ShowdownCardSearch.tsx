@@ -31,9 +31,9 @@ import {
     FaFilter, FaBaseballBall, FaArrowUp, FaArrowDown, FaHashtag,
     FaDollarSign, FaMitten, FaCalendarAlt,
     FaSort, FaTable, FaImage, FaAddressCard, FaLayerGroup, FaCheck,
-    FaChartLine
+    FaChartLine, FaStar
 } from "react-icons/fa";
-import { FaArrowRotateRight, FaTableList, FaXmark } from "react-icons/fa6";
+import { FaArrowRotateRight, FaTableList, FaXmark, FaAnglesUp, FaAnglesDown } from "react-icons/fa6";
 import { snakeToTitleCase } from "../../functions/text";
 import { FaO, FaI } from "react-icons/fa6";
 
@@ -50,10 +50,13 @@ import { type CardItemActionButton } from "./CardItemCompact";
 import { FaPersonRunning } from "react-icons/fa6";
 import RangeFilter from "../customs/RangeFilter";
 import SetMultiSelect from "./SetMultiSelect";
+import YearsInput from "../releases/YearsInput";
+import HintAligned from "../shared/HintAligned";
 
 import { TeamHierarchy } from "./TeamHierarchy";
 import SortButton from "./SortButton";
 import { FilterChip, type FilterChipText } from "./FilterChip";
+import { formSectionSummary } from "../customs/FormSectionSummary";
 import { fetchTeamHierarchy, type TeamHierarchyRecord } from '../../api/card_db/cardDatabase';
 import { CardSource } from '../../types/cardSource';
 import { QuickFiltersDropdown } from './QuickFiltersDropdown';
@@ -345,18 +348,42 @@ const getDefaultFilterSelections = (source: CardSource): FilterSelections => {
 
 /**
  * Converts a flexible year string (mirrors `convert_year_string_to_list` on the backend) into
- * year filters: a single year or range becomes min/max (so it shows in the Year range control),
- * a "+" list of seasons becomes `year`. Blank, "CAREER" or unparseable input adds no filter.
+ * year filters: a single year or range becomes min/max, a "+" list of seasons becomes `year`.
+ * A range may leave one end open ("2010-" / "-2015"), setting only that bound.
+ * Blank, "CAREER" or unparseable input adds no filter.
  */
 const yearFiltersFromString = (years: string | undefined): Partial<FilterSelections> => {
     const value = (years ?? '').trim();
-    const toYear = (part: string) => /^\d{4}$/.test(part.trim()) ? parseInt(part, 10) : null;
+    const toYear = (part: string | undefined) => part !== undefined && /^\d{4}$/.test(part.trim()) ? parseInt(part, 10) : undefined;
     if (value.includes('+')) {
         const list = value.split('+').map(toYear);
-        return list.every(y => y !== null) ? { year: list.map(String) } : {};
+        return list.every(y => y !== undefined) ? { year: list.map(String) } : {};
     }
-    const [start, end = start] = value.split('-').map(toYear);
-    return start && end ? { min_year: start, max_year: end } : {};
+    if (!value.includes('-')) {
+        const single = toYear(value);
+        return single ? { min_year: single, max_year: single } : {};
+    }
+    const [startText, endText, ...rest] = value.split('-');
+    const start = toYear(startText), end = toYear(endText);
+    if (rest.length > 0 || (startText.trim() && !start) || (endText.trim() && !end)) return {};
+    return start || end ? { min_year: start, max_year: end } : {};
+};
+
+/** Inverse of `yearFiltersFromString`: the YearsInput string for the current year filters. */
+const yearsStringFromFilters = (filters: FilterSelections): string => {
+    if (filters.year && filters.year.length > 0) return filters.year.join('+');
+    const { min_year: min, max_year: max } = filters;
+    if (min && max) return min === max ? String(min) : `${min}-${max}`;
+    if (min) return `${min}-`;
+    if (max) return `-${max}`;
+    return '';
+};
+
+/** YearsInput helper text for card search, where blank means every season */
+const SEARCH_YEARS_HINTS = {
+    single: 'Cards from this season only.',
+    range: 'Every season from the first year through the last. Leave one side blank for an open range.',
+    list: 'Only these seasons. Paste several at once, separated by commas.',
 };
 
 /**
@@ -372,6 +399,9 @@ type FilterAvailability = {
  */
 /** WOTC printed sets (the Classic/Expanded sets are Bot-only) */
 const WOTC_SET_VALUES = ['2000', '2001', '2002', '2003', '2004', '2005'];
+/** Stat seasons the WOTC sets drew from (2000 set = 1999 stats … 2005 set = 2004 stats) */
+const WOTC_MIN_STATS_YEAR = 1999;
+const WOTC_MAX_STATS_YEAR = 2005;
 
 const FILTER_AVAILABILITY: FilterAvailability = {
     // BOT-specific filters (not available for WOTC). Release edition cards are card_bot snapshots,
@@ -390,6 +420,9 @@ const FILTER_AVAILABILITY: FilterAvailability = {
     // Organization/League filtering might not make sense for WOTC
     organization: [CardSource.BOT, CardSource.RELEASE],
     league: [CardSource.BOT, CardSource.RELEASE],
+    // Teams work for every source except WBC (which uses wbc_team); Organization/League tiers above
+    // are Bot/Release-only. CUSTOM is seeded with `team` by the Edition Builder's scope.
+    team: [CardSource.BOT, CardSource.WOTC, CardSource.RELEASE, CardSource.CUSTOM],
     wbc_team: [CardSource.WBC],
     pro_league: [CardSource.WBC],
 
@@ -595,10 +628,6 @@ type RangeDef = {
 };
 
 /** Season-based range filters */
-const SEASON_RANGE_FILTERS: RangeDef[] = [
-    { label: "Year", minKey: "min_year", maxKey: "max_year", step: 1 },
-];
-
 /** Real baseball statistics range filters */
 const REAL_RANGE_FILTERS: RangeDef[] = [
     { label: "PA", minKey: "min_pa", maxKey: "max_pa", step: 1 },
@@ -656,6 +685,40 @@ const SHOWDOWN_CHART_VALUES_RANGE_FILTERS: RangeDef[] = [
     { label: "3B", minKey: "min_chart_3b", maxKey: "max_chart_3b", step: 1 },
     { label: "HR", minKey: "min_chart_hr", maxKey: "max_chart_hr", step: 1 },
 ];
+
+const rangeKeys = (defs: RangeDef[]) => defs.flatMap(def => [def.minKey, def.maxKey]);
+const YEAR_FILTER_KEYS: (keyof FilterSelections)[] = ['min_year', 'max_year', 'year'];
+
+/** The filters each section of the filter modal edits, for its reset button and changed state.
+ *  Popular repeats keys from its home sections, so resetting either clears both copies. */
+const FILTER_SECTION_KEYS = {
+    popular: [...YEAR_FILTER_KEYS, 'positions', 'team'],
+    sorting: ['sort_by', 'sort_direction'],
+    expansion: ['expansion', 'edition'],
+    seasons: [...YEAR_FILTER_KEYS, 'organization', 'league', 'team', 'is_multi_team', 'wbc_team', 'pro_league'],
+    positions: ['player_type', 'positions', 'hand'],
+    realStats: [...rangeKeys(REAL_RANGE_FILTERS), 'include_small_sample_size', 'awards', 'is_hof'],
+    attributes: [...rangeKeys(SHOWDOWN_METADATA_RANGE_FILTERS), ...rangeKeys(SHOWDOWN_FIELDING_RANGE_FILTERS), 'icons'],
+    chart: ['is_errata', ...rangeKeys(SHOWDOWN_CHART_RANGE_FILTERS), ...rangeKeys(SHOWDOWN_CHART_VALUES_RANGE_FILTERS), 'is_chart_outlier'],
+    image: ['image_match_type'],
+} satisfies Record<string, (keyof FilterSelections)[]>;
+type FilterSectionId = keyof typeof FILTER_SECTION_KEYS;
+const FILTER_SECTION_IDS = Object.keys(FILTER_SECTION_KEYS) as FilterSectionId[];
+
+/** Filter value in a comparable form: empty means unset, and list order doesn't matter */
+const comparableFilterValue = (value: unknown): string | undefined => {
+    if (value === undefined || value === null || value === '' || (Array.isArray(value) && value.length === 0)) return undefined;
+    return Array.isArray(value) ? value.map(String).sort().join('|') : String(value);
+};
+
+const FILTER_SECTION_STATES_KEY = 'cardSearch.filterSectionStates';
+const loadFilterSectionStates = (): Partial<Record<FilterSectionId, boolean>> => {
+    try {
+        return JSON.parse(localStorage.getItem(FILTER_SECTION_STATES_KEY) ?? '{}');
+    } catch {
+        return {};
+    }
+};
 
 // =============================================================================
 // MARK: - FILTER PERSISTENCE & UTILITIES
@@ -871,6 +934,68 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
     const filtersWithoutSortingForEditing = { ...filtersForEditing, sort_by: null, sort_direction: null };
     const defaultsWithoutSorting = { ...defaultFiltersForSource, sort_by: null, sort_direction: null };
     const hasCustomFiltersApplied = JSON.stringify(stripEmpty(filtersWithoutSorting)) !== JSON.stringify(stripEmpty(defaultsWithoutSorting));
+    /** Whether a filter differs from this source's defaults (locked filters are fixed, so never "changed") */
+    const isChanged = (key: keyof FilterSelections) =>
+        !isFilterLocked(key) && comparableFilterValue(filtersForEditing[key]) !== comparableFilterValue(defaultFiltersForSource[key]);
+
+    /** Header reset for a filter section: restores its unlocked filters to the source defaults.
+     *  Undefined (no button) while nothing in the section has changed. */
+    const sectionResetHandler = (section: FilterSectionId) => {
+        const keys = FILTER_SECTION_KEYS[section];
+        if (!keys.some(isChanged)) return undefined;
+        return () => setFiltersForEditing(prev => {
+            const next = { ...prev };
+            for (const key of keys) {
+                if (!isFilterLocked(key)) (next as Record<string, unknown>)[key] = defaultFiltersForSource[key];
+            }
+            return next;
+        });
+    };
+
+    // Filter section open states, remembered between visits so "collapse all" sticks
+    const [filterSectionStates, setFilterSectionStates] = useState<Partial<Record<FilterSectionId, boolean>>>(loadFilterSectionStates);
+    const updateFilterSectionStates = (next: Partial<Record<FilterSectionId, boolean>>) => {
+        setFilterSectionStates(next);
+        try { localStorage.setItem(FILTER_SECTION_STATES_KEY, JSON.stringify(next)); } catch { /* storage unavailable */ }
+    };
+    const isFilterSectionOpen = (section: FilterSectionId) => filterSectionStates[section] ?? true;
+    const anyFilterSectionOpen = FILTER_SECTION_IDS.some(isFilterSectionOpen);
+    const setAllFilterSectionsOpen = (open: boolean) =>
+        updateFilterSectionStates(Object.fromEntries(FILTER_SECTION_IDS.map(id => [id, open])));
+
+    /** Chips for a collapsed section's changed filters, labeled like the chip row above the results */
+    const filterSectionSummary = (section: FilterSectionId) => {
+        const items: SelectOption[] = [];
+        for (const key of FILTER_SECTION_KEYS[section]) {
+            if (!isChanged(key)) continue;
+            const value = filtersForEditing[key];
+            let text: FilterChipText | undefined;
+            if (comparableFilterValue(value) === undefined) {
+                // Cleared a filter that has a default (e.g. Organization: MLB)
+                text = { label: snakeToTitleCase(key), value: 'Any' };
+            } else if (key === 'sort_by') {
+                text = { label: 'Sort', value: sortOptions.find(option => option.value === value)?.label ?? String(value) };
+            } else if (key === 'sort_direction') {
+                text = { label: 'Direction', value: value === 'asc' ? 'Ascending' : 'Descending' };
+            } else {
+                text = filterDisplayText(key, value, filtersForEditing as Record<string, unknown>);
+            }
+            if (!text) continue;
+            // Ranges read as "PTS >= 300"; everything else as "Hand: L"
+            const isComparison = /^[<>]=/.test(text.value);
+            items.push({ label: text.label, value: `${text.label}${isComparison ? ' ' : ': '}${text.value}` });
+        }
+        return formSectionSummary(items);
+    };
+
+    /** Open state, reset button and collapsed summary for a filter section */
+    const filterSectionProps = (section: FilterSectionId) => ({
+        isOpen: isFilterSectionOpen(section),
+        childrenWhenClosed: filterSectionSummary(section),
+        onOpenChange: (open: boolean) => updateFilterSectionStates({ ...filterSectionStates, [section]: open }),
+        onReset: sectionResetHandler(section),
+    });
+
     const bindRange = (minKey: keyof FilterSelections, maxKey: keyof FilterSelections) => ({
         minValue: filtersForEditing[minKey] as number | undefined,
         maxValue: filtersForEditing[maxKey] as number | undefined,
@@ -878,12 +1003,23 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
         onMaxChange: (n?: number) => !isFilterLocked(maxKey) && setFiltersForEditing(prev => ({ ...prev, [maxKey]: n })),
         minDisabled: isFilterLocked(minKey),
         maxDisabled: isFilterLocked(maxKey),
+        minChanged: isChanged(minKey),
+        maxChanged: isChanged(maxKey),
     });
 
     // Team hierarchy data - loaded once (daily) and cached
     const [teamHierarchyData, setTeamHierarchyData] = useState<TeamHierarchyRecord[]>([]);
     const [isHierarchyDataLoaded, setIsHierarchyDataLoaded] = useState(false);
     const [isLoadingHierarchyData, setIsLoadingHierarchyData] = useState(false);
+
+    // WOTC only printed 2000-2005 MLB sets, so limit its team options to MLB clubs active then
+    // (e.g. MON, FLA, ANA) instead of every franchise/league in card_bot's hierarchy.
+    const teamHierarchyForSource = useMemo(
+        () => source === CardSource.WOTC
+            ? teamHierarchyData.filter(t => t.organization === 'MLB' && t.min_year <= WOTC_MAX_STATS_YEAR && t.max_year >= WOTC_MIN_STATS_YEAR)
+            : teamHierarchyData,
+        [teamHierarchyData, source]
+    );
 
     // Get sort options based on source and find selected option
     const sortOptions = getSortOptions(source);
@@ -1509,6 +1645,61 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
         );
     };
 
+    // Filter fields that appear both in "Popular" and their home section. Both copies bind to the
+    // same `filtersForEditing` keys, so editing either one keeps the other in sync.
+    const renderYearsFilter = () => (
+        <YearsInput
+            value={yearsStringFromFilters(filtersForEditing)}
+            onChange={(value) => setFiltersForEditing(prev => ({
+                ...prev,
+                min_year: undefined,
+                max_year: undefined,
+                year: undefined,
+                ...yearFiltersFromString(value),
+            }))}
+            openEndedRange
+            hints={SEARCH_YEARS_HINTS}
+            disabled={isFilterLocked('min_year') || isFilterLocked('max_year') || isFilterLocked('year')}
+            isChanged={YEAR_FILTER_KEYS.some(isChanged)}
+        />
+    );
+
+    const renderPositionsFilter = () => (
+        // Same grouped dropdown as the chip row's Positions picker
+        <div className="space-y-2">
+            <label className={FIELD_LABEL_CLASS}>Positions</label>
+            <SetMultiSelect
+                variant="form"
+                placeholder="Select…"
+                options={POSITION_OPTIONS}
+                selections={filtersForEditing.positions ?? []}
+                onChange={(values) => setFiltersForEditing(prev => ({ ...prev, positions: values }))}
+                disabled={isFilterLocked('positions')}
+                isChanged={isChanged('positions')}
+            />
+        </div>
+    );
+
+    /** `teamsOnly` drops the Organization/League tiers (always the case where those aren't available, e.g. WOTC).
+     *  `alignFirstWithHint` when the first selector sits beside the Years input. */
+    const renderTeamFilters = (teamsOnly: boolean, alignFirstWithHint = false) => isFilterAvailable('team', source) && (
+        <TeamHierarchy
+            hierarchyData={teamHierarchyForSource}
+            selectedOrganizations={filtersForEditing.organization}
+            selectedLeagues={filtersForEditing.league}
+            selectedTeams={filtersForEditing.team}
+            onOrganizationChange={(values) => setFiltersForEditing(prev => ({ ...prev, organization: values }))}
+            onLeagueChange={(values) => setFiltersForEditing(prev => ({ ...prev, league: values }))}
+            onTeamChange={(values) => setFiltersForEditing(prev => ({ ...prev, team: values }))}
+            disableOrganization={isFilterLocked('organization')}
+            disableLeague={isFilterLocked('league')}
+            disableTeam={isFilterLocked('team')}
+            teamsOnly={teamsOnly || !isFilterAvailable('organization', source)}
+            alignFirstWithHint={alignFirstWithHint}
+            changed={{ organization: isChanged('organization'), league: isChanged('league'), team: isChanged('team') }}
+        />
+    );
+
     // MARK: Render
     return (
         <div
@@ -1661,6 +1852,7 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
                                 setFiltersForEditing(prev => ({ ...prev, positions: values }));
                             }}
                             disabled={isFilterLocked('positions')}
+                            isChanged={isChanged('positions')}
                         />
 
                         {/* Selected Filters — locked ones stay visible but can't be removed */}
@@ -1894,10 +2086,22 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
                                 bg-(--background-secondary)
                             ">
                             
-                            <div className="flex items-center gap-2">
+                            {/* Title and actions share a row (in flow, so they never cover the chips below) */}
+                            <div className="flex flex-wrap items-center justify-between gap-2">
                                 <Heading level="section">Filter Options</Heading>
 
-                                <div className="absolute text-sm flex gap-x-6 right-0 p-4 text-(--background-primary)">
+                                <div className="flex items-center gap-2 text-sm text-(--background-primary)">
+                                    {/* Collapse / expand every section */}
+                                    <button
+                                        type="button"
+                                        onClick={() => setAllFilterSectionsOpen(!anyFilterSectionOpen)}
+                                        className={buttonClass('secondary', 'sm')}
+                                        title={anyFilterSectionOpen ? 'Collapse all sections' : 'Expand all sections'}
+                                    >
+                                        {anyFilterSectionOpen ? <FaAnglesUp /> : <FaAnglesDown />}
+                                        <span className="hidden sm:inline">{anyFilterSectionOpen ? 'Collapse' : 'Expand'}</span>
+                                    </button>
+
                                     {/* Reset button */}
                                     {renderResetButton(['editing'])}
 
@@ -1956,8 +2160,15 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
                         {/* Filters */}
                         <div className="flex flex-col gap-4 pb-12 px-4">
 
+                            {/* Popular - shortcuts to the most-used filters (duplicated from their sections below) */}
+                            <FormSection title="Popular" icon={<FaStar />} {...filterSectionProps('popular')}>
+                                {renderYearsFilter()}
+                                <HintAligned>{renderPositionsFilter()}</HintAligned>
+                                {renderTeamFilters(true)}
+                            </FormSection>
+
                             {/* Sorting */}
-                            <FormSection title="Sorting" icon={<FaSort />} isOpenByDefault={true}>
+                            <FormSection title="Sorting" icon={<FaSort />} {...filterSectionProps('sorting')}>
 
                                 <FormDropdown
                                     label="Sort Category"
@@ -1965,6 +2176,7 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
                                     selectedOption={filtersForEditing.sort_by || 'points'}
                                     onChange={(value) => setFiltersForEditing({ ...filtersForEditing, sort_by: value })}
                                     disabled={isFilterLocked('sort_by')}
+                                    isChanged={isChanged('sort_by')}
                                 />
 
                                 <FormDropdown
@@ -1976,6 +2188,7 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
                                     selectedOption={filtersForEditing.sort_direction || 'asc'}
                                     onChange={(value) => setFiltersForEditing({ ...filtersForEditing, sort_direction: value })}
                                     disabled={isFilterLocked('sort_direction')}
+                                    isChanged={isChanged('sort_direction')}
                                 />
 
                             </FormSection>
@@ -1983,7 +2196,7 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
                             {/* Expansion and Edition */}
                             {isFilterAvailable('showdown_set', source) && (
 
-                                <FormSection title="Expansion and Edition" icon={<FaLayerGroup />} isOpenByDefault={true}>
+                                <FormSection title="Expansion and Edition" icon={<FaLayerGroup />} {...filterSectionProps('expansion')}>
 
                                     {/* Expansion */}
                                     <MultiSelect
@@ -1998,6 +2211,7 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
                                         selections={filtersForEditing.expansion || []}
                                         onChange={(values) => setFiltersForEditing({ ...filtersForEditing, expansion: values })}
                                         disabled={isFilterLocked('expansion')}
+                                        isChanged={isChanged('expansion')}
                                     />
 
                                     {/* Edition */}
@@ -2013,37 +2227,19 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
                                         selections={filtersForEditing.edition || []}
                                         onChange={(values) => setFiltersForEditing({ ...filtersForEditing, edition: values })}
                                         disabled={isFilterLocked('edition')}
+                                        isChanged={isChanged('edition')}
                                     />
                                 
                                 </FormSection>
                             )}
 
 
-                            <FormSection title="Seasons and Teams" icon={<FaCalendarAlt />} isOpenByDefault={true}>
+                            <FormSection title="Seasons and Teams" icon={<FaCalendarAlt />} {...filterSectionProps('seasons')}>
                                 {/* Filters options */}
 
-                                {SEASON_RANGE_FILTERS.map(def => (
-                                    <RangeFilter
-                                        key={def.minKey as string}
-                                        label={def.label}
-                                        {...bindRange(def.minKey, def.maxKey)}
-                                    />
-                                ))}
+                                {renderYearsFilter()}
 
-                                {isFilterAvailable('organization', source) && (
-                                    <TeamHierarchy
-                                        hierarchyData={teamHierarchyData}
-                                        selectedOrganizations={filtersForEditing.organization}
-                                        selectedLeagues={filtersForEditing.league}
-                                        selectedTeams={filtersForEditing.team}
-                                        onOrganizationChange={(values) => setFiltersForEditing({ ...filtersForEditing, organization: values })}
-                                        onLeagueChange={(values) => setFiltersForEditing({ ...filtersForEditing, league: values })}
-                                        onTeamChange={(values) => setFiltersForEditing({ ...filtersForEditing, team: values })}
-                                        disableOrganization={isFilterLocked('organization')}
-                                        disableLeague={isFilterLocked('league')}
-                                        disableTeam={isFilterLocked('team')}
-                                    />
-                                )}
+                                {renderTeamFilters(false, true)}
 
                                 {isFilterAvailable('is_multi_team', source) && (
                                     <MultiSelect
@@ -2055,38 +2251,42 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
                                         selections={filtersForEditing.is_multi_team}
                                         onChange={(values) => setFiltersForEditing({ ...filtersForEditing, is_multi_team: values })}
                                         disabled={isFilterLocked('is_multi_team')}
+                                        isChanged={isChanged('is_multi_team')}
                                     />
                                 )}
 
                                 {isFilterAvailable('wbc_team', source) && (
-                                    <MultiSelect
-                                        label="WBC Team"
-                                        options={[
-                                            { value: 'AUS', label: 'AUS' },
-                                            { value: 'BRA', label: 'BRA' },
-                                            { value: 'CAN', label: 'CAN' },
-                                            { value: 'COL', label: 'COL' },
-                                            { value: 'CUB', label: 'CUB' },
-                                            { value: 'CZE', label: 'CZE' },
-                                            { value: 'DOM', label: 'DOM' },
-                                            { value: 'GBR', label: 'GBR' },
-                                            { value: 'ISR', label: 'ISR' },
-                                            { value: 'ITA', label: 'ITA' },
-                                            { value: 'JPN', label: 'JPN' },
-                                            { value: 'KOR', label: 'KOR' },
-                                            { value: 'MEX', label: 'MEX' },
-                                            { value: 'NCA', label: 'NCA' },
-                                            { value: 'NED', label: 'NED' },
-                                            { value: 'PAN', label: 'PAN' },
-                                            { value: 'PUR', label: 'PUR' },
-                                            { value: 'TPE', label: 'TPE' },
-                                            { value: 'USA', label: 'USA' },
-                                            { value: 'VEN', label: 'VEN' },
-                                        ]}
-                                        selections={filtersForEditing.wbc_team || []}
-                                        onChange={(values) => setFiltersForEditing({ ...filtersForEditing, wbc_team: values })}
-                                        disabled={isFilterLocked('wbc_team')}
-                                    />
+                                    <HintAligned>
+                                        <MultiSelect
+                                            label="WBC Team"
+                                            options={[
+                                                { value: 'AUS', label: 'AUS' },
+                                                { value: 'BRA', label: 'BRA' },
+                                                { value: 'CAN', label: 'CAN' },
+                                                { value: 'COL', label: 'COL' },
+                                                { value: 'CUB', label: 'CUB' },
+                                                { value: 'CZE', label: 'CZE' },
+                                                { value: 'DOM', label: 'DOM' },
+                                                { value: 'GBR', label: 'GBR' },
+                                                { value: 'ISR', label: 'ISR' },
+                                                { value: 'ITA', label: 'ITA' },
+                                                { value: 'JPN', label: 'JPN' },
+                                                { value: 'KOR', label: 'KOR' },
+                                                { value: 'MEX', label: 'MEX' },
+                                                { value: 'NCA', label: 'NCA' },
+                                                { value: 'NED', label: 'NED' },
+                                                { value: 'PAN', label: 'PAN' },
+                                                { value: 'PUR', label: 'PUR' },
+                                                { value: 'TPE', label: 'TPE' },
+                                                { value: 'USA', label: 'USA' },
+                                                { value: 'VEN', label: 'VEN' },
+                                            ]}
+                                            selections={filtersForEditing.wbc_team || []}
+                                            onChange={(values) => setFiltersForEditing({ ...filtersForEditing, wbc_team: values })}
+                                            disabled={isFilterLocked('wbc_team')}
+                                            isChanged={isChanged('wbc_team')}
+                                        />
+                                    </HintAligned>
                                 )}
 
                                 {isFilterAvailable('pro_league', source) && (
@@ -2101,13 +2301,14 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
                                         selections={filtersForEditing.pro_league || []}
                                         onChange={(values) => setFiltersForEditing({ ...filtersForEditing, pro_league: values })}
                                         disabled={isFilterLocked('pro_league')}
+                                        isChanged={isChanged('pro_league')}
                                     />
                                 )}
 
                             </FormSection>
 
 
-                            <FormSection title="Positions and Hand" icon={<FaMitten />} isOpenByDefault={true}>
+                            <FormSection title="Positions and Hand" icon={<FaMitten />} {...filterSectionProps('positions')}>
                                 <MultiSelect
                                     label="Player Type"
                                     options={[
@@ -2117,20 +2318,10 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
                                     selections={filtersForEditing.player_type}
                                     onChange={(values) => setFiltersForEditing({ ...filtersForEditing, player_type: values })}
                                     disabled={isFilterLocked('player_type')}
+                                    isChanged={isChanged('player_type')}
                                 />
 
-                                {/* Same grouped dropdown as the chip row's Positions picker */}
-                                <div className="space-y-2">
-                                    <label className={FIELD_LABEL_CLASS}>Positions</label>
-                                    <SetMultiSelect
-                                        variant="form"
-                                        placeholder="Select…"
-                                        options={POSITION_OPTIONS}
-                                        selections={filtersForEditing.positions ?? []}
-                                        onChange={(values) => setFiltersForEditing(prev => ({ ...prev, positions: values }))}
-                                        disabled={isFilterLocked('positions')}
-                                    />
-                                </div>
+                                {renderPositionsFilter()}
 
                                 <MultiSelect
                                     label="Hand"
@@ -2142,11 +2333,12 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
                                     selections={filtersForEditing.hand || []}
                                     onChange={(values) => setFiltersForEditing({ ...filtersForEditing, hand: values })}
                                     disabled={isFilterLocked('hand')}
+                                    isChanged={isChanged('hand')}
                                 />
                             </FormSection>
 
                             {isFilterAvailable('min_pa', source) && (
-                                <FormSection title="Real Stats and Awards" icon={<FaHashtag />} isOpenByDefault={true}>
+                                <FormSection title="Real Stats and Awards" icon={<FaHashtag />} {...filterSectionProps('realStats')}>
 
                                     {REAL_RANGE_FILTERS.map(def => (
                                         <RangeFilter
@@ -2167,6 +2359,7 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
                                             selections={filtersForEditing.include_small_sample_size || []}
                                             onChange={(values) => setFiltersForEditing({ ...filtersForEditing, include_small_sample_size: values })}
                                             disabled={isFilterLocked('include_small_sample_size')}
+                                            isChanged={isChanged('include_small_sample_size')}
                                         />
                                     )}
 
@@ -2187,6 +2380,7 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
                                             selections={filtersForEditing.awards || []}
                                             onChange={(values) => setFiltersForEditing({ ...filtersForEditing, awards: values })}
                                             disabled={isFilterLocked('awards')}
+                                            isChanged={isChanged('awards')}
                                         />
                                     )}
 
@@ -2200,12 +2394,13 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
                                             selections={filtersForEditing.is_hof ? filtersForEditing.is_hof.map(String) : []}
                                             onChange={(values) => setFiltersForEditing({ ...filtersForEditing, is_hof: values.length > 0 ? values : undefined })}
                                             disabled={isFilterLocked('is_hof')}
+                                            isChanged={isChanged('is_hof')}
                                         />
                                     )}
                                 </FormSection>
                             )}
 
-                            <FormSection title="Showdown Attributes" icon={<FaAddressCard />} isOpenByDefault={true}>
+                            <FormSection title="Showdown Attributes" icon={<FaAddressCard />} {...filterSectionProps('attributes')}>
                                 {SHOWDOWN_METADATA_RANGE_FILTERS.map(def => (
                                     <RangeFilter
                                         key={def.minKey as string}
@@ -2240,10 +2435,11 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
                                     selections={filtersForEditing.icons || []}
                                     onChange={(values) => setFiltersForEditing({ ...filtersForEditing, icons: values })}
                                     disabled={isFilterLocked('icons')}
+                                    isChanged={isChanged('icons')}
                                 />
                             </FormSection>
 
-                            <FormSection title="Showdown Chart" icon={<FaTable />} isOpenByDefault={true}>
+                            <FormSection title="Showdown Chart" icon={<FaTable />} {...filterSectionProps('chart')}>
                                 {isFilterAvailable('is_errata', source) && (
                                     <MultiSelect
                                         label="Errata?"
@@ -2254,6 +2450,7 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
                                         selections={filtersForEditing.is_errata ? filtersForEditing.is_errata.map(String) : []}
                                         onChange={(values) => setFiltersForEditing({ ...filtersForEditing, is_errata: values.length > 0 ? values : undefined })}
                                         disabled={isFilterLocked('is_errata')}
+                                        isChanged={isChanged('is_errata')}
                                     />
                                 )}
 
@@ -2287,19 +2484,21 @@ export default function ShowdownCardSearch({ className, verticalOffset='22', sou
                                         selections={filtersForEditing.is_chart_outlier ? filtersForEditing.is_chart_outlier.map(String) : []}
                                         onChange={(values) => setFiltersForEditing({ ...filtersForEditing, is_chart_outlier: values.length > 0 ? values : undefined })}
                                         disabled={isFilterLocked('is_chart_outlier')}
+                                        isChanged={isChanged('is_chart_outlier')}
                                     />
                                 )}
 
                             </FormSection>
 
                             {isFilterAvailable('image_match_type', source) && (
-                                <FormSection title="Image Attributes" icon={<FaImage />} isOpenByDefault={true}>
+                                <FormSection title="Image Attributes" icon={<FaImage />} {...filterSectionProps('image')}>
                                     <MultiSelect
                                         label="Auto Image Classification"
                                         options={IMAGE_MATCH_TYPE_OPTIONS}
                                         selections={filtersForEditing.image_match_type}
                                         onChange={(values) => setFiltersForEditing({ ...filtersForEditing, image_match_type: values })}
                                         disabled={isFilterLocked('image_match_type')}
+                                        isChanged={isChanged('image_match_type')}
                                     />
                                 </FormSection>
                             )}

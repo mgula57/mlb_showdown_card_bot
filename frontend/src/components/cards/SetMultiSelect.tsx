@@ -12,7 +12,7 @@ import { Fragment, useEffect, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { FaCaretDown, FaCheck, FaChevronDown, FaTimes } from 'react-icons/fa';
 
-import { fieldClass, FIELD_FRAME_CLASS, CAPS_LABEL_CLASS, INLINE_FIELD_LABEL_CLASS, checkBoxClass } from '../shared/fieldStyles';
+import { fieldClass, FIELD_CHANGED_CLASS, FIELD_FRAME_CLASS, CAPS_LABEL_CLASS, INLINE_FIELD_LABEL_CLASS, checkBoxClass } from '../shared/fieldStyles';
 import { Plate } from '../shared/Plate';
 export type SetMultiSelectOption = { value: string; icon?: ReactNode; label?: string; group?: string };
 
@@ -32,9 +32,11 @@ type SetMultiSelectProps = {
     variant?: 'toolbar' | 'pill' | 'form';
     /** Bold label shown before the selection (e.g. "Positions:") */
     prefix?: ReactNode;
+    /** `form` variant only: tints the field to mark a non-default selection */
+    isChanged?: boolean;
 };
 
-export default function SetMultiSelect({ options, selections, onChange, defaultIcon, placeholder, className = '', disabled = false, variant = 'toolbar', prefix }: SetMultiSelectProps) {
+export default function SetMultiSelect({ options, selections, onChange, defaultIcon, placeholder, className = '', disabled = false, variant = 'toolbar', prefix, isChanged = false }: SetMultiSelectProps) {
     const isPill = variant === 'pill';
     const isForm = variant === 'form';
     const [isOpen, setIsOpen] = useState(false);
@@ -84,6 +86,7 @@ export default function SetMultiSelect({ options, selections, onChange, defaultI
                     className={`
                         w-full flex items-center justify-between px-3 py-1.5 min-h-10 text-sm text-left
                         ${FIELD_FRAME_CLASS}
+                        ${isChanged ? FIELD_CHANGED_CLASS : ''}
                         ${isOpen ? 'border-(--showdown-blue)' : ''}
                         ${disabled ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'}
                     `}

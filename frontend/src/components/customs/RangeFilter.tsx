@@ -31,6 +31,9 @@ type Props = {
     minDisabled?: boolean;
     /** Disable max input */
     maxDisabled?: boolean;
+    /** Tint the min/max input to mark a non-default value */
+    minChanged?: boolean;
+    maxChanged?: boolean;
 };
 
 /**
@@ -68,7 +71,9 @@ export default function RangeFilter({
     onMaxChange,
     className,
     minDisabled = false,
-    maxDisabled = false
+    maxDisabled = false,
+    minChanged = false,
+    maxChanged = false,
 }: Props) {
     /**
      * Convert string input to number with validation
@@ -121,6 +126,7 @@ export default function RangeFilter({
                         value={minValue?.toString() || ""}
                         onChange={(v) => onMinChange(toNum(v || undefined))}
                         disabled={minDisabled}
+                        isChanged={minChanged}
                     />
                 </div>
                 <div className="flex-1">
@@ -132,6 +138,7 @@ export default function RangeFilter({
                         value={maxValue?.toString() || ""}
                         onChange={(v) => onMaxChange(toNum(v || undefined))}
                         disabled={maxDisabled}
+                        isChanged={maxChanged}
                     />
                 </div>
             </div>

@@ -2,10 +2,17 @@ import { useState } from 'react';
 import { FaPlus, FaXmark } from 'react-icons/fa6';
 import FormInput from '../customs/FormInput';
 import { InlineError } from '../shared/InlineError';
-import { FIELD_LABEL_CLASS, fieldClass } from '../shared/fieldStyles';
+import { FIELD_HINT_CLASS } from '../shared/HintAligned';
+import { FIELD_CHANGED_CLASS, FIELD_LABEL_CLASS, fieldClass } from '../shared/fieldStyles';
 import { choiceClass } from '../shared/choiceStyles';
 import { parseYearsValue, serializeYears, validateYears, MIN_YEAR, MAX_YEAR } from './years';
 import type { YearsMode, YearsDraft } from './years';
+
+const DEFAULT_HINTS: Record<YearsMode, string> = {
+    single: 'Every card comes from this season.',
+    range: 'Every season from the first year through the last (inclusive).',
+    list: 'Only these seasons, like a Super Season mix. Paste several at once, separated by commas.',
+};
 
 const MODES: { value: YearsMode; label: string }[] = [
     { value: 'single', label: 'One Year' },
@@ -20,12 +27,20 @@ type YearsInputProps = {
     value: string;
     onChange: (value: string) => void;
     className?: string;
+    label?: string;
+    /** Let a range leave one end blank, emitted as "2010-" / "-2015" (card search filters). */
+    openEndedRange?: boolean;
+    /** Helper text under the fields, per mode. Defaults describe a set's years. */
+    hints?: Partial<Record<YearsMode, string>>;
+    disabled?: boolean;
+    /** Tints the year fields to mark a non-default value */
+    isChanged?: boolean;
 };
 
 /** Picks the years a set draws from. Edits the backend's string format through guided fields
  * (one year, a from/to range, or a list of years) so a typo can't produce an unparseable value.
  * Emits '' while the entry is incomplete or invalid, which keeps Run disabled. */
-export default function YearsInput({ value, onChange, className = '' }: YearsInputProps) {
+export default function YearsInput({ value, onChange, className = '', label = 'Years', openEndedRange = false, hints, disabled = false, isChanged = false }: YearsInputProps) {
     const [draft, setDraft] = useState<YearsDraft>(() => parseYearsValue(value));
     const [listEntry, setListEntry] = useState('');
     // The last value this input emitted (or read in) - anything else is an outside change
@@ -37,11 +52,13 @@ export default function YearsInput({ value, onChange, className = '' }: YearsInp
         setDraft(parseYearsValue(value));
     }
 
-    const validation = validateYears(draft);
+    const validationOptions = { openEndedRange };
+    const validation = validateYears(draft, validationOptions);
+    const hint = { ...DEFAULT_HINTS, ...hints }[draft.mode];
 
     function update(next: YearsDraft) {
         setDraft(next);
-        const serialized = validateYears(next).error ? '' : serializeYears(next);
+        const serialized = validateYears(next, validationOptions).error ? '' : serializeYears(next);
         setSyncedValue(serialized);
         onChange(serialized);
     }
@@ -77,7 +94,7 @@ export default function YearsInput({ value, onChange, className = '' }: YearsInp
 
     return (
         <div className={`flex flex-col gap-1.5 ${className}`}>
-            <span className={FIELD_LABEL_CLASS}>Years</span>
+            <span className={FIELD_LABEL_CLASS}>{label}</span>
             <div className="flex flex-wrap gap-1.5" role="group" aria-label="Years format">
                 {MODES.map(mode => (
                     <button
@@ -85,6 +102,7 @@ export default function YearsInput({ value, onChange, className = '' }: YearsInp
                         type="button"
                         onClick={() => changeMode(mode.value)}
                         aria-pressed={draft.mode === mode.value}
+                        disabled={disabled}
                         className={choiceClass(draft.mode === mode.value, 'sm')}
                     >
                         {mode.label}
@@ -100,6 +118,8 @@ export default function YearsInput({ value, onChange, className = '' }: YearsInp
                     placeholder={String(MAX_YEAR)}
                     value={draft.single}
                     onChange={v => update({ ...draft, single: digitsOnly(v) })}
+                    disabled={disabled}
+                    isChanged={isChanged}
                 />
             )}
 
@@ -112,6 +132,8 @@ export default function YearsInput({ value, onChange, className = '' }: YearsInp
                         placeholder="2000"
                         value={draft.from}
                         onChange={v => update({ ...draft, from: digitsOnly(v) })}
+                        disabled={disabled}
+                        isChanged={isChanged}
                     />
                     <FormInput
                         label="To"
@@ -120,6 +142,8 @@ export default function YearsInput({ value, onChange, className = '' }: YearsInp
                         placeholder="2004"
                         value={draft.to}
                         onChange={v => update({ ...draft, to: digitsOnly(v) })}
+                        disabled={disabled}
+                        isChanged={isChanged}
                     />
                 </div>
             )}
@@ -135,6 +159,7 @@ export default function YearsInput({ value, onChange, className = '' }: YearsInp
                             aria-label="Add a year"
                             autoComplete="off"
                             spellCheck={false}
+                            disabled={disabled}
                             onChange={e => setListEntry(e.target.value.replace(/[^\d,\s+]/g, ''))}
                             onKeyDown={e => {
                                 if (e.key === 'Enter') {
@@ -142,12 +167,12 @@ export default function YearsInput({ value, onChange, className = '' }: YearsInp
                                     addListYears();
                                 }
                             }}
-                            className={`min-w-0 flex-1 focus:outline-none ${fieldClass('md')}`}
+                            className={`min-w-0 flex-1 focus:outline-none ${fieldClass('md', isChanged ? FIELD_CHANGED_CLASS : '')}`}
                         />
                         <button
                             type="button"
                             onClick={addListYears}
-                            disabled={listEntry.trim() === '' || !!listEntryError}
+                            disabled={disabled || listEntry.trim() === '' || !!listEntryError}
                             className={`${choiceClass(false, 'md')} gap-1.5`}
                         >
                             <FaPlus className="text-[10px]" /> Add
@@ -159,14 +184,14 @@ export default function YearsInput({ value, onChange, className = '' }: YearsInp
                             {draft.list.map(year => (
                                 <span key={year} className="inline-flex items-center gap-1 rounded-control border border-(--divider) py-0.5 pl-2 pr-0.5 text-[12px] font-semibold tabular-nums text-(--text-secondary)">
                                     {year}
-                                    <button
+                                    {!disabled && <button
                                         type="button"
                                         onClick={() => update({ ...draft, list: draft.list.filter(y => y !== year) })}
                                         aria-label={`Remove ${year}`}
                                         className="flex items-center justify-center w-4 h-4 rounded-full text-(--text-tertiary) hover:bg-(--red)/90 hover:text-white transition-colors cursor-pointer"
                                     >
                                         <FaXmark className="text-[10px]" />
-                                    </button>
+                                    </button>}
                                 </span>
                             ))}
                         </div>
@@ -177,11 +202,7 @@ export default function YearsInput({ value, onChange, className = '' }: YearsInp
             {showError ? (
                 <InlineError icon>{validation.error}</InlineError>
             ) : (
-                <p className="text-[11px] text-(--text-tertiary)">
-                    {draft.mode === 'single' && 'Every card comes from this season.'}
-                    {draft.mode === 'range' && 'Every season from the first year through the last (inclusive).'}
-                    {draft.mode === 'list' && 'Only these seasons, like a Super Season mix. Paste several at once, separated by commas.'}
-                </p>
+                <p className={FIELD_HINT_CLASS}>{hint}</p>
             )}
         </div>
     );

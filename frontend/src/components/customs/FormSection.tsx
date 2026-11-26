@@ -36,6 +36,10 @@ type FormSectionProps = {
     isNew?: boolean;
     /** Resets the section's fields. Shows a reset button in the header; omit when there's nothing to reset. */
     onReset?: () => void;
+    /** Controls the open state from outside (e.g. a "collapse all" button); pair with `onOpenChange`.
+     *  Omit to let the section manage its own state from `isOpenByDefault`. */
+    isOpen?: boolean;
+    onOpenChange?: (isOpen: boolean) => void;
 };
 
 /**
@@ -68,12 +72,20 @@ type FormSectionProps = {
  * @param onReset - Reset handler; shows a header reset button when set
  * @returns Collapsible form section container
  */
-const FormSection: React.FC<FormSectionProps> = ({ title, children, icon, isOpenByDefault=false, childrenWhenClosed=undefined, onToggle, collapsible=true, isNew=false, onReset }) => {
+const FormSection: React.FC<FormSectionProps> = ({ title, children, icon, isOpenByDefault=false, childrenWhenClosed=undefined, onToggle, collapsible=true, isNew=false, onReset, isOpen: controlledIsOpen, onOpenChange }) => {
 
-    /** Internal state for section expand/collapse */
-    const [isOpen, setIsOpen] = useState(collapsible ? isOpenByDefault : true);
+    /** Internal state for section expand/collapse, used unless `isOpen` is controlled */
+    const [internalIsOpen, setInternalIsOpen] = useState(isOpenByDefault);
+    const isOpen = collapsible ? (controlledIsOpen ?? internalIsOpen) : true;
     /** True while the expand/collapse transition runs - content must clip until it settles */
     const [isAnimating, setIsAnimating] = useState(false);
+
+    // A controlled change from outside (e.g. collapse all) animates too, so clip while it runs
+    const [lastIsOpen, setLastIsOpen] = useState(isOpen);
+    if (isOpen !== lastIsOpen) {
+        setLastIsOpen(isOpen);
+        setIsAnimating(true);
+    }
 
     /**
      * Toggle section visibility and notify parent component
@@ -82,7 +94,8 @@ const FormSection: React.FC<FormSectionProps> = ({ title, children, icon, isOpen
     const toggleCollapse = () => {
         if (!collapsible) return;
         setIsAnimating(true);
-        setIsOpen(!isOpen);
+        if (controlledIsOpen === undefined) setInternalIsOpen(!isOpen);
+        onOpenChange?.(!isOpen);
         if (onToggle) {
             onToggle();
         }

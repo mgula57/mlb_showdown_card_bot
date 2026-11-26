@@ -7,6 +7,7 @@
 
 import { useMemo } from 'react';
 import MultiSelect from '../shared/MultiSelect';
+import HintAligned from '../shared/HintAligned';
 import type { TeamHierarchyRecord } from '../../api/card_db/cardDatabase';
 
 /**
@@ -33,6 +34,13 @@ interface TeamHierarchyProps {
     disableLeague?: boolean;
     /** Disable team selector */
     disableTeam?: boolean;
+    /** Render only the Teams selector (no Organization/League tiers). Team options still
+     *  respect any organization/league selections made elsewhere. */
+    teamsOnly?: boolean;
+    /** Wrap the first selector in `HintAligned`, for when it sits beside a field with hint text (e.g. Years). */
+    alignFirstWithHint?: boolean;
+    /** Which tiers hold a non-default selection, tinted via `isChanged` */
+    changed?: { organization?: boolean; league?: boolean; team?: boolean };
 }
 
 /**
@@ -79,6 +87,9 @@ export const TeamHierarchy: React.FC<TeamHierarchyProps> = ({
     disableOrganization = false,
     disableLeague = false,
     disableTeam = false,
+    teamsOnly = false,
+    alignFirstWithHint = false,
+    changed = {},
 }) => {
     /**
      * Generate organization options from hierarchy data
@@ -192,15 +203,33 @@ export const TeamHierarchy: React.FC<TeamHierarchyProps> = ({
         }
     };
 
+    const teamSelect = (
+        <MultiSelect
+            label="Teams"
+            options={teamOptions}
+            selections={selectedTeams}
+            onChange={onTeamChange}
+            disabled={disableTeam}
+            isChanged={changed.team}
+        />
+    );
+
+    const alignFirst = (node: React.ReactNode) => alignFirstWithHint ? <HintAligned>{node}</HintAligned> : node;
+
+    if (teamsOnly) return alignFirst(teamSelect);
+
     return (
         <>
-            <MultiSelect
-                label="Organizations"
-                options={organizationOptions}
-                selections={selectedOrganizations}
-                onChange={handleOrganizationChange}
-                disabled={disableOrganization}
-            />
+            {alignFirst(
+                <MultiSelect
+                    label="Organizations"
+                    options={organizationOptions}
+                    selections={selectedOrganizations}
+                    onChange={handleOrganizationChange}
+                    disabled={disableOrganization}
+                    isChanged={changed.organization}
+                />
+            )}
 
             <MultiSelect
                 label="Leagues"
@@ -208,15 +237,10 @@ export const TeamHierarchy: React.FC<TeamHierarchyProps> = ({
                 selections={selectedLeagues}
                 onChange={handleLeagueChange}
                 disabled={disableLeague}
+                isChanged={changed.league}
             />
 
-            <MultiSelect
-                label="Teams"
-                options={teamOptions}
-                selections={selectedTeams}
-                onChange={onTeamChange}
-                disabled={disableTeam}
-            />
+            {teamSelect}
         </>
     );
 };
