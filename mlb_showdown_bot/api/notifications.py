@@ -6,6 +6,7 @@ import traceback
 from flask import Blueprint, g, jsonify, request
 
 from ..core.database.postgres_db import PostgresDB
+from ..core.supabase.realtime_broadcast import RealtimeBroadcaster
 from .comments import CommentRequest
 from .user_settings import require_auth
 
@@ -36,9 +37,14 @@ def get_notifications():
 @notifications_bp.route('/notifications/unread_count', methods=['GET'])
 @require_auth
 def get_unread_notification_count():
+    """The bell's count, and the Realtime channel that pings when it changes (null when Realtime
+    notifications aren't set up, so the bell only polls)."""
     try:
         with PostgresDB() as db:
-            return jsonify({'unread_count': db.count_unread_notifications(g.user_id)}), 200
+            return jsonify({
+                'unread_count': db.count_unread_notifications(g.user_id),
+                'realtime_topic': RealtimeBroadcaster.notifications_topic(g.user_id),
+            }), 200
     except Exception as exc:
         traceback.print_exc()
         return jsonify({'error': str(exc)}), 500

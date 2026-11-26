@@ -36,14 +36,11 @@ class AdminRollup:
         """(day, feature, user_id, actions) for actions on `from_day`..`to_day`, inclusive."""
         parts = []
         for source in FEATURE_SOURCES:
-            window = sql.SQL("{t} >= ({start})::timestamptz AND {t} < (({end}) + 1)::timestamptz").format(
-                t=source.time, start=from_day, end=to_day,
-            )
             parts.append(source.select(
                 sql.SQL("{key} AS feature, coalesce({user}::text, '') AS user_id, ({t})::date AS day").format(
                     key=sql.Literal(source.key), user=source.user, t=source.time,
                 ),
-                window,
+                source.time_between(from_day, to_day),
             ))
         return sql.SQL("""
             SELECT day, feature, user_id, count(*)::int AS actions

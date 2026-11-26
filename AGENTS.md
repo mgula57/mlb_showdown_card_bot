@@ -48,6 +48,7 @@ SUPABASE_KEY                  # Supabase anon/service key
 GOOGLE_CREDENTIALS            # JSON string for Google service account (Drive image uploads)
 GOOGLE_USER_DRIVE_CREDENTIALS # JSON string for Google service account for user image uploads (Optional)
 FRONTEND_ORIGIN               # CORS allowed origin (default: http://localhost:5173)
+NOTIFICATIONS_TOPIC_SECRET    # Secret for naming each user's Realtime notifications channel (Optional; without it the bell only polls)
 ```
 
 ## Code Style Principles

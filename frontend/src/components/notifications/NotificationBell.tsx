@@ -28,8 +28,9 @@ export function NotificationBell() {
 
     const handleSelect = (notification: AppNotification) => {
         inbox.markRead([notification.id]);
-        if (notification.comment_id) {
-            requestOpenComments({ type: notification.subject_type, id: notification.subject_id });
+        const { subject_type: type } = notification;
+        if (notification.comment_id && (type === 'release' || type === 'team')) {
+            requestOpenComments({ type, id: notification.subject_id });
         }
         setIsOpen(false);
         navigate(notificationPath(notification));
@@ -47,7 +48,7 @@ export function NotificationBell() {
             return <RetryableError onRetry={inbox.retry}>{inbox.error}</RetryableError>;
         }
         if (inbox.notifications.length === 0) {
-            return <EmptyState size="panel" title="All caught up.">Replies, comments and remixes on your work show up here.</EmptyState>;
+            return <EmptyState size="panel" title="All caught up.">Replies, remixes, league picks and finished games show up here.</EmptyState>;
         }
         return (
             <div className="flex flex-col gap-3">

@@ -150,15 +150,15 @@ Per-user preferences. One row per Supabase user UUID.
 
 #### `internal.notifications`
 
-In-app notifications (the header bell): one row per recipient per event, written by `core/notifications.Notifier` from the routes whose actions they report. Kept indefinitely for now. Rows about a soft-deleted comment, a deleted team or a retired release are hidden when read (`_NOTIFICATION_FROM` / `_NOTIFICATION_WHERE`). Build with `showdown_bot database build_notifications_table` (or `build_app_schema`).
+In-app notifications (the header bell): one row per recipient per event, written by `core/notifications.Notifier` from the routes (and sim workers) whose actions they report. Kept indefinitely for now. A row whose subject is gone (or a retired release), or whose comment is soft-deleted, is hidden when read (`_NOTIFICATION_SUBJECTS`). Building it also adds `internal.user_settings.notification_prefs` (`{group: false}` for each group a user turned off), which `get_user_settings` reads, so build it before deploying. Build with `showdown_bot database build_notifications_table` (or `build_app_schema`).
 
 | Column | Notes |
 |--------|-------|
 | `id` PK | uuid |
 | `user_id` | Recipient (Supabase auth UUID) |
-| `kind` | `NotificationKind`: `comment_reply`, `subject_comment`, `release_remix` |
-| `actor_id` | Who did it |
-| `subject_type` / `subject_id` | The release or team it's about |
+| `kind` | `NotificationKind` (comments, remixes, league, live game and sim lobby events) |
+| `actor_id` | Who did it; null when a sim did |
+| `subject_type` / `subject_id` | What it's about: `release`, `team`, `league`, `live_game` or `sim_lobby` |
 | `comment_id` | The comment, for comment kinds. FK to `internal.comments`, cascades on delete |
 | `created_at` / `read_at` | `read_at` is null while unread |
 

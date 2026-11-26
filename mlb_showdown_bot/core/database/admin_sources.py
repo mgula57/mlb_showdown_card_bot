@@ -51,6 +51,15 @@ class FeatureSource:
         # Mixed timestamp / timestamptz columns, normalized so UNIONs line up
         return sql.SQL("{}::timestamptz").format(sql.Identifier(self.time_column))
 
+    def time_between(self, from_day: sql.Composable, to_day: sql.Composable | None = None) -> sql.Composed:
+        """Filter on the time column for whole days `from_day`..`to_day` (inclusive; open-ended
+        without `to_day`). The bounds are dates compared to the raw column: casting the column
+        (`time`) would stop Postgres using its index and scan the whole log."""
+        condition = sql.SQL("{t} >= ({start})").format(t=sql.Identifier(self.time_column), start=from_day)
+        if to_day is None:
+            return condition
+        return condition + sql.SQL(" AND {t} < (({end}) + 1)").format(t=sql.Identifier(self.time_column), end=to_day)
+
     @property
     def detail(self) -> sql.SQL:
         return sql.SQL(self.detail_sql)

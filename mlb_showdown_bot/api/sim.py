@@ -19,6 +19,7 @@ from ..core.card.sets import Set
 from ..core.card.team_builder.player_filters import PlayerFilterSet
 from ..core.card.team_builder.team import BULLPEN_ROLES, FIELD_POSITIONS, ROTATION_ROLES, Team as BuilderTeam
 from ..core.database.postgres_db import PostgresDB
+from ..core.notifications import Notifier
 from ..core.mlb_stats_api import MLBStatsAPI
 from ..core.offseason import OffseasonWindow, UnsignedFreeAgents, UpcomingSeasonRosters
 from ..core.simulation.challenge_generator import BeatTarget
@@ -1012,9 +1013,13 @@ def claim_sim_lobby(lobby_id: str):
             return jsonify({'error': f"No club data available for {lobby['year']}."}), 400
 
         with PostgresDB() as db:
+            # A FIRST CLAIM IS A JOIN; SWITCHING CLUBS AFTER ISN'T NEWS TO THE HOST
+            was_member = any(m['user_id'] == g.user_id for m in db.get_sim_lobby_members(lobby_id))
             claimed = db.claim_sim_lobby_club(lobby_id, g.user_id, resolved_abbr, team_id)
             if not claimed:
                 return jsonify({'error': f"'{resolved_abbr}' is already claimed by another player."}), 409
+            if not was_member:
+                Notifier(db).lobby_joined(lobby, g.user_id)
             lobby = db.get_sim_lobby(lobby_id)
             return jsonify(_lobby_state_payload(db, lobby)), 200
 
@@ -1117,6 +1122,7 @@ def start_sim_lobby(lobby_id: str):
         with PostgresDB() as db:
             db.set_sim_lobby_running(lobby_id, job_id)
             lobby = db.get_sim_lobby(lobby_id)
+            Notifier(db).lobby_started(lobby, db.get_sim_lobby_members(lobby_id))
             return jsonify(_lobby_state_payload(db, lobby)), 202
 
     except Exception as exc:
@@ -1433,6 +1439,8 @@ def _run_sim_job(
                 roster_points=roster_points,
             )
             db.finish_sim_job(job_id)
+            # A LOBBY'S SEASON: ITS PLAYERS HEAR ABOUT IT EVEN IF NOBODY HAS THE LOBBY OPEN
+            Notifier(db).sim_job_finished(job_id)
         print(f"[sim {job_id}] succeeded (t+{_elapsed():.0f}s)")
 
     except SimCancelled:

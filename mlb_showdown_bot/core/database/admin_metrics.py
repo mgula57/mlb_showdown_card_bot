@@ -145,7 +145,7 @@ class AdminMetrics:
                 columns.append(sql.SQL("({})::text AS detail").format(source.detail))
             conditions = [sql.SQL("{}::text = %(user_id)s").format(source.user)]
             if recent_only:
-                conditions.append(sql.SQL("{} >= ({})::timestamptz").format(source.time, _PERIOD_START))
+                conditions.append(source.time_between(_PERIOD_START))
             select = source.select(sql.SQL(", ").join(columns), sql.SQL(" AND ").join(conditions))
             if per_source_limit:
                 select = sql.SQL("({} ORDER BY at DESC LIMIT {})").format(select, sql.Literal(per_source_limit))

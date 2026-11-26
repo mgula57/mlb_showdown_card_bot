@@ -23,6 +23,7 @@ from ..core.league import (
     DraftConflict, DraftError, LeagueDraft, LeagueListItem, LeagueRosterMove, LeagueSeasonError, LeagueSeasonRunner, LeagueSettings, SeasonConfig,
     SimTarget,
 )
+from ..core.notifications import Notifier
 from ..core.supabase.realtime_broadcast import RealtimeBroadcaster
 from .sim import _sim_slots
 from .user_settings import require_auth
@@ -160,6 +161,13 @@ def _draft_changed_payload(context: _LeagueContext, draft: LeagueDraft) -> dict:
     return _draft_payload(context, draft)
 
 
+def _draft_advanced_payload(db: PostgresDB, context: _LeagueContext, draft: LeagueDraft) -> dict:
+    """`_draft_changed_payload` after the caller picked (or started the draft): whoever is up now hears
+    they're on the clock."""
+    Notifier(db).league_draft_advanced(context.league, g.user_id, draft.board().on_the_clock)
+    return _draft_changed_payload(context, draft)
+
+
 # ----------------------------------------------------------
 # MARK: - LEAGUES
 # ----------------------------------------------------------
@@ -254,6 +262,7 @@ def join_league(code: str):
             )
             if added is None:
                 raise _ApiError('This league is full or has already started', 409)
+            Notifier(db).league_joined(league, g.user_id)
             context = _LeagueContext.load(db, league['league_id'])
         return jsonify(context.payload(db)), 200
 
@@ -323,6 +332,7 @@ def remove_member(league_id: str, member_id: str):
             raise _ApiError('Only the commissioner can remove other members', 403)
         if not db.remove_league_member(league_id, member_id):
             raise _ApiError('Members can only leave before the draft starts', 409)
+        Notifier(db).league_member_removed(context.league, member.get('user_id'), g.user_id)
         return jsonify(_LeagueContext.load(db, league_id, require_member=False).payload(db)), 200
 
 
@@ -352,7 +362,8 @@ def start_draft(league_id: str, season_number: int):
             db.update_league_season_config(season_id, latest.get('config') or {})
         draft = LeagueDraft(db, context.league, context.season(db, season_number))
         draft.run_bot_picks()
-        return jsonify(_draft_changed_payload(context, draft)), 201
+        Notifier(db).league_draft_started(context.league, context.members, g.user_id)
+        return jsonify(_draft_advanced_payload(db, context, draft)), 201
 
 
 @leagues_bp.route('/leagues/<league_id>/seasons/<int:season_number>/draft', methods=['GET'])
@@ -383,7 +394,7 @@ def make_pick(league_id: str, season_number: int):
         draft = LeagueDraft(db, context.league, context.season(db, season_number))
         draft.make_pick(context.my_member['member_id'], context.is_commissioner, release_card_id, roster_position)
         draft.run_bot_picks()
-        return jsonify(_draft_changed_payload(context, draft)), 200
+        return jsonify(_draft_advanced_payload(db, context, draft)), 200
 
 
 @leagues_bp.route('/leagues/<league_id>/seasons/<int:season_number>/roster/move', methods=['POST'])
@@ -450,6 +461,11 @@ class _LeagueSimJob:
                         last_write = now
 
                 LeagueSeasonRunner(db, self.league, self.season).run(self.target, progress_callback=progress)
+                after = db.get_league_season(self.league['league_id'], self.season['season_number'])
+                if after is not None:
+                    Notifier(db).league_season_advanced(
+                        self.league, db.get_league_members(self.league['league_id']), self.season['status'], after['status'],
+                    )
         except LeagueSeasonError as exc:
             self._fail(season_id, str(exc))
         except Exception as exc:

@@ -8,6 +8,7 @@ from flask import Blueprint, g, jsonify, request
 
 from config import Config
 from ..core.database.postgres_db import PostgresDB
+from ..core.notifications import NotificationPreferences
 
 user_settings_bp = Blueprint('user_settings', __name__)
 
@@ -154,6 +155,11 @@ def upsert_user_settings():
         payload = request.get_json(silent=True)
         if not payload or not isinstance(payload, dict):
             return jsonify({'error': 'Request body must be a JSON object'}), 400
+        if 'notification_prefs' in payload:
+            prefs = NotificationPreferences.clean(payload['notification_prefs'])
+            if prefs is None:
+                return jsonify({'error': 'notification_prefs must be an object'}), 400
+            payload = {**payload, 'notification_prefs': prefs}
         with PostgresDB() as db:
             db.upsert_user_settings(g.user_id, payload)
         return jsonify({'success': True}), 200

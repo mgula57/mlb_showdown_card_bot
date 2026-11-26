@@ -5474,7 +5474,7 @@ class PostgresDB:
             return None
         query = """
             SELECT theme, showdown_set, custom_card_form_settings, starred_teams, avatar_url,
-                   default_primary_color, default_secondary_color, image_library_order
+                   default_primary_color, default_secondary_color, image_library_order, notification_prefs
             FROM internal.user_settings
             WHERE user_id = %s
         """
@@ -5596,7 +5596,7 @@ class PostgresDB:
             return
         ALLOWED = {
             'theme', 'showdown_set', 'custom_card_form_settings', 'starred_teams', 'avatar_url',
-            'default_primary_color', 'default_secondary_color', 'image_library_order',
+            'default_primary_color', 'default_secondary_color', 'image_library_order', 'notification_prefs',
         }
         fields = {k: v for k, v in settings_dict.items() if k in ALLOWED}
         if not fields:
@@ -9045,7 +9045,7 @@ class PostgresDB:
         """In-app notifications: one row per recipient per event, kept until deleted (no retention yet).
         `kind` is a `NotificationKind` (core/notifications); new kinds need no DDL. A notification about a
         comment goes when the comment is hard-deleted, and hides while it's soft-deleted or its subject is
-        gone (see `_NOTIFICATION_FROM`)."""
+        gone (see `_NOTIFICATION_SUBJECTS`). Also adds the users' `notification_prefs`."""
         if not self.connection:
             return
         with self.connection.cursor() as cur:
@@ -9078,35 +9078,79 @@ class PostgresDB:
                 CREATE INDEX IF NOT EXISTS idx_notifications_comment_id
                     ON internal.notifications (comment_id) WHERE comment_id IS NOT NULL;
             """)
+            # `skip_if_unread` and `mark_stale_notifications_read`
+            cur.execute("""
+                CREATE INDEX IF NOT EXISTS idx_notifications_subject_unread
+                    ON internal.notifications (subject_id, kind) WHERE read_at IS NULL;
+            """)
+            # Which groups a user has turned off (`NotificationPreferences`); a missing group is on
+            cur.execute("ALTER TABLE internal.user_settings ADD COLUMN IF NOT EXISTS notification_prefs JSONB;")
 
-    # A recipient's notifications that still point at something: the subject exists (and a release isn't
-    # retired), and the comment, if any, isn't deleted. The list and the unread count both read from these
-    _NOTIFICATION_FROM = """
-          FROM internal.notifications n
-          LEFT JOIN internal.releases r ON n.subject_type = 'release' AND r.id = n.subject_id AND r.retired_at IS NULL
-          LEFT JOIN internal.user_teams t ON n.subject_type = 'team' AND t.team_id = n.subject_id
-          LEFT JOIN internal.comments c ON c.id = n.comment_id
-    """
-    _NOTIFICATION_WHERE = """
-         WHERE n.user_id = %(user_id)s
-           AND (r.id IS NOT NULL OR t.team_id IS NOT NULL)
-           AND (n.comment_id IS NULL OR c.deleted_at IS NULL)
-    """
+    # What a notification can be about: (subject_type, joined table and alias, its key column, its name). A
+    # notification whose subject row is gone (or a retired release) is hidden. New subjects add a row here and
+    # to `NotificationSubjectType` in frontend/src/api/notifications.ts
+    _NOTIFICATION_SUBJECTS = (
+        ('release', "internal.releases r ON r.id = n.subject_id AND r.retired_at IS NULL", "r.id", "r.name"),
+        ('team', "internal.user_teams t ON t.team_id = n.subject_id", "t.team_id", "t.name"),
+        ('league', "internal.league lg ON lg.league_id = n.subject_id", "lg.league_id", "lg.name"),
+        ('live_game', "internal.live_game lv ON lv.live_game_id = n.subject_id", "lv.live_game_id",
+         "NULLIF(CONCAT_WS(' @ ', lv.setup #>> '{away,identity,name}', lv.setup #>> '{home,identity,name}'), '')"),
+        ('sim_lobby', "internal.sim_lobby sl ON sl.lobby_id = n.subject_id", "sl.lobby_id", "sl.year || ' season sim'"),
+    )
+    # A recipient's notifications that still point at something: the subject exists, and the comment, if
+    # any, isn't deleted. The list and the unread count both read from these
+    _NOTIFICATION_FROM = (
+        "FROM internal.notifications n\n"
+        + "\n".join(
+            f"LEFT JOIN {join.replace(' ON ', f' ON n.subject_type = {subject_type!r} AND ', 1)}"
+            for subject_type, join, _key, _name in _NOTIFICATION_SUBJECTS
+        )
+        + "\nLEFT JOIN internal.comments c ON c.id = n.comment_id\n"
+    )
+    _NOTIFICATION_WHERE = (
+        "WHERE n.user_id = %(user_id)s\n"
+        + "AND (" + " OR ".join(f"{key} IS NOT NULL" for _type, _join, key, _name in _NOTIFICATION_SUBJECTS) + ")\n"
+        + "AND (n.comment_id IS NULL OR c.deleted_at IS NULL)\n"
+    )
+    _NOTIFICATION_SUBJECT_NAME = "COALESCE(" + ", ".join(name for _type, _join, _key, name in _NOTIFICATION_SUBJECTS) + ")"
     NOTIFICATION_EXCERPT_LENGTH = 140
 
-    def create_notifications(self, rows: list[dict]) -> None:
-        """Insert notifications. Each row has user_id, kind, actor_id, subject_type, subject_id and,
-        optionally, comment_id."""
+    def create_notifications(self, rows: list[dict], skip_if_unread: bool = False) -> list[str]:
+        """Insert notifications and return their recipients. Each row has user_id, kind, actor_id,
+        subject_type, subject_id and, optionally, comment_id. `skip_if_unread` leaves out a recipient who
+        already has an unread notification of the same kind about the same subject."""
         if not self.connection or not rows:
-            return
+            return []
+        unread_clause = """
+            WHERE NOT EXISTS (
+                SELECT 1 FROM internal.notifications existing
+                 WHERE existing.user_id = v.user_id AND existing.kind = v.kind AND existing.subject_type = v.subject_type
+                   AND existing.subject_id = v.subject_id AND existing.read_at IS NULL
+            )
+        """ if skip_if_unread else ""
         with self.connection.cursor() as cur:
-            execute_values(cur, """
+            inserted = execute_values(cur, f"""
                 INSERT INTO internal.notifications (user_id, kind, actor_id, subject_type, subject_id, comment_id)
-                VALUES %s
+                SELECT v.user_id, v.kind, v.actor_id, v.subject_type, v.subject_id, v.comment_id
+                  FROM (VALUES %s) AS v(user_id, kind, actor_id, subject_type, subject_id, comment_id)
+                {unread_clause}
+                RETURNING user_id
             """, [
                 (row['user_id'], row['kind'], row.get('actor_id'), row['subject_type'], row['subject_id'], row.get('comment_id'))
                 for row in rows
-            ])
+            ], template="(%s, %s, %s, %s, %s::uuid, %s::uuid)", fetch=True)
+        return [row[0] for row in inserted]
+
+    def get_notification_prefs(self, user_ids: list[str]) -> dict[str, dict]:
+        """Each user's saved `notification_prefs` (users who never saved any are left out)."""
+        if not self.connection or not user_ids:
+            return {}
+        with self.connection.cursor() as cur:
+            cur.execute("""
+                SELECT user_id, notification_prefs FROM internal.user_settings
+                 WHERE user_id = ANY(%s) AND notification_prefs IS NOT NULL
+            """, (list(user_ids),))
+            return {row[0]: row[1] for row in cur.fetchall()}
 
     def get_notifications(self, user_id: str, limit: int = 20, before: tuple[str, str] | None = None) -> dict:
         """A page of a user's notifications, newest first, with who did it, what it's about and, for a
@@ -9120,7 +9164,7 @@ class PostgresDB:
                 SELECT n.id, n.kind, n.subject_type, n.subject_id, n.comment_id, n.created_at, n.read_at,
                        n.actor_id, p.username AS actor_username, us.avatar_url AS actor_avatar_url,
                        us.default_primary_color AS actor_primary_color,
-                       COALESCE(r.name, t.name) AS subject_name,
+                       {self._NOTIFICATION_SUBJECT_NAME} AS subject_name,
                        LEFT(c.body, %(excerpt)s) AS comment_excerpt
                   {self._NOTIFICATION_FROM}
                   LEFT JOIN public.profiles p ON p.id::text = n.actor_id
@@ -9164,6 +9208,18 @@ class PostgresDB:
                 UPDATE internal.notifications SET read_at = NOW()
                  WHERE user_id = %(user_id)s AND read_at IS NULL {id_clause}
             """, {'user_id': user_id, 'ids': notification_ids})
+
+    def mark_stale_notifications_read(self, kind: str, subject_type: str, subject_id: str, current_user_id: str | None = None) -> None:
+        """Mark read everyone's unread notifications of one kind about one subject that no longer hold,
+        all but `current_user_id`'s (e.g. "you're on the clock" for everyone but who's up now)."""
+        if not self.connection:
+            return
+        with self.connection.cursor() as cur:
+            cur.execute("""
+                UPDATE internal.notifications SET read_at = NOW()
+                 WHERE kind = %(kind)s AND subject_type = %(subject_type)s AND subject_id = %(subject_id)s::uuid
+                   AND read_at IS NULL AND user_id IS DISTINCT FROM %(current_user_id)s
+            """, {'kind': kind, 'subject_type': subject_type, 'subject_id': subject_id, 'current_user_id': current_user_id})
 
 # -----------------------------------------------------------------------
 # LOGGING TABLES
@@ -9264,6 +9320,12 @@ class PostgresDB:
             CREATE INDEX IF NOT EXISTS log_custom_card_bot_created_on_brin
             ON internal.log_custom_card_bot USING brin (created_on);
         """
+        # Failed builds only (~3% of rows): the admin Builder Failures tab reads every failure in
+        # the period, which through the BRIN alone means reading the whole period's fat rows
+        failed_created_on_index_sql = """
+            CREATE INDEX IF NOT EXISTS log_custom_card_bot_failed_created_on_idx
+            ON internal.log_custom_card_bot (created_on) WHERE error IS NOT NULL;
+        """
         # Visitor ids (see ClientContext), structured failure detail, and end-to-end build time
         migrate_analytics_columns_sql = """
             ALTER TABLE internal.log_custom_card_bot
@@ -9283,6 +9345,7 @@ class PostgresDB:
                 cur.execute(migrate_is_hidden_sql)
                 cur.execute(migrate_generation_source_sql)
                 cur.execute(created_on_index_sql)
+                cur.execute(failed_created_on_index_sql)
                 cur.execute(migrate_analytics_columns_sql)
                 self.connection.commit()
         except Exception as error:
@@ -13272,6 +13335,18 @@ class PostgresDB:
             return
         with self.connection.cursor() as cur:
             cur.execute("UPDATE internal.sim_lobby SET status = 'finished' WHERE lobby_id = %s::uuid", (lobby_id,))
+
+    def get_sim_lobby_by_job(self, job_id: str) -> dict | None:
+        """The lobby a sim job was started for, if any (`lobby_id`, `host_user_id`, `year`)."""
+        if not self.connection:
+            return None
+        with self.connection.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute("""
+                SELECT lobby_id::text AS lobby_id, host_user_id, year
+                  FROM internal.sim_lobby WHERE job_id = %s::uuid
+            """, (job_id,))
+            row = cur.fetchone()
+            return dict(row) if row else None
 
     def reap_stale_sim_lobbies(self) -> None:
         """Expire lobbies nobody ever started - a running/finished lobby is left alone even past

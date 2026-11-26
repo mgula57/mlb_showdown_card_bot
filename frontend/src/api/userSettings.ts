@@ -1,3 +1,5 @@
+import type { NotificationPrefs } from './notifications';
+
 const API_BASE = import.meta.env.PROD ? '/api' : 'http://127.0.0.1:5000/api';
 
 /** Stock Showdown blue/red, used wherever the user hasn't saved their own default team colors. */
@@ -12,6 +14,8 @@ export interface UserSettingsDB {
     avatar_url?: string;
     default_primary_color?: string;
     default_secondary_color?: string;
+    /** Notification groups turned off (`{leagues: false}`); a missing group is on. */
+    notification_prefs?: NotificationPrefs;
     /** Server-derived from the admin allowlist — read-only, never sent back on PUT. */
     is_admin?: boolean;
 }

@@ -29,6 +29,7 @@ from ..core.card.showdown_player_card import ShowdownPlayerCard
 from ..core.card.team_builder.synthetic_teams import SyntheticTeamError, SyntheticTeams
 from ..core.card.team_builder.team import Team as BuilderTeam
 from ..core.database.postgres_db import PostgresDB
+from ..core.notifications import Notifier
 from ..core.simulation.live_game import LiveAction, LiveActionKind, LiveMatch, LiveMatchError, LiveMatchSettings, LiveMatchState, LiveSide
 from ..core.simulation.live_card_images import LiveCardImages
 from ..core.simulation.live_contexts import LIVE_GAME_CONTEXTS as _CONTEXTS, LiveGameContext
@@ -203,6 +204,8 @@ class LiveGameSession:
             return None
         self.actions.append(action)
         _broadcast_seq(self.row['live_game_id'], new_state.seq)
+        if final:
+            Notifier(self.db).live_game_final(self.row, user_id)
         return new_state
 
     def seat_payload(self, side: LiveSide, user_id: Optional[str]) -> dict:
@@ -433,6 +436,8 @@ def accept_live_game(invite_code: str):
                 live_game_id=row['live_game_id'], side=side.value, user_id=g.user_id, seed=seed, pending_side=pending_side,
                 side_setup=setup[side.value], team_ref=team_ref,
             )
+            if started:
+                Notifier(db).live_game_accepted(row, g.user_id)
         if not started:
             return jsonify({'error': 'Someone else took this seat first.'}), 409
         _broadcast_seq(row['live_game_id'], 0)

@@ -33,6 +33,7 @@ import ColorPicker from '../shared/ColorPicker';
 import { DEFAULT_PRIMARY_COLOR, DEFAULT_SECONDARY_COLOR } from '../../api/userSettings';
 import AccountSection from './AccountSection';
 import ImageLibrarySettings from './ImageLibrarySettings';
+import NotificationSettings from './NotificationSettings';
 
 import { buttonClass } from '../shared/buttonStyles';
 import { Heading } from '../shared/Heading';
@@ -455,6 +456,9 @@ const AccountPage: React.FC = () => {
                         </div>
                     </div>
                 </AccountSection>
+
+                {/* Notifications */}
+                <NotificationSettings />
 
                 {/* Image Libraries */}
                 <ImageLibrarySettings />
