@@ -119,6 +119,7 @@ class ShowdownPlayerCard(BaseModel):
     image: ShowdownImage = ShowdownImage()
     _has_breakout_frame: bool = False # SET WHILE RENDERING THE BREAKOUT PARALLEL
     _is_rendering_two_way: bool = False # SET WHILE RENDERING A TWO-WAY CARD, PREFERS (TWOWAY) TAGGED AUTO IMAGES
+    _includes_cutout: bool = False # SET WHILE RENDERING A TWO-WAY 04/05 CARD, LOADS THE PLAIN CUTOUT ALONGSIDE THE BACKGROUND
     chart: Chart = None
     positions_list: list[Position] = []
     positions_and_defense: dict[Position, int] = {}
@@ -5742,6 +5743,8 @@ class ShowdownPlayerCard(BaseModel):
             img_components_dict = self._player_image_components_dict()
             if not include_2000_containers:
                 img_components_dict.pop(PlayerImageComponent.NAME_CONTAINER_2000, None)
+            if self._includes_cutout and not any(c in img_components_dict for c in (PlayerImageComponent.GLOW, PlayerImageComponent.SHADOW)):
+                img_components_dict[PlayerImageComponent.CUT] = None
             if is_search_for_universal_img:
                 img_components_dict, gdrive_file_versions, drive_client = self._query_image_libraries_for_auto_player_image_urls(components_dict=img_components_dict)
 
@@ -6270,7 +6273,7 @@ class ShowdownPlayerCard(BaseModel):
                     # USER LIBRARY FILES CAN HAVE A COMPONENT NAME MID-NAME BUT NOT AS THE PREFIX
                     continue
                 current_files_for_component = component_player_file_matches_dict.get(component, [])
-                if component == PlayerImageComponent.CUT and len(current_files_for_component) == 0:
+                if component == PlayerImageComponent.CUT and PlayerImageComponent.CUT not in component_player_file_matches_dict:
                     # COMPONENT IS GLOW OR SHADOW, FIND WHICH ONE AND REPLACE CUT
                     # EFFECTS ARE NOW APPLIED WITHIN THE BOT
                     component = PlayerImageComponent.GLOW if PlayerImageComponent.GLOW in component_player_file_matches_dict.keys() else PlayerImageComponent.SHADOW

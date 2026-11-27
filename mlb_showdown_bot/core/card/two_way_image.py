@@ -83,6 +83,7 @@ class TwoWayCardImage:
         """Temporary settings while composing, restored after:
         - both sides render in the bordered canvas space and prefer two-way tagged auto images.
         - the hitter's accolades (drawn on the Super Season logo) alternate with the pitcher's.
+        - on 04/05 both sides also load their plain cutouts, drawn whole over the blended backgrounds.
         - a multi-colored team colored parallel (ex: Team Color Blast) splits by side: the hitter's art in
           the primary color, the pitcher's in the secondary. Single color settings apply to both sides.
         """
@@ -90,6 +91,8 @@ class TwoWayCardImage:
         for card in (self.hitter, self.pitcher):
             overrides += [(card.image, 'is_bordered', True), (card, '_is_rendering_two_way', True)]
         overrides.append((self.hitter, 'accolades', self.alternating_accolades))
+        if self.hitter.set.is_04_05:
+            overrides += [(card, '_includes_cutout', True) for card in (self.hitter, self.pitcher)]  # WHOLE CUTOUTS OVER THE SEAM
         if self.hitter.image.parallel.is_team_colored and self.hitter.image.parallel_art_coloring == ImageColoring.MULTI:
             overrides += [(self.hitter.image, 'parallel_coloring', ParallelColoring.PRIMARY), (self.pitcher.image, 'parallel_coloring', ParallelColoring.SECONDARY)]
 
@@ -632,8 +635,11 @@ class BlockLayout0405(TwoWayLayout):
     ROW = 68                                   # band row pitch
     HITTER_BLOCK_Y, PITCHER_BLOCK_Y = 1563, 1767
     NATIVE_META_Y = 1770                       # native top of the metadata band
-    SEAM_TOP_X, SEAM_BOTTOM_X = 960, 640
-    HITTER_PHOTO_DX, PITCHER_PHOTO_DX = -363, 356   # each photo slides toward its own half, clearing the seam
+    # THE SEAM BETWEEN THE TWO BACKGROUNDS (CANVAS X AT THE TOP / BOTTOM EDGE), BLENDED OVER SEAM_BLEND PX
+    SEAM_TOP_X, SEAM_BOTTOM_X = 1420, 60
+    SEAM_BLEND = 45
+    # EACH PHOTO SLIDES TOWARD ITS OWN HALF
+    HITTER_PHOTO_XY, PITCHER_PHOTO_XY = (-300, 0), (400, 0)
     NAME_X = 150
     CHART_X = (395, 1460)
     # BADGE TEMPLATE, ITS NATIVE (REGULAR CARD) POSITION ON THE BORDERED CANVAS, THE NATIVE MIDDLE Y, AND ITS SCALE
@@ -667,34 +673,128 @@ class BlockLayout0405(TwoWayLayout):
         finally:
             card.image.is_bordered = True
 
-    def _half_mask(self, is_hitter: bool) -> Image.Image:
-        """The hitter's half left of the seam, or the pitcher's half right of it."""
-        mask = Image.new('L', (self.width, self.height), 0 if is_hitter else 255)
-        ImageDraw.Draw(mask).polygon([(0, 0), (self.SEAM_TOP_X, 0), (self.SEAM_BOTTOM_X, self.height), (0, self.height)], fill=255 if is_hitter else 0)
-        return mask
+    def _hitter_mask(self) -> Image.Image:
+        """The hitter's half left of the seam (the pitcher's is the rest), feathered so the two backgrounds
+        blend into each other."""
+        mask = Image.new('L', (self.width, self.height), 0)
+        ImageDraw.Draw(mask).polygon([(0, 0), (self.SEAM_TOP_X, 0), (self.SEAM_BOTTOM_X, self.height), (0, self.height)], fill=255)
+        return mask.filter(ImageFilter.GaussianBlur(self.SEAM_BLEND))
+
+    SLIDE_FILL_BLUR, SLIDE_FILL_FADE = 30, 120
+
+    def slid(self, image: Image.Image, dx: int, dy: int) -> Image.Image:
+        """An opaque background moved by (dx, dy) at the same size. The edges it uncovers are filled by
+        stretching its edge pixels outward, heavily blurred and faded into the photo, so they read as more
+        out-of-focus crowd (a mirror would reflect the player's cap)."""
+        if dx == 0 and dy == 0:
+            return image
+        pixels = np.asarray(image.convert('RGBA'))
+        height, width = pixels.shape[:2]
+        pad = ((max(dy, 0), max(-dy, 0)), (max(dx, 0), max(-dx, 0)), (0, 0))
+        padded = np.pad(pixels, pad, mode='edge')
+        top, left = max(-dy, 0), max(-dx, 0)
+        slid = Image.fromarray(padded[top:top + height, left:left + width])
+
+        # BLUR THE UNCOVERED EDGES AND FADE THEM INTO THE PHOTO
+        uncovered = Image.new('L', slid.size, 255)
+        uncovered.paste(0, (max(dx, 0), max(dy, 0), width + min(dx, 0), height + min(dy, 0)))
+        fade = ImageChops.lighter(uncovered.filter(ImageFilter.GaussianBlur(self.SLIDE_FILL_FADE / 2)), uncovered)
+        slid.paste(slid.filter(ImageFilter.GaussianBlur(self.SLIDE_FILL_BLUR)), (0, 0), fade)
+        return slid
+
+    HEAD_SHARE = 0.13             # top share of a cutout's body height treated as the player's head
+    LIMB_WIDTH = 150              # parts thinner than this (raised arms, bats) aren't the body when finding the head
+    BODY_SCALE = 8                # the body is found at 1/8 size, so the limb filter stays cheap
+    HEAD_COVER_MARGIN = 0.05      # the hitter only moves in front when that hides clearly less of a head
+    # THE FRONT CUTOUT'S SOFT SHADOW, CAST ONLY ON THE BACK PLAYER (NOT THE FAR-OFF BACKGROUND), NUDGED TOWARD THEM
+    OVERLAP_SHADOW_BLUR, OVERLAP_SHADOW_OPACITY, OVERLAP_SHADOW_OFFSET = 18, 0.55, 12
+
+    @classmethod
+    def _head_alpha(cls, cutout: Image.Image) -> np.ndarray:
+        """The cutout's alpha (0-1) kept only over the top of the player's body (their head). Thin parts are
+        opened away and loose pieces dropped first, so a raised throwing hand or a bat above the helmet isn't
+        mistaken for the head."""
+        alpha_image = cutout.getchannel('A')
+        alpha = np.asarray(alpha_image, dtype=np.float32) / 255
+        kernel = cls.LIMB_WIDTH // cls.BODY_SCALE | 1
+        small = (alpha_image.resize((cutout.width // cls.BODY_SCALE, cutout.height // cls.BODY_SCALE))
+                 .point(lambda v: 255 if v > 127 else 0)
+                 .filter(ImageFilter.MinFilter(kernel)).filter(ImageFilter.MaxFilter(kernel)))
+
+        # KEEP ONLY THE PIECE CONNECTED TO THE WIDEST ROW (THE TORSO / LEGS), DROPPING ISLANDS LIKE A FIST AND BALL
+        pixels = np.asarray(small)
+        if pixels.max() == 0:
+            return np.zeros_like(alpha)
+        widest_row = int((pixels > 0).sum(axis=1).argmax())
+        columns = np.flatnonzero(pixels[widest_row])
+        ImageDraw.floodfill(small, (int(columns[len(columns) // 2]), widest_row), 128)
+        body = small.point(lambda v: 255 if v == 128 else 0).resize(cutout.size)
+        body = np.asarray(body, dtype=np.float32) / 255
+        rows = np.flatnonzero(body.max(axis=1) > 0.5)
+        bottom = rows[0] + int((rows[-1] - rows[0]) * cls.HEAD_SHARE)
+        head = np.zeros_like(alpha)
+        head[rows[0]:bottom] = (alpha * body)[rows[0]:bottom]
+        return head
+
+    @classmethod
+    def _head_covered(cls, front: Image.Image, back: Image.Image) -> float:
+        """Share of the back cutout's head hidden by the front cutout."""
+        head = cls._head_alpha(back)
+        total = head.sum()
+        if total == 0:
+            return 0.0
+        return float((head * np.asarray(front.getchannel('A'), dtype=np.float32) / 255).sum() / total)
+
+    def _stacked(self, hitter_cutout: Image.Image, pitcher_cutout: Image.Image) -> list[Image.Image]:
+        """Back to front: the back cutout, the front cutout's shadow on it, then the front cutout. The pitcher
+        usually goes in front (their throwing arm reaching across reads well), but the hitter does when the
+        pitcher's arm or glove would otherwise cover the hitter's face."""
+        hitter_head_hidden = self._head_covered(front=pitcher_cutout, back=hitter_cutout)
+        pitcher_head_hidden = self._head_covered(front=hitter_cutout, back=pitcher_cutout)
+        is_hitter_in_front = hitter_head_hidden > pitcher_head_hidden + self.HEAD_COVER_MARGIN
+        back, front = (pitcher_cutout, hitter_cutout) if is_hitter_in_front else (hitter_cutout, pitcher_cutout)
+        return [back, self._overlap_shadow(front, back, toward_left=not is_hitter_in_front), front]
+
+    def _overlap_shadow(self, front: Image.Image, back: Image.Image, toward_left: bool) -> Image.Image:
+        """The front cutout's blurred silhouette, shifted toward the back player and kept only on them."""
+        offset = self.OVERLAP_SHADOW_OFFSET
+        silhouette = front.getchannel('A').filter(ImageFilter.GaussianBlur(self.OVERLAP_SHADOW_BLUR))
+        silhouette = silhouette.point(lambda v: int(v * self.OVERLAP_SHADOW_OPACITY))
+        cast = Image.new('L', front.size, 0)
+        cast.paste(silhouette, (-offset if toward_left else offset, offset // 2))
+        shadow = Image.new('RGBA', front.size, (0, 0, 0, 0))
+        shadow.putalpha(ImageChops.multiply(cast, back.getchannel('A')))
+        return shadow
 
     def _photos(self) -> Image.Image:
-        """Each side's background and photo slide toward its own half, while its card art (parallels,
-        edition art) stays put so both halves line up into one finish. Every layer is clipped to its half."""
-        canvas = Image.new('RGBA', (self.width, self.height), (0, 0, 0, 255))
+        """Both backgrounds fill the card, blended along the seam, with each side's whole cutout over them
+        (stacked so neither covers the other's face), so neither player is cut by the seam. Each side's photo slides toward its own half, while its card art
+        (parallels, edition art) stays put so both halves line up into one finish."""
         side_size, offset = (self.hitter.set.card_size_bordered, 0) if self.is_bordered else (self.hitter.set.card_size, self.padding)
-        sides = []
-        for card, dx in ((self.hitter, self.HITTER_PHOTO_DX), (self.pitcher, self.PITCHER_PHOTO_DX)):
+
+        def placed(image: Image.Image, xy: tuple[int, int], fills: bool = False) -> Image.Image:
+            dx, dy = xy
+            return self.shifted(self.slid(image, dx, dy), offset, offset) if fills else self.shifted(image, offset + dx, offset + dy)
+
+        halves, cutouts, art_overs = [], [], []
+        for card, xy in ((self.hitter, self.HITTER_PHOTO_XY), (self.pitcher, self.PITCHER_PHOTO_XY)):
             background, groups = self._side_images(card)
-            sides.append((dx, self._half_mask(card is self.hitter), background, groups))
+            side = Image.new('RGBA', (self.width, self.height), (0, 0, 0, 255))
+            side.alpha_composite(placed(background, xy, fills=True))
+            side.alpha_composite(placed(self.composite(groups.photo_background, side_size), xy, fills=True))
+            side.alpha_composite(placed(self.composite(groups.art_under, side_size), (0, 0)))
+            halves.append(side)
+            cutouts.append(placed(self.composite(groups.photo, side_size), xy))
+            art_overs.append(placed(self.composite(groups.art_over, side_size), (0, 0)))
 
-        def place(image: Image.Image, dx: int, mask: Image.Image) -> None:
-            canvas.alpha_composite(self.clipped(self.shifted(image, offset + dx, offset), mask))
+        hitter_mask = self._hitter_mask()
+        canvas = Image.composite(halves[0], halves[1], hitter_mask)
 
-        for dx, mask, background, _ in sides:
-            place(background, dx, mask)
-        for group, moves in (('photo_background', True), ('art_under', False), ('photo', True), ('art_over', False)):
-            for dx, mask, _, groups in sides:
-                place(self.composite(getattr(groups, group), side_size), dx if moves else 0, mask)
-
-        draw = ImageDraw.Draw(canvas)
-        draw.line([(self.SEAM_TOP_X, 0), (self.SEAM_BOTTOM_X, self.height)], fill=(10, 10, 10), width=22)
-        draw.line([(self.SEAM_TOP_X + 14, 0), (self.SEAM_BOTTOM_X + 14, self.height)], fill=(240, 240, 240), width=5)
+        # BOTH CUTOUTS SIT WHOLE OVER THE BLENDED BACKGROUNDS, UNDER EACH SIDE'S CARD ART
+        for layer in self._stacked(*cutouts):
+            canvas.alpha_composite(layer)
+        for art_over, mask in zip(art_overs, (hitter_mask, ImageOps.invert(hitter_mask))):
+            canvas.alpha_composite(self.clipped(art_over, mask))
 
         # HOLIDAY FRAME OVER BOTH PHOTOS AND THE SEAM, UNDER THE BANDS (LIKE A REGULAR CARD'S TEMPLATE)
         holiday_frame = self.holiday_frame()
