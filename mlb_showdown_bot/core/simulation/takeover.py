@@ -38,14 +38,42 @@ class TakeoverOptions:
         self.year = year
         self.mlb_stats_api = mlb_stats_api or MLBStatsAPI()
         self._clubs: Optional[list[TakeoverClub]] = None
+        self._standings_leagues_loaded = 0
+        self.is_complete = False  # SET WHEN `clubs` LOADS - FALSE MEANS DON'T CACHE THE LIST
 
     @property
     def clubs(self) -> list[TakeoverClub]:
-        """Every club that played the season, sorted worst record first."""
+        """Every club in the season, sorted worst record first.
+
+        Standings are the source of records, but they can come back empty (before Opening Day) or
+        partial (one league failing, or the API listing only some clubs early on). The season's
+        team list fills any club the standings missed, at 0-0.
+        """
         if self._clubs is not None:
             return self._clubs
 
+        standings_clubs = self._standings_clubs()
+        listed_clubs = self._team_list_clubs()
+        standing_abbrs = {club.abbreviation for club in standings_clubs}
+        missing = [club for club in listed_clubs if club.abbreviation not in standing_abbrs]
+        # COMPLETE WHEN THE TEAM LIST CONFIRMED EVERY CLUB, OR (IT FAILED) BOTH LEAGUES' STANDINGS CAME BACK
+        self.is_complete = bool(listed_clubs) or self._standings_leagues_loaded == len(LEAGUE_IDS)
+
+        if any(club.wins + club.losses > 0 for club in standings_clubs):
+            # SEASON UNDERWAY: RANK BY RECORD. FILLED-IN 0-0 CLUBS GO LAST SO NONE BECOMES THE "WORST" DEFAULT
+            self._clubs = sorted(standings_clubs, key=lambda club: (club.win_pct, club.wins)) + missing
+        else:
+            # NO GAMES YET (E.G. AN UPCOMING SEASON SIMMED IN THE OFFSEASON): RANK BY LAST SEASON'S
+            # RECORD SO THE DEFAULT TAKEOVER IS STILL THE CLUB COMING OFF THE WORST YEAR
+            prior = TakeoverOptions(year=self.year - 1, mlb_stats_api=self.mlb_stats_api)._standings_clubs()
+            prior_rank = {club.abbreviation: rank for rank, club in enumerate(sorted(prior, key=lambda club: (club.win_pct, club.wins)))}
+            self._clubs = sorted(standings_clubs + missing, key=lambda club: (prior_rank.get(club.abbreviation, len(prior_rank)), club.name))
+        return self._clubs
+
+    def _standings_clubs(self) -> list[TakeoverClub]:
+        """Clubs with their records from the season's division standings (unsorted)."""
         clubs: list[TakeoverClub] = []
+        self._standings_leagues_loaded = 0
         for league_id in LEAGUE_IDS:
             try:
                 standings = self.mlb_stats_api.leagues.get_standings(
@@ -53,6 +81,8 @@ class TakeoverOptions:
                 )
             except Exception:
                 continue
+            if standings:
+                self._standings_leagues_loaded += 1
             for standing in standings:
                 league_abbr = league_abbreviation(standing.league)
                 region = standing.division.name.split(' ')[-1].upper() if standing.division and standing.division.name else ''
@@ -68,9 +98,30 @@ class TakeoverOptions:
                         wins=record.league_record.wins if record.league_record else 0,
                         losses=record.league_record.losses if record.league_record else 0,
                     ))
+        return clubs
 
-        self._clubs = sorted(clubs, key=lambda club: (club.win_pct, club.wins))
-        return self._clubs
+    def _team_list_clubs(self) -> list[TakeoverClub]:
+        """Every club on the season's MLB team list, at 0-0. Empty if the lookup fails."""
+        try:
+            api_teams = self.mlb_stats_api.teams.get_teams(sport_id=1, season=self.year)
+        except Exception:
+            return []
+
+        clubs: list[TakeoverClub] = []
+        for api_team in api_teams:
+            abbreviation = normalized_team_abbr(api_team.abbreviation, self.year)
+            if abbreviation is None:
+                continue
+            league_abbr = league_abbreviation(api_team.league)
+            division = api_team.division.name if api_team.division else None
+            region = division.split(' ')[-1].upper() if division else ''
+            clubs.append(TakeoverClub(
+                abbreviation=abbreviation,
+                name=api_team.name or abbreviation,
+                league=league_abbr,
+                division=f"{league_abbr} {region}" if league_abbr and region else None,
+            ))
+        return clubs
 
     @property
     def default_abbr(self) -> Optional[str]:
