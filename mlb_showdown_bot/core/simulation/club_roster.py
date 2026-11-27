@@ -92,20 +92,41 @@ class MostUsedRosterBuilder:
         return SimRosterSlot(card_id=card_id, card_source=CardSource(self.card_source_for(card_id)), roster_position=roster_position)
 
     def _assign_positions(self) -> dict[str, Stats]:
-        claims = sorted(
-            ((self._pa_at(s, pos), pos, s) for s in self.hitters for pos in self._FIELD_POSITIONS),
-            key=lambda claim: claim[0], reverse=True,
-        )
-        by_position: dict[str, Stats] = {}
-        taken: set[str] = set()
-        for pa, pos, stats in claims:
-            if pa <= 0:
-                break
-            if pos in by_position or stats.id in taken:
-                continue
-            by_position[pos] = stats
-            taken.add(stats.id)
-        return by_position
+        """The starting nine: the most-used hitters, each at the spot they played most among them.
+
+        Solved as an exact assignment (a DP over which positions are filled - 2^9 states), not a
+        greedy per-position claim. Greedy benches a regular whose PA are spread over several spots
+        (a CF/LF/RF who never leads any single one) behind a part-timer who led the last open spot.
+        The objective ranks the starters' season PA first and their PA at the assigned spot second.
+        A player can only take a spot he logged PA at, except DH, which is open to any hitter when
+        the club used a DH at all (a pre-2022 NL club has none, so the ace bats ninth instead).
+        """
+        uses_dh = any(self._pa_at(s, 'DH') > 0 for s in self.hitters)
+        positions = [pos for pos in self._FIELD_POSITIONS if pos != 'DH' or uses_dh]
+        # SEASON PA OUTWEIGHS ANY SINGLE POSITION'S PA, SO A REGULAR IS NEVER BENCHED FOR FIT.
+        season_weight = 1 + max((int(s.stat(StatCategory.PA)) for s in self.hitters), default=0)
+
+        def score(stats: Stats, pos: str) -> Optional[int]:
+            pa_at = self._pa_at(stats, pos)
+            if pa_at <= 0 and pos != 'DH':
+                return None
+            return int(stats.stat(StatCategory.PA)) * season_weight + pa_at
+
+        # MASK OF FILLED POSITIONS -> (BEST SCORE, ASSIGNMENTS AS (POSITION INDEX, HITTER INDEX))
+        best: dict[int, tuple[int, tuple[tuple[int, int], ...]]] = {0: (0, ())}
+        for h_idx, stats in enumerate(self.hitters):
+            step = dict(best)  # SKIPPING THIS HITTER KEEPS EVERY STATE AS-IS
+            for mask, (total, picks) in best.items():
+                for p_idx, pos in enumerate(positions):
+                    if mask & (1 << p_idx) or (value := score(stats, pos)) is None:
+                        continue
+                    new_mask, new_total = mask | (1 << p_idx), total + value
+                    if new_mask not in step or new_total > step[new_mask][0]:
+                        step[new_mask] = (new_total, picks + ((p_idx, h_idx),))
+            best = step
+
+        _, picks = max(best.values(), key=lambda entry: entry[0])
+        return {positions[p_idx]: self.hitters[h_idx] for p_idx, h_idx in sorted(picks)}
 
     def _candidate(self, stats: Stats, field_position: str) -> LineupCandidate:
         slot = self._slot(stats, field_position)
