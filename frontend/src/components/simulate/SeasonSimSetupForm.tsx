@@ -233,7 +233,9 @@ export function SeasonSimSetupForm(props: Props) {
                 const pending = presetRef.current?.clubsPending && presetRef.current.preset.year === year ? presetRef.current.preset : null;
                 if (pending && presetRef.current) presetRef.current.clubsPending = false;
                 const isClub = (abbr?: string) => !!abbr && teams.some(club => club.abbreviation === abbr);
-                const byRecord = [...teams].sort((a, b) => b.wins - a.wins);
+                // Teams arrive worst first (pre-Opening Day: by last season's record), so reversing
+                // before the stable sort keeps last year's best club on top when everyone is 0-0.
+                const byRecord = [...teams].reverse().sort((a, b) => b.wins - a.wins);
                 const starredPick = byRecord.find(club => starredAbbrsRef.current.includes(club.abbreviation));
                 setFocusAbbr(isClub(pending?.focusAbbr) ? pending!.focusAbbr! : starredPick?.abbreviation ?? byRecord[0]?.abbreviation ?? '');
                 setTakeoverReplaces(isClub(pending?.takeover?.replaces) ? pending!.takeover!.replaces! : worst ?? teams[0]?.abbreviation ?? '');
@@ -301,8 +303,10 @@ export function SeasonSimSetupForm(props: Props) {
         const aStarred = starredAbbrs.includes(a.abbreviation);
         const bStarred = starredAbbrs.includes(b.abbreviation);
         if (aStarred !== bStarred) return aStarred ? -1 : 1;
-        return b.wins - a.wins;
+        return b.wins - a.wins || a.name.localeCompare(b.name);
     });
+    // Before Opening Day every club is 0-0, so the label drops the record.
+    const clubLabel = (club: TakeoverClub) => club.wins + club.losses > 0 ? `${club.name} (${club.wins}-${club.losses})` : club.name;
 
     // While another set's list loads, keep showing the same season's last one so the options don't
     // flicker away.
@@ -394,7 +398,7 @@ export function SeasonSimSetupForm(props: Props) {
                 {!isLobby && (
                     <FormDropdown
                         label="Follow"
-                        options={sortedClubs.map(club => ({ label: `${club.name} (${club.wins}-${club.losses})`, value: club.abbreviation }))}
+                        options={sortedClubs.map(club => ({ label: clubLabel(club), value: club.abbreviation }))}
                         selectedOption={focusAbbr}
                         onChange={setFocusAbbr}
                         disabled={loadingClubs || clubs.length === 0}
@@ -504,7 +508,7 @@ export function SeasonSimSetupForm(props: Props) {
                         />
                         <FormDropdown
                             label="Replaces"
-                            options={sortedClubs.map(club => ({ label: `${club.name} (${club.wins}-${club.losses})`, value: club.abbreviation }))}
+                            options={sortedClubs.map(club => ({ label: clubLabel(club), value: club.abbreviation }))}
                             selectedOption={takeoverReplaces}
                             onChange={setTakeoverReplaces}
                             disabled={loadingClubs || clubs.length === 0}

@@ -197,7 +197,8 @@ def get_sim_season_teams(year: int):
 
         options = TakeoverOptions(year=year)
         teams = [club.model_dump() for club in options.clubs]
-        _seasons_cache[cache_key] = (teams, datetime.now())
+        if teams and options.is_complete:  # NEVER CACHE A FAILED OR PARTIAL LOOKUP
+            _seasons_cache[cache_key] = (teams, datetime.now())
         return jsonify({'teams': teams, 'default': options.default_abbr}), 200
     except Exception as exc:
         traceback.print_exc()
