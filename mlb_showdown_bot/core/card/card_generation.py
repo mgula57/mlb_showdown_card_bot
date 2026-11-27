@@ -10,7 +10,7 @@ import re
 
 # INTERNAL
 from .showdown_player_card import ShowdownPlayerCard, ImageLibrary, ImageSource, ShowdownImage, PlayerType, Team, Edition, Set
-from .images import DEFAULT_RENDER_FILE_FORMAT
+from .images import DEFAULT_RENDER_FILE_FORMAT, ImageParallel
 from ..data.replacement_season_averages import get_replacement_hitting_avgs, get_replacement_pitching_avgs
 from ..data.stat_normalizer import StatNormalizer, StatNormalizerType
 from .stats.baseball_ref_scraper import BaseballReferenceScraper
@@ -162,6 +162,10 @@ class TwoWayCardGenerator:
     """
 
     SIDE_NAME_SUFFIXES: ClassVar[dict[PlayerType, str]] = {PlayerType.HITTER: '(Hitter)', PlayerType.PITCHER: '(Pitcher)'}
+    CUSTOM_PHOTO_ERROR: ClassVar[str] = (
+        "Two-way cards can't use an uploaded photo or image link, since each half needs its own photo. "
+        "Connect a Google Drive image library from your account to use your own photos."
+    )
     TYPE_SUFFIX_PATTERN: ClassVar[re.Pattern] = re.compile(r'\((hitter|hitting|pitcher|pitching)\)', flags=re.IGNORECASE)
     # INPUTS THAT ONLY APPLY TO THE FINAL COMBINED CARD (OR NOT AT ALL TO TWO-WAY CARDS)
     SIDE_EXCLUDED_INPUTS: ClassVar[frozenset[str]] = frozenset([
@@ -196,6 +200,12 @@ class TwoWayCardGenerator:
         if not TwoWayCardImage.supports(showdown_set):
             supported = ', '.join(sorted(s.value for s in TwoWayCardImage.SUPPORTED_SETS))
             raise Exception(f"Two-way cards are available for the {supported} sets.")
+        parallel = ImageParallel(str(kwargs.get('parallel', ImageParallel.NONE.value)))
+        if not TwoWayCardImage.supports_parallel(showdown_set, parallel):
+            raise Exception(f"The {parallel.name_cleaned.title()} parallel isn't available for {showdown_set.value} two-way cards.")
+        # ONE UPLOADED/LINKED PHOTO CAN'T FILL BOTH HALVES. CLEANED KWARGS: UPLOAD -> 'path', LINK -> 'url'
+        if kwargs.get('path') or kwargs.get('url'):
+            raise Exception(self.CUSTOM_PHOTO_ERROR)
 
         base_name = self.base_name(kwargs.get('name'))
         side_inputs = {k: v for k, v in kwargs.items() if k not in self.SIDE_EXCLUDED_INPUTS}

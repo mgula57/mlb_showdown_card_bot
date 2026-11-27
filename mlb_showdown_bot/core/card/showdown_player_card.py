@@ -45,7 +45,7 @@ from .stats.datasource import Datasource
 
 from .sets import Set, Era, SpeedMetric, PlayerType, PlayerSubType, Position, PlayerImageComponent, TemplateImageComponent, ValueRange, Chart, ImageParallel
 from .chart import ChartCategory, Stat, ChartAccuracyBreakdown
-from .images import AutoImageFile, ImageLibrary, ImageMatchScore, ImageSource, ImageSourceType, SpecialEdition, Edition, Expansion, ShowdownImage, StatHighlightsType, StatHighlightsCategory
+from .images import AutoImageFile, ImageLibrary, ImageMatchScore, PlayerImageLayer, ImageSource, ImageSourceType, SpecialEdition, Edition, Expansion, ShowdownImage, StatHighlightsType, StatHighlightsCategory
 from .points import Points, PointsMetric, PointsBreakdown
 from .variable_speed import VariableSpeedVariant
 from .command_out_selections import CommandOutSelection, CommandOutSelections
@@ -813,6 +813,11 @@ class ShowdownPlayerCard(BaseModel):
             return unidecode.unidecode(self.nicknames[self.image.nickname_index - 1])
         
         return unidecode.unidecode(self.name)
+
+    @property
+    def name_on_card_image(self) -> str:
+        """Uppercased name printed on the card image. The Mystery parallel hides it."""
+        return "????? ?????" if self.image.parallel == ImageParallel.MYSTERY else self.name_for_visuals.upper()
 
     @property
     def last_name(self) -> str:
@@ -3383,21 +3388,16 @@ class ShowdownPlayerCard(BaseModel):
             self.save_image(image=card_image, start_time=start_time, show=show, img_name_prefix=img_name_prefix, img_name_suffix=img_name_suffix)
             return
 
+        # CHECK FOR SPECIAL EDITION
+        self._update_special_edition()
+
         # TWO-WAY CARDS (BOTH ROLES ON ONE IMAGE) HAVE THEIR OWN LAYOUT PER SET
         if self.has_two_way_layout:
             from .two_way_image import TwoWayCardImage
+            self.two_way._update_special_edition()
             card_image = TwoWayCardImage(hitter=self, pitcher=self.two_way).render()
             self._finalize_and_save_card_image(card_image=card_image, start_time=start_time, show=show, img_name_prefix=img_name_prefix, img_name_suffix=img_name_suffix)
             return
-        
-        # CHECK FOR SPECIAL EDITION
-        self.image.update_special_edition(
-            has_nationality=self.nationality.is_populated, 
-            has_wbc_info=self.wbc_team and self.wbc_team != WBCTeam.NONE and self.wbc_year and self.image.edition == Edition.WBC,
-            enable_cooperstown_special_edition=self.set.enable_cooperstown_special_edition, 
-            year=str(self.stats_period.last_year or self.year), 
-            is_04_05=self.set.is_04_05
-        )
         
         # BACKGROUND IMAGE
         card_image = self._background_image()
@@ -3405,15 +3405,14 @@ class ShowdownPlayerCard(BaseModel):
         # PLAYER IMAGE
         # RELEASED ONLY AFTER THE LOOP: THE SAME LAYER OBJECT CAN APPEAR MORE THAN ONCE (EX: ELLIPSES)
         player_image_layers = self._player_image_layers()
-        for img, coordinates in player_image_layers:
-            card_image.paste(img, coordinates, img)
-        self._release_images(*[img for img, _ in player_image_layers])
+        for layer in player_image_layers:
+            card_image.paste(layer.image, layer.xy, layer.image)
+        self._release_images(*[layer.image for layer in player_image_layers])
         del player_image_layers
 
         # ADD HOLIDAY THEME
-        if self.image.edition == Edition.HOLIDAY:
-            holiday_image_path = self._template_img_path('Holiday')
-            holiday_image = Image.open(holiday_image_path)
+        holiday_image = self._holiday_image()
+        if holiday_image:
             card_image.paste(holiday_image,self._coordinates_adjusted_for_bordering(coordinates=(0,0)),holiday_image)
             self._release_images(holiday_image)
 
@@ -3484,14 +3483,9 @@ class ShowdownPlayerCard(BaseModel):
         self._release_images(set_image)
 
         # YEAR CONTAINER
-        if self.image.show_year_text and not self.set.is_year_container_text:
-            paste_location = self.set.template_component_paste_coordinates(TemplateImageComponent.YEAR_CONTAINER)
-
-            # ADJUST IF THERE'S STATS PERIOD TEXT
-            if self.stats_period.show_text_on_card_image and self.set == Set._2003:
-                paste_location = (paste_location[0], paste_location[1] - 65)
-
-            year_container_img = self._year_container_add_on()
+        year_container = self._year_container_layer()
+        if year_container:
+            year_container_img, paste_location = year_container
             card_image.paste(year_container_img, self._coordinates_adjusted_for_bordering(paste_location), year_container_img)
             self._release_images(year_container_img)
 
@@ -3503,24 +3497,29 @@ class ShowdownPlayerCard(BaseModel):
             self._release_images(split_image)
 
         # STAT HIGHLIGHTS
-        if self.image.stat_highlights_type.has_image and not self.image.disable_showing_stat_highlights:
+        if self.image.shows_stat_highlights:
             stat_highlights_img, paste_coordinates = self._stat_highlights_image()
             card_image.paste(stat_highlights_img, self._coordinates_adjusted_for_bordering(paste_coordinates), stat_highlights_img)
             self._release_images(stat_highlights_img)
 
         # EXPANSION
-        if self.image.expansion.has_image:
-            expansion_image = self._expansion_image()
-            if expansion_image:
-                expansion_location = self.set.template_component_paste_coordinates(component=TemplateImageComponent.EXPANSION, expansion=self.image.expansion)
-                if self.image.show_year_text and self.set.is_00_01:
-                    # IF YEAR CONTAINER EXISTS, MOVE OVER EXPANSION LOGO
-                    expansion_location = (expansion_location[0] - 140, expansion_location[1] + 5)
-                
-                card_image.paste(expansion_image, self._coordinates_adjusted_for_bordering(expansion_location), expansion_image)
-                self._release_images(expansion_image)
+        expansion = self._expansion_layer()
+        if expansion:
+            expansion_image, expansion_location = expansion
+            card_image.paste(expansion_image, self._coordinates_adjusted_for_bordering(expansion_location), expansion_image)
+            self._release_images(expansion_image)
 
         self._finalize_and_save_card_image(card_image=card_image, start_time=start_time, show=show, img_name_prefix=img_name_prefix, img_name_suffix=img_name_suffix)
+
+    def _update_special_edition(self) -> None:
+        """Resolve the image's special edition (ex: ASG year art, 04/05 Super Season) from the card's context."""
+        self.image.update_special_edition(
+            has_nationality=self.nationality.is_populated, 
+            has_wbc_info=self.wbc_team and self.wbc_team != WBCTeam.NONE and self.wbc_year and self.image.edition == Edition.WBC,
+            enable_cooperstown_special_edition=self.set.enable_cooperstown_special_edition, 
+            year=str(self.stats_period.last_year or self.year), 
+            is_04_05=self.set.is_04_05
+        )
 
     def _finalize_and_save_card_image(self, card_image:Image.Image, start_time:datetime, show:bool=False, img_name_prefix:str='', img_name_suffix:str='') -> None:
         """Crop a fully composed card image to its final size, apply image-wide parallels, and save it.
@@ -4017,7 +4016,7 @@ class ShowdownPlayerCard(BaseModel):
                 edition_extension = f"-{self.image.parallel.color_override_04_05_chart}"
             type_template = f'{year}-{type}{edition_extension}'
             template_image = Image.open(self._template_img_path(type_template))
-            if self.image.stat_highlights_type.has_image and not self.image.disable_showing_stat_highlights:
+            if self.image.shows_stat_highlights:
                 bg_image = Image.open(self._template_img_path(f'2004-STAT-HIGHLIGHTS{edition_extension}'))
                 template_image.paste(bg_image, (0, 1975), bg_image)
             elif self.stats_period.show_text_on_card_image:
@@ -4233,7 +4232,7 @@ class ShowdownPlayerCard(BaseModel):
           X coordinate of the right edge of the name text + icons.
         """
 
-        name = "????? ?????" if self.image.parallel == ImageParallel.MYSTERY else self.name_for_visuals.upper()
+        name = self.name_on_card_image
         font_path = self._font_path('HelveticaNeueLtStd107ExtraBlack', extension='otf')
         _, name_width = self._fitted_name_font_and_width(name=name, font_path=font_path, base_size=96, padding=3)
 
@@ -4261,7 +4260,7 @@ class ShowdownPlayerCard(BaseModel):
         """
 
         # PARSE NAME STRING
-        name_upper = "????? ?????" if self.image.parallel == ImageParallel.MYSTERY else self.name_for_visuals.upper()
+        name_upper = self.name_on_card_image
         first, last = self.split_name(name=name_upper, is_nickname=self.is_using_nickname)
         name = first if self.set.has_split_first_and_last_names else name_upper
         futura_black_path = self._font_path('Futura Black')
@@ -4857,6 +4856,37 @@ class ShowdownPlayerCard(BaseModel):
 
         return set_image
 
+    def _holiday_image(self) -> Optional[Image.Image]:
+        """Holiday edition's full card frame art (regular card size), or None for other editions."""
+        if self.image.edition != Edition.HOLIDAY:
+            return None
+        return Image.open(self._template_img_path('Holiday'))
+
+    def _year_container_layer(self) -> Optional[tuple[Image.Image, tuple[int,int]]]:
+        """The optional year container box and where it goes (regular card space), for sets that use a
+        container rather than text next to the logo. None when it isn't shown."""
+        if not self.image.show_year_text or self.set.is_year_container_text:
+            return None
+        paste_location = self.set.template_component_paste_coordinates(TemplateImageComponent.YEAR_CONTAINER)
+
+        # ADJUST IF THERE'S STATS PERIOD TEXT
+        if self.stats_period.show_text_on_card_image and self.set == Set._2003:
+            paste_location = (paste_location[0], paste_location[1] - 65)
+        return self._year_container_add_on(), paste_location
+
+    def _expansion_layer(self) -> Optional[tuple[Image.Image, tuple[int,int]]]:
+        """The expansion logo and where it goes (regular card space). None when there isn't one."""
+        if not self.image.expansion.has_image:
+            return None
+        expansion_image = self._expansion_image()
+        if not expansion_image:
+            return None
+        expansion_location = self.set.template_component_paste_coordinates(component=TemplateImageComponent.EXPANSION, expansion=self.image.expansion)
+        if self.image.show_year_text and self.set.is_00_01:
+            # IF YEAR CONTAINER EXISTS, MOVE OVER EXPANSION LOGO
+            expansion_location = (expansion_location[0] - 140, expansion_location[1] + 5)
+        return expansion_image, expansion_location
+
     def _expansion_image(self) -> Image.Image:
         """Creates image for card expansion (ex: Trade Deadline, Pennant Run)
         
@@ -5290,7 +5320,7 @@ class ShowdownPlayerCard(BaseModel):
         
     def _add_additional_logo(self, image:Image.Image) -> Image.Image:
         """Add CC/RS/SS/PS logo to existing player_image object.
-           Only for 2000/2001 sets.
+           Only for 2000/2001 sets (and WBC on 02+ sets).
 
         Args:
           image: Current PIL image object for Showdown card.
@@ -5298,18 +5328,30 @@ class ShowdownPlayerCard(BaseModel):
         Returns:
           Updated PIL Image with logos added above the chart.
         """
+        additional_logo = self._additional_logo_image()
+        if additional_logo:
+            logo, paste_coordinates = additional_logo
+            image.paste(logo, self._coordinates_adjusted_for_bordering(paste_coordinates), logo)
+        return image
+
+    def _additional_logo_image(self) -> Optional[tuple[Image.Image, tuple[int,int]]]:
+        """The card's edition logo (CC/RS/SS/PS/ASG/WBC) and where it goes on a regular card.
+           Only for 2000/2001 sets (and WBC on 02+ sets).
+
+        Returns:
+          Tuple of the logo image and its paste coordinates (regular card space), or None.
+        """
 
         # ADD LOGO FOR 02+ SETS FOR WBC
         if not self.set.is_00_01 and self.image.special_edition == SpecialEdition.WBC:
             wbc_logo = self._wbc_image()
             if wbc_logo:
-                paste_coordinates = self.set.template_component_paste_coordinates(TemplateImageComponent.WBC)
-                image.paste(wbc_logo, self._coordinates_adjusted_for_bordering(paste_coordinates), wbc_logo)
-            return image
+                return wbc_logo, self.set.template_component_paste_coordinates(TemplateImageComponent.WBC)
+            return None
         
         # ONLY FOR 00/01 SETS
         if not self.set.is_00_01:
-            return image
+            return None
         
         # DEFINE COORDINATES, START WITH ROOKIE SEASON DESTINATION AND EDIT FOR OTHERS
         match self.image.edition:
@@ -5333,7 +5375,7 @@ class ShowdownPlayerCard(BaseModel):
             x_movement = -35 if self.image.edition == Edition.SUPER_SEASON else 0
             paste_coordinates = (paste_coordinates[0] - 25 + x_movement, paste_coordinates[1] + y_movement)
 
-        # ADD LOGO
+        # LOGO
         match self.image.edition:
             case Edition.ALL_STAR_GAME:
                 logo_name = f'ASG-{self.stats_period.last_year}'
@@ -5354,33 +5396,25 @@ class ShowdownPlayerCard(BaseModel):
                         paste_coordinates = (paste_coordinates[0] - 30, paste_coordinates[1] - 20)
                 
                 logo_size = (logo_size_x, logo_size_y)
-                logo = Image.open(logo_path).convert("RGBA").resize(logo_size, Image.Resampling.LANCZOS)
-                image.paste(logo, self._coordinates_adjusted_for_bordering(paste_coordinates), logo)
+                return Image.open(logo_path).convert("RGBA").resize(logo_size, Image.Resampling.LANCZOS), paste_coordinates
             case Edition.COOPERSTOWN_COLLECTION:
                 logo_name = 'CCC'
                 logo_size = self.set.template_component_size(TemplateImageComponent.TEAM_LOGO)
                 logo_path = self._team_logo_path(name=logo_name)
-                logo = Image.open(logo_path).convert("RGBA").resize(logo_size, Image.Resampling.LANCZOS)
-                image.paste(logo, self._coordinates_adjusted_for_bordering(paste_coordinates), logo)
+                return Image.open(logo_path).convert("RGBA").resize(logo_size, Image.Resampling.LANCZOS), paste_coordinates
             case Edition.SUPER_SEASON:
                 super_season_img, y_adjustment = self._super_season_image()
                 paste_coordinates_x, paste_coordinates_y = paste_coordinates
-                paste_coordinates = (paste_coordinates_x, paste_coordinates_y - 220 + y_adjustment)
-                image.paste(super_season_img, self._coordinates_adjusted_for_bordering(paste_coordinates), super_season_img)
+                return super_season_img, (paste_coordinates_x, paste_coordinates_y - 220 + y_adjustment)
             case Edition.ROOKIE_SEASON:
-                rs_logo = self._rookie_season_image()
-                image.paste(rs_logo, self._coordinates_adjusted_for_bordering(paste_coordinates), rs_logo)
+                return self._rookie_season_image(), paste_coordinates
             case Edition.POSTSEASON:
-                ps_logo = self._postseason_image()
-                image.paste(ps_logo, self._coordinates_adjusted_for_bordering(paste_coordinates), ps_logo)
+                return self._postseason_image(), paste_coordinates
             case Edition.WBC:
                 wbc_logo = self._wbc_image()
-                if wbc_logo:
-                    image.paste(wbc_logo, self._coordinates_adjusted_for_bordering(paste_coordinates), wbc_logo)
+                return (wbc_logo, paste_coordinates) if wbc_logo else None
             case _:
-                return image
-            
-        return image
+                return None
 
     def _command_image(self) -> Image.Image:
         """For CLASSIC and EXPANDED sets, create onbase/control image asset dynamically
@@ -5562,11 +5596,12 @@ class ShowdownPlayerCard(BaseModel):
 
         return split_image
 
-    def _stat_highlights_image(self) -> tuple[Image.Image, tuple[int,int]]:
+    def _stat_highlights_image(self, sections:Optional[list[list[str]]]=None) -> tuple[Image.Image, tuple[int,int]]:
         """Create image for stat highlights section of card. 
 
         Args:
-          None
+          sections: Stat lists sharing the container side by side, split by a divider (ex: a two-way
+                    card's hitting and pitching stats). Defaults to the card's own stat highlights.
 
         Returns:
           Tuple with:
@@ -5611,28 +5646,38 @@ class ShowdownPlayerCard(BaseModel):
         font_path = self._font_path('HelveticaNeueCondensedBold')
         font = ImageFont.truetype(font_path, size=self.set.stat_highlight_text_size)
 
-        # SIZING
-        padding = 5
+        # SIZING: EACH SECTION GETS AN EQUAL SHARE OF THE CONTAINER, SPLIT BY A DIVIDER
+        sections = sections or [self.image.stat_highlights_list]
+        padding, divider_gap = 5, 24
         x_size_w_padding = bg_image.size[0] - (padding * 2)
-        final_size = (x_size_w_padding, bg_image.size[1])
+        section_width = int((x_size_w_padding - divider_gap * (len(sections) - 1)) / len(sections))
+        final_size = (section_width, bg_image.size[1])
         final_size_multiplier = 4
-
-        # CALCULATE HOW MANY STATS CAN FIT
-        full_text: str = ''
-        for stat in self.image.stat_highlights_list:
-            text_width_next, _ = self._font_getsize(font=font, text=f'{full_text}  {stat}')
-            if text_width_next > (x_size_w_padding * 4): break
-            full_text = f'{full_text}  {stat}'
-        
-        stat_text = self._text_image(
-            text = full_text,
-            size = (final_size[0] * final_size_multiplier, final_size[1] * final_size_multiplier),
-            font = font,
-            alignment = "left" if self.set in [Set._2004, Set._2005] else "center"
-        )
-        stat_text = stat_text.resize(final_size, Image.Resampling.LANCZOS)
         text_color = self.set.template_component_font_color(component=TemplateImageComponent.STAT_HIGHLIGHTS, is_dark_mode=self.image.is_dark_mode)
-        bg_image.paste(text_color, (padding, y_text_offset), stat_text)
+        for index, stats in enumerate(sections):
+
+            # CALCULATE HOW MANY STATS CAN FIT
+            full_text: str = ''
+            for stat in stats:
+                text_width_next, _ = self._font_getsize(font=font, text=f'{full_text}  {stat}')
+                if text_width_next > (section_width * final_size_multiplier): break
+                full_text = f'{full_text}  {stat}'
+
+            stat_text = self._text_image(
+                text = full_text,
+                size = (final_size[0] * final_size_multiplier, final_size[1] * final_size_multiplier),
+                font = font,
+                alignment = "left" if self.set in [Set._2004, Set._2005] or len(sections) > 1 else "center"
+            )
+            stat_text = stat_text.resize(final_size, Image.Resampling.LANCZOS)
+            section_x = padding + index * (section_width + divider_gap)
+            bg_image.paste(text_color, (section_x, y_text_offset), stat_text)
+
+            # DIVIDER BEFORE EVERY SECTION AFTER THE FIRST
+            if index > 0:
+                divider_x = section_x - divider_gap // 2
+                inset = bg_image.size[1] // 4
+                ImageDraw.Draw(bg_image).line([(divider_x, inset), (divider_x, bg_image.size[1] - inset)], fill=text_color, width=3)
 
         # DEFINE PASTE COORDINATES
         paste_coordinates = self.set.template_component_paste_coordinates(
@@ -5656,7 +5701,7 @@ class ShowdownPlayerCard(BaseModel):
 # AUTOMATED PLAYER IMAGE
 # ------------------------------------------------------------------------
     
-    def _player_image_layers(self, include_2000_containers:bool=True) -> list[tuple[Image.Image, tuple[int,int]]]:
+    def _player_image_layers(self, include_2000_containers:bool=True) -> list[PlayerImageLayer]:
         """Attempts to query google drive for a player image, if 
         it does not exist use siloutte background.
 
@@ -5664,14 +5709,11 @@ class ShowdownPlayerCard(BaseModel):
           include_2000_containers: Add the 2000 set's name and set containers (two-way cards lay out their own).
 
         Returns:
-          List of tuples.
-          Tuple contains:
-            PIL image object for each component of the player's image.
-            Coordinates for pasting to background image.
+          Layers (image, paste coordinates, whether it's card art) in paste order.
         """
         
         # DEFINE FINAL IMAGE
-        images_to_paste: list[tuple[Image.Image, tuple[int,int]]] = []
+        images_to_paste: list[PlayerImageLayer] = []
         default_img_paste_coordinates = self._coordinates_adjusted_for_bordering((0,0))
 
         # CHECK FOR USER UPLOADED IMAGE
@@ -5685,7 +5727,7 @@ class ShowdownPlayerCard(BaseModel):
                 if player_img_user_uploaded is not player_img_raw:
                     # RAW UPLOADS CAN BE FULL-RES PHOTOS; DON'T HOLD THEM FOR THE REST OF THE BUILD
                     self._release_images(player_img_raw)
-                images_to_paste.append((player_img_user_uploaded, paste_coords))
+                images_to_paste.append(PlayerImageLayer(player_img_user_uploaded, paste_coords))
                 player_img_user_upload_transparency_pct = self._img_transparency_pct(player_img_user_uploaded)
             except Exception as err:
                 self.image.error = str(err)
@@ -5718,13 +5760,13 @@ class ShowdownPlayerCard(BaseModel):
         if self.set == Set._2000 and include_2000_containers:
             if player_img_user_uploaded and player_img_user_upload_transparency_pct < 0.30 and not self.image.special_edition.hide_2000_player_name:
                 name_container = self._2000_player_name_container_image()
-                images_to_paste.append((name_container, (0,0)))
+                images_to_paste.append(PlayerImageLayer(name_container, (0,0), is_card_art=True))
             set_container = self._2000_player_set_container_image()
-            images_to_paste.append((set_container, default_img_paste_coordinates))
+            images_to_paste.append(PlayerImageLayer(set_container, default_img_paste_coordinates, is_card_art=True))
 
         return images_to_paste
 
-    def _automated_player_image_layers(self, component_img_urls_dict:dict, gdrive_file_versions:dict[str, str] = None, drive_client:type[GoogleDriveClient] = GoogleDriveClient) -> list[tuple[Image.Image, tuple[int,int]]]:
+    def _automated_player_image_layers(self, component_img_urls_dict:dict, gdrive_file_versions:dict[str, str] = None, drive_client:type[GoogleDriveClient] = GoogleDriveClient) -> list[PlayerImageLayer]:
         """ Download and manipulate player image asset(s) to fit the current set's style.
 
         Args:
@@ -5733,7 +5775,7 @@ class ShowdownPlayerCard(BaseModel):
           drive_client: Drive client with access to the matched library's files.
 
         Returns:
-          List of tuples that contain a PIL image objects and coordinates to paste them
+          Layers (image, paste coordinates, whether it's card art) in paste order
         """
 
         gdrive_file_versions = gdrive_file_versions or {}
@@ -5741,7 +5783,7 @@ class ShowdownPlayerCard(BaseModel):
         # DOWNLOAD UNCACHED DRIVE FILES IN PARALLEL UP FRONT. DECODING AND LAYERING BELOW STAY SEQUENTIAL.
         gdrive_downloads = self._download_google_drive_files(component_img_urls_dict=component_img_urls_dict, gdrive_file_versions=gdrive_file_versions, drive_client=drive_client)
 
-        player_img_components = []
+        player_img_components: list[PlayerImageLayer] = []
         is_img_download_error = False
         breakout_background: Optional[Image.Image] = None
         breakout_player: Optional[Image.Image] = None
@@ -5856,7 +5898,7 @@ class ShowdownPlayerCard(BaseModel):
                     if self.image.parallel == ImageParallel.MOONLIGHT:
                         image, paste_coordinates = self.team_logo_for_background(team_override=self.team_override_for_images)
                         image = self._change_image_saturation(image=image, saturation=0.05)
-                        player_img_components.append((image, paste_coordinates))
+                        player_img_components.append(PlayerImageLayer(image, paste_coordinates, is_card_art=True))
                         continue
                     elif self.image.special_edition == SpecialEdition.ASG_LINES:
                         original_img = Image.open(img_url).convert('RGBA')
@@ -5965,7 +6007,7 @@ class ShowdownPlayerCard(BaseModel):
                                 x_cord = int(img_width / 2)
                             x_cord = x_cord - int(ellipse_width * 0.5)
                             coordinates_adjusted = (x_cord, ycord)
-                            player_img_components.append((ellipse_circle_image, coordinates_adjusted))
+                            player_img_components.append(PlayerImageLayer(ellipse_circle_image, coordinates_adjusted))
                         case _:
                             # FIND EDGE IN PARTICULAR DIRECTION
                             for x_index in range(1, img_width):
@@ -5980,7 +6022,7 @@ class ShowdownPlayerCard(BaseModel):
                                     ellipse_x_movement_mutliplier = 0.60 if is_reversed else 0.30
                                     x_adjustment = -1 * int(ellipse_width * ellipse_x_movement_mutliplier)
                                     coordinates_adjusted = (int(x_cord + x_adjustment), int(ycord))
-                                    player_img_components.append((ellipse_circle_image, coordinates_adjusted))
+                                    player_img_components.append(PlayerImageLayer(ellipse_circle_image, coordinates_adjusted))
                                     break
 
             # STARS
@@ -5990,24 +6032,24 @@ class ShowdownPlayerCard(BaseModel):
                 centered_paste_coordinates = (750-int(stars_image.size[0]/2),175)
                 player_image_adjustment = self.set.player_image_crop_adjustment(special_edition=self.image.special_edition)
                 star_paste_coordinates = (centered_paste_coordinates[0] - player_image_adjustment[0], centered_paste_coordinates[1] - player_image_adjustment[1])
-                player_img_components.append((stars_image, star_paste_coordinates))
+                player_img_components.append(PlayerImageLayer(stars_image, star_paste_coordinates, is_card_art=True))
 
             # PASTE IMAGE
-            player_img_components.append((image, paste_coordinates))
+            player_img_components.append(PlayerImageLayer(image, paste_coordinates, is_card_art=img_component.is_card_art, component=img_component))
 
             # BOOSTER: THE BACKGROUND PHOTO SHOWS THROUGH THE MIDDLE, SO THE FOIL AND LINES GO RIGHT OVER IT
             if self.image.parallel == ImageParallel.BOOSTER and img_component == PlayerImageComponent.BACKGROUND:
                 booster_background_found = True
-                player_img_components.append((self._booster_frame_image(size=self.set.card_size, background=image), (0,0)))
+                player_img_components.append(PlayerImageLayer(self._booster_frame_image(size=self.set.card_size, background=image), (0,0), is_card_art=True))
 
         # BOOSTER: NO BACKGROUND PHOTO FOUND, THE MIDDLE FALLS BACK TO A TEAM COLOR TONE
         if self.image.parallel == ImageParallel.BOOSTER and not booster_background_found:
-            player_img_components.insert(0, (self._booster_frame_image(size=self.set.card_size, background=None), (0,0)))
+            player_img_components.insert(0, PlayerImageLayer(self._booster_frame_image(size=self.set.card_size, background=None), (0,0), is_card_art=True))
 
         # BREAKOUT: FRAME GOES UNDER EVERY OTHER LAYER SO THE PLAYER BREAKS OUT OF IT
         if self.image.parallel == ImageParallel.BREAKOUT:
             frame_image = self._breakout_frame_image(size=self.set.card_size, background=breakout_background, player=breakout_player)
-            player_img_components.insert(0, (frame_image, (0,0)))
+            player_img_components.insert(0, PlayerImageLayer(frame_image, (0,0), is_card_art=True))
 
         return player_img_components
 

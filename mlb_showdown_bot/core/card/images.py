@@ -8,7 +8,8 @@ from enum import Enum
 from io import BytesIO
 from urllib.parse import urljoin, urlparse
 from pydantic import BaseModel, PrivateAttr, ValidationInfo, field_validator
-from typing import ClassVar, Optional, Union
+from typing import ClassVar, NamedTuple, Optional, Union
+from PIL import Image
 
 from ...core.shared.nationality import WBCTeam
 
@@ -207,6 +208,13 @@ class PlayerImageComponent(str, Enum):
         ]
     
     @property
+    def is_card_art(self) -> bool:
+        """Art laid out over the whole card (parallels, edition art, team color/logo washes) rather than
+        around the player photo. Mostly the custom-crop-ignoring components, plus card art that is cropped
+        like the photo. Two-way layouts keep card art fixed while each side's photo moves."""
+        return self.ignores_custom_crop or self.name in ['MOONLIGHT', 'POSTSEASON']
+
+    @property
     def crop_adjustment_02_03(self) -> tuple[int, int]:
         match self.name:
             case "WHITE_CIRCLE" | "BLACK_CIRCLE" | "TEAM_COLOR" | "TEAM_LOGO": return (75,0)
@@ -272,6 +280,22 @@ class PlayerImageComponent(str, Enum):
             case "ELLIPSE_SMALL": return 200
             case _: return None
 
+
+class PlayerImageLayer(NamedTuple):
+    """One layer of the card's player image, pasted in list order.
+
+    `is_card_art` marks art laid out over the whole card (see `PlayerImageComponent.is_card_art`, plus
+    the parallels' built frames) rather than the player photo and the layers that follow the player.
+    """
+    image: Image.Image
+    xy: tuple[int, int]
+    is_card_art: bool = False
+    component: Optional['PlayerImageComponent'] = None  # NONE FOR BUILT LAYERS (EX: PARALLEL FRAMES, UPLOADED PHOTOS)
+
+    @property
+    def is_photo_background(self) -> bool:
+        """The player photo's own background, which moves with the photo but sits under the card art."""
+        return self.component == PlayerImageComponent.BACKGROUND
 
 # ---------------------------------------
 # MARK: SPECIAL EDITION
@@ -967,6 +991,11 @@ class ShowdownImage(BaseModel):
         except:
             return None
 
+
+    @property
+    def shows_stat_highlights(self) -> bool:
+        """Whether the card image draws the stat highlights bar."""
+        return self.stat_highlights_type.has_image and not self.disable_showing_stat_highlights
 
     # BACKWARDS COMPATIBILITY
     @property
