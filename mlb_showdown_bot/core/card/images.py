@@ -622,6 +622,9 @@ class AutoImageFile(BaseModel):
     player_type_override: Optional[str] = None
     is_postseason: bool = False
     is_wbc: bool = False
+    is_two_way: bool = False # ALTERNATE IMAGE FOR TWO-WAY CARDS (EX: RE-CENTERED PLAYER), NOT A REGULAR CARD MATCH
+
+    TWO_WAY_TAG: ClassVar[str] = '(TWOWAY)' # NO HYPHEN, FILE NAME PARTS ARE SPLIT ON '-'
 
     @classmethod
     def from_file_name(cls, file_name: str) -> Optional['AutoImageFile']:
@@ -657,6 +660,8 @@ class AutoImageFile(BaseModel):
                 attributes['team_id'] = value
             if text == '(POST)':
                 attributes['is_postseason'] = True
+            if text.upper() == cls.TWO_WAY_TAG:
+                attributes['is_two_way'] = True
             if has_parenthesis and ('Hitter' in text or 'Pitcher' in text):
                 # KEEP PARENTHESIS AND LOWERCASE TO MATCH STATS ARCHIVE (e.g., (hitter), (pitcher))
                 attributes['player_type_override'] = text.lower()
@@ -666,8 +671,8 @@ class AutoImageFile(BaseModel):
         return cls(player_name=' '.join(player_name_parts), **attributes)
 
     def match_type(self, year: str, team_id: Optional[str], player_type_override: Optional[str]) -> ImageMatchType:
-        """How well this image fits a card. Postseason/WBC images never count, matching the card_bot classification."""
-        if self.is_postseason or self.is_wbc or (self.player_type_override or None) != (player_type_override or None):
+        """How well this image fits a card. Postseason/WBC/two-way images never count, matching the card_bot classification."""
+        if self.is_postseason or self.is_wbc or self.is_two_way or (self.player_type_override or None) != (player_type_override or None):
             return ImageMatchType.NO_MATCH
         is_year_match = self.year == str(year)
         is_team_match = team_id is not None and self.team_id == team_id

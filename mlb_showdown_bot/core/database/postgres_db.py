@@ -5088,7 +5088,8 @@ class PostgresDB:
         auto_image_entries: list[dict] = []
         for image_name, image_data in aggregated_images.items():
             auto_image_file = AutoImageFile.from_name_without_component(image_name)
-            if auto_image_file is None:
+            # TWO-WAY IMAGES ARE RENDER ALTERNATES, NOT REGULAR COVERAGE (AND WOULD COLLIDE WITH THE REGULAR IMAGE'S ROW)
+            if auto_image_file is None or auto_image_file.is_two_way:
                 continue
             auto_image_entries.append({
                 **auto_image_file.model_dump(exclude={'component'}),

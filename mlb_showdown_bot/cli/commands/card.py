@@ -16,6 +16,7 @@ def card_main(
     # OVERRIDES
     player_type_override: str = typer.Option(None, "--player_type_override", "-pto", help="Override the card type. Either `Pitcher` or `Hitter`"),
     team_override: str = typer.Option(None, "--team_override", "-tmo", help="Only include stats from a specific team"),
+    two_way: bool = typer.Option(False, "--two_way", "-tw", help="Make a two-way card with the player's hitting and pitching sides on one image (2000, 2001, 2004, 2005)"),
 
     # SET
     set: str = typer.Option("2000", "--set", "-s", help="The showdown set meta to use (2000-2005)"),

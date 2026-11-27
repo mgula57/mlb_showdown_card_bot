@@ -1,14 +1,15 @@
 from pprint import pprint
-from typing import Any, Optional
+from typing import Any, ClassVar, Optional
 from prettytable import PrettyTable
 from datetime import date, datetime, timedelta
 import time
 import traceback
 import json
 import ast
+import re
 
 # INTERNAL
-from .showdown_player_card import ShowdownPlayerCard, ImageLibrary, ImageSource, ShowdownImage, PlayerType, Team, Edition
+from .showdown_player_card import ShowdownPlayerCard, ImageLibrary, ImageSource, ShowdownImage, PlayerType, Team, Edition, Set
 from .images import DEFAULT_RENDER_FILE_FORMAT
 from ..data.replacement_season_averages import get_replacement_hitting_avgs, get_replacement_pitching_avgs
 from ..data.stat_normalizer import StatNormalizer, StatNormalizerType
@@ -153,6 +154,87 @@ def fetch_completed_mlb_api_season_from_archive(stats_period: StatsPeriod, **kwa
         print(f"Failed to fetch archived MLB API season: {e}")
         return None
 
+class TwoWayCardGenerator:
+    """Builds a two-way card: the player's hitting card carrying his pitching card in `two_way`.
+
+    Each side runs through `generate_card` with the usual "(Hitter)"/"(Pitcher)" name override, with
+    image output, logging and trends switched off. The combined image is rendered once at the end.
+    """
+
+    SIDE_NAME_SUFFIXES: ClassVar[dict[PlayerType, str]] = {PlayerType.HITTER: '(Hitter)', PlayerType.PITCHER: '(Pitcher)'}
+    TYPE_SUFFIX_PATTERN: ClassVar[re.Pattern] = re.compile(r'\((hitter|hitting|pitcher|pitching)\)', flags=re.IGNORECASE)
+    # INPUTS THAT ONLY APPLY TO THE FINAL COMBINED CARD (OR NOT AT ALL TO TWO-WAY CARDS)
+    SIDE_EXCLUDED_INPUTS: ClassVar[frozenset[str]] = frozenset([
+        'two_way', 'name', 'name_original', 'player_id', 'randomize', 'player_type_override',
+        'store_in_logs', 'db_connection', 'show_image', 'print_to_cli', 'output_folder_path', 'upload_to_supabase',
+        'show_historical_points', 'season_trend_date_aggregation',
+    ])
+
+    def __init__(self, image_libraries: Optional[list[ImageLibrary]] = None, client: Optional[ClientContext] = None) -> None:
+        self.image_libraries = image_libraries
+        self.client = client
+
+    @staticmethod
+    def is_requested(kwargs: dict[str, Any]) -> bool:
+        """True when the request asks for a two-way card (accepts form-style string booleans)."""
+        value = kwargs.get('two_way', False)
+        return value is True or str(value).strip().lower() in ('true', '1', 'yes')
+
+    @classmethod
+    def base_name(cls, name: str) -> str:
+        """Player name or id without any hitter/pitcher override suffix."""
+        return cls.TYPE_SUFFIX_PATTERN.sub('', str(name or '')).strip()
+
+    def build(self, **kwargs) -> ShowdownPlayerCard:
+        """Build both sides, attach the pitching side to the hitting card and render the image.
+
+        Raises:
+          Exception: A side failed to build or the player has no stats for that role.
+        """
+        from .two_way_image import TwoWayCardImage
+        showdown_set = Set(str(kwargs.get('set', Set._2000.value)))
+        if not TwoWayCardImage.supports(showdown_set):
+            supported = ', '.join(sorted(s.value for s in TwoWayCardImage.SUPPORTED_SETS))
+            raise Exception(f"Two-way cards are available for the {supported} sets.")
+
+        base_name = self.base_name(kwargs.get('name'))
+        side_inputs = {k: v for k, v in kwargs.items() if k not in self.SIDE_EXCLUDED_INPUTS}
+        hitter = self._build_side(PlayerType.HITTER, base_name, side_inputs)
+        pitcher = self._build_side(PlayerType.PITCHER, base_name, side_inputs)
+        hitter.attach_two_way_side(pitcher)
+
+        # IMAGE OUTPUT APPLIES TO THE COMBINED CARD ONLY
+        hitter.image.output_folder_path = kwargs.get('output_folder_path', None)
+        hitter.image.upload_to_supabase = kwargs.get('upload_to_supabase', None)
+        show_image = kwargs.get('show_image', False)
+        if show_image or hitter.image.output_folder_path or hitter.image.upload_to_supabase:
+            hitter.generate_card_image(show=show_image)
+            if hitter.image.upload_to_supabase:
+                hitter.upload_image_to_supabase()
+
+        if kwargs.get('print_to_cli', False):
+            hitter.print_player()
+            pitcher.print_player()
+        return hitter
+
+    def _build_side(self, player_type: PlayerType, base_name: str, side_inputs: dict[str, Any]) -> ShowdownPlayerCard:
+        role = 'hitting' if player_type == PlayerType.HITTER else 'pitching'
+        payload = generate_card(
+            image_libraries=self.image_libraries,
+            client=self.client,
+            name=f"{base_name} {self.SIDE_NAME_SUFFIXES[player_type]}",
+            **side_inputs,
+        )
+        if payload.get('error'):
+            raise Exception(f"Two-way card failed building the {role} side: {payload.get('error_for_user') or payload['error']}")
+
+        side = ShowdownPlayerCard(**payload['card'])
+        stats = side.stats or {}
+        has_role_stats = float(stats.get('IP', 0) or 0) > 0 if player_type == PlayerType.PITCHER else float(stats.get('PA', 0) or 0) > 0
+        if side.player_type != player_type or not has_role_stats:
+            raise Exception(f"{side.name} has no {role} stats for {side.year}, so a two-way card can't be made.")
+        return side
+
 def generate_card(image_libraries: list[ImageLibrary] = None, client: Optional[ClientContext] = None, generation_source: Optional[str] = None, **kwargs) -> dict[str, Any]:
     """
     Responsible for processing Showdown Bot Player Cards across API, CLI, and Web App.
@@ -236,6 +318,20 @@ def generate_card(image_libraries: list[ImageLibrary] = None, client: Optional[C
         kwargs = clean_kwargs(kwargs)
         if not kwargs.get('file_format'):
             kwargs['file_format'] = DEFAULT_RENDER_FILE_FORMAT
+
+        # TWO-WAY CARD: BUILD EACH SIDE THROUGH THIS SAME PIPELINE, THEN RENDER ONE IMAGE WITH BOTH
+        if TwoWayCardGenerator.is_requested(kwargs):
+            stage = 'two_way'
+            card = TwoWayCardGenerator(image_libraries=image_libraries, client=client).build(**kwargs)
+            additional_logs.update({'error': None, 'error_for_user': None})
+            custom_card_id = log_submission(card=card, additional_attributes=additional_logs)
+            return additional_logs | {
+                'card': card.as_json(),
+                'custom_card_id': custom_card_id,
+                'historical_season_trends': None,
+                'in_season_trends': None,
+                'latest_game_box_score': None,
+            }
 
         # RAISE ERROR IF YEAR IS NOT PROVIDED BY USER OR SHUFFLE
         if kwargs.get('year', None) is None:

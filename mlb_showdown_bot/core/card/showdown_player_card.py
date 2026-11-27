@@ -45,7 +45,7 @@ from .stats.datasource import Datasource
 
 from .sets import Set, Era, SpeedMetric, PlayerType, PlayerSubType, Position, PlayerImageComponent, TemplateImageComponent, ValueRange, Chart, ImageParallel
 from .chart import ChartCategory, Stat, ChartAccuracyBreakdown
-from .images import ImageLibrary, ImageMatchScore, ImageSource, ImageSourceType, SpecialEdition, Edition, Expansion, ShowdownImage, StatHighlightsType, StatHighlightsCategory
+from .images import AutoImageFile, ImageLibrary, ImageMatchScore, ImageSource, ImageSourceType, SpecialEdition, Edition, Expansion, ShowdownImage, StatHighlightsType, StatHighlightsCategory
 from .points import Points, PointsMetric, PointsBreakdown
 from .variable_speed import VariableSpeedVariant
 from .command_out_selections import CommandOutSelection, CommandOutSelections
@@ -118,6 +118,7 @@ class ShowdownPlayerCard(BaseModel):
     # PROCESSED BY CLASS
     image: ShowdownImage = ShowdownImage()
     _has_breakout_frame: bool = False # SET WHILE RENDERING THE BREAKOUT PARALLEL
+    _is_rendering_two_way: bool = False # SET WHILE RENDERING A TWO-WAY CARD, PREFERS (TWOWAY) TAGGED AUTO IMAGES
     chart: Chart = None
     positions_list: list[Position] = []
     positions_and_defense: dict[Position, int] = {}
@@ -137,6 +138,9 @@ class ShowdownPlayerCard(BaseModel):
     projected: dict = {}
     points_breakdown: Points = Points()
     points: int = 0
+    # TWO-WAY CARD (BOTH ROLES ON ONE IMAGE). THIS CARD IS THE HITTING SIDE AND `two_way` HOLDS THE PITCHING SIDE.
+    two_way: Optional['ShowdownPlayerCard'] = None
+    total_points: Optional[int] = None # HITTING + PITCHING POINTS, ONLY SET ON TWO-WAY CARDS
     variable_speed_variant: Optional[VariableSpeedVariant] = None # SPEED/POINTS IF VARIABLE SPEED WERE ON (STANDARD SPEED 2000/2001 HITTERS ONLY)
 
     # FRONTEND
@@ -356,6 +360,7 @@ class ShowdownPlayerCard(BaseModel):
             commands_excluded=self.commands_excluded, is_variable_speed_00_01=self.is_variable_speed_00_01,
             nerf_by_run_value=self.nerf_by_run_value, stat_normalizer=self.stat_normalizer.model_copy(deep=True, update={'summary': None}) if self.stat_normalizer else None,
             image=self.image.model_copy(deep=True),
+            two_way=self.two_way.rebuilt(**overrides) if self.two_way else None,
         )
         inputs.update(overrides)
         return ShowdownPlayerCard(**inputs)
@@ -2578,6 +2583,27 @@ class ShowdownPlayerCard(BaseModel):
                                         positions_and_defense=self.positions_and_defense,
                                         speed_or_ip=self.ip if self.is_pitcher else self.speed.speed)
         self.points: int = self.points_breakdown.total_points
+        self.total_points = self.points + self.two_way.points if self.two_way else None
+
+    def attach_two_way_side(self, pitching_side: 'ShowdownPlayerCard') -> None:
+        """Make this (hitting) card a two-way card that also carries the player's pitching side.
+
+        Args:
+          pitching_side: Fully built pitcher card for the same player and stats period.
+        """
+        self.two_way = pitching_side
+        self.total_points = self.points + pitching_side.points
+
+    @property
+    def is_two_way(self) -> bool:
+        """True when this card carries both the hitting and pitching sides."""
+        return self.two_way is not None
+
+    @property
+    def has_two_way_layout(self) -> bool:
+        """True when the two-way card has a dedicated image layout for its set."""
+        from .two_way_image import TwoWayCardImage
+        return self.is_two_way and TwoWayCardImage.supports(self.set)
 
     def calculate_points(self, projected:dict, positions_and_defense:dict[Position, int], speed_or_ip:int) -> Points:
         """Derive player's value. Uses constants to compare against other cards in set.
@@ -3356,6 +3382,13 @@ class ShowdownPlayerCard(BaseModel):
             card_image = Image.open(BytesIO(response.content))
             self.save_image(image=card_image, start_time=start_time, show=show, img_name_prefix=img_name_prefix, img_name_suffix=img_name_suffix)
             return
+
+        # TWO-WAY CARDS (BOTH ROLES ON ONE IMAGE) HAVE THEIR OWN LAYOUT PER SET
+        if self.has_two_way_layout:
+            from .two_way_image import TwoWayCardImage
+            card_image = TwoWayCardImage(hitter=self, pitcher=self.two_way).render()
+            self._finalize_and_save_card_image(card_image=card_image, start_time=start_time, show=show, img_name_prefix=img_name_prefix, img_name_suffix=img_name_suffix)
+            return
         
         # CHECK FOR SPECIAL EDITION
         self.image.update_special_edition(
@@ -3487,7 +3520,19 @@ class ShowdownPlayerCard(BaseModel):
                 card_image.paste(expansion_image, self._coordinates_adjusted_for_bordering(expansion_location), expansion_image)
                 self._release_images(expansion_image)
 
-        # SAVE AND SHOW IMAGE
+        self._finalize_and_save_card_image(card_image=card_image, start_time=start_time, show=show, img_name_prefix=img_name_prefix, img_name_suffix=img_name_suffix)
+
+    def _finalize_and_save_card_image(self, card_image:Image.Image, start_time:datetime, show:bool=False, img_name_prefix:str='', img_name_suffix:str='') -> None:
+        """Crop a fully composed card image to its final size, apply image-wide parallels, and save it.
+
+        Args:
+          card_image: Composed card at the card's canvas size (bordered or not).
+          start_time: When image generation started, used for load time.
+          show: Boolean flag for whether to open the final image after creation.
+          img_name_prefix: Optional prefix added to the image name.
+          img_name_suffix: Optional suffix added to the image name.
+        """
+
         # CROP TO 63mmx88mm or bordered
         final_size = self.set.card_size_bordered_final if self.image.is_bordered else self.set.card_size_final
         card_image = self._center_and_crop(card_image,final_size)
@@ -3501,12 +3546,12 @@ class ShowdownPlayerCard(BaseModel):
 
         self.save_image(image=card_image, start_time=start_time, show=show, img_name_prefix=img_name_prefix, img_name_suffix=img_name_suffix)
 
-    def _background_image(self) -> Image.Image:
+    def _background_image(self, include_2000_name_container:bool=True) -> Image.Image:
         """Loads background image for card. Either loads from upload, url, or default
            background.
 
         Args:
-          None
+          include_2000_name_container: Add the 2000 set's name container (two-way cards put the name elsewhere).
 
         Returns:
           PIL image object for the player background.
@@ -3590,7 +3635,7 @@ class ShowdownPlayerCard(BaseModel):
         has_border_already = background_image.size == self.set.card_size_bordered
 
         # IF 2000, ADD NAME CONTAINER
-        if self.set == Set._2000 and not self.image.special_edition.hide_2000_player_name and not self.image.parallel.hides_name_container_2000:
+        if include_2000_name_container and self.set == Set._2000 and not self.image.special_edition.hide_2000_player_name and not self.image.parallel.hides_name_container_2000:
             name_container = self._2000_player_name_container_image()
             background_image.paste(name_container, (0,0), name_container)
 
@@ -3847,12 +3892,13 @@ class ShowdownPlayerCard(BaseModel):
 
         return team_logo, adjusted_paste_coords(logo_paste_coordinates)
 
-    def team_logo_for_background(self, team_override:Team = None, set_override:Set = None) -> tuple[Image.Image, tuple[int,int]]:
+    def team_logo_for_background(self, team_override:Team = None, set_override:Set = None, is_rotation_mirrored:bool = False) -> tuple[Image.Image, tuple[int,int]]:
         """Open and manipulate the team logo used for 2000/2001 team backgrounds.
         
         Args:
           team_override: Optionally use a different team. Used for some special editions like CC.
           set_override: Optionally use a different set's logo style. Used for the Breakout parallel, which uses 2001's on 2000.
+          is_rotation_mirrored: Tilt the logo the opposite way (ex: the pitcher half of a two-way card mirrors the hitter half's logo).
 
         Returns:
           Tuple with:
@@ -3904,7 +3950,7 @@ class ShowdownPlayerCard(BaseModel):
         team_logo = team_logo.resize(size=size, resample=Image.Resampling.LANCZOS)
 
         # ROTATION
-        rotation = team.background_logo_rotation(set=card_set.value)
+        rotation = team.background_logo_rotation(set=card_set.value) * (-1 if is_rotation_mirrored else 1)
         if rotation != 0:
             team_logo = team_logo.rotate(rotation, resample=Image.BICUBIC, expand=True)
 
@@ -4461,12 +4507,12 @@ class ShowdownPlayerCard(BaseModel):
             
         return None, None
 
-    def _metadata_image(self) -> tuple[Image.Image, str]:
+    def _metadata_image(self, include_speed_and_hand:bool=True) -> tuple[Image.Image, str]:
         """Creates PIL image for player metadata. Different across sets.
            TODO: Should probably split this function up.
 
         Args:
-          None
+          include_speed_and_hand: 2000/2001 hitters only. False leaves out the speed/hand line (two-way cards draw it elsewhere).
 
         Returns:
           Tuple
@@ -4505,9 +4551,10 @@ class ShowdownPlayerCard(BaseModel):
                     font_hand = ImageFont.truetype(helvetica_neue_lt_path, size=54)
                     speed_text = self._text_image(text=f'SPEED {self.speed.letter.value}', size=(900, 300), font=font_speed)
                     hand_text = self._text_image(text=self.hand.value, size=(300, 300), font=font_hand)
-                    metadata_image.paste(color, (969 if self.set == Set._2000 else 915, 345 if is_variable_spd_2000 else 342), speed_text)
-                    metadata_image.paste(color, (1212,342), hand_text)
-                    if self.set == Set._2001 or is_variable_spd_2000:
+                    if include_speed_and_hand:
+                        metadata_image.paste(color, (969 if self.set == Set._2000 else 915, 345 if is_variable_spd_2000 else 342), speed_text)
+                        metadata_image.paste(color, (1212,342), hand_text)
+                    if include_speed_and_hand and (self.set == Set._2001 or is_variable_spd_2000):
                         # ADD # TO SPEED
                         font_speed_number = ImageFont.truetype(helvetica_neue_lt_path, size=40)
                         font_parenthesis = ImageFont.truetype(helvetica_neue_lt_path, size=45)
@@ -5609,13 +5656,12 @@ class ShowdownPlayerCard(BaseModel):
 # AUTOMATED PLAYER IMAGE
 # ------------------------------------------------------------------------
     
-    def _player_image_layers(self) -> list[tuple[Image.Image, tuple[int,int]]]:
+    def _player_image_layers(self, include_2000_containers:bool=True) -> list[tuple[Image.Image, tuple[int,int]]]:
         """Attempts to query google drive for a player image, if 
         it does not exist use siloutte background.
 
         Args:
-          search_for_image: Boolean for whether to search google drive for image.
-          uploaded_player_image: Optional image to use instead of searching. 
+          include_2000_containers: Add the 2000 set's name and set containers (two-way cards lay out their own).
 
         Returns:
           List of tuples.
@@ -5652,6 +5698,8 @@ class ShowdownPlayerCard(BaseModel):
         if player_img_user_uploaded is None:
             is_search_for_universal_img = self.image.parallel != ImageParallel.MYSTERY
             img_components_dict = self._player_image_components_dict()
+            if not include_2000_containers:
+                img_components_dict.pop(PlayerImageComponent.NAME_CONTAINER_2000, None)
             if is_search_for_universal_img:
                 img_components_dict, gdrive_file_versions, drive_client = self._query_image_libraries_for_auto_player_image_urls(components_dict=img_components_dict)
 
@@ -5667,7 +5715,7 @@ class ShowdownPlayerCard(BaseModel):
                 self.image.source.type = ImageSourceType.USER_DRIVE
 
         # IF 2000, ADD SET CONTAINER AND NAME CONTAINER IF USER UPLOADED IMAGE THATS NOT TRANSPARENT
-        if self.set == Set._2000:
+        if self.set == Set._2000 and include_2000_containers:
             if player_img_user_uploaded and player_img_user_upload_transparency_pct < 0.30 and not self.image.special_edition.hide_2000_player_name:
                 name_container = self._2000_player_name_container_image()
                 images_to_paste.append((name_container, (0,0)))
@@ -6286,6 +6334,10 @@ class ShowdownPlayerCard(BaseModel):
         # IF WBC IMAGE BUT NOT WBC CARD, REDUCE ACCURACY
         if '(WBC_' in img_name_upper and self.image.special_edition != SpecialEdition.WBC:
             match_score -= 2
+
+        # TWO-WAY IMAGES (EX: A PLAYER RE-CENTERED FOR HALF THE CARD) WIN ON TWO-WAY CARDS AND LOSE EVERYWHERE ELSE
+        if AutoImageFile.TWO_WAY_TAG in img_name_upper:
+            match_score += 2 if self._is_rendering_two_way else -2
 
         # TIE BREAK TAGS ONLY DECIDE BETWEEN IMAGES THAT ARE OTHERWISE EQUAL (EX: SAME YEAR AND TEAM)
         tie_break = sum(tag in img_name_upper for tag in self._img_tie_break_tags())
@@ -8139,7 +8191,7 @@ class ShowdownPlayerCard(BaseModel):
         'command_out_selection', 'command_out_selection_fingerprint', 'selected_command_outs',
         'positions_list', 'positions_and_defense', 'positions_and_defense_for_visuals',
         'positions_and_defense_string', 'positions_and_real_life_ratings', 'positions_and_games_played',
-        'player_sub_type', 'ip', 'hand', 'speed', 'accolades', 'icons',
+        'player_sub_type', 'ip', 'hand', 'speed', 'accolades', 'icons', 'total_points',
     ])
 
     @classmethod
@@ -8181,6 +8233,8 @@ class ShowdownPlayerCard(BaseModel):
         current code rather than the bot version the card was archived with.
         """
         inputs = {k: v for k, v in card_data.items() if k not in cls.REBUILT_FIELDS}
+        if isinstance(inputs.get('two_way'), dict):
+            inputs['two_way'] = cls.rebuilt_from_card_data(inputs['two_way'])
         return cls(**inputs)
 
     def card_bot_columns(self) -> dict:
