@@ -120,6 +120,7 @@ class ShowdownPlayerCard(BaseModel):
     _has_breakout_frame: bool = False # SET WHILE RENDERING THE BREAKOUT PARALLEL
     _is_rendering_two_way: bool = False # SET WHILE RENDERING A TWO-WAY CARD, PREFERS (TWOWAY) TAGGED AUTO IMAGES
     _includes_cutout: bool = False # SET WHILE RENDERING A TWO-WAY 04/05 CARD, LOADS THE PLAIN CUTOUT ALONGSIDE THE BACKGROUND
+    _photo_framing_set: Optional[Set] = None # SET WHILE RENDERING SOME TWO-WAY LAYOUTS, CROPS THE PLAYER PHOTO LIKE THIS SET'S CARDS
     chart: Chart = None
     positions_list: list[Position] = []
     positions_and_defense: dict[Position, int] = {}
@@ -5812,9 +5813,10 @@ class ShowdownPlayerCard(BaseModel):
             card_width, card_height = card_size
             default_card_width, default_card_height = self.set.card_size
             size_growth_multiplier = ( card_width / default_card_width, card_height / default_card_height)
-            original_crop_size = self.set.player_image_crop_size(special_edition=self.image.special_edition)
+            photo_framing_set = self._photo_framing_set or self.set
+            original_crop_size = photo_framing_set.player_image_crop_size(special_edition=self.image.special_edition)
             player_crop_size = (int(original_crop_size[0] * size_growth_multiplier[0]), int(original_crop_size[1] * size_growth_multiplier[1])) if self.image.is_bordered else original_crop_size
-            special_crop_adjustment = self.set.player_image_crop_adjustment(special_edition=self.image.special_edition)
+            special_crop_adjustment = photo_framing_set.player_image_crop_adjustment(special_edition=self.image.special_edition)
             is_size_increase_bot_set = self.set.is_showdown_bot and (self.image.special_edition == SpecialEdition.ASG_2023 or self.image.parallel == ImageParallel.TEAM_COLOR_BLAST)
             if is_size_increase_bot_set:
                 player_crop_size = (1275, 1785) #TODO: MAKE THIS DYNAMIC
