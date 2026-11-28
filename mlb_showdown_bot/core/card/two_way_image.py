@@ -6,6 +6,9 @@ both cards' own render helpers (templates, metadata, chart, player images) and r
 - 2000/2001: a SPLIT card. The hitter (command, chart, photo) fills the top-left half and the
   pitcher the bottom-right, divided by a steep diagonal banner bar holding the name and total
   points. 2000 shares the 2001 layout over its plainer (no line art) team background.
+- 2002: the photos split side by side under the native frame, and both native command boxes sit side by
+  side along the bottom (pitcher in its native spot, hitter left of it) over a strip with the set/year box,
+  bot logo and legal text. The name column ends on the pitcher box, with the two-way total above the name.
 - 2004/2005: the photos split side by side, and the bottom bands become one name band plus a
   self-contained block per side (command badge | metadata / ranges / results).
 
@@ -43,7 +46,7 @@ class PlayerImageGroups(NamedTuple):
 class TwoWayCardImage:
     """Renders the image for a two-way card, choosing the layout for the card's set."""
 
-    SUPPORTED_SETS: frozenset[Set] = frozenset([Set._2000, Set._2001, Set._2004, Set._2005])
+    SUPPORTED_SETS: frozenset[Set] = frozenset([Set._2000, Set._2001, Set._2002, Set._2004, Set._2005])
     # BUILT AROUND ONE FRAMED PHOTO WINDOW, WHICH THE 00/01 SPLIT CARD DOESN'T HAVE
     UNSUPPORTED_PARALLELS_00_01: frozenset[ImageParallel] = frozenset([ImageParallel.BREAKOUT, ImageParallel.BOOSTER])
 
@@ -68,9 +71,8 @@ class TwoWayCardImage:
           Card image at the hitter card's canvas size (bordered or regular), ready for final crop.
         """
         is_bordered = self.hitter.image.is_bordered
-        layout_class = SplitLayout0001 if self.hitter.set.is_00_01 else BlockLayout0405
         with self._render_context():
-            card_image = layout_class(hitter=self.hitter, pitcher=self.pitcher, is_bordered=is_bordered).render()
+            card_image = self.layout_class(hitter=self.hitter, pitcher=self.pitcher, is_bordered=is_bordered).render()
 
         if is_bordered:
             return card_image
@@ -78,12 +80,21 @@ class TwoWayCardImage:
         width, height = card_image.size
         return card_image.crop((padding, padding, width - padding, height - padding))
 
+    @property
+    def layout_class(self) -> type[TwoWayLayout]:
+        """The two-way layout for the card's set."""
+        if self.hitter.set.is_00_01:
+            return SplitLayout0001
+        if self.hitter.set == Set._2002:
+            return BlockLayout02
+        return BlockLayout0405
+
     @contextmanager
     def _render_context(self) -> Iterator[None]:
         """Temporary settings while composing, restored after:
         - both sides render in the bordered canvas space and prefer two-way tagged auto images.
         - the hitter's accolades (drawn on the Super Season logo) alternate with the pitcher's.
-        - on 04/05 both sides also load their plain cutouts, drawn whole over the blended backgrounds.
+        - side-by-side layouts (02, 04/05) also load both sides' plain cutouts, drawn whole over the blended backgrounds.
         - a multi-colored team colored parallel (ex: Team Color Blast) splits by side: the hitter's art in
           the primary color, the pitcher's in the secondary. Single color settings apply to both sides.
         """
@@ -91,7 +102,7 @@ class TwoWayCardImage:
         for card in (self.hitter, self.pitcher):
             overrides += [(card.image, 'is_bordered', True), (card, '_is_rendering_two_way', True)]
         overrides.append((self.hitter, 'accolades', self.alternating_accolades))
-        if self.hitter.set.is_04_05:
+        if self.layout_class.INCLUDES_CUTOUT:
             overrides += [(card, '_includes_cutout', True) for card in (self.hitter, self.pitcher)]  # WHOLE CUTOUTS OVER THE SEAM
         if self.hitter.image.parallel.is_team_colored and self.hitter.image.parallel_art_coloring == ImageColoring.MULTI:
             overrides += [(self.hitter.image, 'parallel_coloring', ParallelColoring.PRIMARY), (self.pitcher.image, 'parallel_coloring', ParallelColoring.SECONDARY)]
@@ -115,6 +126,9 @@ class TwoWayCardImage:
 
 class TwoWayLayout:
     """Shared canvas helpers for the per-set two-way layouts."""
+
+    INCLUDES_CUTOUT = False                     # WHETHER BOTH SIDES ALSO LOAD THEIR PLAIN CUTOUTS WHILE COMPOSING
+    OBLIQUE = 'Helvetica-Neue-LT-Std-97-Black-Condensed-Oblique'
 
     def __init__(self, hitter: ShowdownPlayerCard, pitcher: ShowdownPlayerCard, is_bordered: bool) -> None:
         self.hitter = hitter
@@ -159,6 +173,18 @@ class TwoWayLayout:
     @staticmethod
     def scaled(image: Image.Image, scale: float) -> Image.Image:
         return image.resize((round(image.width * scale), round(image.height * scale)), Image.Resampling.LANCZOS)
+
+    def scaled_about(self, layer: Image.Image, anchor: tuple[float, float], scale: float) -> Image.Image:
+        """`layer`'s content scaled by `scale`, keeping the `anchor` point in place."""
+        bbox = layer.getbbox()
+        if scale == 1 or bbox is None:
+            return layer
+        anchor_x, anchor_y = anchor
+        content = self.scaled(layer.crop(bbox), scale)
+        x, y = round(anchor_x - (anchor_x - bbox[0]) * scale), round(anchor_y - (anchor_y - bbox[1]) * scale)
+        canvas = self.blank()
+        canvas.alpha_composite(content, (x, y))
+        return canvas
 
     @contextmanager
     def secondary_colored(self, card: ShowdownPlayerCard) -> Iterator[None]:
@@ -274,7 +300,6 @@ class SplitLayout0001(TwoWayLayout):
                                             # photo's right edge (scaled width + PITCHER_PHOTO_XY x) must land behind the pitcher chart
     HITTER_PHOTO_XY = (461, -188)           # where each side's scaled photo canvas (its regular card framing) is pasted
     PITCHER_PHOTO_XY = (-50, 789)
-    OBLIQUE = 'Helvetica-Neue-LT-Std-97-Black-Condensed-Oblique'
     BOTTOM_FRAME_Y = 1990                   # pitcher template rows from here down (legal text, set box, logo) are kept in place
     LEGAL_TEXT_LEFT_X = 380                 # legal text starts right of the set/year box
     LEGAL_TEXT_SCALE = 0.75                 # two-way cards have less room, so the legal text is smaller
@@ -629,37 +654,16 @@ class SplitLayout0001(TwoWayLayout):
         return canvas
 
 
-class BlockLayout0405(TwoWayLayout):
-    """2004/2005: side-by-side photos, then one name band and a band block per side."""
+class SideBySideLayout(TwoWayLayout):
+    """Shared by the layouts that put both photos side by side (2002, 2004/2005): each side's background
+    fills the card and blends into the other's along a diagonal seam, with both whole cutouts over it."""
 
-    ROW = 68                                   # band row pitch
-    HITTER_BLOCK_Y, PITCHER_BLOCK_Y = 1563, 1767
-    NATIVE_META_Y = 1770                       # native top of the metadata band
+    INCLUDES_CUTOUT = True                      # BOTH SIDES LOAD THEIR PLAIN CUTOUTS, DRAWN WHOLE OVER THE SEAM
     # THE SEAM BETWEEN THE TWO BACKGROUNDS (CANVAS X AT THE TOP / BOTTOM EDGE), BLENDED OVER SEAM_BLEND PX
     SEAM_TOP_X, SEAM_BOTTOM_X = 1420, 60
     SEAM_BLEND = 45
     # EACH PHOTO SLIDES TOWARD ITS OWN HALF
     HITTER_PHOTO_XY, PITCHER_PHOTO_XY = (-300, 0), (400, 0)
-    NAME_X = 150
-    CHART_X = (395, 1460)
-    # BADGE TEMPLATE, ITS NATIVE (REGULAR CARD) POSITION ON THE BORDERED CANVAS, THE NATIVE MIDDLE Y, AND ITS SCALE
-    # (FROM ITS TOP CENTER, WITH ITS COMMAND NUMBER). THE TALLER CONTROL BADGE IS SHRUNK SO ITS BANNER
-    # STAYS ABOVE THE BOTTOM ROW. KEYED BY is_pitcher
-    BADGES: dict[bool, tuple[str, tuple[int, int], int, float]] = {
-        False: ('0405-ONBASE', (123, 1635), 1728, 1.0),
-        True: ('0405-CONTROL', (126, 1605), 1705, 0.94),
-    }
-    BADGE_DX = -10
-    CONDENSED = 'Helvetica Neue 77 Bold Condensed'
-    TOTAL_GAP = 30                             # space kept between the total points and the logo (or its year text)
-    TOTAL_MIN_SCALE = 0.6                      # the total shrinks no further than this for long names
-
-    def render(self) -> Image.Image:
-        self.name_band_dy = self.HITTER_BLOCK_Y - self.NATIVE_META_Y
-        card_image = self._photos()
-        card_image.alpha_composite(self._bands())
-        card_image.alpha_composite(self._text())
-        return card_image
 
     # ---------- PHOTOS ----------
 
@@ -802,6 +806,34 @@ class BlockLayout0405(TwoWayLayout):
             canvas.alpha_composite(holiday_frame)
         return canvas
 
+
+class BlockLayout0405(SideBySideLayout):
+    """2004/2005: side-by-side photos, then one name band and a band block per side."""
+
+    ROW = 68                                   # band row pitch
+    HITTER_BLOCK_Y, PITCHER_BLOCK_Y = 1563, 1767
+    NATIVE_META_Y = 1770                       # native top of the metadata band
+    NAME_X = 150
+    CHART_X = (395, 1460)
+    # BADGE TEMPLATE, ITS NATIVE (REGULAR CARD) POSITION ON THE BORDERED CANVAS, THE NATIVE MIDDLE Y, AND ITS SCALE
+    # (FROM ITS TOP CENTER, WITH ITS COMMAND NUMBER). THE TALLER CONTROL BADGE IS SHRUNK SO ITS BANNER
+    # STAYS ABOVE THE BOTTOM ROW. KEYED BY is_pitcher
+    BADGES: dict[bool, tuple[str, tuple[int, int], int, float]] = {
+        False: ('0405-ONBASE', (123, 1635), 1728, 1.0),
+        True: ('0405-CONTROL', (126, 1605), 1705, 0.94),
+    }
+    BADGE_DX = -10
+    CONDENSED = 'Helvetica Neue 77 Bold Condensed'
+    TOTAL_GAP = 30                             # space kept between the total points and the logo (or its year text)
+    TOTAL_MIN_SCALE = 0.6                      # the total shrinks no further than this for long names
+
+    def render(self) -> Image.Image:
+        self.name_band_dy = self.HITTER_BLOCK_Y - self.NATIVE_META_Y
+        card_image = self._photos()
+        card_image.alpha_composite(self._bands())
+        card_image.alpha_composite(self._text())
+        return card_image
+
     # ---------- BANDS ----------
 
     def _strip(self, template: Image.Image) -> Image.Image:
@@ -842,18 +874,6 @@ class BlockLayout0405(TwoWayLayout):
             command = self.template(f'{card.set.template_year}-{player_type}-{card.chart.command}')
             layer.alpha_composite(self.shifted(command, self.padding + dx, self.padding + dy))
             canvas.alpha_composite(self.scaled_about(layer, (badge_x + badge.width / 2, badge_y), scale))
-        return canvas
-
-    def scaled_about(self, layer: Image.Image, anchor: tuple[float, float], scale: float) -> Image.Image:
-        """`layer`'s content scaled by `scale`, keeping the `anchor` point in place."""
-        bbox = layer.getbbox()
-        if scale == 1 or bbox is None:
-            return layer
-        anchor_x, anchor_y = anchor
-        content = self.scaled(layer.crop(bbox), scale)
-        x, y = round(anchor_x - (anchor_x - bbox[0]) * scale), round(anchor_y - (anchor_y - bbox[1]) * scale)
-        canvas = self.blank()
-        canvas.alpha_composite(content, (x, y))
         return canvas
 
     # ---------- TEXT ----------
@@ -936,3 +956,224 @@ class BlockLayout0405(TwoWayLayout):
             x = self.CHART_X[0] + index * spacing
             for row, text in ((1, range_text), (2, label)):
                 draw.text((x, block_y + row * self.ROW + 37), text, font=font, fill=colors.WHITE, anchor='mm', stroke_width=3, stroke_fill=(20, 20, 20))
+
+
+class BlockLayout02(SideBySideLayout):
+    """2002: side-by-side photos under the native frame, and both command boxes side by side along the
+    bottom (pitcher in the native spot, hitter left of it), raised over a strip holding the set/year box,
+    bot logo and legal text. The name column ends on the pitcher box like a regular card's, with the
+    two-way total above the name."""
+
+    BOX = (858, 1480, 1511, 2106)              # NATIVE COMMAND BOX BOUNDS. IT'S L-SHAPED (BOX_PARTS): THE LEGAL TEXT SITS IN ITS NOTCH
+    BOX_PARTS = (
+        (858, 1525, 1511, 1922),               # COMMAND HEADER + METADATA
+        (1147, 1525, 1511, 2106),              # RANGES + RESULTS
+        (1291, 1480, 1511, 1525),              # NAME COLUMN CAP OVER THE COMMAND SQUARE
+    )
+    BOXES_DY = -100                            # BOTH BOXES RISE TO MAKE ROOM FOR THE STRIP UNDER THEM
+    BOX_GAP = 40                               # BETWEEN THE HITTER BOX AND THE PITCHER BOX
+    LOGO_GAP = 25                              # KEPT BETWEEN THE RAISED LOGOS AND THE HITTER BOX
+    # NATIVE BOTTOM STRIP: THE SET/YEAR BOX + BOT LOGO, THEN THE LEGAL TEXT LEFT OF THE RANGES COLUMN
+    STRIP = (0, 1921, 1147, 2106)
+    LEGAL_BOX = (360, 1926, 1140, 2106)        # JUST THE LEGAL TEXT (INSIDE THE BOX'S OWN EDGES)
+    BAND_X = 320                               # A STRIP COLUMN WITH ONLY THE TRANSLUCENT BAND (NO TEXT), STRETCHED FULL WIDTH
+    BAND_MAX_ALPHA = 40                        # STRIP PIXELS THIS TRANSPARENT ARE THE BAND, NOT TEXT
+    STRIP_TOP_Y = 2012                         # WHERE THE STRIP'S TOP LANDS (JUST UNDER THE BOXES)
+    LEGAL_SCALE = 0.7                          # THE LEGAL TEXT SHRINKS TO FIT UNDER THE PITCHER BOX, RIGHT ALIGNED WITH IT
+    STATS_ROW_X, STATS_ROW_GAP = 310, 30       # THE STATS ROW (SPLIT / STAT HIGHLIGHTS) FILLS THE STRIP FROM HERE TO THE LEGAL TEXT
+    STATS_ROW_DY = 8                           # STATS ROW TOP BELOW THE STRIP TOP
+    TOTAL_GAP = 40                             # BETWEEN THE NAME AND THE TOTAL ABOVE IT
+    TOTAL_TOP_Y = 150                          # THE TOTAL STAYS BELOW THIS (CLEAR OF THE CARD'S TOP EDGE)
+    TOTAL_MIN_SCALE = 0.6
+
+    def render(self) -> Image.Image:
+        card_image = self._photos()
+        card_image.alpha_composite(self._frame())
+        card_image.alpha_composite(self._logos())
+        card_image.alpha_composite(self._strip())
+        for card, dx in ((self.hitter, self.hitter_box_dx), (self.pitcher, 0)):
+            card_image.alpha_composite(self._box(card, dx))
+        card_image.alpha_composite(self._name_and_total())
+        card_image.alpha_composite(self._stats_row_in_strip())
+        card_image.alpha_composite(self.year_and_expansion(offsets=self._add_on_offsets()))
+        return card_image
+
+    @property
+    def hitter_box_dx(self) -> int:
+        box_x0, _, box_x1, _ = self.BOX
+        return -(box_x1 - box_x0 + self.BOX_GAP)
+
+    @property
+    def boxes_top_y(self) -> int:
+        """Top of the raised boxes' header row (the hitter box has no name column cap above it)."""
+        return self.BOX_PARTS[0][1] + self.BOXES_DY
+
+    @cached_property
+    def hitter_template(self) -> Image.Image:
+        return self.hitter._template_image().convert('RGBA')
+
+    # ---------- FRAME ----------
+
+    def _frame(self) -> Image.Image:
+        """The hitter template above the raised boxes: the MLB SHOWDOWN header, the stripes and the name
+        column, which now ends on the pitcher box's column cap."""
+        canvas = self.blank()
+        cut_y = self.BOX[1] + self.BOXES_DY
+        canvas.alpha_composite(self.hitter_template.crop((0, 0, self.width, cut_y)))
+        return canvas
+
+    def _logos(self) -> Image.Image:
+        """The team logo and edition logo (Rookie Season, Postseason, ...) from their native spots, raised
+        together just enough to clear the hitter box."""
+        canvas = self.blank()
+        if not self.hitter.image.hide_team_logo:
+            logo, logo_xy = self.hitter._team_logo_image()
+            canvas.alpha_composite(self.layer(logo, self.bordered_xy(self.hitter, logo_xy), logo))
+        canvas = self.hitter._add_additional_logo(image=canvas)
+        bbox = canvas.getbbox()
+        if bbox is None:
+            return canvas
+        return self.shifted(canvas, 0, min(0, self.boxes_top_y - self.LOGO_GAP - bbox[3]))
+
+    # ---------- COMMAND BOXES ----------
+
+    def _box_mask(self) -> Image.Image:
+        mask = Image.new('L', (self.width, self.height), 0)
+        draw = ImageDraw.Draw(mask)
+        for x0, y0, x1, y1 in self.BOX_PARTS:
+            draw.rectangle((x0, y0, x1 - 1, y1 - 1), fill=255)
+        return mask
+
+    def _box(self, card: ShowdownPlayerCard, dx: int) -> Image.Image:
+        """The side's native command box (from its own template, which has its result labels and command)
+        with its metadata and chart, moved by (dx, BOXES_DY)."""
+        box = (self.hitter_template if card is self.hitter else card._template_image().convert('RGBA')).copy()
+        for image, color, component in (
+            (*card._metadata_image(), TemplateImageComponent.METADATA),
+            (*card._chart_image(), TemplateImageComponent.CHART),
+        ):
+            xy = self.bordered_xy(card, card.set.template_component_paste_coordinates(component, player_type=card.player_type))
+            box.paste(color, xy, image)
+        return self.shifted(self.clipped(box, self._box_mask()), dx, self.BOXES_DY)
+
+    # ---------- STRIP ----------
+
+    @property
+    def strip_dy(self) -> int:
+        return self.STRIP_TOP_Y - self.STRIP[1]
+
+    @property
+    def strip_bottom_y(self) -> int:
+        """Bottom of the strip's visible area (the card's trim line)."""
+        return self.height - self.padding
+
+    @cached_property
+    def native_strip(self) -> Image.Image:
+        """The native strip's contents without its translucent band: the set/year box, bot logo and legal text."""
+        x0, y0, _, _ = self.STRIP
+        strip = self.hitter_template.crop(self.STRIP)
+        strip.putalpha(strip.getchannel('A').point(lambda alpha: alpha if alpha > self.BAND_MAX_ALPHA else 0))
+        native = self.blank()
+        native.alpha_composite(strip, (x0, y0))
+        native.alpha_composite(self.shifted(self.hitter._set_and_year_image(), *self.bordered_xy(self.hitter, (0, 0))))
+        return native
+
+    @cached_property
+    def legal_text(self) -> Optional[Image.Image]:
+        legal = self.native_strip.crop(self.LEGAL_BOX)
+        bbox = legal.getbbox()
+        return self.scaled(legal.crop(bbox), self.LEGAL_SCALE) if bbox else None
+
+    @property
+    def legal_xy(self) -> tuple[int, int]:
+        """Right aligned with the pitcher box, centered in the strip's visible height."""
+        width, height = self.legal_text.size if self.legal_text else (0, 0)
+        return self.BOX[2] - width, (self.STRIP_TOP_Y + self.strip_bottom_y - height) // 2
+
+    def _strip(self) -> Image.Image:
+        """The native bottom strip under both boxes: its translucent band stretched across the card, the
+        set/year box and bot logo at full size on the left, and the legal text scaled down under the
+        pitcher box."""
+        x0, y0, _, y1 = self.STRIP
+        canvas = self.blank()
+        band = self.hitter_template.crop((self.BAND_X, y0, self.BAND_X + 1, y1)).resize((self.width, y1 - y0))
+        canvas.alpha_composite(band, (0, self.STRIP_TOP_Y))
+        canvas.alpha_composite(self.shifted(self.native_strip.crop((x0, y0, self.LEGAL_BOX[0], y1)), x0, self.STRIP_TOP_Y))
+        if self.legal_text:
+            canvas.alpha_composite(self.legal_text, self.legal_xy)
+        return canvas
+
+    def _stats_row_in_strip(self) -> Image.Image:
+        """The split text / stat highlights row, moved into the strip between the set box and the legal text
+        (shrunk when the two sides' stats run wider than that)."""
+        row = self.stats_row()
+        bbox = row.getbbox()
+        if bbox is None:
+            return row
+        row = row.crop(bbox)
+        max_width = self.legal_xy[0] - self.STATS_ROW_GAP - self.STATS_ROW_X
+        if row.width > max_width:
+            row = self.scaled(row, max_width / row.width)
+        canvas = self.blank()
+        canvas.alpha_composite(row, (self.STATS_ROW_X, self.STRIP_TOP_Y + self.STATS_ROW_DY))
+        return canvas
+
+    def _add_on_offsets(self) -> dict[str, tuple[int, int]]:
+        """The year text moves with the strip. The expansion logo (TD, PR), which sits where the hitter box
+        now is, centers in the notch under the pitcher box's metadata, between the two boxes."""
+        offsets = {'year': (0, self.strip_dy)}
+        expansion = self.hitter._expansion_layer()
+        if expansion:
+            image, xy = expansion
+            bbox = image.getbbox()
+            if bbox:
+                x, y = self.bordered_xy(self.hitter, xy)
+                notch_x0, notch_y0, notch_x1 = self.BOX_PARTS[0][0], self.BOX_PARTS[0][3], self.BOX_PARTS[1][0]
+                notch_y1 = self.BOX_PARTS[1][3]
+                center_x, center_y = (notch_x0 + notch_x1) / 2, (notch_y0 + notch_y1) / 2 + self.BOXES_DY
+                offsets['expansion'] = (round(center_x - (x + (bbox[0] + bbox[2]) / 2)), round(center_y - (y + (bbox[1] + bbox[3]) / 2)))
+        return offsets
+
+    # ---------- NAME COLUMN ----------
+
+    def _name_and_total(self) -> Image.Image:
+        """The native name, raised with the column's end, and the two-way total above it in the column
+        (reading bottom to top like the name). The total shrinks to stay clear of the card's top, and when
+        even its smallest size doesn't fit, the name shrinks (from its bottom end) to make room."""
+        name_text, name_color = self.hitter._player_name_text_image()
+        name_xy = self.bordered_xy(self.hitter, self.hitter.set.template_component_paste_coordinates(TemplateImageComponent.PLAYER_NAME))
+        canvas = self.shifted(self.layer(name_text, name_xy, name_color), 0, self.BOXES_DY)
+        name_bbox = canvas.getbbox()
+        if name_bbox is None:
+            return canvas
+        center_x = (name_bbox[0] + name_bbox[2]) / 2
+
+        def total_fonts(scale: float) -> tuple[ImageFont.FreeTypeFont, ImageFont.FreeTypeFont]:
+            return self.font(self.OBLIQUE, round(54 * scale)), self.font(self.OBLIQUE, round(84 * scale))
+
+        label, total = 'TWO-WAY ', f'{self.total_points_text} PT.'
+        total_length = lambda fonts: fonts[0].getlength(label) + fonts[1].getlength(total)
+        space = lambda: name_bbox[1] - self.TOTAL_GAP - self.TOTAL_TOP_Y
+
+        # SHRINK THE NAME WHEN EVEN THE SMALLEST TOTAL DOESN'T FIT ABOVE IT
+        shortfall = total_length(total_fonts(self.TOTAL_MIN_SCALE)) - space()
+        if shortfall > 0:
+            name_scale = 1 - shortfall / (name_bbox[3] - name_bbox[1])
+            canvas = self.scaled_about(canvas, (center_x, name_bbox[3]), name_scale)
+            name_bbox = canvas.getbbox()
+
+        scale = 1.0
+        while scale > self.TOTAL_MIN_SCALE and total_length(total_fonts(scale)) > space():
+            scale -= 0.05
+        label_font, total_font = total_fonts(max(scale, self.TOTAL_MIN_SCALE))
+        length = total_length((label_font, total_font))
+
+        # DRAWN LEFT TO RIGHT ON A SHARED BASELINE, THEN TURNED TO READ BOTTOM TO TOP
+        top, bottom = total_font.getbbox(total, anchor='ls')[1], total_font.getbbox(total, anchor='ls')[3]
+        text = Image.new('RGBA', (math.ceil(length), bottom - top + 10), (0, 0, 0, 0))
+        draw = ImageDraw.Draw(text)
+        draw.text((0, 5 - top), label, font=label_font, fill=name_color, anchor='ls')
+        draw.text((label_font.getlength(label), 5 - top), total, font=total_font, fill=name_color, anchor='ls')
+        text = text.rotate(90, expand=True)
+        canvas.alpha_composite(text, (round(center_x - text.width / 2), name_bbox[1] - self.TOTAL_GAP - text.height))
+        return canvas
