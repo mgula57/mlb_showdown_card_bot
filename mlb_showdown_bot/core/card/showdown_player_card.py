@@ -321,8 +321,7 @@ class ShowdownPlayerCard(BaseModel):
 
         # STATS DISPLAYED ON FRONTEND
         self.real_vs_projected_stats = self._calculate_real_vs_projected_stats()
-        stats_are_adjusted = self.nerf_by_run_value or self.stat_normalizer
-        self.image.stat_highlights_list = self._generate_stat_highlights_list(stats=self.stats_for_card if not stats_are_adjusted else self.stats)
+        self.image.stat_highlights_list = self._generate_stat_highlights_list(stats=self._stat_highlights_stats)
         self.image.award_summary_list = self._generate_award_summary_list(award_summary=self.stats_for_card.get('award_summary', None))
 
         if show_image or self.image.output_folder_path or self.image.upload_to_supabase:
@@ -2371,6 +2370,21 @@ class ShowdownPlayerCard(BaseModel):
             stats_for_real_pa['onbase_plus_slugging_plus'] = None
         
         return stats_for_real_pa
+
+    @property
+    def _stat_highlights_stats(self) -> dict:
+        """Stats the highlights are drawn from: real stats, unless the card's stats were adjusted (run value nerf/normalizer)."""
+        stats_are_adjusted = self.nerf_by_run_value or self.stat_normalizer
+        return self.stats_for_card if not stats_are_adjusted else self.stats
+
+    def stat_highlights_with_ops(self) -> list[str]:
+        """Stat highlights with the slashline swapped for OPS, for bars with less room (ex: a two-way card's hitting half)."""
+        ops = self._stat_highlights_stats.get('onbase_plus_slugging', None)
+        is_slashline = lambda stat: stat.count('/') == 2
+        if ops is None or len(str(ops)) == 0:
+            return self.image.stat_highlights_list or []
+        ops_text = f"{self._stat_formatted('onbase_plus_slugging', float(ops))} OPS"
+        return [ops_text if is_slashline(stat) else stat for stat in (self.image.stat_highlights_list or [])]
 
     def _generate_stat_highlights_list(self, stats:dict[str: any]) -> list[str]:
         """Get the most relevant stats for a player. Ranks automatically based on relevance.
@@ -5656,15 +5670,28 @@ class ShowdownPlayerCard(BaseModel):
         final_size = (section_width, bg_image.size[1])
         final_size_multiplier = 4
         text_color = self.set.template_component_font_color(component=TemplateImageComponent.STAT_HIGHLIGHTS, is_dark_mode=self.image.is_dark_mode)
+        max_text_width = section_width * final_size_multiplier
+
+        def fit_items(items:list[str], max_width:float, prefix:str='') -> str:
+            """Join as many items as fit. One too wide is skipped rather than ending the pass, so a shorter, lower-ranked item can still fill the gap."""
+            text = prefix
+            for item in items:
+                if self._font_getsize(font=font, text=f'{text}  {item}')[0] > max_width: continue
+                text = f'{text}  {item}'
+            return text
+
+        # SETS WITHOUT ICONS (2000-2002) SHOW AWARDS AT THE END OF THE BAR INSTEAD, LIKE THE CARD LIST'S AWARD PLATES
+        # AT MOST HALF THE BAR IS GIVEN TO AWARDS SO STATS ALWAYS LEAD
+        awards_text = ''
+        if not self.set.has_icons and len(sections) == 1:
+            awards = list(dict.fromkeys(self.image.award_summary_list or [])) # DEDUPE (SOME SEASONS HAD 2 ALL-STAR GAMES)
+            awards_text = fit_items(awards, max_width=max_text_width / 2)
+
         for index, stats in enumerate(sections):
 
-            # CALCULATE HOW MANY STATS CAN FIT
-            # A STAT TOO WIDE FOR THE REMAINING SPACE IS SKIPPED, NOT A STOP: A SHORTER, LOWER-RANKED STAT CAN STILL FILL THE GAP
-            full_text: str = ''
-            for stat in stats:
-                text_width_next, _ = self._font_getsize(font=font, text=f'{full_text}  {stat}')
-                if text_width_next > (section_width * final_size_multiplier): continue
-                full_text = f'{full_text}  {stat}'
+            # CALCULATE HOW MANY STATS CAN FIT AROUND THE AWARDS
+            awards_width = self._font_getsize(font=font, text=awards_text)[0] if awards_text else 0
+            full_text = fit_items(stats, max_width=max_text_width - awards_width) + awards_text
 
             stat_text = self._text_image(
                 text = full_text,

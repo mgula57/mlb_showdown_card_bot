@@ -254,7 +254,7 @@ class TwoWayLayout:
             split_xy = card.set.template_component_paste_coordinates(component=TemplateImageComponent.SPLIT, is_multi_year=card.stats_period.is_multi_year, is_full_career=card.stats_period.is_full_career)
             canvas.paste(split_image, self.bordered_xy(card, split_xy), split_image)
         if card.image.shows_stat_highlights:
-            sections = [side.image.stat_highlights_list for side in (self.hitter, self.pitcher)]
+            sections = [self.hitter.stat_highlights_with_ops(), self.pitcher.image.stat_highlights_list]
             stats_image, stats_xy = card._stat_highlights_image(sections=sections)
             canvas.paste(stats_image, self.bordered_xy(card, stats_xy), stats_image)
         return canvas
