@@ -34,6 +34,7 @@ export const formInputsFromCard = (card: ShowdownBotCard): Partial<CustomCardFor
         name: card.name,
         player_id: (isMlbApiYear && card.mlb_id ? String(card.mlb_id) : card.bref_id) || null,
         player_type_override: card.player_type_override?.toUpperCase(),
+        two_way: card.two_way ? true : undefined,
         year,
         stats_period_type: statsPeriodType,
         start_date: statsPeriodType === 'DATES' ? period?.start_date : null,

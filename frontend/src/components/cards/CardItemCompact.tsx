@@ -11,6 +11,8 @@ import AdvantageBadge from "./card_elements/AdvantageBadge";
 import ChartVersionBadge from "./card_elements/ChartVersionBadge";
 import { getFirstName, getLastName, getFirstInitial } from "../../functions/names"
 import { useLayoutEffect, useRef, type Ref } from "react";
+import TwoWayBadge from "./card_elements/TwoWayBadge";
+import type { TwoWaySide } from "../../domain/twoWay";
 
 // =============================================================================
 // TYPES
@@ -104,6 +106,9 @@ type CardItemCompactProps = {
     /** A stat shown in place of the command badge (or, with `placement: 'corner'`, in the set
      *  icon's bottom-left slot under it), always visible — e.g. the runner's tested speed on a sim steal. */
     statBadge?: CardItemStatBadge;
+    /** Two-way cards: the side the slot uses (a lineup slot hits, a rotation slot pitches). Omitted,
+     *  the card shows both commands and the hitting + pitching total. */
+    twoWaySide?: TwoWaySide;
 };
 
 export type CardItemStatBadge = {
@@ -163,7 +168,7 @@ const CardItemCompactIcons = ({ className, iconsList, color, textColor, cardId, 
 };
 
 export const CardItemCompact = ({
-    card,
+    card: cardProp,
     className,
     isSelected,
     isLoading,
@@ -180,7 +185,14 @@ export const CardItemCompact = ({
     backgroundSettings,
     hasAdvantage,
     statBadge,
+    twoWaySide,
 }: CardItemCompactProps) => {
+
+    // Two-way: in a slot the card shows that side; otherwise both commands and the total points
+    const isTwoWay = !!cardProp?.two_way;
+    const card = twoWaySide === 'pitching' && cardProp?.two_way ? cardProp.two_way : cardProp;
+    const pitchingSide = isTwoWay && !twoWaySide ? cardProp?.two_way : undefined;
+    const shownPoints = pitchingSide && card ? card.points + pitchingSide.points : card?.points;
 
     const primaryColor = (['NYM', 'SDP', 'JPN'].includes(card?.team || 'N/A')
         ? card?.color_secondary
@@ -209,8 +221,8 @@ export const CardItemCompact = ({
     const commandStatBadge = statBadge && statBadge.placement !== 'corner' ? statBadge : undefined;
     const cornerStatBadge = statBadge?.placement === 'corner' ? statBadge : undefined;
 
-    const hasPtsMultiplier = !!ptsMultiplier && ptsMultiplier !== 1 && card?.points != null;
-    const effectivePoints = hasPtsMultiplier ? Math.round(card!.points * ptsMultiplier!) : card?.points;
+    const hasPtsMultiplier = !!ptsMultiplier && ptsMultiplier !== 1 && shownPoints != null;
+    const effectivePoints = hasPtsMultiplier ? Math.round(shownPoints! * ptsMultiplier!) : shownPoints;
 
     // Name
     const firstInitial = getFirstInitial(card?.name);
@@ -259,6 +271,12 @@ export const CardItemCompact = ({
                         {commandStatBadge.value}
                         {commandStatBadge.trend && <StatBadgeTrend trend={commandStatBadge.trend} />}
                     </span>
+                </div>
+            ) : !hideCommand && pitchingSide ? (
+                // Both sides: On-Base over Control
+                <div className="shrink-0 flex flex-col gap-0.5">
+                    <CardCommand isPitcher={false} primaryColor={primaryColor} secondaryColor={secondaryColor} command={card?.command} team={card?.team || 'N/A'} className="w-5 h-5" />
+                    <CardCommand isPitcher primaryColor={primaryColor} secondaryColor={secondaryColor} command={pitchingSide.command} team={card?.team || 'N/A'} className="w-5 h-5" />
                 </div>
             ) : !hideCommand && (
                 <CardCommand
@@ -316,14 +334,15 @@ export const CardItemCompact = ({
                         >
                             {hasPtsMultiplier ? (
                                 <span className="flex items-center gap-0.5">
-                                    <span className="line-through opacity-60">{card!.points}</span>
+                                    <span className="line-through opacity-60">{shownPoints}</span>
                                     <span>{effectivePoints} PT</span>
                                 </span>
                             ) : (
-                                card?.points != null ? `${card.points} PT` : '-- PT'
+                                shownPoints != null ? `${shownPoints} PT` : '-- PT'
                             )}
                             <span className="hidden @[120px]:block">S</span>
                         </div>
+                        {isTwoWay && <TwoWayBadge size="xs" iconOnly className="hidden @[90px]:flex" />}
                         <ChartVersionBadge chartVersion={card?.chart_version} className="hidden @[110px]:flex text-[8px] px-0.5 rounded-plate" />
                     </div>
                 )}
@@ -349,10 +368,10 @@ export const CardItemCompact = ({
                                         {card?.is_pitcher ? `${card.outs} OUT` : `SPD ${card?.speed || '-'}`}
                                     </span>
 
-                                    {/* HANDEDNESS */}
+                                    {/* HANDEDNESS, or the pitching side's IP on a two-way card */}
                                     <span className="hidden @[110px]:flex">
                                         <span className="px-0.5 opacity-50">•</span>
-                                        {card?.is_pitcher ? `${card?.hand}HP` : `${card?.hand}H`}
+                                        {pitchingSide ? `IP ${pitchingSide.ip ?? 0}` : card?.is_pitcher ? `${card?.hand}HP` : `${card?.hand}H`}
                                     </span>
                                 </>
                             )}
@@ -454,9 +473,11 @@ type CardItemCompactFromCardProps = {
     backgroundSettings?: string;
     hasAdvantage?: boolean;
     statBadge?: CardItemStatBadge;
+    twoWaySide?: TwoWaySide;
 };
 
-export const CardItemCompactFromCard = ({ card, className, fieldPosition,  hideDetails, detailStat1Category, isSelected, onClick, actionButton, hideCommand, hideTeamPoints, liveIp, accentColor, backgroundSettings, hasAdvantage, statBadge }: CardItemCompactFromCardProps) => {
+/** Maps a full card to the compact shape, including a two-way card's pitching side */
+const compactFromCard = (card: ShowdownBotCard | null | undefined): ShowdownBotCardCompact => {
     const primaryColor = (['NYM', 'SDP', 'JPN'].includes(card?.wbc_team || card?.team || 'N/A')
         ? card?.image.color_secondary
         : card?.image.color_primary) || 'rgb(0, 0, 0)';
@@ -465,31 +486,37 @@ export const CardItemCompactFromCard = ({ card, className, fieldPosition,  hideD
         ? card?.image.color_primary
         : card?.image.color_secondary) || 'rgb(0, 0, 0)';
 
+    return {
+        id: `${card?.wbc_year || card?.year || '----'}-${card?.bref_id || card?.mlb_id || '---'}`,
+        name: card?.name || 'Unknown Player',
+        year: card?.wbc_year || card?.year || '----',
+        team: card?.wbc_team || card?.team || 'N/A',
+        set: card?.set || '---',
+        points: card?.points ?? 0,
+        command: card?.chart.command || 0,
+        outs: card?.chart.outs_full || 0,
+        is_pitcher: card?.chart.is_pitcher || false,
+        color_primary: primaryColor,
+        color_secondary: secondaryColor,
+        positions_and_defense_string: card?.positions_and_defense_string || '',
+        positions_and_defense: card?.positions_and_defense || {},
+        ip: card?.ip || 0,
+        speed: card?.speed.speed || null,
+        icons_list: card?.icons || [],
+        hand: card?.hand || null,
+        hr_range: card?.chart.ranges.HR || null,
+        source: card?.is_wotc ? 'WOTC' : 'BOT',
+        isEmpty: card == null || card === undefined,
+        chart_version: card?.chart_version,
+        two_way: card?.two_way ? compactFromCard(card.two_way) : null,
+    };
+};
+
+export const CardItemCompactFromCard = ({ card, className, fieldPosition,  hideDetails, detailStat1Category, isSelected, onClick, actionButton, hideCommand, hideTeamPoints, liveIp, accentColor, backgroundSettings, hasAdvantage, statBadge, twoWaySide }: CardItemCompactFromCardProps) => {
     return (
         <CardItemCompact
-            card={{
-                id: `${card?.wbc_year || card?.year || '----'}-${card?.bref_id || card?.mlb_id || '---'}`,
-                name: card?.name || 'Unknown Player',
-                year: card?.wbc_year || card?.year || '----',
-                team: card?.wbc_team || card?.team || 'N/A',
-                set: card?.set || '---',
-                points: card?.points ?? 0,
-                command: card?.chart.command || 0,
-                outs: card?.chart.outs_full || 0,
-                is_pitcher: card?.chart.is_pitcher || false,
-                color_primary: primaryColor,
-                color_secondary: secondaryColor,
-                positions_and_defense_string: card?.positions_and_defense_string || '',
-                positions_and_defense: card?.positions_and_defense || {},
-                ip: card?.ip || 0,
-                speed: card?.speed.speed || null,
-                icons_list: card?.icons || [],
-                hand: card?.hand || null,
-                hr_range: card?.chart.ranges.HR || null,
-                source: card?.is_wotc ? 'WOTC' : 'BOT',
-                isEmpty: card == null || card === undefined,
-                chart_version: card?.chart_version,
-            }}
+            card={compactFromCard(card)}
+            twoWaySide={twoWaySide}
             className={className}
             isSelected={isSelected}
             fieldPosition={fieldPosition}

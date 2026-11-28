@@ -125,12 +125,17 @@ export function SetStyleFields({ values, onChange, defaults, afterEdition, showS
 }
 
 /** The Image Parallel dropdown with sample thumbnails. Also used by the Release Builder's style rules. */
-export function ParallelDropdown({ value, onChange, className = '', isChanged }: { value: string; onChange: (value: string) => void; className?: string; isChanged?: boolean }) {
+export function ParallelDropdown({ value, onChange, className = '', isChanged, excluded = [] }: {
+    value: string; onChange: (value: string) => void; className?: string; isChanged?: boolean;
+    /** Parallel values to leave out of the menu (e.g. ones a two-way card can't use) */
+    excluded?: string[];
+}) {
+    const options = excluded.length ? parallelOptionsWithBadges.filter(option => !excluded.includes(option.value)) : parallelOptionsWithBadges;
     return (
         <FormDropdown
             label={<span className="inline-flex items-center gap-1.5">Image Parallel <NewBadge /></span>}
             className={className}
-            options={parallelOptionsWithBadges}
+            options={options}
             selectedOption={value}
             onChange={onChange}
             isChanged={isChanged}
@@ -142,7 +147,7 @@ export function ParallelDropdown({ value, onChange, className = '', isChanged }:
 
 /** Image section fields after the image source inputs. Parallel only applies to auto images, so
  * the Custom Card Builder hides it for linked/uploaded images. */
-export function ImageStyleFields({ values, onChange, defaults, hideParallel = false }: StyleFieldsProps & { hideParallel?: boolean }) {
+export function ImageStyleFields({ values, onChange, defaults, hideParallel = false, excludedParallels }: StyleFieldsProps & { hideParallel?: boolean; excludedParallels?: string[] }) {
     const isChanged = (key: keyof CardStyleSettings) => isFieldChanged(values, defaults, key);
     // Base needs no preview; it's what the card looks like without a parallel
     const previewParallel = hideParallel || values.image_parallel === 'NONE'
@@ -154,6 +159,7 @@ export function ImageStyleFields({ values, onChange, defaults, hideParallel = fa
                 className={`col-span-full ${hideParallel ? 'hidden' : ''}`}
                 value={values.image_parallel}
                 isChanged={isChanged('image_parallel')}
+                excluded={excludedParallels}
                 onChange={(value) => onChange({
                     image_parallel: value,
                     // Don't carry a coloring forward to a parallel that can't use it.

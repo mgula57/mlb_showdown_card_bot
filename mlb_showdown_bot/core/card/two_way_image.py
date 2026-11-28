@@ -49,7 +49,7 @@ class PlayerImageGroups(NamedTuple):
 class TwoWayCardImage:
     """Renders the image for a two-way card, choosing the layout for the card's set."""
 
-    SUPPORTED_SETS: frozenset[Set] = frozenset([Set._2000, Set._2001, Set._2002, Set._2003, Set._2004, Set._2005])
+    SUPPORTED_SETS: frozenset[Set] = frozenset([Set._2000, Set._2001, Set._2002, Set._2003, Set._2004, Set._2005, Set.CLASSIC, Set.EXPANDED])
     # BUILT AROUND ONE FRAMED PHOTO WINDOW, WHICH THE 00/01 SPLIT CARD DOESN'T HAVE
     UNSUPPORTED_PARALLELS_00_01: frozenset[ImageParallel] = frozenset([ImageParallel.BREAKOUT, ImageParallel.BOOSTER])
 
@@ -92,7 +92,9 @@ class TwoWayCardImage:
             return BlockLayout02
         if self.hitter.set == Set._2003:
             return BlockLayout03
-        return BlockLayout0405
+        if self.hitter.set.is_04_05:
+            return BlockLayout0405
+        raise NotImplementedError(f"The {self.hitter.set.value} two-way card layout isn't built yet.")
 
     @contextmanager
     def _render_context(self) -> Iterator[None]:

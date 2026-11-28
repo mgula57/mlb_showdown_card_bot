@@ -32,6 +32,7 @@ import FormSection from './FormSection';
 import FormDropdown from './FormDropdown';
 import FormEnabler from './FormEnabler';
 import { PlayerSearchInput } from './PlayerSearchInput';
+import { fetchIsTwoWayPlayer } from './playerSearch';
 import CustomSelect from '../shared/CustomSelect';
 import type { SelectOption } from '../shared/CustomSelect';
 import { useSiteSettings, showdownSets } from '../shared/SiteSettingsContext';
@@ -71,6 +72,11 @@ import { Tabs, type TabItem } from '../shared/Tabs';
 import { PinstripeBackdrop } from '../shared/PinstripeBackdrop';
 import { smoothScrollBehavior } from '../../hooks/usePrefersReducedMotion';
 import { track } from '../../analytics/track';
+import {
+    supportsTwoWay, twoWayExcludedParallels, versionFormFields, versionFromForm,
+    PLAYER_VERSION_LABELS, TWO_WAY_IMAGE_SOURCES, TWO_WAY_SETS_LABEL, type PlayerVersion,
+} from '../../domain/twoWay';
+import { choiceClass } from '../shared/choiceStyles';
 // ----------------------------------
 // MARK: - Form Interface
 // ----------------------------------
@@ -88,6 +94,7 @@ export interface CustomCardFormState {
     split?: string | null; // e.g. "First Half". For POST periods, the postseason round code (e.g. "W")
     league: string; // e.g. "MLB" or "MILB"
     team_selection?: string; // e.g. "GAMES_PLAYED". Only applies to multi-year stats periods (CAREER, ranges, combos)
+    two_way?: boolean; // Builds one card with both the hitting and pitching sides (two-way players only)
 
     // Set
     expansion: string; // e.g. "BS"
@@ -137,6 +144,7 @@ export const FORM_DEFAULTS: CustomCardFormState = {
     split: null,
     league: 'MLB',
     team_selection: 'GAMES_PLAYED',
+    two_way: false,
 
     expansion: "BS", 
     set_number: null, 
@@ -171,7 +179,7 @@ type FormSectionName = 'Player' | 'Set' | 'Image' | 'Chart';
 
 /** The form fields each section's reset button restores to `FORM_DEFAULTS` */
 const FORM_SECTION_FIELDS: Record<FormSectionName, (keyof CustomCardFormState)[]> = {
-    Player: ['name', 'player_id', 'player_type_override', 'year', 'stats_period_type', 'start_date', 'end_date', 'split', 'league', 'team_selection'],
+    Player: ['name', 'player_id', 'player_type_override', 'year', 'stats_period_type', 'start_date', 'end_date', 'split', 'league', 'team_selection', 'two_way'],
     Set: ['expansion', 'set_number', 'edition', 'add_one_to_set_year', 'set_year', 'show_year_text', 'disable_display_text_on_card'],
     Image: [
         'image_source', 'image_parallel', 'image_parallel_coloring', 'image_coloring', 'image_glow_multiplier', 'image_url', 'image_upload',
@@ -306,6 +314,29 @@ function CustomCardBuilder({ isHidden, embed }: CustomCardBuilderProps) {
     )
     const isMultiYear = isMultiYearInput(form.year);
 
+    // Two-way: offered for players the search returns as both a hitter and a pitcher. A search pick
+    // says so directly; a hand-typed name is looked up (debounced), keyed so a stale answer never applies.
+    const typedPlayerKey = form.player_type_override || form.two_way ? null : `${form.name.trim().toLowerCase()}|${form.year.trim()}`;
+    const [typedTwoWayLookup, setTypedTwoWayLookup] = useState<{ key: string; isTwoWay: boolean } | null>(null);
+    useEffect(() => {
+        if (!typedPlayerKey || form.name.trim().length < 3) return;
+        const controller = new AbortController();
+        const timer = setTimeout(() => {
+            fetchIsTwoWayPlayer(form.name, form.year, controller.signal)
+                .then(isTwoWay => setTypedTwoWayLookup({ key: typedPlayerKey, isTwoWay }))
+                .catch(() => { /* aborted or offline: no Version choice */ });
+        }, 600);
+        return () => { clearTimeout(timer); controller.abort(); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [typedPlayerKey]);
+    const isTypedTwoWayPlayer = !!typedPlayerKey && typedTwoWayLookup?.key === typedPlayerKey && typedTwoWayLookup.isTwoWay;
+    const isTwoWayPlayer = !!form.player_type_override || !!form.two_way || isTypedTwoWayPlayer;
+    const isTwoWaySetSupported = supportsTwoWay(effectiveShowdownSet);
+    // A two-way player typed by hand with no version picked defaults to Two-Way
+    const playerVersion = versionFromForm(form) ?? (isTypedTwoWayPlayer && isTwoWaySetSupported ? 'TWO_WAY' : null);
+    const isTwoWayBuild = playerVersion === 'TWO_WAY' && isTwoWaySetSupported;
+    const excludedParallels = isTwoWayBuild ? twoWayExcludedParallels(effectiveShowdownSet) : [];
+
     const [imageUploadPreview, setImageUploadPreview] = useState<string | null>(null);
     // The native file input keeps its own selection, so resets remount it to clear the filename
     const [imageUploadInputKey, setImageUploadInputKey] = useState(0);
@@ -364,7 +395,7 @@ function CustomCardBuilder({ isHidden, embed }: CustomCardBuilderProps) {
         { 'value': 'AUTO', 'label': 'Auto', 'symbol': '⚙️' },
         { 'value': 'LINK', 'label': 'Link', 'symbol': '🔗' },
         { 'value': 'UPLOAD', 'label': 'Upload', 'symbol': '📤' },
-    ]
+    ].filter(option => !isTwoWayBuild || TWO_WAY_IMAGE_SOURCES.has(option.value))
 
     const eraOptions: SelectOption[] = [
         { "value": "DYNAMIC", "label": "Dynamic" },
@@ -431,6 +462,7 @@ function CustomCardBuilder({ isHidden, embed }: CustomCardBuilderProps) {
             case 'player':
                 if (form.name) summaries.push({ label: 'Name', value: form.name });
                 if (form.year) summaries.push({ label: 'Year', value: form.year });
+                if (isTwoWayBuild) summaries.push({ value: 'Two-Way' });
                 if (form.stats_period_type !== FORM_DEFAULTS.stats_period_type) {
                     summaries.push(optionSummaryItem(statsPeriodOptions, form.stats_period_type));
                 }
@@ -503,6 +535,7 @@ function CustomCardBuilder({ isHidden, embed }: CustomCardBuilderProps) {
 
             // Prepare payload based on image source
             let finalPayload = { ...card_payload };
+            finalPayload.two_way = !!card_payload.two_way && isTwoWaySetSupported;
 
             // Team selection only applies to multi-year stats periods. For single-year cards the
             // dropdown is hidden, so default to the player's last team (and force it, so a stale
@@ -624,7 +657,7 @@ function CustomCardBuilder({ isHidden, embed }: CustomCardBuilderProps) {
         // Scroll to preview on mobile after a short delay to allow loading status to appear
         setTimeout(scrollToPreviewOnMobile, 200);
 
-        submitCard(form);
+        submitCard({ ...form, two_way: isTwoWayBuild });
     };
 
     // Handle shuffle
@@ -672,6 +705,7 @@ function CustomCardBuilder({ isHidden, embed }: CustomCardBuilderProps) {
             name: '((RANDOM))',
             player_id: null, // Reset player_id when shuffled
             player_type_override: undefined, // Reset player_type_override when shuffled
+            two_way: false,
         };
 
         submitCard(shuffledForm);
@@ -759,7 +793,8 @@ function CustomCardBuilder({ isHidden, embed }: CustomCardBuilderProps) {
                 ...prevForm,
                 name: newName || "",
                 player_id: null, // Reset player_id when name changes
-                player_type_override: undefined // Reset player_type_override when name changes
+                player_type_override: undefined, // Reset player_type_override when name changes
+                two_way: false,
             };
         });
     };
@@ -864,6 +899,21 @@ function CustomCardBuilder({ isHidden, embed }: CustomCardBuilderProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [form.year, form.stats_period_type]);
 
+
+    // Two-way cards use Auto images and only the parallels their layout can show
+    useEffect(() => {
+        if (!isTwoWayBuild) return;
+        const needsAutoImage = !TWO_WAY_IMAGE_SOURCES.has(form.image_source);
+        const needsParallelReset = excludedParallels.includes(form.image_parallel);
+        if (!needsAutoImage && !needsParallelReset) return;
+        if (needsAutoImage) clearImageUpload();
+        setForm(prevForm => ({
+            ...prevForm,
+            ...(needsAutoImage && { image_source: 'AUTO', image_url: null, image_upload: null }),
+            ...(needsParallelReset && { image_parallel: 'NONE', image_parallel_coloring: 'DEFAULT' }),
+        }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [isTwoWayBuild, effectiveShowdownSet, form.image_source, form.image_parallel]);
 
     // Save settings whenever form changes (debounced)
     // localStorage is always saved; API is only called when logged in
@@ -1193,7 +1243,9 @@ function CustomCardBuilder({ isHidden, embed }: CustomCardBuilderProps) {
                                                     year: selection.year,
                                                     player_id: selection.player_id,
                                                     player_type_override: selection.player_type_override,
+                                                    two_way: !!selection.two_way,
                                                 })}
+                                                offerTwoWay
                                             />
 
                                             {/* Showdown Set (default managed via top right corner) */}
@@ -1258,6 +1310,34 @@ function CustomCardBuilder({ isHidden, embed }: CustomCardBuilderProps) {
                                                 onChange={(value) => setForm({ ...form, year: value || '' })}
                                                 isClearable={true}
                                             />
+
+                                            {/* Two-way players: which card to build (also picked on the search row) */}
+                                            {isTwoWayPlayer && (
+                                                <div className="col-span-full space-y-1">
+                                                    <div className={`${FIELD_LABEL_CLASS} inline-flex items-center gap-1.5`}>
+                                                        Version <NewBadge />
+                                                        <InfoTooltip text="Two-Way builds one card with both the player's hitting and pitching sides. Points are the two sides added together." />
+                                                    </div>
+                                                    <div className="flex gap-1" role="group" aria-label="Card version">
+                                                        {(['TWO_WAY', 'HITTER', 'PITCHER'] as PlayerVersion[]).map(version => {
+                                                            const isUnavailable = version === 'TWO_WAY' && !isTwoWaySetSupported;
+                                                            return (
+                                                                <button
+                                                                    key={version}
+                                                                    type="button"
+                                                                    disabled={isUnavailable}
+                                                                    title={isUnavailable ? `Two-way cards are available for the ${TWO_WAY_SETS_LABEL} sets` : undefined}
+                                                                    aria-pressed={playerVersion === version}
+                                                                    onClick={() => setForm({ ...form, ...versionFormFields(form.name, version) })}
+                                                                    className={choiceClass(playerVersion === version, 'sm', 'flex-1')}
+                                                                >
+                                                                    {PLAYER_VERSION_LABELS[version]}
+                                                                </button>
+                                                            );
+                                                        })}
+                                                    </div>
+                                                </div>
+                                            )}
 
                                             {isMultiYear && (
                                                 <FormDropdown
@@ -1349,7 +1429,13 @@ function CustomCardBuilder({ isHidden, embed }: CustomCardBuilderProps) {
                                                 options={imageSourceOptions}
                                                 selectedOption={form.image_source}
                                                 onChange={(value) => setForm({ ...form, image_source: value })}
+                                                disabled={isTwoWayBuild}
                                             />
+                                            {isTwoWayBuild && (
+                                                <p className="col-span-full -mt-1 text-xs text-(--text-secondary)">
+                                                    Two-way cards need a photo for each half, so they can't use a link or upload. To use your own photos, add them to a Google Drive image library.
+                                                </p>
+                                            )}
                                             {form.image_source === 'AUTO' && <ImageLibraryOrderHint className="col-span-full -mt-1" />}
 
                                             {/* Source Specific Options */}
@@ -1404,6 +1490,7 @@ function CustomCardBuilder({ isHidden, embed }: CustomCardBuilderProps) {
                                                 defaults={FORM_DEFAULTS}
                                                 onChange={(patch) => setForm({ ...form, ...patch })}
                                                 hideParallel={form.image_source !== 'AUTO'}
+                                                excludedParallels={excludedParallels}
                                             />
 
                                         </FormSection>

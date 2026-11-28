@@ -449,8 +449,14 @@ export type ShowdownBotCard = {
     /** Baseball era classification */
     era: string;
     
-    /** Total point value for draft/gameplay */
+    /** Total point value for draft/gameplay. On two-way cards, the hitting side only (see `total_points`) */
     points: number;
+
+    /** Two-way cards only: the pitching side. This card is the hitting side. See domain/twoWay.ts */
+    two_way?: ShowdownBotCard | null;
+
+    /** Two-way cards only: hitting + pitching points, the value shown on the card */
+    total_points?: number | null;
 
     /** Recent point value changes by time period */
     points_change?: {
@@ -560,6 +566,8 @@ export type ShowdownBotCardCompact = {
     isEmpty?: boolean;
     /** 2+ flags an alternate chart (not the most accurate one) */
     chart_version?: number | null;
+    /** Two-way cards only: the pitching side. This card is the hitting side */
+    two_way?: ShowdownBotCardCompact | null;
 }
 // =============================================================================
 // MARK: - CARD IMAGE & VISUAL TYPES

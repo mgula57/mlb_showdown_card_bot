@@ -261,7 +261,8 @@ def search_players():
                     is_hof,
                     award_summary,
                     war,
-                    war_type
+                    war_type,
+                    player_type_override
                 FROM player_search
                 WHERE year = %s
                 ORDER BY COALESCE(war, 0) DESC, name
@@ -270,12 +271,13 @@ def search_players():
             
             results = cursor.fetchall()
             displays = []
-            for name, year, bref_id, mlb_id, team, is_hof, award_summary, war, war_type in results:
+            for name, year, bref_id, mlb_id, team, is_hof, award_summary, war, war_type, player_type_override in results:
                 displays.append({
                     'type': 'single_year',
                     'name': name,
                     'year': year,
                     'player_id': bref_id if int(year) < 2026 else mlb_id,  # Only show player_id for past seasons
+                    'player_type_override': player_type_override,
                     'team': team,
                     'is_hof': is_hof,
                     'award_summary': award_summary,
@@ -328,7 +330,8 @@ def search_players():
                         is_hof,
                         award_summary,
                         war,
-                        war_type
+                        war_type,
+                        player_type_override
                     FROM player_search
                     WHERE name LIKE LOWER(%s) AND year = %s
                     ORDER BY COALESCE(war, 0) DESC, name
@@ -337,12 +340,13 @@ def search_players():
 
                 results = cursor.fetchall()
                 displays = []
-                for name, year, bref_id, mlb_id, team, is_hof, award_summary, war, war_type in results:
+                for name, year, bref_id, mlb_id, team, is_hof, award_summary, war, war_type, player_type_override in results:
                     displays.append({
                         'type': 'single_year',
                         'name': name,
                         'year': year,
                         'player_id': bref_id if int(year) < 2026 else mlb_id,  # Only show player_id for past seasons
+                        'player_type_override': player_type_override,
                         'is_hof': is_hof,
                         'award_summary': award_summary,
                         'war': war,
@@ -365,6 +369,7 @@ def search_players():
                     award_summary,
                     war,
                     war_type,
+                    player_type_override,
                     CASE 
                         WHEN LOWER(name) = LOWER(%s) THEN 1                    -- Exact match
                         WHEN LOWER(name) LIKE LOWER(%s) THEN 2                 -- Starts with
@@ -392,12 +397,13 @@ def search_players():
             
             results = cursor.fetchall()
             displays = []
-            for name, year, bref_id, mlb_id, team, is_hof, award_summary, war, war_type, match_rank in results:
+            for name, year, bref_id, mlb_id, team, is_hof, award_summary, war, war_type, player_type_override, match_rank in results:
                 displays.append({
                     'type': 'single_year',
                     'name': name,
                     'year': year,
                     'player_id': bref_id if int(year) < 2026 else mlb_id,  # Only show player_id for past seasons
+                    'player_type_override': player_type_override,
                     'is_hof': is_hof,
                     'award_summary': award_summary,
                     'war': war,

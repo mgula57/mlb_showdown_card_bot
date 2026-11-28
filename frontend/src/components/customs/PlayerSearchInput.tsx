@@ -15,37 +15,16 @@ import { SearchFrame } from '../shared/SearchFrame';
 import { Plate } from '../shared/Plate';
 
 import { FIELD_LABEL_CLASS } from '../shared/fieldStyles';
-/**
- * Player search result option with comprehensive metadata
- */
-interface PlayerSearchOption {
-    /** Player's full name */
-    name: string;
-    /** Season year or special designation (CAREER, etc.) */
-    year: number | string;
-    /** Formatted year display (e.g., "2020-2024" for multi-year) */
-    year_display?: string | null;
-    /** Baseball Reference player ID or MLB player ID */
-    player_id: string;
-    /** Whether player is in Hall of Fame */
-    is_hof: boolean;
-    /** Summary of major awards (MVP, Cy Young, etc.) */
-    award_summary?: string | null;
-    /** Either bWAR or fWAR depending on the source */
-    war: number;
-    /** Type of WAR (bWAR or fWAR) */
-    war_type?: string | null;
-    /** Team abbreviation for the season */
-    team?: string | null;
-    /** Override for player type (Hitter/Pitcher) if ambiguous */
-    player_type_override?: string | null;
-}
-
+import { choiceClass } from '../shared/choiceStyles';
+import { PLAYER_VERSION_LABELS, versionFormFields, type PlayerVersion } from '../../domain/twoWay';
+import { mergeTwoWayRows, isTwoWayRow, playerTypeKey, type PlayerSearchRow } from './playerSearch';
 export type PlayerSearchSelection = {
     name: string;
     year: string;
     player_id: string;
     player_type_override?: string;
+    /** Two-way players only: build one card with both sides */
+    two_way?: boolean;
 };
 
 /**
@@ -60,6 +39,9 @@ interface PlayerSearchInputProps {
     onChange: (selection: PlayerSearchSelection) => void;
     /** Optional CSS class names for styling */
     className?: string;
+    /** Offer the Two-Way version on two-way players' rows (the Custom Card Builder). Otherwise
+     *  their rows offer Hitter and Pitcher only. */
+    offerTwoWay?: boolean;
     /** Optional search filter options */
     searchOptions?: {
         exclude_multi_year?: boolean;
@@ -136,8 +118,12 @@ export function PlayerSearchInput({
     value,
     onChange,
     className = '',
+    offerTwoWay = false,
     searchOptions = {}
 }: PlayerSearchInputProps) {
+
+    const rowVersions: PlayerVersion[] = offerTwoWay ? ['TWO_WAY', 'HITTER', 'PITCHER'] : ['HITTER', 'PITCHER'];
+    const defaultVersion = rowVersions[0];
 
     // =============================================================================
     // STATE MANAGEMENT
@@ -146,13 +132,16 @@ export function PlayerSearchInput({
     /** Current search query text */
     const [query, setQuery] = useState(value);
     /** Available player search options from API */
-    const [options, setOptions] = useState<PlayerSearchOption[]>([]);
+    const [options, setOptions] = useState<PlayerSearchRow[]>([]);
     /** Whether the dropdown menu is visible */
     const [isOpen, setIsOpen] = useState(false);
     /** Whether API search is in progress */
     const [isLoading, setIsLoading] = useState(false);
     /** Currently highlighted option index for keyboard navigation */
     const [selectedIndex, setSelectedIndex] = useState(-1);
+    /** Version picked with ←/→ on a two-way row. Only counts while that row is still highlighted */
+    const [versionPick, setVersionPick] = useState<{ index: number; version: PlayerVersion } | null>(null);
+    const highlightedVersion = versionPick?.index === selectedIndex ? versionPick.version : defaultVersion;
     /** Index for cycling placeholder examples */
     const [placeholderIndex, setPlaceholderIndex] = useState(0);
     /** Whether input field has focus */
@@ -286,8 +275,8 @@ export function PlayerSearchInput({
                 }
 
                 const response = await fetch(`/api/players/search?${params.toString()}`);
-                const results = await response.json();
-                
+                const results = mergeTwoWayRows(await response.json());
+
                 setOptions(results);
                 setIsOpen(results.length > 0);
                 // On desktop, pre-highlight the top hit so type → Enter selects it
@@ -353,7 +342,7 @@ export function PlayerSearchInput({
             if (hasMenu) {
                 consumeKey(e);
                 if (selectedIndex >= 0 && selectedIndex < options.length) {
-                    handleSelect(options[selectedIndex]);
+                    handleSelect(options[selectedIndex], highlightedVersion);
                 }
             } else if (isSearchPending.current) {
                 consumeKey(e);
@@ -364,6 +353,14 @@ export function PlayerSearchInput({
         if (!hasMenu) return;
 
         const last = options.length - 1;
+        // ←/→ pick the version on a highlighted two-way row
+        if ((e.key === 'ArrowLeft' || e.key === 'ArrowRight') && isTwoWayRow(options[selectedIndex])) {
+            e.preventDefault();
+            const step = e.key === 'ArrowRight' ? 1 : -1;
+            const next = rowVersions[Math.min(Math.max(rowVersions.indexOf(highlightedVersion) + step, 0), rowVersions.length - 1)];
+            setVersionPick({ index: selectedIndex, version: next });
+            return;
+        }
         switch (e.key) {
             case 'ArrowDown':
                 e.preventDefault();
@@ -388,7 +385,9 @@ export function PlayerSearchInput({
         }
     };
 
-    const handleSelect = (option: PlayerSearchOption) => {
+    const handleSelect = (row: PlayerSearchRow, version: PlayerVersion = defaultVersion) => {
+        // A two-way row picks the chosen side's result (Two-Way builds from the hitting side's)
+        const option = isTwoWayRow(row) ? row.versions![version === 'PITCHER' ? 'PITCHER' : 'HITTER']! : row;
         programmaticChange.current = true;
         const nameAndYear = `${option.name} ${option.year}`;
         setQuery(nameAndYear);
@@ -396,6 +395,15 @@ export function PlayerSearchInput({
         setSelectedIndex(-1);
 
         const typeOverride = option.player_type_override ? ` ${option.player_type_override.toUpperCase()}` : '';
+
+        if (isTwoWayRow(row)) {
+            onChange({
+                ...versionFormFields(option.name, version),
+                year: option.year.toString(),
+                player_id: option.player_id.toString(),
+            });
+            return;
+        }
 
         // Call onChange with the selected option
         onChange({
@@ -513,7 +521,7 @@ export function PlayerSearchInput({
                     >
                         {options.map((option, index) => (
                             <div
-                                key={`${option.year.toString()}-${option.player_id}`}
+                                key={`${option.year.toString()}-${option.player_id}-${isTwoWayRow(option) ? 'TWP' : playerTypeKey(option.player_type_override) ?? ''}`}
                                 id={`${listboxId}-${index}`}
                                 role="option"
                                 aria-selected={index === selectedIndex}
@@ -542,10 +550,29 @@ export function PlayerSearchInput({
                                     </div>
                                     {/* Contextual info */}
                                     <div className="text-xs text-(--text-tertiary)">
-                                        {option.player_type_override && <div className='font-bold'>{option.player_type_override.toUpperCase()}</div>}
+                                        {option.player_type_override && !isTwoWayRow(option) && <div className='font-bold'>{option.player_type_override.toUpperCase()}</div>}
                                         {option.award_summary && <div>Awards: {option.award_summary}</div>}
-                                        {option.war !== undefined && option.war !== null && <div>{option.war_type}: {option.war.toFixed(1)}</div>}
+                                        {isTwoWayRow(option) ? (
+                                            <div>{option.war_type}: {option.versions!.HITTER!.war?.toFixed(1)} hitting · {option.versions!.PITCHER!.war?.toFixed(1)} pitching</div>
+                                        ) : option.war !== undefined && option.war !== null && <div>{option.war_type}: {option.war.toFixed(1)}</div>}
                                     </div>
+
+                                    {/* Two-way: which card to build. Clicking the row picks the highlighted one */}
+                                    {isTwoWayRow(option) && (
+                                        <div className="flex gap-1 pt-2" role="group" aria-label="Card version">
+                                            {rowVersions.map(version => (
+                                                <button
+                                                    key={version}
+                                                    type="button"
+                                                    aria-pressed={index === selectedIndex && version === highlightedVersion}
+                                                    onClick={(e) => { e.stopPropagation(); handleSelect(option, version); }}
+                                                    className={choiceClass(index === selectedIndex ? version === highlightedVersion : version === defaultVersion, 'xs')}
+                                                >
+                                                    {PLAYER_VERSION_LABELS[version]}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    )}
                                 </div>
                             </div>
                         ))}

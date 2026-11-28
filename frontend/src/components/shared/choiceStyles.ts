@@ -5,9 +5,10 @@
  * app-wide selection treatment, a navy outline, rather than an inverted fill, so it never reads
  * as a primary button. Kept component-free so it works on any `<button>`.
  */
-export type ChoiceSize = 'sm' | 'md';
+export type ChoiceSize = 'xs' | 'sm' | 'md';
 
 const SIZE_CLASSES: Record<ChoiceSize, string> = {
+    xs: 'min-h-7 px-2 py-0.5 text-[11px]',
     sm: 'min-h-8 px-2.5 py-1 text-[12px]',
     md: 'min-h-9 px-3 py-2 text-[13px]',
 };

@@ -63,6 +63,8 @@ import { cardImagePublicUrl } from '../../api/supabase';
 import { Heading } from '../shared/Heading';
 import { SLANT_ROOM_CLASS } from '../shared/headingStyles';
 import { CAPS_LABEL_CLASS } from '../shared/fieldStyles';
+import { Tabs } from '../shared/Tabs';
+import { isTwoWayCard, twoWaySide, displayPoints, type TwoWaySide } from '../../domain/twoWay';
 /**
  * Props for the CardDetail component
  */
@@ -258,8 +260,7 @@ export const CardDetail = memo(function CardDetail({ showdownBotCardData: showdo
      * Ensures component reflects updates from parent while maintaining ability
      * to handle local updates (like image regeneration)
      */
-    useEffect(() => {
-        const fetchRanges = (card: NonNullable<ShowdownBotCardAPIResponse['card']>) => {
+    const fetchRanges = (card: ShowdownBotCard) => {
             const yearList = card.stats_period?.year_list || [];
             const playerType = card.player_type.toUpperCase() as "HITTER" | "PITCHER";
             const subType: string | undefined = card.player_sub_type;
@@ -280,8 +281,9 @@ export const CardDetail = memo(function CardDetail({ showdownBotCardData: showdo
                 .finally(() => {
                     setIsRangesLoading(false);
                 });
-        };
+    };
 
+    useEffect(() => {
         // Case 1: New data provided via prop
         if (showdownBotCardData && showdownBotCardData.card) {
             // Skip if same card (by bref_id + year + set). With `enableSetSwitcher`, the set is
@@ -396,11 +398,14 @@ export const CardDetail = memo(function CardDetail({ showdownBotCardData: showdo
     const [showBorderChoice, setShowBorderChoice] = useState<boolean | null>(null);
     const styleEditorCardKey = cardId ?? `${showdownBotCardDataProp?.card?.bref_id}-${showdownBotCardDataProp?.card?.year}-${showdownBotCardDataProp?.card?.set}`;
     const hasStyleEditor = !!styleEditor || !!localStyleDefaults;
+    // Two-way cards: which side's chart the analysis panels show
+    const [twoWaySideChoice, setTwoWaySideChoice] = useState<TwoWaySide>('hitting');
     useEffect(() => {
         setIsStyleEditorOpen(false);
         setLocalStyleBase(null);
         setLocalStyle(null);
         setShowBorderChoice(null);
+        setTwoWaySideChoice('hitting');
     }, [styleEditorCardKey, hasStyleEditor]);
     const localStyleEditor = useMemo<CardStyleEditorConfig | undefined>(() => localStyleBase ? {
         style: localStyle ?? localStyleBase,
@@ -446,7 +451,8 @@ export const CardDetail = memo(function CardDetail({ showdownBotCardData: showdo
     const cardImagePath: string | null = imagePathFor(activeCardData?.card)
         ?? (isGeneratingImage ? restyleFromImagePathRef.current : null);
     const cardAttributes: Record<string, string | number | null> = activeCardData?.card ? {
-        points: `${activeCardData.card.points} PTS`,
+        points: `${displayPoints(activeCardData.card)} PTS`,
+        two_way: isTwoWayCard(activeCardData.card) ? `TWO-WAY ${activeCardData.card.points} + ${activeCardData.card.two_way.points}` : null,
         year: activeCardData.card.year,
         stats_period_summary: activeCardData.card.stats_period?.type !== "REGULAR" ? activeCardData.card.stats_period?.display_text || null : null,
         expansion: activeCardData.card.image.expansion == "BS" ? null : activeCardData.card.image.expansion,
@@ -580,6 +586,14 @@ export const CardDetail = memo(function CardDetail({ showdownBotCardData: showdo
                     0 0 30px color-mix(in srgb, var(--tertiary) 34%, transparent)`
     };
 
+    const isTwoWay = isTwoWayCard(activeCardData?.card);
+    /** The card the analysis panels describe: the chosen side of a two-way card, else the card itself */
+    const sideCard = activeCardData?.card ? twoWaySide(activeCardData.card, twoWaySideChoice) : activeCardData?.card;
+    const handleTwoWaySideChange = (side: TwoWaySide) => {
+        setTwoWaySideChoice(side);
+        if (activeCardData?.card) fetchRanges(twoWaySide(activeCardData.card, side));
+    };
+
     /** Live game + Card vs Real Stats — beside the card image, or down in the analysis grid while
      * the style editor holds that spot */
     const realStatsPanels = (
@@ -595,11 +609,11 @@ export const CardDetail = memo(function CardDetail({ showdownBotCardData: showdo
             )}
 
             {/* Normalizer blend (real sample vs baseline) */}
-            {activeCardData?.card?.stat_normalizer?.summary && (
+            {sideCard?.stat_normalizer?.summary && (
                 <SectionPanel isLoading={isLoadingPanels} title="Normalized Stats" subtitle='Share of the card from real stats vs the normalizer'>
                     <StatNormalizerBreakdown
-                        summary={activeCardData.card.stat_normalizer.summary}
-                        playerType={activeCardData.card.player_type?.toUpperCase() as 'HITTER' | 'PITCHER'}
+                        summary={sideCard.stat_normalizer.summary}
+                        playerType={sideCard.player_type?.toUpperCase() as 'HITTER' | 'PITCHER'}
                     />
                 </SectionPanel>
             )}
@@ -608,10 +622,10 @@ export const CardDetail = memo(function CardDetail({ showdownBotCardData: showdo
             <SectionPanel isLoading={isLoadingPanels} title="Card vs Real Stats" subtitle='Compares projected card outcomes vs real stats'>
                 
                 <RealVsProjectedVisual
-                    realVsProjectedData={activeCardData?.card?.real_vs_projected_stats}
+                    realVsProjectedData={sideCard?.real_vs_projected_stats}
                     statRanges={seasonStatRanges}
                     isLoading={isRangesLoading}
-                    playerType={activeCardData?.card?.player_type?.toUpperCase() as 'HITTER' | 'PITCHER'}
+                    playerType={sideCard?.player_type?.toUpperCase() as 'HITTER' | 'PITCHER'}
                     simStats={simStats}
                 />
                 <div className="flex flex-col text-[10px] opacity-40 space-y-0.5 pt-1">
@@ -856,6 +870,19 @@ export const CardDetail = memo(function CardDetail({ showdownBotCardData: showdo
                 </div>
             )}
 
+            {/* Two-way cards: which side the analysis panels describe */}
+            {isTwoWay && activeCardData?.card?.two_way && (
+                <Tabs
+                    tabs={[
+                        { id: 'hitting', label: `Hitting · ${activeCardData.card.points} PT` },
+                        { id: 'pitching', label: `Pitching · ${activeCardData.card.two_way.points} PT` },
+                    ]}
+                    value={twoWaySideChoice}
+                    onChange={handleTwoWaySideChange}
+                    size="sm"
+                />
+            )}
+
             {/* Image and Breakdown Tables. While customizing, the style editor takes the image's spot
                 (left, or top on mobile) and the card moves beside/below it so its re-render stays in
                 view. Keyed so the image doesn't remount when the editor slots in ahead of it. */}
@@ -983,29 +1010,29 @@ export const CardDetail = memo(function CardDetail({ showdownBotCardData: showdo
                 {showStyleEditor && realStatsPanels}
 
                 {/* Points Breakdown */}
-                {!activeCardData?.card?.is_wotc && (
+                {!sideCard?.is_wotc && (
                     <SectionPanel isLoading={isLoadingPanels} title="Points Breakdown">
                         <PointsContributionBars
-                            pointsBreakdownData={activeCardData?.card?.points_breakdown}
-                            ip={activeCardData?.card?.ip}
+                            pointsBreakdownData={sideCard?.points_breakdown}
+                            ip={sideCard?.ip}
                         />
                         <i className="text-[10px] opacity-40">* Slashlines/HR projections based on Steroid Era opponent.</i>
                     </SectionPanel>
                 )}
 
                 {/* Chart Accuracy */}
-                {!activeCardData?.card?.is_wotc && (
+                {!sideCard?.is_wotc && (
                     <SectionPanel
                         isLoading={isLoadingPanels}
-                        title={`Chart Selection - Version ${activeCardData?.card?.chart_version || '1'}`}
-                        subtitle={activeCardData?.card?.command_out_selection ? "Version 1 is hand-curated. Scores shown are each chart's true accuracy" : undefined}
+                        title={`Chart Selection - Version ${sideCard?.chart_version || '1'}`}
+                        subtitle={sideCard?.command_out_selection ? "Version 1 is hand-curated. Scores shown are each chart's true accuracy" : undefined}
                     >
                         <ChartSelectionBreakdown
-                            chartAccuracyData={activeCardData?.card?.command_out_accuracy_breakdowns}
-                            commandOutAccuraciesData={activeCardData?.card?.command_out_accuracies}
-                            selectedChartVersion={activeCardData?.card?.chart_version || 1}
-                            selectedChart={activeCardData?.card?.selected_command_outs}
-                            selection={activeCardData?.card?.command_out_selection}
+                            chartAccuracyData={sideCard?.command_out_accuracy_breakdowns}
+                            commandOutAccuraciesData={sideCard?.command_out_accuracies}
+                            selectedChartVersion={sideCard?.chart_version || 1}
+                            selectedChart={sideCard?.selected_command_outs}
+                            selection={sideCard?.command_out_selection}
                         />
                     </SectionPanel>
                 )}
@@ -1014,10 +1041,10 @@ export const CardDetail = memo(function CardDetail({ showdownBotCardData: showdo
                 <SectionPanel 
                     isLoading={isLoadingPanels} 
                     title="Baseline Opponent"
-                    subtitle={`The avg opposing pitcher/hitter used to create the card. Adjusted to reflect run scoring environment of the ${activeCardData?.card?.era}`}
+                    subtitle={`The avg opposing pitcher/hitter used to create the card. Adjusted to reflect run scoring environment of the ${sideCard?.era}`}
                 >
                     <BaselineOpponentBreakdown
-                        chart={activeCardData?.card?.chart?.opponent}
+                        chart={sideCard?.chart?.opponent}
                         primaryColor={mechPrimaryColor}
                         secondaryColor={mechSecondaryColor}
                     />
@@ -1026,15 +1053,16 @@ export const CardDetail = memo(function CardDetail({ showdownBotCardData: showdo
                 {/* Outcome Distribution */}
                 <SectionPanel isLoading={isLoadingPanels} title="Outcome Probabilities" subtitle="Use baseline or search for a specific opponent">
                     <OutcomeProbability
-                        chart={activeCardData?.card?.chart}
+                        chart={sideCard?.chart}
                         primaryColor={mechPrimaryColor}
                         secondaryColor={mechSecondaryColor}
-                        set={activeCardData?.card?.set}
+                        set={sideCard?.set}
                     />
                 </SectionPanel>                
 
                 {/* Trend Graphs */}
-                {!hideTrendGraphs && (
+                {/* Two-way builds have no trends */}
+                {!hideTrendGraphs && !isTwoWay && (
                     <>
                         <SectionPanel isLoading={isLoadingPanels} title="Career Trends">
                             <ChartPlayerPointsTrend
@@ -1058,7 +1086,7 @@ export const CardDetail = memo(function CardDetail({ showdownBotCardData: showdo
                     subtitle={`Top matches by chart similarity`}
                 >
                     <CardComps
-                        card={activeCardData?.card ?? null}
+                        card={sideCard ?? null}
                         isLoading={isLoadingPanels}
                     />
                 </SectionPanel>

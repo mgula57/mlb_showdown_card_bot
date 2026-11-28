@@ -17,6 +17,32 @@ import ChartVersionBadge from "./card_elements/ChartVersionBadge";
 import type { CardStyleOverrides } from "./cardStyleOverrides";
 import { Plate } from "../shared/Plate";
 import { buttonVariantClass } from '../shared/buttonStyles';
+import TwoWayBadge from "./card_elements/TwoWayBadge";
+import { isTwoWayCard } from "../../domain/twoWay";
+
+/** The pitching side of a two-way card. The card's own props describe the hitting side. */
+export type CardItemTwoWaySide = {
+    command?: number;
+    points?: number;
+    hand?: string;
+    ip?: number;
+    positionsAndDefenseString?: string;
+    chartRanges?: Record<string, string>;
+    statHighlightsList?: string[];
+};
+
+/** Speed/hand/positions for hitters, positions/hand/IP for pitchers */
+const sideMetadata = ({ isPitcher, speed, hand, ip, positions }: { isPitcher?: boolean; speed?: number; hand?: string; ip?: number; positions?: string }): string[] => (
+    isPitcher ? [
+        positions,
+        hand ? `${hand}HP` : undefined, // HP = Handed Pitcher
+        ip ? `IP ${ip}` : undefined,
+    ] : [
+        speed ? `SPD ${speed}` : undefined,
+        hand ? `BATS ${hand}` : undefined,
+        positions,
+    ]
+).filter((meta): meta is string => !!meta);
 
 /**
  * Props for the CardItem component
@@ -98,6 +124,8 @@ type CardItemProps = {
     hasAdvantage?: boolean;
     /** Sim only — the chart result the swing landed on (e.g. "1b+"); that cell lights up. */
     chartHighlight?: string;
+    /** Two-way cards: the pitching side, stacked under the hitting side */
+    cardTwoWay?: CardItemTwoWaySide;
 };
 
 /**
@@ -138,7 +166,7 @@ export const CardItem = ({
     cardSet, cardExpansion, cardSetNumber,
     cardIcons, cardAwardList, cardStatHighlightsList,
     cardChartRanges, cardChartVersion, cardLeague, cardSource, cardStatus,
-    onClick, className, isSelected, actionButton, hasAdvantage, chartHighlight
+    onClick, className, isSelected, actionButton, hasAdvantage, chartHighlight, cardTwoWay
 }: CardItemProps) => {
 
     const isRedacted = cardId === null || cardId === undefined;
@@ -186,15 +214,20 @@ export const CardItem = ({
      * Hitters show: Speed, Batting handedness, Defensive positions
      * Pitchers show: Positions, Pitching handedness, Innings pitched
      */
-    const metadataArray: (string | undefined)[] = cardIsPitcher ? [
-        cardPositionsAndDefenseString,
-        cardHand ? `${cardHand}HP` : undefined, // HP = Handed Pitcher
-        cardIp ? `IP ${cardIp}` : undefined,
-    ] : [
-        cardSpeed ? `SPD ${cardSpeed}` : undefined,
-        cardHand ? `BATS ${cardHand}` : undefined,
-        cardPositionsAndDefenseString,
-    ].filter(Boolean); // Remove undefined values
+    const metadataArray = sideMetadata({ isPitcher: cardIsPitcher, speed: cardSpeed, hand: cardHand, ip: cardIp, positions: cardPositionsAndDefenseString });
+
+    // Two-way: the headline plate is the hitting + pitching total, and each side shows its own points
+    const totalPoints = cardTwoWay && cardPoints != null ? cardPoints + (cardTwoWay.points ?? 0) : undefined;
+    const pitchingMetadata = cardTwoWay
+        ? sideMetadata({ isPitcher: true, hand: cardTwoWay.hand, ip: cardTwoWay.ip, positions: cardTwoWay.positionsAndDefenseString })
+        : [];
+    const chartProps = {
+        showdownSet: cardSet || '2001',
+        primaryColor: colorStylingPrimary.backgroundColor,
+        secondaryColor: colorStylingSecondary.backgroundColor,
+        team: cardTeam,
+        cellClassName: 'min-w-6 md:min-w-8',
+    };
 
     return (
         <div className={`${className} relative`}>
@@ -301,6 +334,8 @@ export const CardItem = ({
                             <Plate variant="custom" size="sm" textSize="text-[11px]" style={colorStylingSecondary}>
                                 {isRedacted ? (
                                     <span className="text-transparent">REDACTED</span>
+                                ) : totalPoints != null ? (
+                                    `${totalPoints} PT.`
                                 ) : hasPtsMultiplier ? (
                                     <>
                                         <span className="line-through opacity-60">{cardPoints}</span>
@@ -318,9 +353,11 @@ export const CardItem = ({
                                     {cardPtsChange > 0 ? '▲' : '▼'}{Math.abs(cardPtsChange)}
                                 </span>
                             )}
-                            {cardPointsEstimated && cardPoints && (
+                            {cardTwoWay && <TwoWayBadge size="xs" />}
+                            {cardPointsEstimated && cardPoints && !cardTwoWay && (
                                 <PointsEstimateComparison estimated={cardPointsEstimated} diff={cardPointsDiffEstimatedVsActual || 0} />
                             )}
+                            {cardTwoWay && <Plate variant="outline" size="xs" title="Hitting points">{cardPoints}</Plate>}
                             {metadataArray.map((meta, index) => (
                                 <div key={index} className={`${isRedacted ? 'redacted' : ''}`}>{meta}</div>
                             ))}
@@ -330,16 +367,33 @@ export const CardItem = ({
 
                 {/* Interactive chart showing dice roll outcomes */}
                 <div className="overflow-x-scroll scrollbar-hide">
-                    <CardChart
-                        chartRanges={cardChartRanges || {}}
-                        showdownSet={cardSet || '2001'}
-                        primaryColor={colorStylingPrimary.backgroundColor}
-                        secondaryColor={colorStylingSecondary.backgroundColor}
-                        team={cardTeam}
-                        cellClassName="min-w-6 md:min-w-8"
-                        highlightResult={chartHighlight}
-                    />
+                    <CardChart {...chartProps} chartRanges={cardChartRanges || {}} highlightResult={chartHighlight} />
                 </div>
+
+                {/* Two-way: the pitching side, with its own command, points and chart */}
+                {cardTwoWay && (
+                    <>
+                        <div className="flex flex-row gap-2 items-center text-nowrap">
+                            <CardCommand
+                                isPitcher
+                                primaryColor={primaryColor}
+                                secondaryColor={secondaryColor}
+                                command={cardTwoWay.command}
+                                team={cardTeam}
+                                className="w-9 h-9 shrink-0"
+                            />
+                            <div className="flex flex-row gap-1.5 text-[11px] text-secondary tracking-tight items-center overflow-x-scroll scrollbar-hide">
+                                <Plate variant="outline" size="xs" title="Pitching points">{cardTwoWay.points}</Plate>
+                                {pitchingMetadata.map((meta, index) => (
+                                    <div key={index}>{meta}</div>
+                                ))}
+                            </div>
+                        </div>
+                        <div className="overflow-x-scroll scrollbar-hide">
+                            <CardChart {...chartProps} chartRanges={cardTwoWay.chartRanges || {}} />
+                        </div>
+                    </>
+                )}
 
                 {/* Bottom bar */}
                 <div className={`flex flex-row justify-between items-center gap-x-1`}>
@@ -399,6 +453,15 @@ export const CardItem = ({
                                     {stat}
                                 </div>
                             ))}
+                            {/* Two-way: hitting highlights | pitching highlights */}
+                            {!!cardTwoWay?.statHighlightsList?.length && (
+                                <>
+                                    {!!cardStatHighlightsList?.length && <div className="w-px h-2.5 bg-(--divider) shrink-0" />}
+                                    {cardTwoWay.statHighlightsList.map((stat, index) => (
+                                        <div key={`p-${index}`}>{stat}</div>
+                                    ))}
+                                </>
+                            )}
                             {/* Add empty space to scroll through, accounting for the image in bottom right */}
                             <div className={`${hasSetBadgeContent ? 'w-40' : 'w-24'} h-2 shrink-0`} />
                             </>
@@ -529,6 +592,15 @@ export const CardItemFromCard = ({ card, onClick, className, isSelected, hideYea
             actionButton={actionButton}
             hasAdvantage={hasAdvantage}
             chartHighlight={chartHighlight}
+            cardTwoWay={isTwoWayCard(card) ? {
+                command: card.two_way.chart.command,
+                points: card.two_way.points,
+                hand: card.two_way.hand || undefined,
+                ip: card.two_way.ip || undefined,
+                positionsAndDefenseString: card.two_way.positions_and_defense_string || undefined,
+                chartRanges: card.two_way.chart.ranges || {},
+                statHighlightsList: card.two_way.image.stat_highlights_list || [],
+            } : undefined}
         />
     );
 }
