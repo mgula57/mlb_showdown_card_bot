@@ -5659,10 +5659,11 @@ class ShowdownPlayerCard(BaseModel):
         for index, stats in enumerate(sections):
 
             # CALCULATE HOW MANY STATS CAN FIT
+            # A STAT TOO WIDE FOR THE REMAINING SPACE IS SKIPPED, NOT A STOP: A SHORTER, LOWER-RANKED STAT CAN STILL FILL THE GAP
             full_text: str = ''
             for stat in stats:
                 text_width_next, _ = self._font_getsize(font=font, text=f'{full_text}  {stat}')
-                if text_width_next > (section_width * final_size_multiplier): break
+                if text_width_next > (section_width * final_size_multiplier): continue
                 full_text = f'{full_text}  {stat}'
 
             stat_text = self._text_image(
