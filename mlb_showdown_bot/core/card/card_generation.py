@@ -343,6 +343,9 @@ def generate_card(image_libraries: list[ImageLibrary] = None, client: Optional[C
                 'latest_game_box_score': None,
             }
 
+        # THE TWO-WAY REQUEST FLAG ISN'T A CARD INPUT: THE CARD'S OWN `two_way` FIELD HOLDS THE PITCHING SIDE
+        kwargs.pop('two_way', None)
+
         # RAISE ERROR IF YEAR IS NOT PROVIDED BY USER OR SHUFFLE
         if kwargs.get('year', None) is None:
             raise Exception("Year is a required input.")
