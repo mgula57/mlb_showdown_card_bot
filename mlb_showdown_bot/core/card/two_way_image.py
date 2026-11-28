@@ -14,6 +14,9 @@ both cards' own render helpers (templates, metadata, chart, player images) and r
   The name keeps the top of the name column, with the two-way total level under it, above the logos.
 - 2004/2005: the photos split side by side, and the bottom bands become one name band plus a
   self-contained block per side (command badge | metadata / ranges / results).
+- Classic/Expanded: laid out like 2004/2005. The photos split side by side, and the native translucent box
+  holds a name row (name, two-way total) and a block per side (command | metadata and icons over a scaled
+  chart), over the native footer.
 
 All coordinates are in the bordered canvas space (1644x2244, 72px bleed). Cards are always
 composed bordered and cropped to the regular card size afterwards when the card isn't bordered.
@@ -94,6 +97,8 @@ class TwoWayCardImage:
             return BlockLayout03
         if self.hitter.set.is_04_05:
             return BlockLayout0405
+        if self.hitter.set.is_showdown_bot:
+            return BlockLayoutClassicExpanded
         raise NotImplementedError(f"The {self.hitter.set.value} two-way card layout isn't built yet.")
 
     @contextmanager
@@ -1432,4 +1437,204 @@ class BlockLayout03(SideBySideLayout):
         x0, x1 = self.COLUMN_INNER
         middle_y = (name_bbox[3] + bottom_limit) / 2
         canvas.alpha_composite(total, (round((x0 + x1 - total.width) / 2), round(middle_y - total.height / 2)))
+        return canvas
+
+
+class BlockLayoutClassicExpanded(SideBySideLayout):
+    """Classic/Expanded, laid out like 2004/2005: side-by-side photos, then the native translucent box holding a
+    name row (name left, two-way total right) and a self-contained block per side: its command on the left, and
+    its metadata row (with the side's icons at the right end) over its chart on the right. The charts are scaled
+    to fit beside the command. The native footer (style, stats, set/year, bot logo) closes the box.
+    Each block is cut from its side's own composed box, so templates, chart colors and dark mode carry over."""
+
+    # NATIVE BOX GEOMETRY (BORDERED CANVAS)
+    CAP = (1560, 1670)                         # THE BOX'S ROUNDED TOP (SHADOW INCLUDED) DOWN TO WHERE ITS CORNERS END
+    CAP_EDGE_DY = 30                           # THE BOX'S VISIBLE TOP EDGE, BELOW THE CAP'S TOP
+    CAP_CONTENT = (130, 1630, 1510)            # REGION INSIDE THE CAP WHERE THE NATIVE COMMAND / NAME START (X0, Y, X1), REPAINTED PLAIN
+    FILL_Y = 1850                              # A FULL-WIDTH BOX ROW WITH NOTHING ON IT, STRETCHED DOWN THE BOX
+    META = (360, 1740, 1500, 1835)             # NATIVE METADATA ROW (PTS BOX + TEXT)
+    CHART = (150, 1866, 1500, 2042)            # NATIVE CHART ROW
+    FOOTER_Y = 2040                            # NATIVE FOOTER TOP (STYLE, STATS, SET/YEAR, BOT LOGO)
+    # TWO-WAY LAYOUT
+    CONTENT_X = 360                            # EACH SIDE'S METADATA AND CHART START HERE, RIGHT OF ITS COMMAND
+    COMMAND_CENTER_X = 245
+    META_CHART_GAP = 14
+    BLOCK_GAP = 34                             # BETWEEN THE HITTER'S BLOCK AND THE PITCHER'S
+    FOOTER_GAP = 6                             # BETWEEN THE PITCHER'S CHART AND THE FOOTER
+    NAME_ROW_HEIGHT = 120
+    NAME_ROW_TOP_GAP = 40                      # BETWEEN THE BOX'S TOP EDGE AND THE NAME ROW
+    LOGO_GAP = 20                              # KEPT BETWEEN THE LOGOS AND THE NAME / TOTAL UNDER THEM
+    ICON_SIZE, ICON_SPACING = 75, 12           # EACH SIDE'S ICONS, RIGHT ALIGNED ON ITS METADATA ROW
+    # TWO-WAY TOTAL PLATE (THE NATIVE PTS BOX'S HEIGHT AND CORNER), RIGHT ALIGNED WITH THE CHARTS
+    TOTAL_GAP = 30                             # KEPT BETWEEN THE NAME AND THE TOTAL PLATE
+    TOTAL_PLATE_HEIGHT, TOTAL_PLATE_RADIUS, TOTAL_PLATE_PADDING = 83, 16, 22
+    TOTAL_LABEL_SIZE, TOTAL_POINTS_SIZE, TOTAL_LABEL_GAP = 40, 57, 12
+    META_FONT = 'HelveticaNeueCondensedBold'
+
+    def render(self) -> Image.Image:
+        card_image = self._photos()
+        card_image.alpha_composite(self._box())
+        name_row = self._name_row()
+        card_image.alpha_composite(name_row)
+        card_image.alpha_composite(self._logos(clear_of=name_row))  # OVER THE BOX, LIKE A REGULAR CARD
+        card_image.alpha_composite(self._footer())
+        return card_image
+
+    # ---------- GEOMETRY ----------
+
+    @property
+    def chart_scale(self) -> float:
+        """The charts' scale to fit between CONTENT_X and their native right edge."""
+        x0, _, x1, _ = self.CHART
+        return (x1 - self.CONTENT_X) / (x1 - x0)
+
+    @property
+    def block_height(self) -> int:
+        _, y0, _, y1 = self.CHART
+        return self.META[3] - self.META[1] + self.META_CHART_GAP + round((y1 - y0) * self.chart_scale)
+
+    @property
+    def block_tops(self) -> tuple[int, int]:
+        """(hitter, pitcher) block tops, stacked up from the footer."""
+        pitcher_top = self.FOOTER_Y - self.FOOTER_GAP - self.block_height
+        return pitcher_top - self.BLOCK_GAP - self.block_height, pitcher_top
+
+    @property
+    def name_row_top(self) -> int:
+        return self.block_tops[0] - self.NAME_ROW_HEIGHT
+
+    @property
+    def box_edge_y(self) -> int:
+        """The grown box's visible top edge."""
+        return self.name_row_top - self.NAME_ROW_TOP_GAP
+
+    # ---------- BOX ----------
+
+    def _side_box(self, card: ShowdownPlayerCard) -> Image.Image:
+        """The side's native box (its template with the command, PTS box and chart colors) with its metadata and chart."""
+        box = card._template_image().convert('RGBA')
+        for image, color, component in (
+            (*card._metadata_image(), TemplateImageComponent.METADATA),
+            (*card._chart_image(), TemplateImageComponent.CHART),
+        ):
+            xy = self.bordered_xy(card, card.set.template_component_paste_coordinates(component, player_type=card.player_type))
+            box.paste(color, xy, image)
+        return box
+
+    def _box(self) -> Image.Image:
+        """The grown box: its rounded top, the plain fill down to the footer, and each side's metadata row and
+        scaled chart beside its command. Pieces cut from the side boxes carry the same translucent fill, so
+        they're pasted (replacing) rather than composited, which would darken the fill under them."""
+        hitter_box, pitcher_box = self._side_box(self.hitter), self._side_box(self.pitcher)
+        fill_row = hitter_box.crop((0, self.FILL_Y, self.width, self.FILL_Y + 1))
+        cap_top, cap_bottom = self.CAP
+        cap = hitter_box.crop((0, cap_top, self.width, cap_bottom))
+        content_x0, content_y, content_x1 = self.CAP_CONTENT
+        cap.paste(fill_row.crop((content_x0, 0, content_x1, 1)).resize((content_x1 - content_x0, cap_bottom - content_y)), (content_x0, content_y - cap_top))
+
+        canvas = self.blank()
+        cap_y = self.box_edge_y - self.CAP_EDGE_DY
+        canvas.paste(cap, (0, cap_y))
+        fill_y = cap_y + cap.height
+        canvas.paste(fill_row.resize((self.width, self.FOOTER_Y - fill_y)), (0, fill_y))
+        canvas.paste(pitcher_box.crop((0, self.FOOTER_Y, self.width, self.height)), (0, self.FOOTER_Y))
+
+        meta_height = self.META[3] - self.META[1]
+        for card, side_box, top in zip((self.hitter, self.pitcher), (hitter_box, pitcher_box), self.block_tops):
+            canvas.paste(side_box.crop(self.META), (self.META[0], top))
+            canvas.paste(self.scaled(side_box.crop(self.CHART), self.chart_scale), (self.CONTENT_X, top + meta_height + self.META_CHART_GAP))
+            command = card._command_image()
+            command = command.crop(command.getbbox())
+            canvas.alpha_composite(command, (self.COMMAND_CENTER_X - command.width // 2, round(top + (self.block_height - command.height) / 2)))
+            canvas.alpha_composite(self._icons(card, top + meta_height / 2))
+        return canvas
+
+    def _icons(self, card: ShowdownPlayerCard, middle_y: float) -> Image.Image:
+        """The side's icons (on a regular card they follow the name), right aligned with the chart on its metadata row."""
+        canvas = self.blank()
+        x = self.CHART[2]
+        for icon in reversed(card.icons or []):
+            image = card._icon_image_circle(icon.value, size=(self.ICON_SIZE, self.ICON_SIZE))
+            x -= image.width
+            canvas.alpha_composite(image, (x, round(middle_y - image.height / 2)))
+            x -= self.ICON_SPACING
+        return canvas
+
+    # ---------- NAME ROW ----------
+
+    def _name_row(self) -> Image.Image:
+        """The hitter's name (its icons moved to the side blocks) at the charts' left edge, and the two-way total
+        on a black plate (white in dark mode) right aligned with the charts. A long name shrinks to end before it."""
+        original_icons = self.hitter.icons
+        self.hitter.icons = []
+        try:
+            name_text, name_color = self.hitter._player_name_text_image()  # THE COLOR IS THE TEXT ITSELF
+        finally:
+            self.hitter.icons = original_icons
+        name_xy = self.bordered_xy(self.hitter, self.hitter.set.template_component_paste_coordinates(TemplateImageComponent.PLAYER_NAME))
+        name = self.layer(name_text, name_xy, name_color)
+        name_bbox = name.getbbox()
+        middle_y = self.name_row_top + self.NAME_ROW_HEIGHT / 2
+        if name_bbox is None:
+            return self._total_plate(self.blank(), middle_y)
+        name = self.shifted(name, self.CHART[0] - name_bbox[0], round(middle_y - (name_bbox[1] + name_bbox[3]) / 2))
+        canvas = self._total_plate(self.blank(), middle_y)
+        name_bbox = name.getbbox()
+        max_right_x = canvas.getbbox()[0] - self.TOTAL_GAP
+        if name_bbox[2] > max_right_x:
+            name = self.scaled_about(name, (name_bbox[0], middle_y), (max_right_x - name_bbox[0]) / (name_bbox[2] - name_bbox[0]))
+        canvas.alpha_composite(name)
+        return canvas
+
+    def _total_plate(self, canvas: Image.Image, middle_y: float) -> Image.Image:
+        """'TWO-WAY <total> PT.' on a plate the native PTS box's height, ending at the charts' right edge."""
+        label, points = 'TWO-WAY', f'{self.total_points_text} PT.'
+        label_font, points_font = self.font(self.META_FONT, self.TOTAL_LABEL_SIZE), self.font(self.META_FONT, self.TOTAL_POINTS_SIZE)
+        width = 2 * self.TOTAL_PLATE_PADDING + label_font.getlength(label) + self.TOTAL_LABEL_GAP + points_font.getlength(points)
+        x1 = self.CHART[2]
+        x0, top_y = x1 - width, middle_y - self.TOTAL_PLATE_HEIGHT / 2
+        is_dark_mode = self.hitter.image.is_dark_mode
+        plate_color, text_color = (colors.WHITE, colors.BLACK) if is_dark_mode else (colors.BLACK, colors.WHITE)
+        label_color = (90, 90, 90) if is_dark_mode else self.SILVER
+        draw = ImageDraw.Draw(canvas)
+        draw.rounded_rectangle((x0, top_y, x1, top_y + self.TOTAL_PLATE_HEIGHT), radius=self.TOTAL_PLATE_RADIUS, fill=plate_color)
+        baseline_y = middle_y + self.cap_height(points_font) / 2
+        text_x = x0 + self.TOTAL_PLATE_PADDING
+        draw.text((text_x, baseline_y), label, font=label_font, fill=label_color, anchor='ls')
+        draw.text((text_x + label_font.getlength(label) + self.TOTAL_LABEL_GAP, baseline_y), points, font=points_font, fill=text_color, anchor='ls')
+        return canvas
+
+    @staticmethod
+    def cap_height(font: ImageFont.FreeTypeFont) -> int:
+        return -font.getbbox('H', anchor='ls')[1]
+
+    # ---------- LOGOS ----------
+
+    def _logos(self, clear_of: Image.Image) -> Image.Image:
+        """The team logo and edition logo (Super Season, Rookie Season, ...) from their native spots, raised with
+        the box's top edge, and further when they'd sit on the name or total (`clear_of`) under them."""
+        canvas = self.blank()
+        if not self.hitter.image.hide_team_logo:
+            logo, logo_xy = self.hitter._team_logo_image()
+            canvas.alpha_composite(self.layer(logo, self.bordered_xy(self.hitter, logo_xy), logo))
+        canvas = self.hitter._add_additional_logo(image=canvas)
+        if canvas.getbbox() is None:
+            return canvas
+        canvas = self.shifted(canvas, 0, self.box_edge_y - (self.CAP[0] + self.CAP_EDGE_DY))
+        logos_bbox = canvas.getbbox()
+        under = clear_of.crop((logos_bbox[0], 0, logos_bbox[2], self.height)).getbbox()
+        if under is None:
+            return canvas
+        return self.shifted(canvas, 0, min(0, under[1] - self.LOGO_GAP - logos_bbox[3]))
+
+    # ---------- FOOTER ----------
+
+    def _footer(self) -> Image.Image:
+        """The native footer's pieces: style logo, set/year, stats row (split hitting | pitching), expansion."""
+        canvas = self.blank()
+        style_xy = self.bordered_xy(self.hitter, self.hitter.set.template_component_paste_coordinates(TemplateImageComponent.STYLE))
+        canvas.alpha_composite(self.shifted(self.hitter._style_image(), *style_xy))
+        canvas.alpha_composite(self.shifted(self.hitter._set_and_year_image(), *self.bordered_xy(self.hitter, (0, 0))))
+        canvas.alpha_composite(self.stats_row())
+        canvas.alpha_composite(self.year_and_expansion())
         return canvas
