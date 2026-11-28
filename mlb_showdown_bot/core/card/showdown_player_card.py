@@ -121,6 +121,7 @@ class ShowdownPlayerCard(BaseModel):
     _is_rendering_two_way: bool = False # SET WHILE RENDERING A TWO-WAY CARD, PREFERS (TWOWAY) TAGGED AUTO IMAGES
     _includes_cutout: bool = False # SET WHILE RENDERING A TWO-WAY 04/05 CARD, LOADS THE PLAIN CUTOUT ALONGSIDE THE BACKGROUND
     _photo_framing_set: Optional[Set] = None # SET WHILE RENDERING SOME TWO-WAY LAYOUTS, CROPS THE PLAYER PHOTO LIKE THIS SET'S CARDS
+    _shows_photo_background: bool = True # FALSE WHILE RENDERING A TWO-WAY 00/01 CARD, WHICH DROPS THE PHOTO'S BACKGROUND FOR THE TEAM BACKGROUND
     chart: Chart = None
     positions_list: list[Position] = []
     positions_and_defense: dict[Position, int] = {}
@@ -768,8 +769,9 @@ class ShowdownPlayerCard(BaseModel):
     def team_override_for_images(self) -> Team:
         """ Team override to use for background images and colors (ex: CC)"""
         
-        # COOPERSTOWN COLLECTION LOGO
-        if self.image.edition == Edition.COOPERSTOWN_COLLECTION or self.image.parallel == ImageParallel.GOLD_FRAME:
+        # COOPERSTOWN COLLECTION LOGO. GOLD FRAME'S IS ONLY A FALLBACK UNDER ITS PHOTO BACKGROUND, SO IT KEEPS THE TEAM WITHOUT ONE
+        is_gold_frame_over_photo_background = self.image.parallel == ImageParallel.GOLD_FRAME and self._shows_photo_background
+        if self.image.edition == Edition.COOPERSTOWN_COLLECTION or is_gold_frame_over_photo_background:
             return Team.CCC
         
         # HIDE TEAM LOGO, USE MLB
