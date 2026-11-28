@@ -5624,7 +5624,7 @@ class ShowdownPlayerCard(BaseModel):
                 bg_image = Image.new('RGBA', (x_size, 38), color=colors.BLACK)
                 y_text_offset = 2
             case Set._2003:
-                x_size = 565
+                x_size = 565 if len(sections or []) <= 1 else 850 # TWO-WAY CARDS SHARE THE BAR BETWEEN BOTH SIDES
                 bg_image = Image.new('RGBA', (x_size, 45), color="#E2E2E2")
                 y_text_offset = 0
             case Set._2004 | Set._2005:

@@ -9,6 +9,9 @@ both cards' own render helpers (templates, metadata, chart, player images) and r
 - 2002: the photos split side by side under the native frame, and both native command boxes sit side by
   side along the bottom (pitcher in its native spot, hitter left of it) over a strip with the set/year box,
   bot logo and legal text. The name column ends on the pitcher box, with the two-way total above the name.
+- 2003: like 2002, both native command boxes side by side along the bottom (raised and cut under their last
+  result row, since they run off the card), with the year box, bot logo and legal text in a strip under them.
+  The name keeps the top of the name column, with the two-way total level under it, above the logos.
 - 2004/2005: the photos split side by side, and the bottom bands become one name band plus a
   self-contained block per side (command badge | metadata / ranges / results).
 
@@ -46,7 +49,7 @@ class PlayerImageGroups(NamedTuple):
 class TwoWayCardImage:
     """Renders the image for a two-way card, choosing the layout for the card's set."""
 
-    SUPPORTED_SETS: frozenset[Set] = frozenset([Set._2000, Set._2001, Set._2002, Set._2004, Set._2005])
+    SUPPORTED_SETS: frozenset[Set] = frozenset([Set._2000, Set._2001, Set._2002, Set._2003, Set._2004, Set._2005])
     # BUILT AROUND ONE FRAMED PHOTO WINDOW, WHICH THE 00/01 SPLIT CARD DOESN'T HAVE
     UNSUPPORTED_PARALLELS_00_01: frozenset[ImageParallel] = frozenset([ImageParallel.BREAKOUT, ImageParallel.BOOSTER])
 
@@ -87,6 +90,8 @@ class TwoWayCardImage:
             return SplitLayout0001
         if self.hitter.set == Set._2002:
             return BlockLayout02
+        if self.hitter.set == Set._2003:
+            return BlockLayout03
         return BlockLayout0405
 
     @contextmanager
@@ -274,6 +279,53 @@ class TwoWayLayout:
     @property
     def total_points_text(self) -> str:
         return f"{self.hitter.points + self.pitcher.points}"
+
+    # ---------- VERTICAL TOTAL (02/03 NAME COLUMNS) ----------
+
+    TOTAL_LABEL_SIZE, TOTAL_POINTS_SIZE = 54, 84
+
+    def total_fonts(self, scale: float) -> tuple[ImageFont.FreeTypeFont, ImageFont.FreeTypeFont]:
+        return self.font(self.OBLIQUE, round(self.TOTAL_LABEL_SIZE * scale)), self.font(self.OBLIQUE, round(self.TOTAL_POINTS_SIZE * scale))
+
+    def total_length(self, scale: float) -> float:
+        """Length of 'TWO-WAY <total> PT.' at `scale`."""
+        label_font, points_font = self.total_fonts(scale)
+        return label_font.getlength('TWO-WAY ') + points_font.getlength(f'{self.total_points_text} PT.')
+
+    def fitted_total_scale(self, space: float, min_scale: float = 0.6) -> float:
+        """Largest scale (in 0.05 steps, down to `min_scale`) whose total fits in `space`."""
+        scale = 1.0
+        while scale > min_scale and self.total_length(scale) > space:
+            scale -= 0.05
+        return max(scale, min_scale)
+
+    def vertical_total(self, scale: float, color) -> Image.Image:
+        """'TWO-WAY <total> PT.' on a shared baseline, turned to read bottom to top like the 02/03 names."""
+        label_font, points_font = self.total_fonts(scale)
+        label, points = 'TWO-WAY ', f'{self.total_points_text} PT.'
+        top, bottom = points_font.getbbox(points, anchor='ls')[1], points_font.getbbox(points, anchor='ls')[3]
+        text = Image.new('RGBA', (math.ceil(self.total_length(scale)), bottom - top + 10), (0, 0, 0, 0))
+        draw = ImageDraw.Draw(text)
+        draw.text((0, 5 - top), label, font=label_font, fill=color, anchor='ls')
+        draw.text((label_font.getlength(label), 5 - top), points, font=points_font, fill=color, anchor='ls')
+        return text.rotate(90, expand=True)
+
+    def stacked_total(self, max_width: int, color) -> Image.Image:
+        """'TWO-WAY' over '<total> PT.', centered, shrunk to fit `max_width` (for a name column wide enough to
+        hold it level, ex: 2003)."""
+        label, points = 'TWO-WAY', f'{self.total_points_text} PT.'
+        scale = min(1.0, max_width / max(self.total_fonts(1.0)[0].getlength(label), self.total_fonts(1.0)[1].getlength(points)))
+        label_font, points_font = self.total_fonts(scale)
+        lines = [(label, label_font), (points, points_font)]
+        heights = [font.getbbox(text, anchor='ls')[3] - font.getbbox(text, anchor='ls')[1] for text, font in lines]
+        gap = round(12 * scale)
+        text = Image.new('RGBA', (max_width, sum(heights) + gap + 10), (0, 0, 0, 0))
+        draw = ImageDraw.Draw(text)
+        y = 5
+        for (line, font), height in zip(lines, heights):
+            draw.text((max_width / 2, y - font.getbbox(line, anchor='ls')[1]), line, font=font, fill=color, anchor='ms')
+            y += height + gap
+        return text.crop(text.getbbox())
 
 
 class SplitLayout0001(TwoWayLayout):
@@ -1147,33 +1199,200 @@ class BlockLayout02(SideBySideLayout):
         if name_bbox is None:
             return canvas
         center_x = (name_bbox[0] + name_bbox[2]) / 2
-
-        def total_fonts(scale: float) -> tuple[ImageFont.FreeTypeFont, ImageFont.FreeTypeFont]:
-            return self.font(self.OBLIQUE, round(54 * scale)), self.font(self.OBLIQUE, round(84 * scale))
-
-        label, total = 'TWO-WAY ', f'{self.total_points_text} PT.'
-        total_length = lambda fonts: fonts[0].getlength(label) + fonts[1].getlength(total)
         space = lambda: name_bbox[1] - self.TOTAL_GAP - self.TOTAL_TOP_Y
 
-        # SHRINK THE NAME WHEN EVEN THE SMALLEST TOTAL DOESN'T FIT ABOVE IT
-        shortfall = total_length(total_fonts(self.TOTAL_MIN_SCALE)) - space()
+        shortfall = self.total_length(self.TOTAL_MIN_SCALE) - space()
         if shortfall > 0:
-            name_scale = 1 - shortfall / (name_bbox[3] - name_bbox[1])
-            canvas = self.scaled_about(canvas, (center_x, name_bbox[3]), name_scale)
+            canvas = self.scaled_about(canvas, (center_x, name_bbox[3]), 1 - shortfall / (name_bbox[3] - name_bbox[1]))
             name_bbox = canvas.getbbox()
 
-        scale = 1.0
-        while scale > self.TOTAL_MIN_SCALE and total_length(total_fonts(scale)) > space():
-            scale -= 0.05
-        label_font, total_font = total_fonts(max(scale, self.TOTAL_MIN_SCALE))
-        length = total_length((label_font, total_font))
-
-        # DRAWN LEFT TO RIGHT ON A SHARED BASELINE, THEN TURNED TO READ BOTTOM TO TOP
-        top, bottom = total_font.getbbox(total, anchor='ls')[1], total_font.getbbox(total, anchor='ls')[3]
-        text = Image.new('RGBA', (math.ceil(length), bottom - top + 10), (0, 0, 0, 0))
-        draw = ImageDraw.Draw(text)
-        draw.text((0, 5 - top), label, font=label_font, fill=name_color, anchor='ls')
-        draw.text((label_font.getlength(label), 5 - top), total, font=total_font, fill=name_color, anchor='ls')
-        text = text.rotate(90, expand=True)
+        text = self.vertical_total(self.fitted_total_scale(space(), self.TOTAL_MIN_SCALE), name_color)
         canvas.alpha_composite(text, (round(center_x - text.width / 2), name_bbox[1] - self.TOTAL_GAP - text.height))
+        return canvas
+
+
+class BlockLayout03(SideBySideLayout):
+    """2003: side-by-side photos under the native frame, and both native command boxes side by side along
+    the bottom (pitcher in the native spot, hitter left of it, cut at the card's edge), raised and cut just
+    under their last result row. Under them: the year box and expansion logo (under the stats row when there
+    is one), then the bot logo and legal text. The name keeps the top of the name column, with the two-way
+    total level under it, above the logos sitting on the boxes."""
+
+    BOX = (888, 1458, 1644, 2150)              # NATIVE COMMAND BOX, CUT JUST UNDER ITS LAST RESULT ROW (IT RUNS OFF THE CARD)
+    BOXES_DY = -150
+    BOX_GAP = 30
+    LOGO_GAP = 25
+    YEAR_BOX = (140, 1845, 315, 1898)          # NATIVE YEAR / SET NUMBER BOXES
+    LEGAL_BOX = (140, 1945, 860, 2144)         # NATIVE LEGAL TEXT (TRANSLUCENT WHITE OVER THE PHOTO)
+    LEGAL_SCALE = 0.72
+    STRIP_GAP = 26                             # BETWEEN THE ITEMS IN THE STRIP
+    STRIP_PADDING = 10                         # KEPT ABOVE AND BELOW THE STRIP'S CONTENT
+    STRIP_ROW_GAP = 8                          # BETWEEN THE STATS ROW AND THE LOGOS ROW UNDER IT
+    TOTAL_GAP = 30
+    COLUMN_X = 1320                            # NAME COLUMN'S LEFT EDGE (ITS WHITE LINES), FOR LOGOS THAT CROWD IT
+    COLUMN_INNER = (1383, 1572)                # THE COLUMN'S BLACK, TO THE CARD'S TRIM
+    TOTAL_MARGIN = 16                          # KEPT ON EACH SIDE OF THE TOTAL IN THE COLUMN
+
+    def render(self) -> Image.Image:
+        card_image = self._photos()
+        card_image.alpha_composite(self.hitter_template.crop((0, 0, self.width, self.BOX[1] + self.BOXES_DY)))
+        logos = self._logos()
+        card_image.alpha_composite(logos)
+        for card, dx in ((self.hitter, self.hitter_box_dx), (self.pitcher, 0)):
+            card_image.alpha_composite(self._box(card, dx))
+        card_image.alpha_composite(self._strip())
+        card_image.alpha_composite(self._name_and_total(bottom_limit=self._column_bottom_limit(logos)))
+        return card_image
+
+    @cached_property
+    def hitter_template(self) -> Image.Image:
+        return self.hitter._template_image().convert('RGBA')
+
+    @property
+    def trim_right(self) -> int:
+        return self.width - self.padding
+
+    @property
+    def hitter_box_dx(self) -> int:
+        return -(self.trim_right - self.BOX[0] + self.BOX_GAP)
+
+    @property
+    def boxes_top_y(self) -> int:
+        return self.BOX[1] + self.BOXES_DY
+
+    @property
+    def boxes_bottom_y(self) -> int:
+        return self.BOX[3] + self.BOXES_DY
+
+    # ---------- LOGOS ----------
+
+    def _logos(self) -> Image.Image:
+        """The team logo (in the name column) and any edition logo, moved together to sit just above the raised
+        boxes, like the team logo sits on a regular card's box. That leaves the name column the most room. Logos
+        that would crowd the total under the name (ex: Super Season) slide left out of the column."""
+        logos = self.blank()
+        if not self.hitter.image.hide_team_logo:
+            logo, logo_xy = self.hitter._team_logo_image()
+            logos.alpha_composite(self.layer(logo, self.bordered_xy(self.hitter, logo_xy), logo))
+        logos = self.hitter._add_additional_logo(image=logos)
+        bbox = logos.getbbox()
+        if bbox is None:
+            return logos
+        logos = self.shifted(logos, 0, self.boxes_top_y - self.LOGO_GAP - bbox[3])
+        if self._column_space(self._column_bottom_limit(logos)) < self.total_image.height:
+            logos = self.shifted(logos, self.COLUMN_X - self.LOGO_GAP - bbox[2], 0)
+        return logos
+
+    # ---------- COMMAND BOXES ----------
+
+    def _box(self, card: ShowdownPlayerCard, dx: int) -> Image.Image:
+        """The side's native command box (its template with its command, metadata, icons and chart), cut under
+        its last result row and moved by (dx, BOXES_DY). The hitter's is cut at the card's edge too, where the
+        pitcher's starts."""
+        box = (self.hitter_template if card is self.hitter else card._template_image().convert('RGBA')).copy()
+        for image, color, component in (
+            (*card._metadata_image(), TemplateImageComponent.METADATA),
+            (*card._chart_image(), TemplateImageComponent.CHART),
+        ):
+            xy = self.bordered_xy(card, card.set.template_component_paste_coordinates(component, player_type=card.player_type))
+            box.paste(color, xy, image)
+        box = card._add_icons_to_image(box)
+        x0, y0, x1, y1 = self.BOX
+        if card is self.hitter:
+            x1 = self.trim_right
+        canvas = self.blank()
+        canvas.alpha_composite(box.crop((x0, y0, x1, y1)), (x0 + dx, y0 + self.BOXES_DY))
+        return canvas
+
+    # ---------- STRIP ----------
+
+    @cached_property
+    def native_bottom(self) -> Image.Image:
+        """The hitter template's bottom-left pieces (year box, bot logo, legal text) with the set/year text."""
+        native = self.hitter_template.copy()
+        native.alpha_composite(self.shifted(self.hitter._set_and_year_image(), *self.bordered_xy(self.hitter, (0, 0))))
+        return native
+
+    def _strip(self) -> Image.Image:
+        """The strip under the boxes. On the right, the bot logo then the legal text (right aligned under the
+        pitcher box). On the left, the year box and expansion logo (TD, PR), under the stats row (split / stat
+        highlights) when the card has one, which shrinks only when it can't fit."""
+        canvas = self.blank()
+        top, bottom = self.boxes_bottom_y + self.STRIP_PADDING, self.height - self.padding - self.STRIP_PADDING
+        middle_y = (top + bottom) / 2
+
+        def place_right_to_left(image: Image.Image, right_x: int) -> int:
+            """Paste `image` ending at `right_x`, vertically centered; returns its left x."""
+            canvas.alpha_composite(image, (right_x - image.width, round(middle_y - image.height / 2)))
+            return right_x - image.width
+
+        x = self.trim_right - self.STRIP_GAP
+        legal = self.native_bottom.crop(self.LEGAL_BOX)
+        if legal.getbbox():
+            x = place_right_to_left(self.scaled(legal.crop(legal.getbbox()), self.LEGAL_SCALE), x) - self.STRIP_GAP
+        x = place_right_to_left(self.hitter._bot_logo_img().convert('RGBA'), x) - self.STRIP_GAP
+        left_x, left_width = self.YEAR_BOX[0], x - self.YEAR_BOX[0]
+
+        items = [self.native_bottom.crop(self.YEAR_BOX)]
+        expansion = self.hitter._expansion_layer()
+        if expansion:
+            items.append(expansion[0])
+        items = [item.crop(item.getbbox()) for item in items if item.getbbox()]
+        items_height = max(item.height for item in items)
+
+        row = self.stats_row()
+        if row.getbbox():
+            row = row.crop(row.getbbox())
+            scale = min(1.0, left_width / row.width, (bottom - top - items_height - self.STRIP_ROW_GAP) / row.height)
+            row = self.scaled(row, scale) if scale < 1 else row
+            group_top = round(middle_y - (row.height + self.STRIP_ROW_GAP + items_height) / 2)
+            canvas.alpha_composite(row, (left_x, group_top))
+            middle_y = group_top + row.height + self.STRIP_ROW_GAP + items_height / 2
+
+        for item in items:
+            canvas.alpha_composite(item, (left_x, round(middle_y - item.height / 2)))
+            left_x += item.width + self.STRIP_GAP
+        return canvas
+
+    # ---------- NAME COLUMN ----------
+
+    def _column_bottom_limit(self, logos: Image.Image) -> int:
+        """How far down the name column the total can reach: the top of the logos in the column, else the boxes."""
+        bbox = logos.crop((self.COLUMN_X, 0, self.width, self.boxes_top_y)).getbbox()
+        return bbox[1] if bbox else self.boxes_top_y
+
+    @cached_property
+    def name_layer(self) -> tuple[Image.Image, object]:
+        """The native name at the top of the column, and its color."""
+        name_text, name_color = self.hitter._player_name_text_image()
+        name_xy = self.bordered_xy(self.hitter, self.hitter.set.template_component_paste_coordinates(TemplateImageComponent.PLAYER_NAME))
+        return self.layer(name_text, name_xy, name_color), name_color
+
+    def _column_space(self, bottom_limit: int) -> float:
+        """Room for the total between the native name and `bottom_limit`."""
+        name_bbox = self.name_layer[0].getbbox()
+        return bottom_limit - self.TOTAL_GAP - ((name_bbox[3] if name_bbox else 0) + self.TOTAL_GAP)
+
+    @cached_property
+    def total_image(self) -> Image.Image:
+        x0, x1 = self.COLUMN_INNER
+        return self.stacked_total(x1 - x0 - 2 * self.TOTAL_MARGIN, self.name_layer[1])
+
+    def _name_and_total(self, bottom_limit: int) -> Image.Image:
+        """The native name at the top of the column, with the two-way total level under it, centered between
+        the name and the logo. When a long name leaves too little room, the name shrinks (from its top end)."""
+        canvas, _ = self.name_layer
+        canvas = canvas.copy()
+        name_bbox = canvas.getbbox()
+        if name_bbox is None:
+            return canvas
+        total = self.total_image
+        shortfall = total.height - self._column_space(bottom_limit)
+        if shortfall > 0:
+            center_x = (name_bbox[0] + name_bbox[2]) / 2
+            canvas = self.scaled_about(canvas, (center_x, name_bbox[1]), 1 - shortfall / (name_bbox[3] - name_bbox[1]))
+            name_bbox = canvas.getbbox()
+        x0, x1 = self.COLUMN_INNER
+        middle_y = (name_bbox[3] + bottom_limit) / 2
+        canvas.alpha_composite(total, (round((x0 + x1 - total.width) / 2), round(middle_y - total.height / 2)))
         return canvas
